@@ -1,0 +1,24 @@
+[project]
+name = "tender-killer"
+version = "0.1.0"
+description = "Personal-first, SaaS-ready parser for Moscow and Moscow Oblast small procurement sources."
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.12.3",
+    "httpx>=0.27.2",
+    "pydantic>=2.8.2",
+    "python-telegram-bot>=21.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.3",
+]
+
+[project.scripts]
+tender-killer = "tender_killer.cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
