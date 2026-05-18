@@ -59,6 +59,40 @@ def test_filter_profile_applies_region_allowlist():
     assert result.reasons == ["region_not_allowed"]
 
 
+def test_filter_profile_matches_okpd2_prefix():
+    profile = FilterProfile(keywords=(), okpd2=("17.12",))
+
+    result = TenderFilter(profile).match(tender(okpd2="17.12.14"))
+
+    assert result.matched is True
+    assert result.reasons == ["okpd2:17.12"]
+
+
+def test_filter_profile_matches_full_okpd2_code():
+    profile = FilterProfile(keywords=(), okpd2=("17.12.14",))
+
+    result = TenderFilter(profile).match(tender(okpd2="17.12.14"))
+
+    assert result.matched is True
+    assert result.reasons == ["okpd2:17.12.14"]
+
+
+def test_filter_profile_rejects_non_matching_okpd2():
+    profile = FilterProfile(keywords=(), okpd2=("27.32",))
+
+    result = TenderFilter(profile).match(tender(okpd2="17.12.14"))
+
+    assert result.matched is False
+    assert result.reasons == ["okpd2_not_allowed"]
+
+
+def test_filter_profile_rejects_completed_status_by_default():
+    result = TenderFilter(FilterProfile(keywords=("бумага",))).match(tender(status="Завершена"))
+
+    assert result.matched is False
+    assert result.reasons == ["status_completed"]
+
+
 def test_filter_profile_loads_from_json_file(tmp_path):
     path = tmp_path / "filters.json"
     path.write_text(
@@ -67,9 +101,11 @@ def test_filter_profile_loads_from_json_file(tmp_path):
                 "keywords": ["кабель", "крепеж"],
                 "exclude_keywords": ["услуги"],
                 "regions": ["Москва"],
+                "okpd2": ["17.12", "27.32.13"],
                 "min_price": 10_000,
                 "max_price": 500_000,
                 "statuses": ["active"],
+                "only_active": True,
             },
             ensure_ascii=False,
         ),
@@ -81,7 +117,8 @@ def test_filter_profile_loads_from_json_file(tmp_path):
     assert profile.keywords == ("кабель", "крепеж")
     assert profile.exclude_keywords == ("услуги",)
     assert profile.regions == ("Москва",)
+    assert profile.okpd2 == ("17.12", "27.32.13")
     assert profile.min_price == 10_000
     assert profile.max_price == 500_000
     assert profile.statuses == ("active",)
-
+    assert profile.only_active is True

@@ -17,12 +17,17 @@
     "Москва",
     "Московская область"
   ],
+  "okpd2": [
+    "17.12",
+    "27.32.13"
+  ],
   "statuses": [
     "active",
     "прием"
   ],
   "min_price": 10000,
   "max_price": 500000,
+  "only_active": true,
   "include_without_price": true,
   "include_without_deadline": true
 }

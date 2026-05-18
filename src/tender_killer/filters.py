@@ -24,8 +24,10 @@ class FilterProfile:
     exclude_keywords: tuple[str, ...] = ()
     regions: tuple[str, ...] = ()
     statuses: tuple[str, ...] = ()
+    okpd2: tuple[str, ...] = ()
     min_price: float | None = None
     max_price: float | None = None
+    only_active: bool = True
     include_without_price: bool = True
     include_without_deadline: bool = True
 
@@ -82,14 +84,16 @@ class FilterProfile:
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any]) -> "FilterProfile":
-        keywords = tuple(_clean_list(data.get("keywords"))) or cls.DEFAULT_KEYWORDS
+        keyword_source = data.get("keywords", cls.DEFAULT_KEYWORDS)
         return cls(
-            keywords=keywords,
+            keywords=tuple(_clean_list(keyword_source)),
             exclude_keywords=tuple(_clean_list(data.get("exclude_keywords", data.get("exclude", ())))),
             regions=tuple(_clean_list(data.get("regions", ()))),
             statuses=tuple(_clean_list(data.get("statuses", ()))),
+            okpd2=tuple(_clean_list(data.get("okpd2", data.get("okpd2_codes", ())))),
             min_price=_optional_float(data.get("min_price")),
             max_price=_optional_float(data.get("max_price")),
+            only_active=bool(data.get("only_active", True)),
             include_without_price=bool(data.get("include_without_price", True)),
             include_without_deadline=bool(data.get("include_without_deadline", True)),
         )
@@ -104,6 +108,7 @@ class TenderFilter:
         )
         self.regions = tuple(region.lower() for region in self.profile.regions)
         self.statuses = tuple(status.lower() for status in self.profile.statuses)
+        self.okpd2_codes = tuple(_normalize_okpd2(code) for code in self.profile.okpd2)
         self.reason_labels = {"кабел": "кабель"}
 
     def match(self, tender: Tender) -> FilterResult:
@@ -117,8 +122,13 @@ class TenderFilter:
         if self._region_rejected(tender):
             return FilterResult(False, ["region_not_allowed"])
 
-        if self._status_rejected(tender):
-            return FilterResult(False, ["status_not_allowed"])
+        status_reason = self._status_rejected(tender)
+        if status_reason:
+            return FilterResult(False, [status_reason])
+
+        okpd2_result = self._okpd2_result(tender)
+        if okpd2_result and not okpd2_result.matched:
+            return okpd2_result
 
         haystack = self._haystack(tender)
         for keyword in self.exclude_keywords:
@@ -130,6 +140,8 @@ class TenderFilter:
             for keyword in self.keywords
             if self._keyword_matches(keyword, haystack)
         ]
+        if okpd2_result:
+            reasons.extend(okpd2_result.reasons)
         return FilterResult(bool(reasons), reasons)
 
     def _haystack(self, tender: Tender) -> str:
@@ -170,11 +182,24 @@ class TenderFilter:
         haystack = " ".join(part for part in (tender.region, tender.delivery_place) if part).lower()
         return not any(region in haystack for region in self.regions)
 
-    def _status_rejected(self, tender: Tender) -> bool:
+    def _status_rejected(self, tender: Tender) -> str | None:
+        if self.profile.only_active and _is_completed_status(tender.status):
+            return "status_completed"
         if not self.statuses or not tender.status:
-            return False
+            return None
         status = tender.status.lower()
-        return not any(allowed in status for allowed in self.statuses)
+        return None if any(allowed in status for allowed in self.statuses) else "status_not_allowed"
+
+    def _okpd2_result(self, tender: Tender) -> FilterResult | None:
+        if not self.okpd2_codes:
+            return None
+        tender_code = _normalize_okpd2(tender.okpd2 or "")
+        if not tender_code:
+            return FilterResult(False, ["okpd2_missing"])
+        for allowed_code in self.okpd2_codes:
+            if _okpd2_matches(allowed_code, tender_code):
+                return FilterResult(True, [f"okpd2:{allowed_code}"])
+        return FilterResult(False, ["okpd2_not_allowed"])
 
     def _is_expired(self, tender: Tender) -> bool:
         if tender.deadline_at is None:
@@ -204,6 +229,34 @@ def _optional_float(value: Any) -> float | None:
     if value in (None, ""):
         return None
     return float(value)
+
+
+def _normalize_okpd2(value: str) -> str:
+    return value.strip().replace(",", ".")
+
+
+def _okpd2_matches(allowed_code: str, tender_code: str) -> bool:
+    return tender_code == allowed_code or tender_code.startswith(f"{allowed_code}.")
+
+
+def _is_completed_status(status: str | None) -> bool:
+    if not status:
+        return False
+    normalized = status.lower().replace("ё", "е")
+    completed_markers = (
+        "заверш",
+        "проведена",
+        "закрыт",
+        "отмен",
+        "отклон",
+        "архив",
+        "completed",
+        "closed",
+        "cancel",
+        "finished",
+        "done",
+    )
+    return any(marker in normalized for marker in completed_markers)
 
 
 def _soft_stem(value: str) -> str:
