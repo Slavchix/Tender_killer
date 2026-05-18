@@ -1,0 +1,5 @@
+# Local document exports
+memory/*.docx
+memory/*.pdf
+memory/~$*
+
