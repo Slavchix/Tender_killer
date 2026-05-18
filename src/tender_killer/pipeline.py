@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 
 from tender_killer.adapters.base import BaseAdapter
-from tender_killer.filters import MaterialFilter
+from tender_killer.filters import TenderFilter
 from tender_killer.storage import TenderStore
 from tender_killer.telegram import TelegramNotifier, build_tender_message
 
@@ -25,7 +25,7 @@ class TenderPipeline:
         self,
         adapters: list[BaseAdapter],
         store: TenderStore,
-        material_filter: MaterialFilter,
+        material_filter: TenderFilter,
         notifier: TelegramNotifier,
     ) -> None:
         self.adapters = adapters
@@ -69,4 +69,3 @@ class TenderPipeline:
             notified=notified,
             failed_sources=failed_sources,
         )
-

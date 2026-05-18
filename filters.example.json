@@ -1,0 +1,28 @@
+{
+  "keywords": [
+    "бумага",
+    "кабель",
+    "крепеж",
+    "хозтовары",
+    "сантехника",
+    "электрика",
+    "стройматериалы"
+  ],
+  "exclude_keywords": [
+    "услуги",
+    "обслуживание",
+    "ремонт"
+  ],
+  "regions": [
+    "Москва",
+    "Московская область"
+  ],
+  "statuses": [
+    "active",
+    "прием"
+  ],
+  "min_price": 10000,
+  "max_price": 500000,
+  "include_without_price": true,
+  "include_without_deadline": true
+}

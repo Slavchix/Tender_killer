@@ -31,8 +31,8 @@ def test_material_filter_accepts_broad_material_keywords():
     result = MaterialFilter().match(make_tender())
 
     assert result.matched is True
-    assert "кабель" in result.reasons
-    assert "крепеж" in result.reasons
+    assert "keyword:кабель" in result.reasons
+    assert "keyword:крепеж" in result.reasons
 
 
 def test_material_filter_rejects_unrelated_services():
@@ -54,4 +54,3 @@ def test_material_filter_rejects_expired_tenders():
 
     assert result.matched is False
     assert "deadline_expired" in result.reasons
-

@@ -13,6 +13,7 @@ class Settings:
     dry_run: bool
     moscow_url: str
     mosreg_url: str
+    filter_profile_path: Path | None
     request_timeout_seconds: float
 
     @classmethod
@@ -30,6 +31,8 @@ class Settings:
                 "TENDER_KILLER_MOSREG_URL",
                 "https://market.mosreg.ru/api/Purchase/Get",
             ),
+            filter_profile_path=(
+                Path(filter_path) if (filter_path := os.getenv("TENDER_KILLER_FILTERS")) else None
+            ),
             request_timeout_seconds=float(os.getenv("TENDER_KILLER_TIMEOUT", "20")),
         )
-

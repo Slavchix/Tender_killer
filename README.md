@@ -33,6 +33,39 @@ python -m pip install -e ".[dev]"
 - `TENDER_KILLER_DRY_RUN=1` - печатать сообщения вместо отправки.
 - `TENDER_KILLER_MOSCOW_URL` - переопределить URL источника Москвы.
 - `TENDER_KILLER_MOSREG_URL` - переопределить URL источника МО.
+- `TENDER_KILLER_FILTERS` - путь к JSON-файлу с пользовательскими фильтрами.
+
+## Пользовательские фильтры
+
+Фильтры можно настроить через JSON-файл. Пример лежит в `filters.example.json`.
+
+```json
+{
+  "keywords": ["бумага", "кабель", "крепеж"],
+  "exclude_keywords": ["услуги", "обслуживание"],
+  "regions": ["Москва", "Московская область"],
+  "min_price": 10000,
+  "max_price": 500000,
+  "statuses": ["active", "прием"],
+  "include_without_price": true,
+  "include_without_deadline": true
+}
+```
+
+Программа ищет по названию, категории, адресу поставки, региону, статусу и ОКПД2. Ключевые слова понимаются мягко: `бумага` найдет закупку с текстом `бумаги`, а `кабель` - `кабеля`.
+
+Запуск с файлом фильтров:
+
+```powershell
+tender-killer --filters filters.example.json --dry-run
+```
+
+Или через переменную окружения:
+
+```powershell
+$env:TENDER_KILLER_FILTERS="filters.example.json"
+tender-killer --dry-run
+```
 
 ## Запуск
 
@@ -55,4 +88,3 @@ tender-killer
 ```powershell
 pytest
 ```
-
