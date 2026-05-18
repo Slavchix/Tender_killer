@@ -23,6 +23,7 @@ class FilterProfile:
     keywords: tuple[str, ...]
     exclude_keywords: tuple[str, ...] = ()
     regions: tuple[str, ...] = ()
+    sources: tuple[str, ...] = ("moscow", "mosreg")
     statuses: tuple[str, ...] = ()
     okpd2: tuple[str, ...] = ()
     min_price: float | None = None
@@ -89,6 +90,7 @@ class FilterProfile:
             keywords=tuple(_clean_list(keyword_source)),
             exclude_keywords=tuple(_clean_list(data.get("exclude_keywords", data.get("exclude", ())))),
             regions=tuple(_clean_list(data.get("regions", ()))),
+            sources=tuple(_clean_list(data.get("sources", ("moscow", "mosreg")))),
             statuses=tuple(_clean_list(data.get("statuses", ()))),
             okpd2=tuple(_clean_list(data.get("okpd2", data.get("okpd2_codes", ())))),
             min_price=_optional_float(data.get("min_price")),

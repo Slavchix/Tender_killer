@@ -44,6 +44,7 @@ python -m pip install -e ".[dev]"
   "keywords": ["бумага", "кабель", "крепеж"],
   "exclude_keywords": ["услуги", "обслуживание"],
   "regions": ["Москва", "Московская область"],
+  "sources": ["moscow", "mosreg"],
   "okpd2": ["17.12", "27.32.13"],
   "min_price": 10000,
   "max_price": 500000,
@@ -60,6 +61,11 @@ python -m pip install -e ".[dev]"
 
 `only_active` по умолчанию включен: завершенные, закрытые, отмененные и просроченные закупки не отправляются в Telegram.
 
+Площадки v1:
+
+- `moscow` - Портал поставщиков Москвы `zakupki.mos.ru`.
+- `mosreg` - Электронный магазин МО `market.mosreg.ru`.
+
 Запуск с файлом фильтров:
 
 ```powershell
@@ -72,6 +78,26 @@ tender-killer --filters filters.example.json --dry-run
 $env:TENDER_KILLER_FILTERS="filters.example.json"
 tender-killer --dry-run
 ```
+
+## Telegram-бот
+
+Бот может менять тот же файл фильтров и запускать поиск.
+
+```powershell
+$env:TELEGRAM_BOT_TOKEN="..."
+$env:TENDER_KILLER_FILTERS="filters.json"
+tender-killer-bot
+```
+
+Команды:
+
+- `/filters` - показать текущие фильтры.
+- `/region Москва, Московская область` - задать регионы.
+- `/price 10000 500000` - задать диапазон цены.
+- `/okpd2 17.12, 27.32.13` - задать ОКПД2.
+- `/sources moscow, mosreg` - выбрать площадки.
+- `/active on` - искать только активные закупки.
+- `/search` - запустить поиск и отправить новые карточки в этот чат.
 
 ## Запуск
 

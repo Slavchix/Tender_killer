@@ -101,6 +101,7 @@ def test_filter_profile_loads_from_json_file(tmp_path):
                 "keywords": ["кабель", "крепеж"],
                 "exclude_keywords": ["услуги"],
                 "regions": ["Москва"],
+                "sources": ["moscow", "mosreg"],
                 "okpd2": ["17.12", "27.32.13"],
                 "min_price": 10_000,
                 "max_price": 500_000,
@@ -117,6 +118,7 @@ def test_filter_profile_loads_from_json_file(tmp_path):
     assert profile.keywords == ("кабель", "крепеж")
     assert profile.exclude_keywords == ("услуги",)
     assert profile.regions == ("Москва",)
+    assert profile.sources == ("moscow", "mosreg")
     assert profile.okpd2 == ("17.12", "27.32.13")
     assert profile.min_price == 10_000
     assert profile.max_price == 500_000

@@ -16,6 +16,7 @@ venv/
 
 # Local runtime data
 data/
+filters.json
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
