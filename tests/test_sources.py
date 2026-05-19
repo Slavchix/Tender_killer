@@ -1,6 +1,8 @@
 from tender_killer.config import Settings
 from tender_killer.filter_store import FilterProfileCollection, NamedFilterProfile
 from tender_killer.filters import FilterProfile
+from tender_killer.adapters.base import AdapterError
+from tender_killer.adapters.moscow import MoscowSupplierPortalAdapter
 from tender_killer.sources import build_adapters, build_adapters_for_collection
 
 
@@ -57,3 +59,14 @@ def test_build_adapters_for_collection_skips_sources_when_no_active_profiles(tmp
     adapters = build_adapters_for_collection(collection, settings(tmp_path))
 
     assert adapters == []
+
+
+def test_moscow_adapter_treats_known_entity_endpoint_error_as_empty(monkeypatch):
+    adapter = MoscowSupplierPortalAdapter("https://zakupki.mos.ru/newapi/api/Auction/Get")
+
+    def fail_fetch_text(url):
+        raise AdapterError(f"{url}: HTTP 400 Bad Request. {{\"message\":\"Не указан идентификатор КС.\"}}")
+
+    monkeypatch.setattr(adapter, "fetch_text", fail_fetch_text)
+
+    assert adapter.fetch() == []

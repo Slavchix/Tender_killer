@@ -16,6 +16,14 @@ class MoscowSupplierPortalAdapter(BaseAdapter):
     def default_url(self) -> str:
         return "https://zakupki.mos.ru/newapi/api/Auction/Get"
 
+    def fetch(self) -> list[Tender]:
+        try:
+            return super().fetch()
+        except AdapterError as exc:
+            if "Не указан идентификатор КС" in str(exc):
+                return []
+            raise
+
     def normalize_payload(self, payload: dict[str, Any]) -> Tender:
         external_id = str(
             first_present(payload, "id", "Id", "auctionId", "number", "registryNumber") or ""
