@@ -18,6 +18,7 @@ dev = [
 [project.scripts]
 tender-killer = "tender_killer.cli:main"
 tender-killer-bot = "tender_killer.bot:main"
+tender-killer-api = "tender_killer.web_api:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
