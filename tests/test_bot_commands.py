@@ -1,10 +1,14 @@
 from tender_killer.bot import (
     apply_filter_command,
+    apply_profile_edit,
     format_filter_profile,
+    format_profiles,
     format_search_summary,
+    format_sources_status,
     parse_csv_args,
 )
-from tender_killer.filter_store import FilterProfileStore
+from tender_killer.filter_store import FilterProfileCollection, FilterProfileStore, NamedFilterProfile
+from tender_killer.filters import FilterProfile
 from tender_killer.pipeline import PipelineStats
 
 
@@ -60,8 +64,60 @@ def test_format_search_summary_shows_failed_source_names():
             notified=1,
             failed_sources=1,
             failed_source_names=("moscow_supplier_portal",),
+            failed_source_errors=("moscow_supplier_portal: HTTP Error 500",),
         )
     )
 
     assert "FailedSources=1" in text
     assert "Упали источники: moscow_supplier_portal" in text
+    assert "moscow_supplier_portal: HTTP Error 500" in text
+
+
+def test_format_profiles_shows_active_and_disabled_profiles():
+    collection = FilterProfileCollection(
+        profiles=(
+            NamedFilterProfile("paper", "Бумага", FilterProfile(keywords=("бумага",))),
+            NamedFilterProfile("cable", "Кабель", FilterProfile(keywords=("кабель",))),
+        ),
+        active_profile_ids=("paper",),
+    )
+
+    text = format_profiles(collection)
+
+    assert "on Бумага [paper]" in text
+    assert "off Кабель [cable]" in text
+
+
+def test_format_sources_status_shows_last_stats_and_errors():
+    text = format_sources_status(
+        PipelineStats(
+            fetched=0,
+            saved=0,
+            matched=0,
+            notified=0,
+            failed_sources=1,
+            failed_source_errors=("moscow_supplier_portal: HTTP Error 500",),
+        )
+    )
+
+    assert "Последний запуск" in text
+    assert "moscow_supplier_portal: HTTP Error 500" in text
+
+
+def test_apply_profile_edit_updates_named_profile(tmp_path):
+    store = FilterProfileStore(tmp_path / "filters.json")
+    profile = store.add_profile("Бумага", keywords=("бумага",))
+
+    updated = apply_profile_edit(store, profile.id, "okpd2", "17.12, 17.23")
+
+    assert updated.profile.okpd2 == ("17.12", "17.23")
+
+
+def test_profile_toggle_command_disables_profile(tmp_path):
+    store = FilterProfileStore(tmp_path / "filters.json")
+    profile = store.add_profile("Бумага", keywords=("бумага",))
+
+    store.set_profile_enabled(profile.id, False)
+    collection = store.load_collection()
+
+    assert profile.id not in collection.active_profile_ids

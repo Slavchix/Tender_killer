@@ -5,6 +5,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from typing import Any
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from tender_killer.models import Tender
@@ -48,9 +49,15 @@ class BaseAdapter(ABC):
                 "Accept": "application/json,text/html;q=0.9,*/*;q=0.8",
             },
         )
-        with urlopen(request, timeout=self.timeout_seconds) as response:
-            charset = response.headers.get_content_charset() or "utf-8"
-            return response.read().decode(charset, errors="replace")
+        try:
+            with urlopen(request, timeout=self.timeout_seconds) as response:
+                charset = response.headers.get_content_charset() or "utf-8"
+                return response.read().decode(charset, errors="replace")
+        except HTTPError as exc:
+            body = exc.read(300).decode("utf-8", errors="replace").strip().replace("\n", " ")
+            raise AdapterError(f"{url}: HTTP {exc.code} {exc.reason}. {body}") from exc
+        except URLError as exc:
+            raise AdapterError(f"{url}: {exc.reason}") from exc
 
     def extract_payloads(self, raw_text: str) -> list[dict[str, Any]]:
         raw_text = raw_text.lstrip("\ufeff").strip()

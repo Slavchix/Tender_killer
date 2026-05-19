@@ -5,9 +5,10 @@ import logging
 from dataclasses import replace
 
 from tender_killer.config import Settings
-from tender_killer.filters import FilterProfile, TenderFilter
+from tender_killer.filter_store import FilterProfileCollection, FilterProfileStore, NamedFilterProfile
+from tender_killer.filters import FilterProfile, MultiProfileTenderFilter
 from tender_killer.pipeline import TenderPipeline
-from tender_killer.sources import build_adapters
+from tender_killer.sources import build_adapters_for_collection
 from tender_killer.storage import TenderStore
 from tender_killer.telegram import TelegramNotifier
 
@@ -36,16 +37,19 @@ def main() -> None:
         mosreg_url=args.mosreg_url or settings.mosreg_url,
     )
     filter_path = args.filters or settings.filter_profile_path
-    filter_profile = (
-        FilterProfile.from_json_file(filter_path)
+    filter_collection = (
+        FilterProfileStore(filter_path).load_collection()
         if filter_path
-        else FilterProfile.default()
+        else FilterProfileCollection(
+            profiles=(NamedFilterProfile("default", "Default", FilterProfile.default()),),
+            active_profile_ids=("default",),
+        )
     )
 
     pipeline = TenderPipeline(
-        adapters=build_adapters(filter_profile, settings),
+        adapters=build_adapters_for_collection(filter_collection, settings),
         store=TenderStore(database_path),
-        material_filter=TenderFilter(filter_profile),
+        material_filter=MultiProfileTenderFilter(filter_collection),
         notifier=TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id, dry_run=dry_run),
     )
     stats = pipeline.run()

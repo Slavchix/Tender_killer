@@ -5,13 +5,13 @@ import logging
 from pathlib import Path
 
 from telegram import ReplyKeyboardMarkup, Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters as tg_filters
 
 from tender_killer.config import Settings
-from tender_killer.filter_store import FilterProfileStore
-from tender_killer.filters import FilterProfile, TenderFilter
+from tender_killer.filter_store import FilterProfileCollection, FilterProfileStore, NamedFilterProfile
+from tender_killer.filters import FilterProfile, MultiProfileTenderFilter
 from tender_killer.pipeline import TenderPipeline, PipelineStats
-from tender_killer.sources import SOURCE_LABELS, build_adapters, normalize_sources
+from tender_killer.sources import SOURCE_LABELS, build_adapters_for_collection, normalize_sources
 from tender_killer.storage import TenderStore
 from tender_killer.telegram import TelegramNotifier
 
@@ -19,8 +19,10 @@ LOGGER = logging.getLogger(__name__)
 
 MENU = ReplyKeyboardMarkup(
     [
-        ["/filters", "/search"],
-        ["/active on", "/active off"],
+        ["Профили", "Запустить поиск"],
+        ["Создать профиль", "Редактировать профиль"],
+        ["Вкл/выкл профиль", "Статус источников"],
+        ["/profiles", "/sources_status"],
         ["/sources moscow, mosreg"],
         ["/region Москва, Московская область"],
         ["/price 10000 500000"],
@@ -28,6 +30,26 @@ MENU = ReplyKeyboardMarkup(
     ],
     resize_keyboard=True,
 )
+
+PROFILE_FIELDS = {
+    "Регион": "region",
+    "Цена": "price",
+    "ОКПД2": "okpd2",
+    "Площадки": "sources",
+    "Ключевые слова": "keywords",
+    "Стоп-слова": "exclude",
+    "Только активные": "active",
+}
+
+FIELD_EXAMPLES = {
+    "region": "Москва, Московская область",
+    "price": "10000 500000",
+    "okpd2": "17.12, 27.32.13",
+    "sources": "moscow, mosreg",
+    "keywords": "бумага, канцтовары",
+    "exclude": "услуги, ремонт",
+    "active": "on",
+}
 
 
 def parse_csv_args(text: str) -> tuple[str, ...]:
@@ -53,6 +75,26 @@ def apply_filter_command(store: FilterProfileStore, command: str, args: str) -> 
     if command == "active":
         return store.update(only_active=_parse_bool(args))
     raise ValueError(f"Unknown filter command: {command}")
+
+
+def apply_profile_edit(store: FilterProfileStore, profile_id: str, field: str, args: str) -> NamedFilterProfile:
+    field = field.lower()
+    if field in {"region", "regions", "регион"}:
+        return store.update_profile(profile_id, regions=parse_csv_args(args))
+    if field in {"price", "цена"}:
+        min_price, max_price = _parse_price_args(args)
+        return store.update_profile(profile_id, min_price=min_price, max_price=max_price)
+    if field in {"okpd2", "окпд2"}:
+        return store.update_profile(profile_id, okpd2=parse_csv_args(args))
+    if field in {"sources", "площадки"}:
+        return store.update_profile(profile_id, sources=normalize_sources(parse_csv_args(args)))
+    if field in {"keywords", "ключевые"}:
+        return store.update_profile(profile_id, keywords=parse_csv_args(args))
+    if field in {"exclude", "exclude_keywords", "стоп"}:
+        return store.update_profile(profile_id, exclude_keywords=parse_csv_args(args))
+    if field in {"active", "only_active", "активные"}:
+        return store.update_profile(profile_id, only_active=_parse_bool(args))
+    raise ValueError("Поле не найдено. Доступно: region, price, okpd2, sources, keywords, exclude, active.")
 
 
 def format_filter_profile(profile: FilterProfile) -> str:
@@ -104,6 +146,52 @@ async def active_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await _update_filter(update, context, "active", " ".join(context.args))
 
 
+async def profiles_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _reply(update, format_profiles(_store(context).load_collection()))
+
+
+async def profile_new_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    name = " ".join(context.args).strip()
+    if not name:
+        context.user_data["awaiting"] = "profile_new_name"
+        await _reply(update, "Введите название нового профиля, например: Бумага")
+        return
+    profile = _store(context).add_profile(name)
+    await _reply(update, f"Профиль создан: {profile.name} [{profile.id}]\n\n{format_profiles(_store(context).load_collection())}")
+
+
+async def profile_edit_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if len(context.args) < 1:
+        await _reply(update, "Формат: /profile_edit <id> <field> <value>")
+        return
+    profile_id = context.args[0]
+    if len(context.args) == 1:
+        context.user_data["editing_profile_id"] = profile_id
+        await _reply(update, "Выберите поле: region, price, okpd2, sources, keywords, exclude, active")
+        return
+    if len(context.args) < 3:
+        await _reply(update, "Формат: /profile_edit <id> <field> <value>")
+        return
+    try:
+        profile = apply_profile_edit(_store(context), profile_id, context.args[1], " ".join(context.args[2:]))
+    except ValueError as exc:
+        await _reply(update, str(exc))
+        return
+    await _reply(update, f"Профиль обновлен: {profile.name}\n\n{format_profiles(_store(context).load_collection())}")
+
+
+async def profile_toggle_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if len(context.args) != 2:
+        await _reply(update, "Формат: /profile_toggle <id> on|off")
+        return
+    try:
+        collection = _store(context).set_profile_enabled(context.args[0], _parse_bool(context.args[1]))
+    except ValueError as exc:
+        await _reply(update, str(exc))
+        return
+    await _reply(update, format_profiles(collection))
+
+
 async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.effective_chat:
         return
@@ -111,7 +199,107 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     settings: Settings = context.application.bot_data["settings"]
     store = _store(context)
     stats = await asyncio.to_thread(_run_search, settings, store, str(update.effective_chat.id))
+    context.application.bot_data["last_stats"] = stats
     await _reply(update, format_search_summary(stats))
+
+
+async def sources_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _reply(update, format_sources_status(context.application.bot_data.get("last_stats")))
+
+
+async def auto_search_loop(application: Application) -> None:
+    settings: Settings = application.bot_data["settings"]
+    store: FilterProfileStore = application.bot_data["filter_store"]
+    interval_seconds = max(settings.bot_auto_search_minutes, 1) * 60
+    while True:
+        await asyncio.sleep(interval_seconds)
+        if not settings.telegram_chat_id:
+            LOGGER.info("Skipping auto search: TELEGRAM_CHAT_ID is not set.")
+            continue
+        stats = await asyncio.to_thread(_run_search, settings, store, settings.telegram_chat_id)
+        application.bot_data["last_stats"] = stats
+        summary = format_search_summary(stats)
+        if settings.dry_run:
+            print(summary)
+        else:
+            await application.bot.send_message(
+                chat_id=settings.telegram_chat_id,
+                text=summary,
+                disable_web_page_preview=True,
+            )
+
+
+async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.message or not update.message.text:
+        return
+    text = update.message.text.strip()
+    awaiting = context.user_data.get("awaiting")
+    if awaiting == "profile_new_name":
+        context.user_data.pop("awaiting", None)
+        profile = _store(context).add_profile(text)
+        await _reply(update, f"Профиль создан: {profile.name} [{profile.id}]")
+        return
+    if awaiting == "profile_edit_value":
+        context.user_data.pop("awaiting", None)
+        profile_id = context.user_data.pop("editing_profile_id", "")
+        field = context.user_data.pop("editing_profile_field", "")
+        try:
+            profile = apply_profile_edit(_store(context), profile_id, field, text)
+        except ValueError as exc:
+            await _reply(update, str(exc))
+            return
+        await _reply(update, f"Профиль обновлен: {profile.name}\n\n{format_profile_details(profile)}")
+        return
+
+    if text == "Профили":
+        await profiles_command(update, context)
+    elif text == "Создать профиль":
+        context.user_data["awaiting"] = "profile_new_name"
+        await _reply(update, "Введите название нового профиля, например: Бумага")
+    elif text == "Редактировать профиль":
+        collection = _store(context).load_collection()
+        await _reply(
+            update,
+            "Выберите профиль для редактирования.",
+            reply_markup=_profile_action_keyboard(collection, "Редактировать"),
+        )
+    elif text == "Вкл/выкл профиль":
+        collection = _store(context).load_collection()
+        await _reply(
+            update,
+            "Выберите профиль, который нужно включить или выключить.",
+            reply_markup=_profile_action_keyboard(collection, "Вкл/выкл"),
+        )
+    elif text == "Запустить поиск":
+        await search_command(update, context)
+    elif text == "Статус источников":
+        await sources_status_command(update, context)
+    elif text.startswith("Редактировать "):
+        profile_id = text.removeprefix("Редактировать ").strip()
+        context.user_data["editing_profile_id"] = profile_id
+        await _reply(
+            update,
+            "Выберите поле, которое хотите изменить.",
+            reply_markup=_profile_field_keyboard(),
+        )
+    elif text.startswith("Вкл/выкл "):
+        profile_id = text.removeprefix("Вкл/выкл ").strip()
+        store = _store(context)
+        collection = store.load_collection()
+        enabled = profile_id not in set(collection.active_profile_ids)
+        try:
+            collection = store.set_profile_enabled(profile_id, enabled)
+        except ValueError as exc:
+            await _reply(update, str(exc))
+            return
+        await _reply(update, format_profiles(collection))
+    elif text in PROFILE_FIELDS and context.user_data.get("editing_profile_id"):
+        field = PROFILE_FIELDS[text]
+        context.user_data["editing_profile_field"] = field
+        context.user_data["awaiting"] = "profile_edit_value"
+        await _reply(update, f"Введите значение для поля `{text}`.\nПример: {FIELD_EXAMPLES[field]}")
+    else:
+        await _reply(update, "Не понял команду. Открой /profiles или /filters.")
 
 
 def format_search_summary(stats: PipelineStats) -> str:
@@ -121,6 +309,50 @@ def format_search_summary(stats: PipelineStats) -> str:
     ]
     if stats.failed_source_names:
         lines.append(f"Упали источники: {', '.join(stats.failed_source_names)}")
+    if stats.failed_source_errors:
+        lines.append("Ошибки:")
+        lines.extend(stats.failed_source_errors)
+    return "\n".join(lines)
+
+
+def format_profiles(collection: FilterProfileCollection) -> str:
+    lines = ["Профили поиска", ""]
+    active = set(collection.active_profile_ids)
+    for profile in collection.profiles:
+        marker = "on" if profile.id in active else "off"
+        lines.append(f"{marker} {profile.name} [{profile.id}]")
+        lines.append(f"  {format_profile_details(profile)}")
+    return "\n".join(lines)
+
+
+def format_profile_details(profile: NamedFilterProfile) -> str:
+    source_labels = [SOURCE_LABELS[source] for source in normalize_sources(profile.profile.sources)]
+    return "\n".join(
+        [
+            f"Регионы: {_format_list(profile.profile.regions)}",
+            f"Цена: {_format_price_range(profile.profile.min_price, profile.profile.max_price)}",
+            f"ОКПД2: {_format_list(profile.profile.okpd2)}",
+            f"Площадки: {'; '.join(source_labels)}",
+            f"Только активные: {'да' if profile.profile.only_active else 'нет'}",
+            f"Ключевые слова: {_format_list(profile.profile.keywords)}",
+            f"Стоп-слова: {_format_list(profile.profile.exclude_keywords)}",
+        ]
+    )
+
+
+def format_sources_status(stats: PipelineStats | None) -> str:
+    if stats is None:
+        return "Статус источников\n\nЗапусков еще не было."
+    lines = [
+        "Статус источников",
+        "",
+        "Последний запуск: Fetched={fetched} Saved={saved} Matched={matched} "
+        "Notified={notified} FailedSources={failed_sources}".format(**stats.__dict__),
+    ]
+    if stats.failed_source_errors:
+        lines.append("")
+        lines.append("Ошибки:")
+        lines.extend(stats.failed_source_errors)
     return "\n".join(lines)
 
 
@@ -134,11 +366,11 @@ async def _update_filter(update: Update, context: ContextTypes.DEFAULT_TYPE, com
 
 
 def _run_search(settings: Settings, store: FilterProfileStore, chat_id: str) -> PipelineStats:
-    profile = store.load()
+    collection = store.load_collection()
     pipeline = TenderPipeline(
-        adapters=build_adapters(profile, settings),
+        adapters=build_adapters_for_collection(collection, settings),
         store=TenderStore(settings.database_path),
-        material_filter=TenderFilter(profile),
+        material_filter=MultiProfileTenderFilter(collection),
         notifier=TelegramNotifier(settings.telegram_bot_token, chat_id, dry_run=settings.dry_run),
     )
     return pipeline.run()
@@ -148,9 +380,28 @@ def _store(context: ContextTypes.DEFAULT_TYPE) -> FilterProfileStore:
     return context.application.bot_data["filter_store"]
 
 
-async def _reply(update: Update, text: str) -> None:
+async def _reply(update: Update, text: str, reply_markup: ReplyKeyboardMarkup = MENU) -> None:
     if update.message:
-        await update.message.reply_text(text, reply_markup=MENU, disable_web_page_preview=True)
+        await update.message.reply_text(text, reply_markup=reply_markup, disable_web_page_preview=True)
+
+
+def _profile_action_keyboard(collection: FilterProfileCollection, action: str) -> ReplyKeyboardMarkup:
+    rows = [[f"{action} {profile.id}"] for profile in collection.profiles]
+    rows.append(["Профили", "Запустить поиск"])
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
+
+
+def _profile_field_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [
+            ["Регион", "Цена"],
+            ["ОКПД2", "Площадки"],
+            ["Ключевые слова", "Стоп-слова"],
+            ["Только активные"],
+            ["Профили", "Запустить поиск"],
+        ],
+        resize_keyboard=True,
+    )
 
 
 def _parse_price_args(args: str) -> tuple[float | None, float | None]:
@@ -195,7 +446,7 @@ def main() -> None:
     if not settings.telegram_bot_token:
         raise RuntimeError("Set TELEGRAM_BOT_TOKEN before starting the bot.")
     filter_path = settings.filter_profile_path or Path("filters.json")
-    application = Application.builder().token(settings.telegram_bot_token).build()
+    application = Application.builder().token(settings.telegram_bot_token).post_init(_post_init).build()
     application.bot_data["settings"] = settings
     application.bot_data["filter_store"] = FilterProfileStore(filter_path)
     application.add_handler(CommandHandler("start", start_command))
@@ -205,9 +456,22 @@ def main() -> None:
     application.add_handler(CommandHandler("okpd2", okpd2_command))
     application.add_handler(CommandHandler("sources", sources_command))
     application.add_handler(CommandHandler("active", active_command))
+    application.add_handler(CommandHandler("profiles", profiles_command))
+    application.add_handler(CommandHandler("profile_new", profile_new_command))
+    application.add_handler(CommandHandler("profile_edit", profile_edit_command))
+    application.add_handler(CommandHandler("profile_toggle", profile_toggle_command))
+    application.add_handler(CommandHandler("sources_status", sources_status_command))
     application.add_handler(CommandHandler("search", search_command))
+    application.add_handler(MessageHandler(tg_filters.TEXT & ~tg_filters.COMMAND, text_menu_handler))
     LOGGER.info("Starting Tender Killer bot with filter profile %s", filter_path)
     application.run_polling()
+
+
+async def _post_init(application: Application) -> None:
+    settings: Settings = application.bot_data["settings"]
+    if settings.bot_auto_search_minutes > 0:
+        LOGGER.info("Starting auto search loop: every %s minutes.", settings.bot_auto_search_minutes)
+        application.create_task(auto_search_loop(application), name="tender-killer-auto-search")
 
 
 if __name__ == "__main__":

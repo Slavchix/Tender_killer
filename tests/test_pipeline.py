@@ -52,6 +52,7 @@ def test_pipeline_continues_when_one_source_fails(tmp_path):
 
     assert stats.failed_sources == 1
     assert stats.failed_source_names == ("failing",)
+    assert stats.failed_source_errors == ("failing: source unavailable",)
     assert stats.fetched == 1
     assert stats.notified == 1
     assert len(notifier.messages) == 1

@@ -219,6 +219,21 @@ class MaterialFilter(TenderFilter):
         super().__init__(FilterProfile(keywords=keywords or FilterProfile.DEFAULT_KEYWORDS))
 
 
+class MultiProfileTenderFilter:
+    def __init__(self, collection) -> None:
+        self.collection = collection
+
+    def match(self, tender: Tender) -> FilterResult:
+        reasons: list[str] = []
+        for named_profile in self.collection.active_profiles():
+            result = TenderFilter(named_profile.profile).match(tender)
+            if not result.matched:
+                continue
+            reasons.append(f"profile:{named_profile.name}")
+            reasons.extend(result.reasons)
+        return FilterResult(bool(reasons), reasons)
+
+
 def _clean_list(value: Any) -> list[str]:
     if value is None:
         return []

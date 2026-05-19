@@ -15,6 +15,7 @@ class Settings:
     mosreg_url: str
     filter_profile_path: Path | None
     request_timeout_seconds: float
+    bot_auto_search_minutes: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -35,4 +36,5 @@ class Settings:
                 Path(filter_path) if (filter_path := os.getenv("TENDER_KILLER_FILTERS")) else None
             ),
             request_timeout_seconds=float(os.getenv("TENDER_KILLER_TIMEOUT", "20")),
+            bot_auto_search_minutes=int(os.getenv("TENDER_KILLER_AUTO_SEARCH_MINUTES", "30")),
         )
