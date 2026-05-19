@@ -20,8 +20,9 @@ LOGGER = logging.getLogger(__name__)
 MENU = ReplyKeyboardMarkup(
     [
         ["Настроить поиск", "Профили"],
-        ["Запустить поиск", "Редактировать профиль"],
-        ["Вкл/выкл профиль", "Статус источников"],
+        ["Запустить поиск", "Тест поиска"],
+        ["Редактировать профиль", "Вкл/выкл профиль"],
+        ["Статус источников"],
         ["/profiles", "/sources_status"],
         ["/sources moscow, mosreg"],
         ["/region Москва, Московская область"],
@@ -279,6 +280,17 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await _reply(update, format_search_summary(stats))
 
 
+async def test_search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.effective_chat:
+        return
+    await _reply(update, "Запускаю тест поиска: подходящие карточки будут показаны даже если уже приходили.")
+    settings: Settings = context.application.bot_data["settings"]
+    store = _store(context)
+    stats = await asyncio.to_thread(_run_search, settings, store, str(update.effective_chat.id), "preview")
+    context.application.bot_data["last_stats"] = stats
+    await _reply(update, format_test_search_summary(stats))
+
+
 async def sources_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _reply(update, format_sources_status(context.application.bot_data.get("last_stats")))
 
@@ -418,6 +430,8 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
     elif text == "Запустить поиск":
         await search_command(update, context)
+    elif text == "Тест поиска":
+        await test_search_command(update, context)
     elif text == "Статус источников":
         await sources_status_command(update, context)
     elif text.startswith("Редактировать "):
@@ -459,6 +473,16 @@ def format_search_summary(stats: PipelineStats) -> str:
         lines.append("Ошибки:")
         lines.extend(stats.failed_source_errors)
     return "\n".join(lines)
+
+
+def format_test_search_summary(stats: PipelineStats) -> str:
+    return "\n".join(
+        [
+            "Тест поиска: Fetched={fetched} Saved={saved} Matched={matched} "
+            "Sent={notified} FailedSources={failed_sources}".format(**stats.__dict__),
+            "В этом режиме подходящие карточки отправлены повторно и не помечены как новые уведомления.",
+        ]
+    )
 
 
 def format_profiles(collection: FilterProfileCollection) -> str:
@@ -522,13 +546,19 @@ async def _finish_wizard(update: Update, context: ContextTypes.DEFAULT_TYPE, pro
     )
 
 
-def _run_search(settings: Settings, store: FilterProfileStore, chat_id: str) -> PipelineStats:
+def _run_search(
+    settings: Settings,
+    store: FilterProfileStore,
+    chat_id: str,
+    notify_mode: str = "normal",
+) -> PipelineStats:
     collection = store.load_collection()
     pipeline = TenderPipeline(
         adapters=build_adapters_for_collection(collection, settings),
         store=TenderStore(settings.database_path),
         material_filter=MultiProfileTenderFilter(collection),
         notifier=TelegramNotifier(settings.telegram_bot_token, chat_id, dry_run=settings.dry_run),
+        notify_mode=notify_mode,
     )
     return pipeline.run()
 
@@ -673,6 +703,7 @@ def main() -> None:
     application.add_handler(CommandHandler("profile_toggle", profile_toggle_command))
     application.add_handler(CommandHandler("sources_status", sources_status_command))
     application.add_handler(CommandHandler("search", search_command))
+    application.add_handler(CommandHandler("test_search", test_search_command))
     application.add_handler(MessageHandler(tg_filters.TEXT & ~tg_filters.COMMAND, text_menu_handler))
     LOGGER.info("Starting Tender Killer bot with filter profile %s", filter_path)
     application.run_polling()

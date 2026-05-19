@@ -29,11 +29,13 @@ class TenderPipeline:
         store: TenderStore,
         material_filter: TenderFilter,
         notifier: TelegramNotifier,
+        notify_mode: str = "normal",
     ) -> None:
         self.adapters = adapters
         self.store = store
         self.material_filter = material_filter
         self.notifier = notifier
+        self.notify_mode = notify_mode
 
     def run(self) -> PipelineStats:
         self.store.initialize()
@@ -62,10 +64,11 @@ class TenderPipeline:
                     continue
                 matched += 1
 
-                if self.store.was_notified(tender):
+                if self.notify_mode != "preview" and self.store.was_notified(tender):
                     continue
                 if self.notifier.send(build_tender_message(tender, filter_result.reasons)):
-                    self.store.mark_notified(tender)
+                    if self.notify_mode != "preview":
+                        self.store.mark_notified(tender)
                     notified += 1
 
         return PipelineStats(

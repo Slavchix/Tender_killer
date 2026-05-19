@@ -85,6 +85,34 @@ def test_pipeline_does_not_send_duplicate_notifications(tmp_path):
     assert len(notifier.messages) == 1
 
 
+def test_pipeline_preview_resends_matched_tenders_without_marking_notifications(tmp_path):
+    tender = Tender(
+        source="static",
+        external_id="1",
+        url="https://example.test/1",
+        title="Поставка бумаги",
+        customer="ГБУ",
+        region="Москва",
+        status="active",
+    )
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    notifier = SpyNotifier()
+    pipeline = TenderPipeline(
+        adapters=[StaticAdapter([tender])],
+        store=store,
+        material_filter=MaterialFilter(("бумага",)),
+        notifier=notifier,
+        notify_mode="preview",
+    )
+
+    first = pipeline.run()
+    second = pipeline.run()
+
+    assert first.notified == 1
+    assert second.notified == 1
+    assert len(notifier.messages) == 2
+
+
 def test_pipeline_rejects_unknown_activity_with_only_active_filter(tmp_path):
     tender = Tender(
         source="static",

@@ -6,6 +6,7 @@ from tender_killer.bot import (
     format_profile_details,
     format_profiles,
     format_search_summary,
+    format_test_search_summary,
     format_sources_status,
     parse_csv_args,
 )
@@ -73,6 +74,15 @@ def test_format_search_summary_shows_failed_source_names():
     assert "FailedSources=1" in text
     assert "Упали источники: moscow_supplier_portal" in text
     assert "moscow_supplier_portal: HTTP Error 500" in text
+
+
+def test_format_test_search_summary_explains_preview_mode():
+    text = format_test_search_summary(
+        PipelineStats(fetched=50, saved=0, matched=2, notified=2, failed_sources=0)
+    )
+
+    assert "Тест поиска" in text
+    assert "подходящие карточки отправлены повторно" in text
 
 
 def test_format_profiles_shows_active_and_disabled_profiles():
