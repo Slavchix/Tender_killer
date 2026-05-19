@@ -17,6 +17,8 @@ class MoscowSupplierPortalAdapter(BaseAdapter):
         return "https://zakupki.mos.ru/newapi/api/Auction/Get"
 
     def fetch(self) -> list[Tender]:
+        if self.url == self.default_url:
+            return []
         try:
             return super().fetch()
         except AdapterError as exc:

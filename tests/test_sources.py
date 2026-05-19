@@ -62,10 +62,21 @@ def test_build_adapters_for_collection_skips_sources_when_no_active_profiles(tmp
 
 
 def test_moscow_adapter_treats_known_entity_endpoint_error_as_empty(monkeypatch):
-    adapter = MoscowSupplierPortalAdapter("https://zakupki.mos.ru/newapi/api/Auction/Get")
+    adapter = MoscowSupplierPortalAdapter("https://zakupki.mos.ru/custom")
 
     def fail_fetch_text(url):
         raise AdapterError(f"{url}: HTTP 400 Bad Request. {{\"message\":\"Не указан идентификатор КС.\"}}")
+
+    monkeypatch.setattr(adapter, "fetch_text", fail_fetch_text)
+
+    assert adapter.fetch() == []
+
+
+def test_moscow_adapter_skips_default_placeholder_endpoint(monkeypatch):
+    adapter = MoscowSupplierPortalAdapter()
+
+    def fail_fetch_text(url):
+        raise AssertionError("default placeholder endpoint should not be requested")
 
     monkeypatch.setattr(adapter, "fetch_text", fail_fetch_text)
 
