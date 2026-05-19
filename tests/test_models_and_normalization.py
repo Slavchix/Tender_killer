@@ -54,23 +54,25 @@ def test_mosreg_adapter_rejects_payload_without_detail_link():
 
 def test_mosreg_adapter_normalizes_json_payload():
     payload = {
-        "purchaseNumber": "MO-77",
-        "subject": "Поставка хозяйственных товаров",
-        "customer": {"name": "Администрация"},
-        "maxPrice": "150000.50",
-        "state": "active",
-        "deadline": "2026-05-21T12:30:00+03:00",
-        "deliveryPlace": "Московская область",
-        "href": "https://market.mosreg.ru/purchase/MO-77",
+        "Id": 3668200,
+        "TradeName": "Поставка хозяйственных товаров",
+        "CustomerFullName": "Администрация",
+        "InitialPrice": "150000.50",
+        "TradeStateName": "Прием предложений",
+        "FillingApplicationEndDate": "2026-05-21T12:30:00+03:00",
+        "CategoryName": "Хозтовары",
     }
 
     tender = MosregMarketAdapter().normalize_payload(payload)
 
     assert tender.source == "mosreg_market"
-    assert tender.external_id == "MO-77"
+    assert tender.external_id == "3668200"
     assert tender.title == "Поставка хозяйственных товаров"
     assert tender.customer == "Администрация"
     assert tender.price == 150000.50
+    assert tender.status == "Прием предложений"
+    assert tender.url == "https://market.mosreg.ru/Trade/ViewTrade/3668200"
+    assert tender.documents == ["https://api.market.mosreg.ru/api/Trade/3668200/GetTradeDocuments"]
 
 
 def test_production_adapters_do_not_extract_navigation_html_as_tenders():

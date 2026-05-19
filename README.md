@@ -14,7 +14,7 @@
 - Telegram-бот с меню, ручным `/search`, статусом источников и авто-поиском по расписанию.
 - CLI-команда `tender-killer` для dry-run и отладки.
 
-Важно: реальные стабильные JSON endpoints для списков закупок Москвы и МО еще проверяются. Текущие адаптеры специально лучше вернут `Fetched=0` или ошибку источника, чем отправят в Telegram карточку главной страницы.
+Важно: для МО подключен рабочий публичный endpoint `https://api.market.mosreg.ru/api/Trade/GetTradesForParticipantOrAnonymous`. Для Москвы list endpoint еще ищется; текущий placeholder отключен и специально возвращает `Fetched=0`, чтобы не отправлять мусор.
 
 ## Установка
 
@@ -76,7 +76,7 @@ python -m pip install -e ".[dev]"
 Площадки v1:
 
 - `moscow` - Портал поставщиков Москвы `zakupki.mos.ru`.
-- `mosreg` - Электронный магазин МО `market.mosreg.ru`.
+- `mosreg` - Электронный магазин МО `market.mosreg.ru`, данные берутся через `api.market.mosreg.ru/api/Trade/GetTradesForParticipantOrAnonymous`.
 
 ## Telegram-Бот
 

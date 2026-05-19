@@ -56,6 +56,19 @@ Tender Killer - будущий софт для поставщиков в гос�
 - Текущее важное правило сохранено: лучше `Fetched=0`, чем мусорная карточка из HTML.
 - Проверка публичных endpoints: `zakupki.mos.ru/newapi/api/Auction/Get` без нужных параметров возвращает JSON-ошибку 400, `market.mosreg.ru/api/Purchase/Get` возвращает HTML главной страницы. У `api.market.mosreg.ru` найден JSON `Common/TradesFilterContent`, но это справочник фильтров, не список закупок. Подтвержденные стабильные list endpoints Москвы/МО еще надо найти отдельно через браузерную сетевую диагностику.
 
+## Mosreg working endpoint checkpoint
+
+Дата: 2026-05-19.
+
+- Через Network на `market.mosreg.ru` найден рабочий публичный endpoint списка закупок МО: `POST https://api.market.mosreg.ru/api/Trade/GetTradesForParticipantOrAnonymous`.
+- Payload v1: `tradeState="15"` для активных закупок, `page=1`, `itemsPerPage=50`, `UsedClassificatorType=20`, пустые фильтры цены/дат/классификаторов.
+- Endpoint работает без сохранения пользовательского `Authorization: Bearer ...`; токен из браузера не нужен в коде и не должен храниться в репозитории.
+- Ответ содержит `totalpages`, `totalrecords`, `invdata`. Основные поля: `Id`, `TradeName`, `CustomerFullName`, `InitialPrice`, `TradeStateName`, `FillingApplicationEndDate`, `PublicationDate`, `CategoryName`, `SourcePlatformName`.
+- Детальная ссылка строится как `https://market.mosreg.ru/Trade/ViewTrade/{Id}`.
+- Документы конкретной закупки доступны через `GET https://api.market.mosreg.ru/api/Trade/{Id}/GetTradeDocuments`.
+- Dry-run после подключения МО: `Fetched=50 Saved=50 Matched=14 Notified=14 FailedSources=0`.
+- Москва пока не подключена к реальному list endpoint; placeholder `zakupki.mos.ru/newapi/api/Auction/Get` отключен на уровне адаптера и возвращает пустой список.
+
 ## Источники закупок
 
 Основные источники для изучения и будущих адаптеров:

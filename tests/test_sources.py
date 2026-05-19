@@ -3,6 +3,7 @@ from tender_killer.filter_store import FilterProfileCollection, NamedFilterProfi
 from tender_killer.filters import FilterProfile
 from tender_killer.adapters.base import AdapterError
 from tender_killer.adapters.moscow import MoscowSupplierPortalAdapter
+from tender_killer.adapters.mosreg import MosregMarketAdapter
 from tender_killer.sources import build_adapters, build_adapters_for_collection
 
 
@@ -81,3 +82,33 @@ def test_moscow_adapter_skips_default_placeholder_endpoint(monkeypatch):
     monkeypatch.setattr(adapter, "fetch_text", fail_fetch_text)
 
     assert adapter.fetch() == []
+
+
+def test_mosreg_adapter_fetches_active_trades_from_post_endpoint(monkeypatch):
+    adapter = MosregMarketAdapter()
+
+    def fetch_page(page):
+        assert page == 1
+        return {
+            "totalpages": 1,
+            "invdata": [
+                {
+                    "Id": 3668200,
+                    "TradeName": "Поставка товаров для организации проведения ГИА.",
+                    "CustomerFullName": "Школа",
+                    "InitialPrice": 599817.0,
+                    "TradeStateName": "Прием предложений",
+                    "FillingApplicationEndDate": "2026-05-28T14:20:00Z",
+                    "PublicationDate": "2026-05-15T05:19:46.733Z",
+                    "CategoryName": "Прочее",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(adapter, "_fetch_page", fetch_page)
+
+    tenders = adapter.fetch()
+
+    assert len(tenders) == 1
+    assert tenders[0].external_id == "3668200"
+    assert tenders[0].url == "https://market.mosreg.ru/Trade/ViewTrade/3668200"

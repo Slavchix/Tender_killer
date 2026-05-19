@@ -30,7 +30,7 @@ class Settings:
             ),
             mosreg_url=os.getenv(
                 "TENDER_KILLER_MOSREG_URL",
-                "https://market.mosreg.ru/api/Purchase/Get",
+                "https://api.market.mosreg.ru/api/Trade/GetTradesForParticipantOrAnonymous",
             ),
             filter_profile_path=(
                 Path(filter_path) if (filter_path := os.getenv("TENDER_KILLER_FILTERS")) else None
