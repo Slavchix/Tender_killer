@@ -19,8 +19,8 @@ LOGGER = logging.getLogger(__name__)
 
 MENU = ReplyKeyboardMarkup(
     [
-        ["Профили", "Запустить поиск"],
-        ["Создать профиль", "Редактировать профиль"],
+        ["Настроить поиск", "Профили"],
+        ["Запустить поиск", "Редактировать профиль"],
         ["Вкл/выкл профиль", "Статус источников"],
         ["/profiles", "/sources_status"],
         ["/sources moscow, mosreg"],
@@ -32,6 +32,8 @@ MENU = ReplyKeyboardMarkup(
 )
 
 PROFILE_FIELDS = {
+    "Закон": "law",
+    "Этап закупки": "stage",
     "Регион": "region",
     "Цена": "price",
     "ОКПД2": "okpd2",
@@ -42,6 +44,8 @@ PROFILE_FIELDS = {
 }
 
 FIELD_EXAMPLES = {
+    "law": "44-ФЗ",
+    "stage": "Подача заявок",
     "region": "Москва, Московская область",
     "price": "10000 500000",
     "okpd2": "17.12, 27.32.13",
@@ -49,6 +53,47 @@ FIELD_EXAMPLES = {
     "keywords": "бумага, канцтовары",
     "exclude": "услуги, ремонт",
     "active": "on",
+}
+
+PROFILE_TEMPLATES = {
+    "Бумага/канцелярия": {
+        "keywords": ("бумаг", "канцеляр", "папк", "ручк", "карандаш", "тетрад", "файл"),
+        "exclude_keywords": ("услуги", "обслуживание", "ремонт"),
+        "okpd2": ("17.12", "17.23"),
+    },
+    "Хозтовары": {
+        "keywords": ("хозтовар", "моющ", "чистящ", "салфет", "мыло", "перчат", "инвентар"),
+        "exclude_keywords": ("услуги", "обслуживание", "ремонт"),
+        "okpd2": (),
+    },
+    "Картриджи/оргтехника": {
+        "keywords": ("картридж", "тонер", "принтер", "мфу", "оргтехник"),
+        "exclude_keywords": ("услуги", "заправка", "ремонт", "обслуживание"),
+        "okpd2": (),
+    },
+    "Электрика": {
+        "keywords": ("кабель", "провод", "электр", "светильник", "ламп"),
+        "exclude_keywords": ("услуги", "монтаж", "ремонт", "обслуживание"),
+        "okpd2": ("27",),
+    },
+    "Сантехника": {
+        "keywords": ("сантех", "труб", "кран", "смесител", "сифон"),
+        "exclude_keywords": ("услуги", "монтаж", "ремонт", "обслуживание"),
+        "okpd2": (),
+    },
+    "Стройматериалы": {
+        "keywords": ("стройматериал", "цемент", "смесь", "краск", "лак", "крепеж", "саморез"),
+        "exclude_keywords": ("услуги", "работы", "ремонт", "монтаж"),
+        "okpd2": (),
+    },
+}
+
+STAGE_PRESETS = {
+    "Подача заявок": (("прием предложений", "прием заявок", "active"), True),
+    "Работа комиссии": (("работа комиссии", "рассмотрение", "комиссия"), False),
+    "Закупка отменена": (("отмен", "cancel"), False),
+    "Закупка завершена": (("заверш", "проведена", "completed", "closed"), False),
+    "Все этапы": ((), False),
 }
 
 
@@ -63,6 +108,11 @@ def parse_csv_args(text: str) -> tuple[str, ...]:
 
 def apply_filter_command(store: FilterProfileStore, command: str, args: str) -> FilterProfile:
     command = command.lower()
+    if command == "law":
+        return store.update(laws=parse_csv_args(args))
+    if command == "stage":
+        statuses, only_active = _parse_stage_args(args)
+        return store.update(statuses=statuses, only_active=only_active)
     if command == "region":
         return store.update(regions=parse_csv_args(args))
     if command == "price":
@@ -79,6 +129,11 @@ def apply_filter_command(store: FilterProfileStore, command: str, args: str) -> 
 
 def apply_profile_edit(store: FilterProfileStore, profile_id: str, field: str, args: str) -> NamedFilterProfile:
     field = field.lower()
+    if field in {"law", "laws", "закон"}:
+        return store.update_profile(profile_id, laws=parse_csv_args(args))
+    if field in {"stage", "status", "statuses", "этап"}:
+        statuses, only_active = _parse_stage_args(args)
+        return store.update_profile(profile_id, statuses=statuses, only_active=only_active)
     if field in {"region", "regions", "регион"}:
         return store.update_profile(profile_id, regions=parse_csv_args(args))
     if field in {"price", "цена"}:
@@ -94,7 +149,26 @@ def apply_profile_edit(store: FilterProfileStore, profile_id: str, field: str, a
         return store.update_profile(profile_id, exclude_keywords=parse_csv_args(args))
     if field in {"active", "only_active", "активные"}:
         return store.update_profile(profile_id, only_active=_parse_bool(args))
-    raise ValueError("Поле не найдено. Доступно: region, price, okpd2, sources, keywords, exclude, active.")
+    raise ValueError("Поле не найдено. Доступно: law, stage, region, price, okpd2, sources, keywords, exclude, active.")
+
+
+def create_profile_from_template(store: FilterProfileStore, template_name: str) -> NamedFilterProfile:
+    if template_name not in PROFILE_TEMPLATES:
+        raise ValueError("Шаблон не найден.")
+    template = PROFILE_TEMPLATES[template_name]
+    return store.add_profile(
+        template_name,
+        keywords=template["keywords"],
+        exclude_keywords=template["exclude_keywords"],
+        okpd2=template["okpd2"],
+        regions=("Московская область",),
+        sources=("mosreg",),
+        laws=("44-ФЗ",),
+        statuses=STAGE_PRESETS["Подача заявок"][0],
+        only_active=True,
+        min_price=None,
+        max_price=None,
+    )
 
 
 def format_filter_profile(profile: FilterProfile) -> str:
@@ -103,6 +177,8 @@ def format_filter_profile(profile: FilterProfile) -> str:
         [
             "Текущие фильтры",
             "",
+            f"Закон: {_format_list(profile.laws)}",
+            f"Этап: {_format_list(profile.statuses)}",
             f"Регион: {_format_list(profile.regions)}",
             f"Цена: {_format_price_range(profile.min_price, profile.max_price)}",
             f"ОКПД2: {_format_list(profile.okpd2)}",
@@ -117,7 +193,7 @@ def format_filter_profile(profile: FilterProfile) -> str:
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _reply(
         update,
-        "Готов настраивать поиск закупок. Открой /filters или запусти /search.",
+        "Готов настраивать поиск закупок. Нажми «Настроить поиск» или запусти /search.",
     )
 
 
@@ -239,6 +315,33 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         profile = _store(context).add_profile(text)
         await _reply(update, f"Профиль создан: {profile.name} [{profile.id}]")
         return
+    if awaiting == "wizard_price":
+        context.user_data.pop("awaiting", None)
+        profile_id = context.user_data.get("wizard_profile_id")
+        if not profile_id:
+            await _reply(update, "Профиль мастера не найден. Нажми «Настроить поиск» заново.")
+            return
+        try:
+            profile = apply_profile_edit(_store(context), profile_id, "price", text)
+        except ValueError as exc:
+            await _reply(update, str(exc))
+            return
+        context.user_data["wizard_profile_id"] = profile.id
+        await _reply(update, "Укажи ОКПД2 или нажми «Пропустить ОКПД2».", reply_markup=_wizard_okpd2_keyboard())
+        return
+    if awaiting == "wizard_okpd2":
+        context.user_data.pop("awaiting", None)
+        profile_id = context.user_data.get("wizard_profile_id")
+        if not profile_id:
+            await _reply(update, "Профиль мастера не найден. Нажми «Настроить поиск» заново.")
+            return
+        try:
+            profile = apply_profile_edit(_store(context), profile_id, "okpd2", text)
+        except ValueError as exc:
+            await _reply(update, str(exc))
+            return
+        await _finish_wizard(update, context, profile)
+        return
     if awaiting == "profile_edit_value":
         context.user_data.pop("awaiting", None)
         profile_id = context.user_data.pop("editing_profile_id", "")
@@ -251,7 +354,50 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await _reply(update, f"Профиль обновлен: {profile.name}\n\n{format_profile_details(profile)}")
         return
 
-    if text == "Профили":
+    if text == "Настроить поиск":
+        context.user_data["wizard_step"] = "template"
+        await _reply(update, "Выбери шаблон поиска.", reply_markup=_template_keyboard())
+    elif text.startswith("Шаблон: "):
+        template_name = text.removeprefix("Шаблон: ").strip()
+        try:
+            profile = create_profile_from_template(_store(context), template_name)
+        except ValueError as exc:
+            await _reply(update, str(exc))
+            return
+        context.user_data["wizard_profile_id"] = profile.id
+        await _reply(update, "Выбери закон.", reply_markup=_law_keyboard())
+    elif text in {"44-ФЗ", "223-ФЗ", "44-ФЗ + 223-ФЗ"} and context.user_data.get("wizard_profile_id"):
+        profile_id = context.user_data["wizard_profile_id"]
+        laws = ("44-ФЗ", "223-ФЗ") if text == "44-ФЗ + 223-ФЗ" else (text,)
+        profile = _store(context).update_profile(profile_id, laws=laws)
+        context.user_data["wizard_profile_id"] = profile.id
+        await _reply(update, "Выбери этап закупки.", reply_markup=_stage_keyboard())
+    elif text in STAGE_PRESETS and context.user_data.get("wizard_profile_id"):
+        profile_id = context.user_data["wizard_profile_id"]
+        profile = apply_profile_edit(_store(context), profile_id, "stage", text)
+        context.user_data["wizard_profile_id"] = profile.id
+        await _reply(update, "Выбери регион.", reply_markup=_region_keyboard())
+    elif text in {"Москва", "Московская область", "Москва + МО"} and context.user_data.get("wizard_profile_id"):
+        profile_id = context.user_data["wizard_profile_id"]
+        regions = ("Москва", "Московская область") if text == "Москва + МО" else (text,)
+        profile = _store(context).update_profile(profile_id, regions=regions)
+        context.user_data["wizard_profile_id"] = profile.id
+        await _reply(update, "Укажи диапазон цены в формате `10000 500000` или нажми «Любая цена».", reply_markup=_price_keyboard())
+    elif text == "Любая цена" and context.user_data.get("wizard_profile_id"):
+        profile_id = context.user_data["wizard_profile_id"]
+        profile = _store(context).update_profile(profile_id, min_price=None, max_price=None)
+        context.user_data["wizard_profile_id"] = profile.id
+        await _reply(update, "Укажи ОКПД2 или нажми «Пропустить ОКПД2».", reply_markup=_wizard_okpd2_keyboard())
+    elif text == "Ввести цену" and context.user_data.get("wizard_profile_id"):
+        context.user_data["awaiting"] = "wizard_price"
+        await _reply(update, "Введи цену от-до, например: 10000 500000")
+    elif text == "Пропустить ОКПД2" and context.user_data.get("wizard_profile_id"):
+        profile = _store(context).update_profile(context.user_data["wizard_profile_id"], okpd2=())
+        await _finish_wizard(update, context, profile)
+    elif text == "Ввести ОКПД2" and context.user_data.get("wizard_profile_id"):
+        context.user_data["awaiting"] = "wizard_okpd2"
+        await _reply(update, "Введи ОКПД2 через запятую, например: 17.12, 27.32.13")
+    elif text == "Профили":
         await profiles_command(update, context)
     elif text == "Создать профиль":
         context.user_data["awaiting"] = "profile_new_name"
@@ -329,6 +475,8 @@ def format_profile_details(profile: NamedFilterProfile) -> str:
     source_labels = [SOURCE_LABELS[source] for source in normalize_sources(profile.profile.sources)]
     return "\n".join(
         [
+            f"Закон: {_format_list(profile.profile.laws)}",
+            f"Этап: {_format_list(profile.profile.statuses)}",
             f"Регионы: {_format_list(profile.profile.regions)}",
             f"Цена: {_format_price_range(profile.profile.min_price, profile.profile.max_price)}",
             f"ОКПД2: {_format_list(profile.profile.okpd2)}",
@@ -365,6 +513,15 @@ async def _update_filter(update: Update, context: ContextTypes.DEFAULT_TYPE, com
     await _reply(update, format_filter_profile(profile))
 
 
+async def _finish_wizard(update: Update, context: ContextTypes.DEFAULT_TYPE, profile: NamedFilterProfile) -> None:
+    context.user_data.pop("wizard_profile_id", None)
+    context.user_data.pop("wizard_step", None)
+    await _reply(
+        update,
+        f"Профиль настроен: {profile.name} [{profile.id}]\n\n{format_profile_details(profile)}",
+    )
+
+
 def _run_search(settings: Settings, store: FilterProfileStore, chat_id: str) -> PipelineStats:
     collection = store.load_collection()
     pipeline = TenderPipeline(
@@ -394,12 +551,59 @@ def _profile_action_keyboard(collection: FilterProfileCollection, action: str) -
 def _profile_field_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [
+            ["Закон", "Этап закупки"],
             ["Регион", "Цена"],
             ["ОКПД2", "Площадки"],
             ["Ключевые слова", "Стоп-слова"],
             ["Только активные"],
             ["Профили", "Запустить поиск"],
         ],
+        resize_keyboard=True,
+    )
+
+
+def _template_keyboard() -> ReplyKeyboardMarkup:
+    rows = [[f"Шаблон: {name}"] for name in PROFILE_TEMPLATES]
+    rows.append(["Профили", "Запустить поиск"])
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
+
+
+def _law_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [["44-ФЗ", "223-ФЗ"], ["44-ФЗ + 223-ФЗ"], ["Профили", "Запустить поиск"]],
+        resize_keyboard=True,
+    )
+
+
+def _stage_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [
+            ["Подача заявок", "Работа комиссии"],
+            ["Закупка отменена", "Закупка завершена"],
+            ["Все этапы"],
+            ["Профили", "Запустить поиск"],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def _region_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [["Московская область", "Москва"], ["Москва + МО"], ["Профили", "Запустить поиск"]],
+        resize_keyboard=True,
+    )
+
+
+def _price_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [["Любая цена", "Ввести цену"], ["Профили", "Запустить поиск"]],
+        resize_keyboard=True,
+    )
+
+
+def _wizard_okpd2_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [["Пропустить ОКПД2", "Ввести ОКПД2"], ["Профили", "Запустить поиск"]],
         resize_keyboard=True,
     )
 
@@ -424,6 +628,13 @@ def _parse_bool(args: str) -> bool:
     if value in {"off", "0", "false", "no", "нет", "выкл"}:
         return False
     raise ValueError("Формат: /active on или /active off")
+
+
+def _parse_stage_args(args: str) -> tuple[tuple[str, ...], bool]:
+    value = args.strip()
+    if value in STAGE_PRESETS:
+        return STAGE_PRESETS[value]
+    return parse_csv_args(value), False
 
 
 def _format_list(values: tuple[str, ...]) -> str:

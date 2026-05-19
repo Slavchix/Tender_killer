@@ -1,7 +1,9 @@
 from tender_killer.bot import (
     apply_filter_command,
     apply_profile_edit,
+    create_profile_from_template,
     format_filter_profile,
+    format_profile_details,
     format_profiles,
     format_search_summary,
     format_sources_status,
@@ -111,6 +113,55 @@ def test_apply_profile_edit_updates_named_profile(tmp_path):
     updated = apply_profile_edit(store, profile.id, "okpd2", "17.12, 17.23")
 
     assert updated.profile.okpd2 == ("17.12", "17.23")
+
+
+def test_apply_profile_edit_updates_law_and_stage(tmp_path):
+    store = FilterProfileStore(tmp_path / "filters.json")
+    profile = store.add_profile("Бумага", keywords=("бумага",))
+
+    apply_profile_edit(store, profile.id, "law", "44-ФЗ")
+    updated = apply_profile_edit(store, profile.id, "stage", "Подача заявок")
+
+    assert updated.profile.laws == ("44-ФЗ",)
+    assert updated.profile.statuses == ("прием предложений", "прием заявок", "active")
+    assert updated.profile.only_active is True
+
+
+def test_create_profile_from_template_sets_material_defaults(tmp_path):
+    store = FilterProfileStore(tmp_path / "filters.json")
+
+    profile = create_profile_from_template(store, "Бумага/канцелярия")
+
+    assert profile.name == "Бумага/канцелярия"
+    assert "бумаг" in profile.profile.keywords
+    assert "услуги" in profile.profile.exclude_keywords
+    assert profile.profile.sources == ("mosreg",)
+    assert profile.id in store.load_collection().active_profile_ids
+
+
+def test_format_profile_details_shows_law_stage_region_price_sources():
+    profile = NamedFilterProfile(
+        "paper",
+        "Бумага",
+        FilterProfile(
+            keywords=("бумаг",),
+            laws=("44-ФЗ",),
+            statuses=("прием предложений",),
+            regions=("Московская область",),
+            sources=("mosreg",),
+            min_price=10_000,
+            max_price=500_000,
+            okpd2=("17.12",),
+        ),
+    )
+
+    text = format_profile_details(profile)
+
+    assert "Закон: 44-ФЗ" in text
+    assert "Этап: прием предложений" in text
+    assert "Регионы: Московская область" in text
+    assert "Цена: 10 000 - 500 000" in text
+    assert "Площадки: МО: market.mosreg.ru" in text
 
 
 def test_profile_toggle_command_disables_profile(tmp_path):

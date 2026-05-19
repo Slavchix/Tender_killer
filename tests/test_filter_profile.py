@@ -111,6 +111,7 @@ def test_filter_profile_loads_from_json_file(tmp_path):
                 "exclude_keywords": ["услуги"],
                 "regions": ["Москва"],
                 "sources": ["moscow", "mosreg"],
+                "laws": ["44-ФЗ"],
                 "okpd2": ["17.12", "27.32.13"],
                 "min_price": 10_000,
                 "max_price": 500_000,
@@ -128,8 +129,30 @@ def test_filter_profile_loads_from_json_file(tmp_path):
     assert profile.exclude_keywords == ("услуги",)
     assert profile.regions == ("Москва",)
     assert profile.sources == ("moscow", "mosreg")
+    assert profile.laws == ("44-ФЗ",)
     assert profile.okpd2 == ("17.12", "27.32.13")
     assert profile.min_price == 10_000
     assert profile.max_price == 500_000
     assert profile.statuses == ("active",)
     assert profile.only_active is True
+
+
+def test_filter_profile_applies_law_filter_from_raw_payload():
+    profile = FilterProfile(keywords=("бумага",), laws=("44-ФЗ",))
+
+    result = TenderFilter(profile).match(
+        tender(raw_payload={"SourcePlatformName": "ЕАСУЗ 223"})
+    )
+
+    assert result.matched is False
+    assert result.reasons == ["law_not_allowed"]
+
+
+def test_filter_profile_matches_law_filter_from_source_platform():
+    profile = FilterProfile(keywords=("бумага",), laws=("44-ФЗ",))
+
+    result = TenderFilter(profile).match(
+        tender(raw_payload={"SourcePlatformName": "ЕАСУЗ 44"})
+    )
+
+    assert result.matched is True

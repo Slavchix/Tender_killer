@@ -24,6 +24,7 @@ class FilterProfile:
     exclude_keywords: tuple[str, ...] = ()
     regions: tuple[str, ...] = ()
     sources: tuple[str, ...] = ("moscow", "mosreg")
+    laws: tuple[str, ...] = ()
     statuses: tuple[str, ...] = ()
     okpd2: tuple[str, ...] = ()
     min_price: float | None = None
@@ -91,6 +92,7 @@ class FilterProfile:
             exclude_keywords=tuple(_clean_list(data.get("exclude_keywords", data.get("exclude", ())))),
             regions=tuple(_clean_list(data.get("regions", ()))),
             sources=tuple(_clean_list(data.get("sources", ("moscow", "mosreg")))),
+            laws=tuple(_clean_list(data.get("laws", data.get("law", ())))),
             statuses=tuple(_clean_list(data.get("statuses", ()))),
             okpd2=tuple(_clean_list(data.get("okpd2", data.get("okpd2_codes", ())))),
             min_price=_optional_float(data.get("min_price")),
@@ -109,6 +111,7 @@ class TenderFilter:
             keyword.lower().replace("ё", "е") for keyword in self.profile.exclude_keywords
         )
         self.regions = tuple(region.lower() for region in self.profile.regions)
+        self.laws = tuple(_normalize_law(law) for law in self.profile.laws)
         self.statuses = tuple(status.lower() for status in self.profile.statuses)
         self.okpd2_codes = tuple(_normalize_okpd2(code) for code in self.profile.okpd2)
         self.reason_labels = {"кабел": "кабель"}
@@ -127,6 +130,9 @@ class TenderFilter:
         status_reason = self._status_rejected(tender)
         if status_reason:
             return FilterResult(False, [status_reason])
+
+        if self._law_rejected(tender):
+            return FilterResult(False, ["law_not_allowed"])
 
         okpd2_result = self._okpd2_result(tender)
         if okpd2_result and not okpd2_result.matched:
@@ -156,6 +162,7 @@ class TenderFilter:
                 tender.okpd2,
                 tender.region,
                 tender.status,
+                _law_haystack(tender),
             )
             if part
         ).lower().replace("ё", "е")
@@ -193,6 +200,14 @@ class TenderFilter:
             return None
         status = tender.status.lower()
         return None if any(allowed in status for allowed in self.statuses) else "status_not_allowed"
+
+    def _law_rejected(self, tender: Tender) -> bool:
+        if not self.laws:
+            return False
+        haystack = _law_haystack(tender)
+        if not haystack:
+            return False
+        return not any(law in haystack for law in self.laws)
 
     def _okpd2_result(self, tender: Tender) -> FilterResult | None:
         if not self.okpd2_codes:
@@ -252,6 +267,26 @@ def _optional_float(value: Any) -> float | None:
 
 def _normalize_okpd2(value: str) -> str:
     return value.strip().replace(",", ".")
+
+
+def _normalize_law(value: str) -> str:
+    text = value.lower().replace("фз", "").replace("-", "").replace(" ", "")
+    if "223" in text:
+        return "223"
+    if "44" in text:
+        return "44"
+    return text
+
+
+def _law_haystack(tender: Tender) -> str:
+    values = [
+        tender.raw_payload.get("SourcePlatformName") if isinstance(tender.raw_payload, dict) else None,
+        tender.raw_payload.get("law") if isinstance(tender.raw_payload, dict) else None,
+        tender.raw_payload.get("Law") if isinstance(tender.raw_payload, dict) else None,
+        tender.raw_payload.get("fz") if isinstance(tender.raw_payload, dict) else None,
+        tender.raw_payload.get("regulation") if isinstance(tender.raw_payload, dict) else None,
+    ]
+    return " ".join(_normalize_law(str(value)) for value in values if value)
 
 
 def _okpd2_matches(allowed_code: str, tender_code: str) -> bool:
