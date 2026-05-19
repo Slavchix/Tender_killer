@@ -18,6 +18,7 @@ class AdapterError(RuntimeError):
 
 class BaseAdapter(ABC):
     source: str
+    allow_card_like_html_fallback = True
 
     def __init__(self, url: str | None = None, timeout_seconds: float = 20) -> None:
         self.url = url or self.default_url
@@ -87,6 +88,8 @@ class BaseAdapter(ABC):
                 continue
         if payloads:
             return payloads
+        if not self.allow_card_like_html_fallback:
+            return []
         return self._extract_card_like_payloads(raw_text)
 
     def _extract_card_like_payloads(self, raw_text: str) -> list[dict[str, Any]]:

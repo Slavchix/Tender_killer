@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import hashlib
 from typing import Any
 
+from tender_killer.adapters.base import AdapterError
 from tender_killer.adapters.base import BaseAdapter
 from tender_killer.models import Tender
 from tender_killer.normalization import absolute_url, first_present, parse_datetime, parse_float
@@ -10,6 +10,7 @@ from tender_killer.normalization import absolute_url, first_present, parse_datet
 
 class MosregMarketAdapter(BaseAdapter):
     source = "mosreg_market"
+    allow_card_like_html_fallback = False
 
     @property
     def default_url(self) -> str:
@@ -19,18 +20,20 @@ class MosregMarketAdapter(BaseAdapter):
         external_id = str(
             first_present(payload, "purchaseNumber", "id", "Id", "number", "registryNumber") or ""
         )
+        if not external_id:
+            raise AdapterError("Mosreg payload has no procurement id.")
         title = str(
             first_present(payload, "subject", "name", "title", "purchaseName") or ""
         ).strip()
-        if not external_id:
-            external_id = hashlib.sha256((title or repr(payload)).encode("utf-8")).hexdigest()[:16]
         if not title:
-            title = f"Закупка Электронного магазина МО #{external_id}"
+            raise AdapterError("Mosreg payload has no procurement title.")
 
         url = absolute_url(
             "https://market.mosreg.ru",
             first_present(payload, "href", "url", "link", "purchaseUrl") or "/",
         )
+        if url.rstrip("/") == "https://market.mosreg.ru":
+            raise AdapterError("Mosreg payload has no detail URL.")
 
         return Tender(
             source=self.source,

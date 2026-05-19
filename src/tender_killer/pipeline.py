@@ -18,6 +18,7 @@ class PipelineStats:
     matched: int = 0
     notified: int = 0
     failed_sources: int = 0
+    failed_source_names: tuple[str, ...] = ()
 
 
 class TenderPipeline:
@@ -36,12 +37,14 @@ class TenderPipeline:
     def run(self) -> PipelineStats:
         self.store.initialize()
         fetched = saved = matched = notified = failed_sources = 0
+        failed_source_names: list[str] = []
 
         for adapter in self.adapters:
             try:
                 tenders = adapter.fetch()
             except Exception as exc:  # noqa: BLE001 - one source must not break the whole run.
                 failed_sources += 1
+                failed_source_names.append(adapter.source)
                 LOGGER.warning("Source %s failed: %s", adapter.source, exc)
                 continue
 
@@ -68,4 +71,5 @@ class TenderPipeline:
             matched=matched,
             notified=notified,
             failed_sources=failed_sources,
+            failed_source_names=tuple(failed_source_names),
         )

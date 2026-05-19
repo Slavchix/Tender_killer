@@ -1,4 +1,4 @@
-from tender_killer.filters import MaterialFilter
+from tender_killer.filters import FilterProfile, MaterialFilter, TenderFilter
 from tender_killer.models import Tender
 from tender_killer.pipeline import TenderPipeline
 from tender_killer.storage import TenderStore
@@ -38,6 +38,7 @@ def test_pipeline_continues_when_one_source_fails(tmp_path):
         title="Поставка кабеля",
         customer="ГБУ",
         region="Москва",
+        status="active",
     )
     notifier = SpyNotifier()
     pipeline = TenderPipeline(
@@ -50,6 +51,7 @@ def test_pipeline_continues_when_one_source_fails(tmp_path):
     stats = pipeline.run()
 
     assert stats.failed_sources == 1
+    assert stats.failed_source_names == ("failing",)
     assert stats.fetched == 1
     assert stats.notified == 1
     assert len(notifier.messages) == 1
@@ -63,6 +65,7 @@ def test_pipeline_does_not_send_duplicate_notifications(tmp_path):
         title="Поставка бумаги",
         customer="ГБУ",
         region="Москва",
+        status="active",
     )
     store = TenderStore(tmp_path / "db.sqlite")
     notifier = SpyNotifier()
@@ -80,3 +83,26 @@ def test_pipeline_does_not_send_duplicate_notifications(tmp_path):
     assert second.notified == 0
     assert len(notifier.messages) == 1
 
+
+def test_pipeline_rejects_unknown_activity_with_only_active_filter(tmp_path):
+    tender = Tender(
+        source="static",
+        external_id="1",
+        url="https://example.test/1",
+        title="Поставка бумаги",
+        customer="ГБУ",
+        region="Москва",
+    )
+    notifier = SpyNotifier()
+    pipeline = TenderPipeline(
+        adapters=[StaticAdapter([tender])],
+        store=TenderStore(tmp_path / "db.sqlite"),
+        material_filter=TenderFilter(FilterProfile(keywords=("бумага",), only_active=True)),
+        notifier=notifier,
+    )
+
+    stats = pipeline.run()
+
+    assert stats.matched == 0
+    assert stats.notified == 0
+    assert notifier.messages == []

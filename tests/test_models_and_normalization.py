@@ -1,3 +1,6 @@
+import pytest
+
+from tender_killer.adapters.base import AdapterError
 from tender_killer.adapters.moscow import MoscowSupplierPortalAdapter
 from tender_killer.adapters.mosreg import MosregMarketAdapter
 from tender_killer.models import Tender
@@ -35,20 +38,18 @@ def test_adapter_extracts_json_with_utf8_bom():
     assert payloads == [{"id": 123, "name": "Поставка бумаги"}]
 
 
-def test_moscow_adapter_does_not_invent_detail_url_without_payload_link():
-    tender = MoscowSupplierPortalAdapter().normalize_payload(
-        {"id": 123, "name": "Paper supply"}
-    )
+def test_moscow_adapter_rejects_payload_without_detail_link():
+    with pytest.raises(AdapterError):
+        MoscowSupplierPortalAdapter().normalize_payload(
+            {"id": 123, "name": "Paper supply"}
+        )
 
-    assert tender.url == "https://zakupki.mos.ru/"
 
-
-def test_mosreg_adapter_does_not_invent_detail_url_without_payload_link():
-    tender = MosregMarketAdapter().normalize_payload(
-        {"purchaseNumber": "MO-77", "subject": "Cable supply"}
-    )
-
-    assert tender.url == "https://market.mosreg.ru/"
+def test_mosreg_adapter_rejects_payload_without_detail_link():
+    with pytest.raises(AdapterError):
+        MosregMarketAdapter().normalize_payload(
+            {"purchaseNumber": "MO-77", "subject": "Cable supply"}
+        )
 
 
 def test_mosreg_adapter_normalizes_json_payload():
@@ -70,3 +71,28 @@ def test_mosreg_adapter_normalizes_json_payload():
     assert tender.title == "Поставка хозяйственных товаров"
     assert tender.customer == "Администрация"
     assert tender.price == 150000.50
+
+
+def test_production_adapters_do_not_extract_navigation_html_as_tenders():
+    html = """
+    <html>
+      <body>
+        <a href="/">Электронный магазин Московской области</a>
+        <a href="/about">О магазине</a>
+      </body>
+    </html>
+    """
+
+    assert MosregMarketAdapter().extract_payloads(html) == []
+    assert MoscowSupplierPortalAdapter().extract_payloads(html) == []
+
+
+def test_mosreg_adapter_rejects_homepage_payload():
+    with pytest.raises(AdapterError):
+        MosregMarketAdapter().normalize_payload(
+            {
+                "purchaseNumber": "MO-77",
+                "subject": "Электронный магазин Московской области",
+                "href": "/",
+            }
+        )

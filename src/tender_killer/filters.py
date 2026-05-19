@@ -185,6 +185,8 @@ class TenderFilter:
         return not any(region in haystack for region in self.regions)
 
     def _status_rejected(self, tender: Tender) -> str | None:
+        if self.profile.only_active and not tender.status and tender.deadline_at is None:
+            return "activity_unknown"
         if self.profile.only_active and _is_completed_status(tender.status):
             return "status_completed"
         if not self.statuses or not tender.status:

@@ -1,5 +1,11 @@
-from tender_killer.bot import apply_filter_command, format_filter_profile, parse_csv_args
+from tender_killer.bot import (
+    apply_filter_command,
+    format_filter_profile,
+    format_search_summary,
+    parse_csv_args,
+)
 from tender_killer.filter_store import FilterProfileStore
+from tender_killer.pipeline import PipelineStats
 
 
 def test_parse_csv_args_accepts_spaces_and_commas():
@@ -43,3 +49,19 @@ def test_format_filter_profile_shows_sources_and_core_filters(tmp_path):
     assert "ОКПД2: 17.12" in text
     assert "Площадки: Москва: zakupki.mos.ru; МО: market.mosreg.ru" in text
     assert "Только активные: да" in text
+
+
+def test_format_search_summary_shows_failed_source_names():
+    text = format_search_summary(
+        PipelineStats(
+            fetched=25,
+            saved=25,
+            matched=1,
+            notified=1,
+            failed_sources=1,
+            failed_source_names=("moscow_supplier_portal",),
+        )
+    )
+
+    assert "FailedSources=1" in text
+    assert "Упали источники: moscow_supplier_portal" in text

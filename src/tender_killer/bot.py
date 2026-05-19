@@ -111,11 +111,17 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     settings: Settings = context.application.bot_data["settings"]
     store = _store(context)
     stats = await asyncio.to_thread(_run_search, settings, store, str(update.effective_chat.id))
-    await _reply(
-        update,
+    await _reply(update, format_search_summary(stats))
+
+
+def format_search_summary(stats: PipelineStats) -> str:
+    lines = [
         "Готово: Fetched={fetched} Saved={saved} Matched={matched} "
-        "Notified={notified} FailedSources={failed_sources}".format(**stats.__dict__),
-    )
+        "Notified={notified} FailedSources={failed_sources}".format(**stats.__dict__)
+    ]
+    if stats.failed_source_names:
+        lines.append(f"Упали источники: {', '.join(stats.failed_source_names)}")
+    return "\n".join(lines)
 
 
 async def _update_filter(update: Update, context: ContextTypes.DEFAULT_TYPE, command: str, args: str) -> None:

@@ -93,6 +93,15 @@ def test_filter_profile_rejects_completed_status_by_default():
     assert result.reasons == ["status_completed"]
 
 
+def test_filter_profile_rejects_unknown_activity_when_only_active():
+    result = TenderFilter(FilterProfile(keywords=("бумага",), only_active=True)).match(
+        tender(status=None, deadline_at=None)
+    )
+
+    assert result.matched is False
+    assert result.reasons == ["activity_unknown"]
+
+
 def test_filter_profile_loads_from_json_file(tmp_path):
     path = tmp_path / "filters.json"
     path.write_text(
