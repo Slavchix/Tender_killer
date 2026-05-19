@@ -1,4 +1,5 @@
 from tender_killer.bot import (
+    MENU,
     apply_filter_command,
     apply_profile_edit,
     create_profile_from_template,
@@ -17,6 +18,19 @@ from tender_killer.pipeline import PipelineStats
 
 def test_parse_csv_args_accepts_spaces_and_commas():
     assert parse_csv_args("Москва, Московская область") == ("Москва", "Московская область")
+
+
+def test_menu_does_not_show_legacy_slash_filter_buttons():
+    labels = [
+        button.text
+        for row in MENU.keyboard
+        for button in row
+    ]
+
+    assert "/sources moscow, mosreg" not in labels
+    assert "/region Москва, Московская область" not in labels
+    assert "/price 10000 500000" not in labels
+    assert "/okpd2 17.12, 27.32.13" not in labels
 
 
 def test_apply_filter_command_updates_region_price_okpd2_sources_and_active(tmp_path):

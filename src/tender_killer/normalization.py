@@ -46,7 +46,7 @@ def parse_datetime(value: Any) -> datetime | None:
             return datetime.fromisoformat(candidate)
         except ValueError:
             pass
-    for fmt in ("%d.%m.%Y %H:%M", "%d.%m.%Y", "%Y-%m-%d %H:%M:%S"):
+    for fmt in ("%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y", "%Y-%m-%d %H:%M:%S"):
         try:
             return datetime.strptime(text, fmt)
         except ValueError:
@@ -64,4 +64,3 @@ def absolute_url(base_url: str, value: Any) -> str:
         origin = base_url.split("/", 3)[:3]
         return "/".join(origin) + text
     return base_url.rstrip("/") + "/" + text.lstrip("/")
-

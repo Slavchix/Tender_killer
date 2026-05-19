@@ -1,7 +1,6 @@
 from tender_killer.config import Settings
 from tender_killer.filter_store import FilterProfileCollection, NamedFilterProfile
 from tender_killer.filters import FilterProfile
-from tender_killer.adapters.base import AdapterError
 from tender_killer.adapters.moscow import MoscowSupplierPortalAdapter
 from tender_killer.adapters.mosreg import MosregMarketAdapter
 from tender_killer.sources import build_adapters, build_adapters_for_collection
@@ -62,26 +61,55 @@ def test_build_adapters_for_collection_skips_sources_when_no_active_profiles(tmp
     assert adapters == []
 
 
-def test_moscow_adapter_treats_known_entity_endpoint_error_as_empty(monkeypatch):
-    adapter = MoscowSupplierPortalAdapter("https://zakupki.mos.ru/custom")
-
-    def fail_fetch_text(url):
-        raise AdapterError(f"{url}: HTTP 400 Bad Request. {{\"message\":\"Не указан идентификатор КС.\"}}")
-
-    monkeypatch.setattr(adapter, "fetch_text", fail_fetch_text)
-
-    assert adapter.fetch() == []
-
-
-def test_moscow_adapter_skips_default_placeholder_endpoint(monkeypatch):
+def test_moscow_adapter_fetches_active_auctions_from_purchase_query(monkeypatch):
     adapter = MoscowSupplierPortalAdapter()
+    monkeypatch.setattr(
+        adapter,
+        "_fetch_page",
+        lambda skip: {
+            "count": 1,
+            "items": [
+                {
+                    "auctionId": 10205128,
+                    "number": "10205128",
+                    "name": "ДЕКОРАЦИИ",
+                    "customers": [
+                        {
+                            "name": "Государственное бюджетное профессиональное образовательное учреждение города Москвы",
+                            "inn": "7708044657",
+                        }
+                    ],
+                    "stateName": "Активная",
+                    "stateId": 19000002,
+                    "startPrice": 50200.0,
+                    "regionName": "г Москва",
+                    "beginDate": "19.05.2026 14:40:03",
+                    "endDate": "19.05.2026 17:40:03",
+                    "federalLawName": "44-ФЗ",
+                }
+            ],
+        },
+    )
 
-    def fail_fetch_text(url):
-        raise AssertionError("default placeholder endpoint should not be requested")
+    tenders = adapter.fetch()
 
-    monkeypatch.setattr(adapter, "fetch_text", fail_fetch_text)
+    assert len(tenders) == 1
+    assert tenders[0].external_id == "10205128"
+    assert tenders[0].url == "https://zakupki.mos.ru/auction/10205128"
+    assert tenders[0].customer == "Государственное бюджетное профессиональное образовательное учреждение города Москвы"
+    assert tenders[0].price == 50200.0
+    assert tenders[0].status == "Активная"
+    assert tenders[0].deadline_at is not None
+    assert tenders[0].raw_payload["federalLawName"] == "44-ФЗ"
 
-    assert adapter.fetch() == []
+
+def test_moscow_purchase_query_payload_requests_active_moscow_auctions():
+    query = MoscowSupplierPortalAdapter.purchase_query(skip=0, take=50)
+
+    assert query["filter"]["regionPaths"]["values"] == [".1.504."]
+    assert query["filter"]["auctionSpecificFilter"]["stateIdIn"] == [19000002]
+    assert query["take"] == 50
+    assert query["skip"] == 0
 
 
 def test_mosreg_adapter_fetches_active_trades_from_post_endpoint(monkeypatch):

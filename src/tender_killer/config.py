@@ -26,7 +26,7 @@ class Settings:
             dry_run=os.getenv("TENDER_KILLER_DRY_RUN", "0") == "1",
             moscow_url=os.getenv(
                 "TENDER_KILLER_MOSCOW_URL",
-                "https://zakupki.mos.ru/newapi/api/Auction/Get",
+                "https://old.zakupki.mos.ru/api/Cssp/Purchase/Query",
             ),
             mosreg_url=os.getenv(
                 "TENDER_KILLER_MOSREG_URL",
@@ -36,5 +36,5 @@ class Settings:
                 Path(filter_path) if (filter_path := os.getenv("TENDER_KILLER_FILTERS")) else None
             ),
             request_timeout_seconds=float(os.getenv("TENDER_KILLER_TIMEOUT", "20")),
-            bot_auto_search_minutes=int(os.getenv("TENDER_KILLER_AUTO_SEARCH_MINUTES", "30")),
+            bot_auto_search_minutes=int(os.getenv("TENDER_KILLER_AUTO_SEARCH_MINUTES", "0")),
         )

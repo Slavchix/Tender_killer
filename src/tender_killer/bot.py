@@ -23,11 +23,6 @@ MENU = ReplyKeyboardMarkup(
         ["Запустить поиск", "Тест поиска"],
         ["Редактировать профиль", "Вкл/выкл профиль"],
         ["Статус источников"],
-        ["/profiles", "/sources_status"],
-        ["/sources moscow, mosreg"],
-        ["/region Москва, Московская область"],
-        ["/price 10000 500000"],
-        ["/okpd2 17.12, 27.32.13"],
     ],
     resize_keyboard=True,
 )
