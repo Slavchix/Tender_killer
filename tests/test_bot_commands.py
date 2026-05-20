@@ -33,6 +33,16 @@ def test_menu_does_not_show_legacy_slash_filter_buttons():
     assert "/okpd2 17.12, 27.32.13" not in labels
 
 
+def test_menu_is_notification_only():
+    labels = [
+        button.text
+        for row in MENU.keyboard
+        for button in row
+    ]
+
+    assert labels == ["Статус источников"]
+
+
 def test_apply_filter_command_updates_region_price_okpd2_sources_and_active(tmp_path):
     store = FilterProfileStore(tmp_path / "filters.json")
 

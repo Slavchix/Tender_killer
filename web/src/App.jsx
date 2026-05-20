@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FileText,
   Filter,
+  PlayCircle,
   RefreshCcw,
   Scale,
   Search,
@@ -17,6 +18,15 @@ import './styles.css'
 const sourceLabels = {
   moscow_supplier_portal: 'Москва',
   mosreg_market: 'МО',
+}
+
+const workflowLabels = {
+  new: 'Новая',
+  opened: 'Открыта',
+  interesting: 'Интересно',
+  in_progress: 'В работу',
+  skipped: 'Пропустить',
+  archive: 'Архив',
 }
 
 const initialFilters = {
@@ -38,6 +48,8 @@ function App() {
   const [details, setDetails] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [searchSummary, setSearchSummary] = useState('')
 
   useEffect(() => {
     loadTenders()
@@ -54,11 +66,11 @@ function App() {
       .catch((err) => setError(err.message))
   }, [selected])
 
-  function loadTenders() {
+  function loadTenders(nextAppliedFilters = appliedFilters) {
     setLoading(true)
     setError('')
     const params = new URLSearchParams()
-    Object.entries(appliedFilters).forEach(([key, value]) => {
+    Object.entries(nextAppliedFilters).forEach(([key, value]) => {
       if (value) params.set(key, value)
     })
     fetch(`/api/tenders?${params.toString()}`)
@@ -87,6 +99,43 @@ function App() {
     setSelected(null)
   }
 
+  function updateTenderWorkflow(updatedTender) {
+    setDetails(updatedTender)
+    setTenders((current) => current.map((item) => (
+      item.source === updatedTender.source && item.external_id === updatedTender.external_id
+        ? {
+            ...item,
+            workflow_status: updatedTender.workflow_status,
+            workflow_note: updatedTender.workflow_note,
+          }
+        : item
+    )))
+  }
+
+  function runSearch() {
+    const nextFilters = { ...filters }
+    setSearching(true)
+    setError('')
+    setSearchSummary('')
+    setSelected(null)
+    setAppliedFilters(nextFilters)
+    fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filters: nextFilters }),
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось запустить поиск')))
+      .then((payload) => {
+        const stats = payload.stats || {}
+        setSearchSummary(
+          `Fetched=${stats.fetched || 0} Saved=${stats.saved || 0} Matched=${stats.matched || 0} Notified=${stats.notified || 0} Telegram=${payload.notifications_enabled ? 'on' : 'off'}`
+        )
+        return loadTenders(nextFilters)
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setSearching(false))
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -95,6 +144,10 @@ function App() {
           <h1>Панель закупок</h1>
         </div>
         <div className="top-actions">
+          <button className="primary-action" disabled={searching} onClick={runSearch} type="button">
+            <PlayCircle size={18} />
+            {searching ? 'Поиск...' : 'Запустить поиск'}
+          </button>
           <button className="icon-button" onClick={loadTenders} title="Обновить список">
             <RefreshCcw size={18} />
           </button>
@@ -109,6 +162,7 @@ function App() {
         <Metric label="Сумма в выдаче" value={formatMoney(stats.totalPrice)} />
         <Metric label="API" value={error ? 'ошибка' : 'ok'} tone={error ? 'danger' : 'good'} />
       </section>
+      {searchSummary && <div className="run-summary">{searchSummary}</div>}
 
       <section className="workspace">
         <aside className="filters-panel">
@@ -145,7 +199,7 @@ function App() {
               Статус
               <select value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}>
                 <option value="">Все</option>
-                <option value="Актив">Активные</option>
+                <option value="active">Активные</option>
                 <option value="Прием">Прием заявок</option>
                 <option value="Заверш">Завершенные</option>
                 <option value="Отмен">Отмененные</option>
@@ -183,7 +237,12 @@ function App() {
                 onClick={() => setSelected(tender)}
               >
                 <div className="row-main">
-                  <span className="source-chip">{sourceLabels[tender.source] || tender.source}</span>
+                  <span className="row-tags">
+                    <span className="source-chip">{sourceLabels[tender.source] || tender.source}</span>
+                    <span className={`workflow-chip ${tender.workflow_status || 'new'}`}>
+                      {workflowLabels[tender.workflow_status] || 'Новая'}
+                    </span>
+                  </span>
                   <strong>{tender.title}</strong>
                   <span>{tender.customer || 'Заказчик не указан'}</span>
                 </div>
@@ -199,7 +258,11 @@ function App() {
         </section>
 
         <aside className="details-panel">
-          {details ? <TenderDetails tender={details} /> : <div className="empty-state">Выбери закупку из списка</div>}
+          {details ? (
+            <TenderDetails tender={details} onWorkflowUpdate={updateTenderWorkflow} />
+          ) : (
+            <div className="empty-state">Выбери закупку из списка</div>
+          )}
         </aside>
       </section>
     </main>
@@ -215,8 +278,30 @@ function Metric({ label, value, tone }) {
   )
 }
 
-function TenderDetails({ tender }) {
+function TenderDetails({ tender, onWorkflowUpdate }) {
   const raw = safeJson(tender.raw_payload_json)
+  const [note, setNote] = useState(tender.workflow_note || '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setNote(tender.workflow_note || '')
+  }, [tender.source, tender.external_id, tender.workflow_note])
+
+  function saveWorkflow(workflowStatus = tender.workflow_status || 'new', workflowNote = note) {
+    setSaving(true)
+    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/workflow`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workflow_status: workflowStatus,
+        workflow_note: workflowNote,
+      }),
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось сохранить статус')))
+      .then(onWorkflowUpdate)
+      .finally(() => setSaving(false))
+  }
+
   return (
     <div className="details">
       <div className="panel-title"><Building2 size={18} /> Карточка</div>
@@ -232,6 +317,34 @@ function TenderDetails({ tender }) {
       <a className="source-link" href={tender.url} target="_blank" rel="noreferrer">
         Открыть источник <ExternalLink size={16} />
       </a>
+
+      <section className="detail-section">
+        <h3>Рабочий статус</h3>
+        <div className="workflow-actions">
+          {Object.entries(workflowLabels).map(([status, label]) => (
+            <button
+              className={status === (tender.workflow_status || 'new') ? 'active' : ''}
+              disabled={saving}
+              key={status}
+              onClick={() => saveWorkflow(status)}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <label className="note-editor">
+          Заметка
+          <textarea
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="Например: проверить доставку, сертификаты, маржу."
+          />
+        </label>
+        <button className="secondary-button" disabled={saving} onClick={() => saveWorkflow()} type="button">
+          {saving ? 'Сохранение...' : 'Сохранить заметку'}
+        </button>
+      </section>
 
       <section className="detail-section">
         <h3>Заказчик</h3>

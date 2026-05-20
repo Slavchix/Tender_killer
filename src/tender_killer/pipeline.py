@@ -64,6 +64,8 @@ class TenderPipeline:
                     continue
                 matched += 1
 
+                if self.notify_mode == "new_only" and not result.created:
+                    continue
                 if self.notify_mode != "preview" and self.store.was_notified(tender):
                     continue
                 if self.notifier.send(build_tender_message(tender, filter_result.reasons)):

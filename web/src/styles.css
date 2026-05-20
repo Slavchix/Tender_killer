@@ -19,7 +19,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -78,6 +79,7 @@ h1 {
 .icon-button,
 .status-pill,
 .source-chip,
+.primary-action,
 .primary-button,
 .source-link {
   border-radius: 7px;
@@ -93,6 +95,25 @@ h1 {
   background: #26302d;
   border: 1px solid #35443f;
   cursor: pointer;
+}
+
+.primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  color: #0d160f;
+  background: #6edc61;
+  border: 0;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primary-action:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .status-pill {
@@ -111,6 +132,17 @@ h1 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 14px;
+}
+
+.run-summary {
+  max-width: 1520px;
+  margin: -4px auto 14px;
+  padding: 10px 12px;
+  color: #dbe8e2;
+  background: #202b27;
+  border: 1px solid #33413c;
+  border-radius: 8px;
+  font-weight: 700;
 }
 
 .metric {
@@ -187,9 +219,9 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
-  height: 38px;
   padding: 0 10px;
   color: #f3f8f6;
   background: #26302d;
@@ -198,8 +230,21 @@ select {
   outline: none;
 }
 
+input,
+select {
+  height: 38px;
+}
+
+textarea {
+  min-height: 92px;
+  padding-top: 10px;
+  resize: vertical;
+  line-height: 1.4;
+}
+
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: #68d45f;
   box-shadow: 0 0 0 2px rgba(104, 212, 95, 0.16);
 }
@@ -290,6 +335,42 @@ select:focus {
   font-weight: 800;
 }
 
+.row-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.workflow-chip {
+  width: fit-content;
+  padding: 4px 8px;
+  color: #d5e0db;
+  background: #2b3431;
+  border: 1px solid #46524d;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.workflow-chip.interesting {
+  color: #0d160f;
+  background: #d5d862;
+  border-color: #d5d862;
+}
+
+.workflow-chip.in_progress {
+  color: #0d160f;
+  background: #6edc61;
+  border-color: #6edc61;
+}
+
+.workflow-chip.skipped,
+.workflow-chip.archive {
+  color: #d9d1d1;
+  background: #3b2c2c;
+  border-color: #614444;
+}
+
 .row-meta {
   display: grid;
   align-content: center;
@@ -363,6 +444,24 @@ select:focus {
   text-decoration: none;
 }
 
+.secondary-button {
+  width: 100%;
+  height: 38px;
+  margin-top: 10px;
+  color: #dbe8e2;
+  background: #26302d;
+  border: 1px solid #3a4943;
+  border-radius: 7px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.secondary-button:disabled,
+.workflow-actions button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .detail-section {
   padding-top: 14px;
   margin-top: 14px;
@@ -372,6 +471,34 @@ select:focus {
 .detail-section h3 {
   margin-bottom: 8px;
   font-size: 15px;
+}
+
+.workflow-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.workflow-actions button {
+  min-height: 36px;
+  padding: 0 10px;
+  color: #dbe8e2;
+  background: #26302d;
+  border: 1px solid #3a4943;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.workflow-actions button.active {
+  color: #0d160f;
+  background: #6edc61;
+  border-color: #6edc61;
+  font-weight: 800;
+}
+
+.note-editor {
+  margin-top: 10px;
 }
 
 .document-list {

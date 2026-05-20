@@ -58,6 +58,18 @@ class TenderStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tender_workflow (
+                    source TEXT NOT NULL,
+                    external_id TEXT NOT NULL,
+                    workflow_status TEXT NOT NULL DEFAULT 'new',
+                    workflow_note TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (source, external_id)
+                )
+                """
+            )
 
     def upsert_tender(self, tender: Tender) -> SaveResult:
         payload = self._serialize(tender)

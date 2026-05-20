@@ -85,6 +85,63 @@ def test_pipeline_does_not_send_duplicate_notifications(tmp_path):
     assert len(notifier.messages) == 1
 
 
+def test_pipeline_new_only_notification_mode_skips_existing_unnotified_tenders(tmp_path):
+    tender = Tender(
+        source="static",
+        external_id="1",
+        url="https://example.test/1",
+        title="Поставка бумаги",
+        customer="ГБУ",
+        region="Москва",
+        status="active",
+    )
+    store = TenderStore(tmp_path / "db.sqlite")
+    store.initialize()
+    store.upsert_tender(tender)
+    notifier = SpyNotifier()
+    pipeline = TenderPipeline(
+        adapters=[StaticAdapter([tender])],
+        store=store,
+        material_filter=MaterialFilter(),
+        notifier=notifier,
+        notify_mode="new_only",
+    )
+
+    stats = pipeline.run()
+
+    assert stats.saved == 0
+    assert stats.matched == 1
+    assert stats.notified == 0
+    assert notifier.messages == []
+
+
+def test_pipeline_new_only_notification_mode_sends_new_tenders(tmp_path):
+    tender = Tender(
+        source="static",
+        external_id="1",
+        url="https://example.test/1",
+        title="Поставка бумаги",
+        customer="ГБУ",
+        region="Москва",
+        status="active",
+    )
+    notifier = SpyNotifier()
+    pipeline = TenderPipeline(
+        adapters=[StaticAdapter([tender])],
+        store=TenderStore(tmp_path / "db.sqlite"),
+        material_filter=MaterialFilter(),
+        notifier=notifier,
+        notify_mode="new_only",
+    )
+
+    stats = pipeline.run()
+
+    assert stats.saved == 1
+    assert stats.matched == 1
+    assert stats.notified == 1
+    assert len(notifier.messages) == 1
+
+
 def test_pipeline_preview_resends_matched_tenders_without_marking_notifications(tmp_path):
     tender = Tender(
         source="static",

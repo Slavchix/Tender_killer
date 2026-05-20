@@ -19,12 +19,14 @@ LOGGER = logging.getLogger(__name__)
 
 MENU = ReplyKeyboardMarkup(
     [
-        ["Настроить поиск", "Профили"],
-        ["Запустить поиск", "Тест поиска"],
-        ["Редактировать профиль", "Вкл/выкл профиль"],
         ["Статус источников"],
     ],
     resize_keyboard=True,
+)
+
+NOTIFICATION_ONLY_MESSAGE = (
+    "Telegram теперь работает только как канал уведомлений. "
+    "Настройки и ручной запуск поиска перенесены на сайт."
 )
 
 PROFILE_FIELDS = {
@@ -189,7 +191,8 @@ def format_filter_profile(profile: FilterProfile) -> str:
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _reply(
         update,
-        "Готов настраивать поиск закупок. Нажми «Настроить поиск» или запусти /search.",
+        f"{NOTIFICATION_ONLY_MESSAGE}\n\nЗдесь будут приходить новые подходящие закупки. "
+        "Для проверки состояния нажми «Статус источников» или отправь /sources_status.",
     )
 
 
@@ -290,6 +293,10 @@ async def sources_status_command(update: Update, context: ContextTypes.DEFAULT_T
     await _reply(update, format_sources_status(context.application.bot_data.get("last_stats")))
 
 
+async def deprecated_interactive_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _reply(update, NOTIFICATION_ONLY_MESSAGE)
+
+
 async def auto_search_loop(application: Application) -> None:
     settings: Settings = application.bot_data["settings"]
     store: FilterProfileStore = application.bot_data["filter_store"]
@@ -299,7 +306,7 @@ async def auto_search_loop(application: Application) -> None:
         if not settings.telegram_chat_id:
             LOGGER.info("Skipping auto search: TELEGRAM_CHAT_ID is not set.")
             continue
-        stats = await asyncio.to_thread(_run_search, settings, store, settings.telegram_chat_id)
+        stats = await asyncio.to_thread(_run_search, settings, store, settings.telegram_chat_id, "new_only")
         application.bot_data["last_stats"] = stats
         summary = format_search_summary(stats)
         if settings.dry_run:
@@ -362,8 +369,7 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return
 
     if text == "Настроить поиск":
-        context.user_data["wizard_step"] = "template"
-        await _reply(update, "Выбери шаблон поиска.", reply_markup=_template_keyboard())
+        await _reply(update, NOTIFICATION_ONLY_MESSAGE)
     elif text.startswith("Шаблон: "):
         template_name = text.removeprefix("Шаблон: ").strip()
         try:
@@ -405,28 +411,17 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         context.user_data["awaiting"] = "wizard_okpd2"
         await _reply(update, "Введи ОКПД2 через запятую, например: 17.12, 27.32.13")
     elif text == "Профили":
-        await profiles_command(update, context)
+        await _reply(update, NOTIFICATION_ONLY_MESSAGE)
     elif text == "Создать профиль":
-        context.user_data["awaiting"] = "profile_new_name"
-        await _reply(update, "Введите название нового профиля, например: Бумага")
+        await _reply(update, NOTIFICATION_ONLY_MESSAGE)
     elif text == "Редактировать профиль":
-        collection = _store(context).load_collection()
-        await _reply(
-            update,
-            "Выберите профиль для редактирования.",
-            reply_markup=_profile_action_keyboard(collection, "Редактировать"),
-        )
+        await _reply(update, NOTIFICATION_ONLY_MESSAGE)
     elif text == "Вкл/выкл профиль":
-        collection = _store(context).load_collection()
-        await _reply(
-            update,
-            "Выберите профиль, который нужно включить или выключить.",
-            reply_markup=_profile_action_keyboard(collection, "Вкл/выкл"),
-        )
+        await _reply(update, NOTIFICATION_ONLY_MESSAGE)
     elif text == "Запустить поиск":
-        await search_command(update, context)
+        await _reply(update, NOTIFICATION_ONLY_MESSAGE)
     elif text == "Тест поиска":
-        await test_search_command(update, context)
+        await _reply(update, NOTIFICATION_ONLY_MESSAGE)
     elif text == "Статус источников":
         await sources_status_command(update, context)
     elif text.startswith("Редактировать "):
@@ -454,7 +449,7 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         context.user_data["awaiting"] = "profile_edit_value"
         await _reply(update, f"Введите значение для поля `{text}`.\nПример: {FIELD_EXAMPLES[field]}")
     else:
-        await _reply(update, "Не понял команду. Открой /profiles или /filters.")
+        await _reply(update, NOTIFICATION_ONLY_MESSAGE)
 
 
 def format_search_summary(stats: PipelineStats) -> str:
@@ -686,19 +681,26 @@ def main() -> None:
     application.bot_data["settings"] = settings
     application.bot_data["filter_store"] = FilterProfileStore(filter_path)
     application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("filters", filters_command))
-    application.add_handler(CommandHandler("region", region_command))
-    application.add_handler(CommandHandler("price", price_command))
-    application.add_handler(CommandHandler("okpd2", okpd2_command))
-    application.add_handler(CommandHandler("sources", sources_command))
-    application.add_handler(CommandHandler("active", active_command))
-    application.add_handler(CommandHandler("profiles", profiles_command))
-    application.add_handler(CommandHandler("profile_new", profile_new_command))
-    application.add_handler(CommandHandler("profile_edit", profile_edit_command))
-    application.add_handler(CommandHandler("profile_toggle", profile_toggle_command))
     application.add_handler(CommandHandler("sources_status", sources_status_command))
-    application.add_handler(CommandHandler("search", search_command))
-    application.add_handler(CommandHandler("test_search", test_search_command))
+    application.add_handler(
+        CommandHandler(
+            [
+                "filters",
+                "region",
+                "price",
+                "okpd2",
+                "sources",
+                "active",
+                "profiles",
+                "profile_new",
+                "profile_edit",
+                "profile_toggle",
+                "search",
+                "test_search",
+            ],
+            deprecated_interactive_command,
+        )
+    )
     application.add_handler(MessageHandler(tg_filters.TEXT & ~tg_filters.COMMAND, text_menu_handler))
     LOGGER.info("Starting Tender Killer bot with filter profile %s", filter_path)
     application.run_polling()
