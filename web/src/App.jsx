@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bell,
   Building2,
@@ -502,6 +502,7 @@ function DatabaseView() {
 
 function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const raw = safeJson(tender.raw_payload_json)
+  const autoRefreshKey = useRef('')
   const [activeTab, setActiveTab] = useState('overview')
   const [note, setNote] = useState(tender.workflow_note || '')
   const [saving, setSaving] = useState(false)
@@ -534,6 +535,13 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     setProductProfileSummary(tender.product_profile_summary || null)
     setSelectedProfileIndex(0)
   }, [tender.source, tender.external_id, tender.workflow_note, tender.analysis, tender.product_profiles, tender.product_profile_summary])
+
+  useEffect(() => {
+    const key = `${tender.source}/${tender.external_id}`
+    if (!shouldAutoRefreshDetails(tender) || autoRefreshKey.current === key) return
+    autoRefreshKey.current = key
+    refreshDetails({ automatic: true })
+  }, [tender.source, tender.external_id, tender.items?.length])
 
   function saveWorkflow(workflowStatus = tender.workflow_status || 'new', workflowNote = note) {
     setSaving(true)
@@ -618,9 +626,9 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       .finally(() => setAnalyzing(false))
   }
 
-  function refreshDetails() {
+  function refreshDetails(options = {}) {
     setRefreshingDetails(true)
-    setDetailStatus('')
+    setDetailStatus(options.automatic ? 'Автоматически добираю позиции и классификаторы...' : '')
     fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/details/refresh`, {
       method: 'POST',
     })
@@ -636,7 +644,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         const summary = payload.summary || {}
         setDetailStatus(
           payload.refreshed
-            ? `Обновлено: позиций ${summary.items_count || 0}, документов ${summary.documents_count || 0}, профилей ${summary.product_profiles_count || 0}`
+            ? `${options.automatic ? 'Автообновление: ' : 'Обновлено: '}позиций ${summary.items_count || 0}, документов ${summary.documents_count || 0}, профилей ${summary.product_profiles_count || 0}`
             : payload.message || 'Источник не отдал новые детали'
         )
       })
@@ -980,6 +988,12 @@ function normalizeListItems(items = []) {
       return JSON.stringify(item)
     })
     .filter(Boolean)
+}
+
+function shouldAutoRefreshDetails(tender) {
+  if (!tender?.source || !tender?.external_id) return false
+  if (Array.isArray(tender.items) && tender.items.length > 0) return false
+  return ['mosreg_market', 'moscow_supplier_portal'].includes(tender.source)
 }
 
 function formatMoney(value) {
