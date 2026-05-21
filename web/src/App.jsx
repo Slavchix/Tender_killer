@@ -612,9 +612,9 @@ function PaginationBar({ page, shown, loading, onPrevious, onNext, pageLimit, pa
       </div>
       <div className="pagination-actions">
         <label className="page-size-control">
-          <span>РќР° СЃС‚СЂР°РЅРёС†Рµ</span>
+          <span>На странице</span>
           <select
-            aria-label="Р—Р°РєСѓРїРѕРє РЅР° СЃС‚СЂР°РЅРёС†Рµ"
+            aria-label="Закупок на странице"
             disabled={loading}
             onChange={(event) => onPageLimitChange(event.target.value)}
             value={pageLimit}

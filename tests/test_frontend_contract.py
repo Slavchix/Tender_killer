@@ -26,3 +26,6 @@ def test_tender_cockpit_exposes_page_size_selector():
     assert "function changePageLimit" in source
     assert "setPageOffset(0)" in source
     assert "onPageLimitChange={changePageLimit}" in source
+    assert "На странице" in source
+    assert "Закупок на странице" in source
+    assert "РќР° СЃС‚СЂР°РЅРёС†Рµ" not in source
