@@ -22,7 +22,9 @@ from tender_killer.models import Tender
 from tender_killer.models import TenderDocument
 from tender_killer.normalization import parse_datetime
 from tender_killer.pipeline import PipelineStats, TenderPipeline
-from tender_killer.product_profile import build_product_profiles
+from tender_killer.product_profile_service import build_profiles
+from tender_killer.product_profile_service import product_profile_summary
+from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
 from tender_killer.reports import build_tender_report_docx, report_filename
 from tender_killer.schema import ensure_analysis_table
 from tender_killer.schema import ensure_documents_table
@@ -34,7 +36,6 @@ from tender_killer.telegram import TelegramNotifier, build_tender_message
 
 
 WORKFLOW_STATUSES = frozenset(("new", "opened", "interesting", "in_progress", "skipped", "archive"))
-PRODUCT_PROFILE_SUMMARY_STATUSES = ("draft", "needs_review", "ready", "searching", "matched", "priced", "rejected")
 DATABASE_VIEW_TABLES = (
     "tenders",
     "tender_items",
@@ -118,15 +119,6 @@ def list_tenders_payload(database_path: str | Path, query: dict[str, str]) -> di
     return {"total": len(items), "items": items}
 
 
-def _product_profile_summary(profiles: list[dict[str, Any]]) -> dict[str, int]:
-    summary = {"total": len(profiles), **{status: 0 for status in PRODUCT_PROFILE_SUMMARY_STATUSES}}
-    for profile in profiles:
-        status = str(profile.get("profile_status") or "")
-        if status in PRODUCT_PROFILE_SUMMARY_STATUSES:
-            summary[status] += 1
-    return summary
-
-
 def _raw_payload_from_tender(tender: dict[str, Any]) -> dict[str, Any]:
     raw_payload = tender.get("raw_payload_json")
     if isinstance(raw_payload, str):
@@ -170,17 +162,8 @@ def _detail_refresh_summary(tender: dict[str, Any]) -> dict[str, int]:
 
 
 def rebuild_product_profiles(database_path: str | Path, source: str, external_id: str) -> dict[str, Any]:
-    store = TenderStore(database_path)
-    store.initialize()
     tender = get_tender_payload(database_path, source, external_id, include_product_profiles=False)
-    profiles = build_product_profiles(tender)
-    store.upsert_product_profiles(source, external_id, profiles)
-    saved_profiles = store.get_product_profiles(source, external_id)
-    return {
-        "ok": True,
-        "summary": _product_profile_summary(saved_profiles),
-        "product_profiles": saved_profiles,
-    }
+    return rebuild_product_profiles_from_payload(database_path, source, external_id, tender)
 
 
 def refresh_tender_detail_payload(
@@ -289,11 +272,11 @@ def get_tender_payload(
         store.initialize()
         product_profiles = store.get_product_profiles(source, external_id)
         if not product_profiles:
-            product_profiles = build_product_profiles(payload)
+            product_profiles = build_profiles(payload)
     else:
         product_profiles = []
     payload["product_profiles"] = product_profiles
-    payload["product_profile_summary"] = _product_profile_summary(product_profiles)
+    payload["product_profile_summary"] = product_profile_summary(product_profiles)
     return payload
 
 

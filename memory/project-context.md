@@ -440,3 +440,17 @@ Tender Killer - будущий софт для поставщиков в гос�
 - `web_api.py` использует публичные `ensure_*` функции из `schema.py` для SQLite-viewer, документов, анализа и workflow.
 - Добавлены тесты `tests/test_schema.py`, которые проверяют создание базовых таблиц и миграцию старых минимальных таблиц.
 - Практический смысл: перед экономикой, ЕИС и SaaS-слоем у нас появляется одно место, где эволюционирует структура базы.
+
+## Architecture cleanup checkpoint: product profile service split
+
+Дата: 2026-05-21.
+
+- Начат пункт 3.1 audit-документа: уменьшение монолитного `web_api.py`.
+- Вынесен первый доменный сервис `src/tender_killer/product_profile_service.py`.
+- Сервис отвечает за:
+  - сборку товарных профилей из готового payload;
+  - сохранение пересобранных профилей;
+  - расчет summary по статусам профилей.
+- `web_api.py` сохранил совместимый endpoint/wrapper `rebuild_product_profiles`, но больше не содержит саму бизнес-логику summary/rebuild.
+- Добавлены тесты `tests/test_product_profile_service.py`.
+- Следующий срез по 3.1: вынести document service (`download_tender_documents_payload`, `extract_tender_document_text_payload`) из `web_api.py`.
