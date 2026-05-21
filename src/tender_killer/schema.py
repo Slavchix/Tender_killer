@@ -33,6 +33,9 @@ def ensure_tenders_table(connection: sqlite3.Connection) -> None:
             delivery_place TEXT,
             law TEXT,
             region_code TEXT,
+            source_family TEXT,
+            procedure_type TEXT,
+            customer_inn TEXT,
             category TEXT,
             okpd2 TEXT,
             documents_json TEXT NOT NULL,
@@ -249,6 +252,9 @@ def ensure_tender_normalized_columns(connection: sqlite3.Connection) -> None:
         "law": "TEXT",
         "status_normalized": "TEXT",
         "region_code": "TEXT",
+        "source_family": "TEXT",
+        "procedure_type": "TEXT",
+        "customer_inn": "TEXT",
     }
     for column, definition in definitions.items():
         if column not in columns:

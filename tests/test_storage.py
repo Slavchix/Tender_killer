@@ -42,7 +42,11 @@ def test_store_persists_normalized_tender_filter_fields(tmp_path):
         title="Paper supply",
         region="Moscow Oblast",
         status="Reception of proposals",
-        raw_payload={"federalLawName": "44-\u0424\u0417"},
+        raw_payload={
+            "federalLawName": "44-\u0424\u0417",
+            "customers": [{"inn": "5047152960"}],
+            "tradeType": 1,
+        },
     )
 
     store.upsert_tender(tender)
@@ -50,11 +54,22 @@ def test_store_persists_normalized_tender_filter_fields(tmp_path):
     with sqlite3.connect(store.database_path) as connection:
         connection.row_factory = sqlite3.Row
         row = connection.execute(
-            "SELECT law, status_normalized, region_code FROM tenders WHERE source = ? AND external_id = ?",
+            """
+            SELECT law, status_normalized, region_code, source_family, procedure_type, customer_inn
+            FROM tenders
+            WHERE source = ? AND external_id = ?
+            """,
             tender.identity,
         ).fetchone()
 
-    assert dict(row) == {"law": "44-\u0424\u0417", "status_normalized": "active", "region_code": "50"}
+    assert dict(row) == {
+        "law": "44-\u0424\u0417",
+        "status_normalized": "active",
+        "region_code": "50",
+        "source_family": "mosreg",
+        "procedure_type": "electronic_shop",
+        "customer_inn": "5047152960",
+    }
 
 
 def test_store_tracks_notification_state(tmp_path):

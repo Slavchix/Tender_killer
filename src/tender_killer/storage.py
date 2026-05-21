@@ -8,8 +8,11 @@ from typing import Any
 
 from tender_killer.models import ProductProfile, Tender, TenderDocument
 from tender_killer.schema import initialize_schema
+from tender_killer.tender_metadata import normalize_customer_inn
 from tender_killer.tender_metadata import normalize_law
+from tender_killer.tender_metadata import normalize_procedure_type
 from tender_killer.tender_metadata import normalize_region_code
+from tender_killer.tender_metadata import normalize_source_family
 from tender_killer.tender_metadata import normalize_status
 
 
@@ -43,13 +46,13 @@ class TenderStore:
                 INSERT INTO tenders (
                     source, external_id, url, title, customer, region, price, currency,
                     status, status_normalized, published_at, deadline_at, delivery_place,
-                    law, region_code, category, okpd2,
+                    law, region_code, source_family, procedure_type, customer_inn, category, okpd2,
                     documents_json, raw_payload_json
                 )
                 VALUES (
                     :source, :external_id, :url, :title, :customer, :region, :price, :currency,
                     :status, :status_normalized, :published_at, :deadline_at, :delivery_place,
-                    :law, :region_code, :category, :okpd2,
+                    :law, :region_code, :source_family, :procedure_type, :customer_inn, :category, :okpd2,
                     :documents_json, :raw_payload_json
                 )
                 ON CONFLICT(source, external_id) DO UPDATE SET
@@ -66,6 +69,9 @@ class TenderStore:
                     delivery_place = excluded.delivery_place,
                     law = excluded.law,
                     region_code = excluded.region_code,
+                    source_family = excluded.source_family,
+                    procedure_type = excluded.procedure_type,
+                    customer_inn = excluded.customer_inn,
                     category = excluded.category,
                     okpd2 = excluded.okpd2,
                     documents_json = excluded.documents_json,
@@ -221,6 +227,9 @@ class TenderStore:
             "delivery_place": tender.delivery_place,
             "law": normalize_law(tender.raw_payload),
             "region_code": normalize_region_code(tender.region, tender.source),
+            "source_family": normalize_source_family(tender.source),
+            "procedure_type": normalize_procedure_type(tender.source, tender.raw_payload),
+            "customer_inn": normalize_customer_inn(tender.raw_payload),
             "category": tender.category,
             "okpd2": tender.okpd2,
             "documents_json": json.dumps(tender.documents, ensure_ascii=False),

@@ -441,6 +441,16 @@ Tender Killer - будущий софт для поставщиков в гос�
 - Добавлены тесты `tests/test_schema.py`, которые проверяют создание базовых таблиц и миграцию старых минимальных таблиц.
 - Практический смысл: перед экономикой, ЕИС и SaaS-слоем у нас появляется одно место, где эволюционирует структура базы.
 
+## Architecture cleanup checkpoint: normalized tender filter metadata
+
+Date: 2026-05-21.
+
+- Continued audit item 3.4: tender filtering should rely on normalized fields instead of scanning `raw_payload_json`.
+- `tenders` now stores normalized metadata: `law`, `status_normalized`, `region_code`, `source_family`, `procedure_type`, `customer_inn`.
+- `TenderStore.upsert_tender()` fills these fields via `src/tender_killer/tender_metadata.py`.
+- Web list filters now support stable filters for active status, law, quick region code, `procedure_type`, `source_family`, and `customer_inn`, while retaining legacy text fallback where useful.
+- Practical meaning: later UI filters, analytics, margin workflow, and customer/risk views can use stable columns rather than source-specific payload strings.
+
 ## Architecture cleanup checkpoint: product profile service split
 
 Дата: 2026-05-21.

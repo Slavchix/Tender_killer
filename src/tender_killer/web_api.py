@@ -44,7 +44,8 @@ def list_tenders_payload(database_path: str | Path, query: dict[str, str]) -> di
     filters, params = _build_filters(query)
     sql = (
         "SELECT tenders.source, tenders.external_id, url, title, customer, region, price, currency, status, "
-        "status_normalized, law, region_code, published_at, deadline_at, delivery_place, category, okpd2, "
+        "status_normalized, law, region_code, source_family, procedure_type, customer_inn, "
+        "published_at, deadline_at, delivery_place, category, okpd2, "
         "documents_json, raw_payload_json, "
         "tenders.updated_at, COALESCE(workflow.workflow_status, 'new') AS workflow_status, "
         "COALESCE(workflow.workflow_note, '') AS workflow_note, "
@@ -170,6 +171,7 @@ def get_tender_payload(
             """
             SELECT tenders.source, tenders.external_id, url, title, customer, region, price, currency, status,
                    status_normalized, law, region_code, published_at, deadline_at, delivery_place, category, okpd2,
+                   source_family, procedure_type, customer_inn,
                    documents_json, raw_payload_json, created_at, tenders.updated_at,
                    COALESCE(workflow.workflow_status, 'new') AS workflow_status,
                    COALESCE(workflow.workflow_note, '') AS workflow_note
@@ -410,6 +412,15 @@ def _build_filters(query: dict[str, str]) -> tuple[list[str], list[Any]]:
     if source_values := _source_query_values(query.get("source")):
         filters.append(_in_clause("tenders.source", source_values))
         params.extend(source_values)
+    if source_family_values := _lower_value_tuple(query.get("source_family")):
+        filters.append(_in_clause("tenders.source_family", source_family_values))
+        params.extend(source_family_values)
+    if procedure_values := _lower_value_tuple(query.get("procedure_type")):
+        filters.append(_in_clause("tenders.procedure_type", procedure_values))
+        params.extend(procedure_values)
+    if customer_inn_values := _digit_value_tuple(query.get("customer_inn")):
+        filters.append(_in_clause("tenders.customer_inn", customer_inn_values))
+        params.extend(customer_inn_values)
     if region_values := _region_values(query.get("region")):
         region_filters, region_params = _text_like_any("tenders.region", region_values)
         region_codes = _region_code_query_values(query.get("region"))
@@ -499,6 +510,19 @@ def _multi_value_tuple(value: Any) -> tuple[str, ...]:
     else:
         candidates = re.split(r"[,;\n]+", str(value or ""))
     return tuple(part.strip() for part in candidates if part and part.strip())
+
+
+def _lower_value_tuple(value: Any) -> tuple[str, ...]:
+    return tuple(item.casefold() for item in _multi_value_tuple(value))
+
+
+def _digit_value_tuple(value: Any) -> tuple[str, ...]:
+    values: list[str] = []
+    for item in _multi_value_tuple(value):
+        digits = re.sub(r"\D+", "", item)
+        if digits and digits not in values:
+            values.append(digits)
+    return tuple(values)
 
 
 def _region_values(value: Any) -> tuple[str, ...]:

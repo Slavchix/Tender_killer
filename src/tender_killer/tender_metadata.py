@@ -66,6 +66,40 @@ def normalize_region_code(region: str | None, source: str | None = None) -> str 
     return None
 
 
+def normalize_source_family(source: str | None) -> str | None:
+    text = _normalize_text(source)
+    if text in {"mosreg", "mosreg_market"}:
+        return "mosreg"
+    if text in {"moscow", "moscow_supplier_portal"}:
+        return "moscow"
+    return text or None
+
+
+def normalize_procedure_type(source: str | None, raw_payload: dict[str, Any] | None) -> str | None:
+    source_family = normalize_source_family(source)
+    payload = raw_payload or {}
+    if source_family == "mosreg":
+        return "electronic_shop"
+    if _has_value(payload, "auctionId") or str(payload.get("tradeType") or "") == "1":
+        return "quotation_session"
+    if _has_value(payload, "needId"):
+        return "need"
+    if _has_value(payload, "tenderId"):
+        return "tender"
+    if source_family == "moscow":
+        return "supplier_portal"
+    return None
+
+
+def normalize_customer_inn(raw_payload: dict[str, Any] | None) -> str | None:
+    payload = raw_payload or {}
+    for value in _candidate_values(payload):
+        inn = _normalize_inn(value)
+        if inn:
+            return inn
+    return None
+
+
 def _payload_text(raw_payload: dict[str, Any] | None) -> str:
     if not raw_payload:
         return ""
@@ -85,6 +119,32 @@ def _payload_text(raw_payload: dict[str, Any] | None) -> str:
     if not parts:
         parts.append(json.dumps(raw_payload, ensure_ascii=False))
     return " ".join(parts)
+
+
+def _has_value(payload: dict[str, Any], key: str) -> bool:
+    value = payload.get(key)
+    return value is not None and str(value).strip() not in {"", "None", "null"}
+
+
+def _candidate_values(payload: dict[str, Any]) -> list[Any]:
+    values: list[Any] = []
+    for key in ("customerInn", "CustomerInn", "customerINN", "inn", "Inn", "INN"):
+        values.append(payload.get(key))
+    for key in ("purchaseCreator", "customer", "Customer"):
+        nested = payload.get(key)
+        if isinstance(nested, dict):
+            values.extend(nested.get(nested_key) for nested_key in ("inn", "Inn", "INN"))
+    customers = payload.get("customers") or payload.get("Customers")
+    if isinstance(customers, list):
+        for customer in customers:
+            if isinstance(customer, dict):
+                values.extend(customer.get(nested_key) for nested_key in ("inn", "Inn", "INN"))
+    return values
+
+
+def _normalize_inn(value: Any) -> str | None:
+    digits = re.sub(r"\D+", "", str(value or ""))
+    return digits if len(digits) in {10, 12} else None
 
 
 def _normalize_text(value: str | None) -> str:

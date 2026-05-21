@@ -205,16 +205,32 @@ def test_list_tenders_payload_returns_normalized_filter_fields(tmp_path):
             title="Paper supply",
             region="Moscow Oblast",
             status="Reception of proposals",
-            raw_payload={"federalLawName": "44-\u0424\u0417"},
+            raw_payload={
+                "federalLawName": "44-\u0424\u0417",
+                "customers": [{"inn": "5047152960"}],
+                "tradeType": 1,
+            },
         )
     )
 
-    payload = list_tenders_payload(store.database_path, {"law": "44-\u0424\u0417", "status": "active", "region": "MO"})
+    payload = list_tenders_payload(
+        store.database_path,
+        {
+            "law": "44-\u0424\u0417",
+            "status": "active",
+            "region": "MO",
+            "procedure_type": "electronic_shop",
+            "customer_inn": "5047152960",
+        },
+    )
 
     assert payload["total"] == 1
     assert payload["items"][0]["law"] == "44-\u0424\u0417"
     assert payload["items"][0]["status_normalized"] == "active"
     assert payload["items"][0]["region_code"] == "50"
+    assert payload["items"][0]["source_family"] == "mosreg"
+    assert payload["items"][0]["procedure_type"] == "electronic_shop"
+    assert payload["items"][0]["customer_inn"] == "5047152960"
 
 
 def test_list_tenders_payload_filters_by_federal_law(tmp_path):
