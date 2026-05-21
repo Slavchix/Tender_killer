@@ -33,6 +33,7 @@ Recent architecture cleanup:
 - Tender detail payload/refresh logic is isolated in `src/tender_killer/tender_detail_service.py`.
 - Manual Telegram notification payload construction is isolated in `src/tender_killer/notification_service.py`.
 - Tender/database API path parsing is isolated in `src/tender_killer/api_routes.py`.
+- GET/POST API dispatch is isolated in `src/tender_killer/api_handlers.py`, leaving `web_api.py` as a thin HTTP adapter.
 - TZ analysis run persistence is isolated in `src/tender_killer/analysis_service.py`.
 - Search run orchestration is isolated in `src/tender_killer/search_service.py`.
 - The tender list has a page-size selector for 10/25/50/100 rows while keeping 25 as the default.
@@ -45,7 +46,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `172 passed`.
+Latest verified result before this handoff: `176 passed`.
 
 Good next steps:
 

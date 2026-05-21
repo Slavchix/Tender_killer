@@ -509,4 +509,5 @@ Date: 2026-05-21.
 - Added `src/tender_killer/dev_smoke.py` for local site smoke checks: direct API, Vite HTML, Vite `/api` proxy, source status proxying, and key UI labels that guard against the page-size mojibake regression.
 - Added `src/tender_killer/encoding_guard.py` plus `tests/test_encoding_guard.py` to scan runtime/UI/docs files for Cyrillic mojibake; `dev_smoke` now uses the same detector instead of a hand-written forbidden-string list.
 - Added `src/tender_killer/api_routes.py` so tender/database API path parsing is no longer hand-split throughout `web_api.py`.
-- Latest full verification in this slice: `172 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- Added `src/tender_killer/api_handlers.py` so GET/POST route dispatch lives outside `web_api.py`; `web_api.py` now reads request bodies and serializes responses, while the handler module chooses the service.
+- Latest full verification in this slice: `176 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
