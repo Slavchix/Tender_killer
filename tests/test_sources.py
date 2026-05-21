@@ -90,6 +90,15 @@ def test_moscow_adapter_fetches_active_auctions_from_purchase_query(monkeypatch)
             ],
         },
     )
+    monkeypatch.setattr(
+        adapter,
+        "_fetch_auction_detail",
+        lambda auction_id: {
+            "id": 10205128,
+            "files": [{"id": 275314143, "name": "Краткое описание КС 10205128.docx"}],
+            "items": [{"name": "Кисть 70мм", "currentValue": 20, "costPerUnit": 220, "okeiName": "шт"}],
+        },
+    )
 
     tenders = adapter.fetch()
 
@@ -100,7 +109,13 @@ def test_moscow_adapter_fetches_active_auctions_from_purchase_query(monkeypatch)
     assert tenders[0].price == 50200.0
     assert tenders[0].status == "Активная"
     assert tenders[0].deadline_at is not None
+    assert tenders[0].documents[0].startswith(
+        "https://zakupki.mos.ru/newapi/api/FileStorage/Download?id=275314143"
+    )
+    assert "%D0%9A%D1%80%D0%B0%D1%82%D0%BA%D0%BE%D0%B5" in tenders[0].documents[0]
+    assert tenders[0].items[0].name == "Кисть 70мм"
     assert tenders[0].raw_payload["federalLawName"] == "44-ФЗ"
+    assert tenders[0].raw_payload["__detail"]["id"] == 10205128
 
 
 def test_moscow_purchase_query_payload_requests_active_moscow_auctions():
@@ -134,9 +149,16 @@ def test_mosreg_adapter_fetches_active_trades_from_post_endpoint(monkeypatch):
         }
 
     monkeypatch.setattr(adapter, "_fetch_page", fetch_page)
+    monkeypatch.setattr(
+        adapter,
+        "_fetch_trade_documents",
+        lambda trade_id: [{"FileName": "Техническое задание.docx", "Url": "https://example.test/tz.docx"}],
+    )
 
     tenders = adapter.fetch()
 
     assert len(tenders) == 1
     assert tenders[0].external_id == "3668200"
     assert tenders[0].url == "https://market.mosreg.ru/Trade/ViewTrade/3668200"
+    assert tenders[0].documents == ["https://example.test/tz.docx"]
+    assert tenders[0].raw_payload["__documents"][0]["FileName"] == "Техническое задание.docx"

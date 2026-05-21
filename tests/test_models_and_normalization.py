@@ -30,6 +30,52 @@ def test_moscow_adapter_normalizes_json_payload():
     assert tender.okpd2 == "17.12.14"
 
 
+def test_moscow_adapter_normalizes_enriched_detail_items_and_documents():
+    payload = {
+        "auctionId": 10205109,
+        "number": "10205109",
+        "name": "ТОВАРЫ СТРОИТЕЛЬНЫЕ",
+        "stateName": "Активная",
+        "__detail": {
+            "id": 10205109,
+            "name": "ТОВАРЫ СТРОИТЕЛЬНЫЕ",
+            "federalLawName": "44-ФЗ",
+            "customer": {"name": "Школа"},
+            "startCost": 86330.0,
+            "state": {"name": "Активная"},
+            "endDate": "19.05.2026 17:26:05",
+            "deliveries": [{"deliveryPlace": "г Москва, Малый Козловский переулок, 3"}],
+            "items": [
+                {
+                    "name": "Краска акриловая",
+                    "currentValue": 50.0,
+                    "costPerUnit": 1567.0,
+                    "okeiName": "шт",
+                    "okpdName": "Краски на основе акриловых полимеров",
+                    "productionDirectoryName": "Краски",
+                }
+            ],
+            "files": [{"id": 275311511, "name": "Проект контракта.pdf"}],
+        },
+    }
+
+    tender = MoscowSupplierPortalAdapter().normalize_payload(payload)
+
+    assert tender.customer == "Школа"
+    assert tender.price == 86330.0
+    assert tender.delivery_place == "г Москва, Малый Козловский переулок, 3"
+    assert tender.documents[0].startswith("https://zakupki.mos.ru/newapi/api/FileStorage/Download?id=275311511")
+    assert "%D0%9F%D1%80%D0%BE%D0%B5%D0%BA%D1%82" in tender.documents[0]
+    assert len(tender.items) == 1
+    assert tender.items[0].name == "Краска акриловая"
+    assert tender.items[0].details == "Краски"
+    assert tender.items[0].quantity == 50.0
+    assert tender.items[0].unit == "шт"
+    assert tender.items[0].unit_price == 1567.0
+    assert tender.items[0].total_price == 78350.0
+    assert tender.items[0].okpd2 == "Краски на основе акриловых полимеров"
+
+
 def test_adapter_extracts_json_with_utf8_bom():
     payloads = MoscowSupplierPortalAdapter().extract_payloads(
         '\ufeff{"items":[{"id":123,"name":"Поставка бумаги"}]}'
@@ -73,6 +119,56 @@ def test_mosreg_adapter_normalizes_json_payload():
     assert tender.status == "Прием предложений"
     assert tender.url == "https://market.mosreg.ru/Trade/ViewTrade/3668200"
     assert tender.documents == ["https://api.market.mosreg.ru/api/Trade/3668200/GetTradeDocuments"]
+
+
+def test_mosreg_adapter_normalizes_items_from_trade_payload():
+    payload = {
+        "Id": 3668200,
+        "TradeName": "Поставка товаров для организации проведения ГИА.",
+        "TradeObjects": [
+            {
+                "ProductName": "Файл-вкладыш",
+                "DetailedName": 'Папка-вкладыш Berlingo "Mirror", A4',
+                "Quantity": "800,0000000000",
+                "UnitName": "Штука",
+                "UnitPrice": "2,0000",
+                "TotalPrice": "1600,00",
+                "Koz2Value": "11.05.01.01.02.01.017",
+                "ClassificatorType": "КОЗ-2",
+            }
+        ],
+    }
+
+    tender = MosregMarketAdapter().normalize_payload(payload)
+
+    assert len(tender.items) == 1
+    assert tender.items[0].name == "Файл-вкладыш"
+    assert tender.items[0].details == 'Папка-вкладыш Berlingo "Mirror", A4'
+    assert tender.items[0].quantity == 800.0
+    assert tender.items[0].unit == "Штука"
+    assert tender.items[0].unit_price == 2.0
+    assert tender.items[0].total_price == 1600.0
+    assert tender.items[0].okpd2 == "11.05.01.01.02.01.017"
+    assert tender.items[0].classifier_code == "11.05.01.01.02.01.017"
+    assert tender.items[0].classifier_type == "КОЗ-2"
+
+
+def test_mosreg_adapter_uses_real_document_urls_from_enriched_payload():
+    payload = {
+        "Id": 3668200,
+        "TradeName": "Поставка товаров",
+        "__documents": [
+            {
+                "FileName": "Техническое задание.docx",
+                "Url": "https://easuz.mosreg.ru/file/docx",
+            }
+        ],
+    }
+
+    tender = MosregMarketAdapter().normalize_payload(payload)
+
+    assert tender.documents == ["https://easuz.mosreg.ru/file/docx"]
+    assert tender.raw_payload["__documents"][0]["FileName"] == "Техническое задание.docx"
 
 
 def test_production_adapters_do_not_extract_navigation_html_as_tenders():
