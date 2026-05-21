@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from tender_killer.dev_smoke import check_dev_site
 
 

@@ -7,25 +7,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from tender_killer.analysis_service import analyze_tender_payload
 from tender_killer.api_handlers import ApiResponse
-from tender_killer.api_handlers import build_tender_report_response
 from tender_killer.api_handlers import handle_get_request
 from tender_killer.api_handlers import handle_post_request
-from tender_killer.api_handlers import rebuild_product_profiles
-from tender_killer.api_handlers import update_tender_workflow
 from tender_killer.config import Settings
-from tender_killer.database_view_service import get_database_table_payload
-from tender_killer.database_view_service import list_database_tables_payload
-from tender_killer.document_service import download_tender_documents_payload
-from tender_killer.document_service import extract_tender_document_text_payload
-from tender_killer.notification_service import send_tender_notification_payload
-from tender_killer.search_service import run_search_payload
-from tender_killer.source_run_service import list_source_runs_payload
-from tender_killer.tender_detail_service import get_tender_payload
-from tender_killer.tender_detail_service import refresh_tender_detail_payload
-from tender_killer.tender_query_service import build_search_collection
-from tender_killer.tender_query_service import list_tenders_payload
 
 
 class TenderApiHandler(BaseHTTPRequestHandler):

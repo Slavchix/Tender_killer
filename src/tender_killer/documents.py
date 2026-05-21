@@ -7,7 +7,6 @@ import zlib
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
-from typing import Any
 from urllib.parse import unquote, urlparse
 from xml.etree import ElementTree as ET
 from zipfile import BadZipFile, ZipFile

@@ -498,16 +498,17 @@ Date: 2026-05-21.
 - Tender list pagination now has explicit API navigation fields (`has_next`, `has_previous`, `next_offset`, `previous_offset`) and the React cockpit uses them for next/previous controls.
 - The site requests tender pages with a bounded limit of 25 rows, shows the total count, and resets offset when filters/workflow tabs change.
 - The React filter panel now exposes normalized metadata filters for `source_family`, `procedure_type`, and `customer_inn`.
-- Workflow persistence moved from `web_api.py` into `src/tender_killer/workflow_service.py`; `web_api.update_tender_workflow(...)` remains as a compatibility wrapper that returns the full tender payload.
-- Report download payload construction moved into `src/tender_killer/report_service.py`; `web_api.build_tender_report_response(...)` remains as a compatibility wrapper that loads the tender payload and delegates DOCX response construction.
-- Tender detail payload loading and detail refresh moved into `src/tender_killer/tender_detail_service.py`; `web_api.py` imports the public functions and keeps the existing routes/API names.
+- Workflow persistence moved from `web_api.py` into `src/tender_killer/workflow_service.py`; request-level workflow payload handling now lives in `src/tender_killer/api_handlers.py`.
+- Report download payload construction moved into `src/tender_killer/report_service.py`; request-level report loading now lives in `src/tender_killer/api_handlers.py`.
+- Tender detail payload loading and detail refresh moved into `src/tender_killer/tender_detail_service.py`; `web_api.py` keeps the existing HTTP routes/API names through `api_handlers`.
 - Manual Telegram notification payload construction moved into `src/tender_killer/notification_service.py`; `web_api.py` no longer owns payload-to-`Tender` conversion for manual notifications.
-- TZ analysis run persistence moved into `src/tender_killer/analysis_service.py`; `web_api.py` keeps the existing `analyze_tender_payload` import/API surface.
-- Search run orchestration moved into `src/tender_killer/search_service.py`; `web_api.py` keeps `/api/search` as a thin route and re-exports `build_search_collection` for compatibility.
+- TZ analysis run persistence moved into `src/tender_killer/analysis_service.py`; HTTP dispatch goes through `src/tender_killer/api_handlers.py`.
+- Search run orchestration moved into `src/tender_killer/search_service.py`; `/api/search` remains available through the thin HTTP adapter plus `api_handlers`.
 - The React tender list now has a page-size selector for 10/25/50/100 rows. Default remains 25, and changing page size resets the list to offset 0 while keeping active filters.
 - Added `src/tender_killer/dev_health.py` and wired `scripts/dev-web.ps1` through it. `npm run dev` now checks both `/api/health` and `/api/sources/status`, reuses a healthy existing API, and fails clearly if port 8000 is occupied by a stale or incompatible backend.
 - Added `src/tender_killer/dev_smoke.py` for local site smoke checks: direct API, Vite HTML, Vite `/api` proxy, source status proxying, and key UI labels that guard against the page-size mojibake regression.
 - Added `src/tender_killer/encoding_guard.py` plus `tests/test_encoding_guard.py` to scan runtime/UI/docs files for Cyrillic mojibake; `dev_smoke` now uses the same detector instead of a hand-written forbidden-string list.
 - Added `src/tender_killer/api_routes.py` so tender/database API path parsing is no longer hand-split throughout `web_api.py`.
 - Added `src/tender_killer/api_handlers.py` so GET/POST route dispatch lives outside `web_api.py`; `web_api.py` now reads request bodies and serializes responses, while the handler module chooses the service.
-- Latest full verification in this slice: `176 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- Cleanup before product work: removed ignored pytest/cache/build artifacts from the workspace, removed old `web_api.py` service re-export imports, and added a regression test that keeps `web_api.py` as a thin HTTP adapter.
+- Latest full verification in this slice: `177 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.

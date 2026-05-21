@@ -3,32 +3,54 @@ from __future__ import annotations
 import json
 import sqlite3
 from io import BytesIO
+from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
 
+from tender_killer.analysis_service import analyze_tender_payload
+from tender_killer.api_handlers import build_tender_report_response
+from tender_killer.api_handlers import rebuild_product_profiles
+from tender_killer.api_handlers import update_tender_workflow
+from tender_killer.database_view_service import get_database_table_payload
+from tender_killer.database_view_service import list_database_tables_payload
+from tender_killer.document_service import download_tender_documents_payload
+from tender_killer.document_service import extract_tender_document_text_payload
 from tender_killer.models import Tender
 from tender_killer.models import TenderDocument
 from tender_killer.models import TenderItem
+from tender_killer.notification_service import send_tender_notification_payload
 from tender_killer.pipeline import PipelineStats
+from tender_killer.search_service import run_search_payload
+from tender_killer.source_run_service import list_source_runs_payload
 from tender_killer.storage import TenderStore
-from tender_killer.web_api import (
-    analyze_tender_payload,
-    build_search_collection,
-    build_tender_report_response,
-    download_tender_documents_payload,
-    extract_tender_document_text_payload,
-    get_database_table_payload,
-    get_tender_payload,
-    list_database_tables_payload,
-    list_source_runs_payload,
-    list_tenders_payload,
-    rebuild_product_profiles,
-    refresh_tender_detail_payload,
-    run_search_payload,
-    send_tender_notification_payload,
-    update_tender_workflow,
-)
+from tender_killer.tender_detail_service import get_tender_payload
+from tender_killer.tender_detail_service import refresh_tender_detail_payload
+from tender_killer.tender_query_service import build_search_collection
+from tender_killer.tender_query_service import list_tenders_payload
+
+
+WEB_API_SOURCE = Path(__file__).resolve().parents[1] / "src" / "tender_killer" / "web_api.py"
+
+
+def test_web_api_stays_a_thin_http_adapter():
+    source = WEB_API_SOURCE.read_text(encoding="utf-8")
+
+    forbidden_imports = (
+        "from tender_killer.analysis_service",
+        "from tender_killer.database_view_service",
+        "from tender_killer.document_service",
+        "from tender_killer.notification_service",
+        "from tender_killer.search_service",
+        "from tender_killer.source_run_service",
+        "from tender_killer.tender_detail_service",
+        "from tender_killer.tender_query_service",
+    )
+    for import_line in forbidden_imports:
+        assert import_line not in source
+
+    assert "from tender_killer.api_handlers import handle_get_request" in source
+    assert "from tender_killer.api_handlers import handle_post_request" in source
 
 
 def _docx_bytes(text: str) -> bytes:
