@@ -203,3 +203,9 @@ $env:TELEGRAM_CHAT_ID="..."
 ```powershell
 .\.venv\Scripts\python.exe -m pytest --basetemp .pytest-tmp
 ```
+
+В Codex sandbox полный прогон может падать на `tmp_path`/`basetemp` с `PermissionError`, потому что часть тестов создает временные SQLite/документные файлы. В таком случае запускать проверку вне sandbox:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
+```

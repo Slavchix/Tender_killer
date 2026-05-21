@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from io import BytesIO
 from zipfile import ZipFile
 
 from tender_killer.reports import build_tender_report_docx
 
 
-def test_build_tender_report_docx_includes_product_profile_summary_for_many_profiles(tmp_path):
+def test_build_tender_report_docx_includes_product_profile_summary_for_many_profiles():
     payload = {
         "title": "Тестовая закупка материалов",
         "product_profile_summary": {
@@ -31,11 +32,7 @@ def test_build_tender_report_docx_includes_product_profile_summary_for_many_prof
     }
 
     content = build_tender_report_docx(payload)
-    path = tmp_path / "report.docx"
-    path.write_bytes(content)
-
-    with ZipFile(path) as archive:
-        document_xml = archive.read("word/document.xml").decode("utf-8")
+    document_xml = _document_xml(content)
 
     assert "Сводка товарных профилей" in document_xml
     assert "Товарные профили: 40" in document_xml
@@ -44,7 +41,7 @@ def test_build_tender_report_docx_includes_product_profile_summary_for_many_prof
     assert "Материал 40" in document_xml
 
 
-def test_build_tender_report_docx_contains_key_sections(tmp_path):
+def test_build_tender_report_docx_contains_key_sections():
     payload = {
         "source": "mosreg_market",
         "external_id": "3668200",
@@ -103,11 +100,7 @@ def test_build_tender_report_docx_contains_key_sections(tmp_path):
     }
 
     content = build_tender_report_docx(payload)
-    path = tmp_path / "report.docx"
-    path.write_bytes(content)
-
-    with ZipFile(path) as archive:
-        document_xml = archive.read("word/document.xml").decode("utf-8")
+    document_xml = _document_xml(content)
 
     assert "Паспорт закупки" in document_xml
     assert "Поставка огнетушителей" in document_xml
@@ -118,9 +111,12 @@ def test_build_tender_report_docx_contains_key_sections(tmp_path):
     assert "сертификат/декларация" in document_xml
     assert "короткий срок поставки" in document_xml
     assert "Будущий расчет экономики" in document_xml
+    assert "<w:tbl>" in document_xml
+    assert "Краткое решение" in document_xml
+    assert "Документы и ТЗ" in document_xml
 
 
-def test_build_tender_report_docx_falls_back_to_card_subject_when_items_missing(tmp_path):
+def test_build_tender_report_docx_falls_back_to_card_subject_when_items_missing():
     payload = {
         "source": "mosreg_market",
         "external_id": "3670000",
@@ -135,13 +131,14 @@ def test_build_tender_report_docx_falls_back_to_card_subject_when_items_missing(
     }
 
     content = build_tender_report_docx(payload)
-    path = tmp_path / "report.docx"
-    path.write_bytes(content)
-
-    with ZipFile(path) as archive:
-        document_xml = archive.read("word/document.xml").decode("utf-8")
+    document_xml = _document_xml(content)
 
     assert "Поставка садовых инструментов" in document_xml
     assert "Хозяйственные товары" in document_xml
     assert "25.73.10" in document_xml
     assert "Позиции пока не найдены" not in document_xml
+
+
+def _document_xml(content: bytes) -> str:
+    with ZipFile(BytesIO(content)) as archive:
+        return archive.read("word/document.xml").decode("utf-8")

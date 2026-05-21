@@ -169,15 +169,18 @@ def test_build_product_profiles_returns_persistent_shape_for_extinguisher_with_k
     assert profile["confidence"] >= 0.7
     assert profile["source"] == "item"
     assert profile["raw_payload"] == {}
-    assert profile["evidence"] == [
-        {
-            "field": "product_name",
-            "source": "tender_item.name",
-            "value": "Огнетушитель порошковый ОП-5",
-        },
-        {"field": "classifier", "source": "tender_item.classifier_code", "value": "01.02.03.04.05"},
-        {"field": "details", "source": "tender_item.details", "value": "Масса заряда не менее 5 кг"},
-    ]
+    assert {
+        "field": "product_name",
+        "source": "tender_item.name",
+        "value": "Огнетушитель порошковый ОП-5",
+    } in profile["evidence"]
+    assert {"field": "classifier", "source": "tender_item.classifier_code", "value": "01.02.03.04.05"} in profile["evidence"]
+    assert {"field": "details", "source": "tender_item.details", "value": "Масса заряда не менее 5 кг"} in profile["evidence"]
+    assert {
+        "field": "document_requirement",
+        "source": "document_1",
+        "value": "Товар должен соответствовать ГОСТ Р 51057-2001, ТР ТС 032/2013.",
+    } in profile["evidence"]
     assert profile["search_phrases"] == [
         "Огнетушитель порошковый ОП-5",
         "Масса заряда не менее 5 кг",
@@ -225,3 +228,41 @@ def test_build_product_profiles_traces_classifier_source_from_item_okpd2_when_cl
     profile = build_product_profiles(tender)[0]
 
     assert {"field": "classifier", "source": "tender_item.okpd2", "value": "28.23.25.000"} in profile["evidence"]
+
+
+def test_build_product_profiles_links_document_requirements_to_item_profile():
+    tender = {
+        "source": "mosreg_market",
+        "external_id": "3666760",
+        "title": "Поставка зачетных книжек для нужд колледжа",
+        "items": [
+            {
+                "position_index": 1,
+                "name": "Бланк из бумаги или картона",
+                "details": "Поставка зачетных книжек",
+                "quantity": 700,
+                "unit": "Штука",
+                "classifier_code": "11.105.01.02.08.01.008",
+                "classifier_type": "КОЗ-2",
+            }
+        ],
+        "document_records": [
+            {
+                "name": "Техническое задание.docx",
+                "text_content": (
+                    "Поставка зачетных книжек осуществляется партиями по заявке заказчика. "
+                    "Бланк из бумаги или картона должен соответствовать требованиям качества. "
+                    "Поставщик предоставляет сертификат или декларацию соответствия."
+                ),
+            }
+        ],
+    }
+
+    profile = build_product_profiles(tender)[0]
+
+    assert "Бланк из бумаги или картона должен соответствовать требованиям качества." in profile["required_characteristics"]
+    assert {
+        "field": "document_requirement",
+        "source": "Техническое задание.docx",
+        "value": "Бланк из бумаги или картона должен соответствовать требованиям качества.",
+    } in profile["evidence"]

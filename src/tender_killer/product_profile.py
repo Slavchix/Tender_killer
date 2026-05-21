@@ -9,6 +9,7 @@ DEFAULT_STOP_WORDS = ["б/у", "уценка", "ремонт", "услуга"]
 
 def build_product_profiles(tender: dict[str, Any]) -> list[dict[str, Any]]:
     items = tender.get("items") or []
+    documents = _document_records(tender)
     text = _combined_text(tender)
     standards = _standards(text)
     cert_documents = _cert_documents(text)
@@ -22,6 +23,12 @@ def build_product_profiles(tender: dict[str, Any]) -> list[dict[str, Any]]:
             classifier_code, classifier_source = _item_classifier(item, tender)
             classifier_type = _clean(item.get("classifier_type")) or _classifier_type_for_code(classifier_code)
             details = _clean(item.get("details"))
+            document_snippets = _document_requirement_snippets(
+                product_name=product_name,
+                details=details,
+                documents=documents,
+                single_item=len(items) == 1,
+            )
             profiles.append(
                 _profile(
                     tender=tender,
@@ -37,8 +44,11 @@ def build_product_profiles(tender: dict[str, Any]) -> list[dict[str, Any]]:
                     classifier_code=classifier_code,
                     classifier_type=classifier_type,
                     classifiers=_classifiers(classifier_code, classifier_type, okpd2, "tender_item"),
-                    evidence=_item_evidence(product_name, classifier_code, classifier_source, details),
-                    required_characteristics=_characteristics(details, text),
+                    evidence=[
+                        *_item_evidence(product_name, classifier_code, classifier_source, details),
+                        *_document_evidence(document_snippets),
+                    ],
+                    required_characteristics=_characteristics(details, text, document_snippets),
                     standards=standards,
                     cert_documents=cert_documents,
                     origin_country_requirements=origin_country_requirements,
@@ -52,6 +62,12 @@ def build_product_profiles(tender: dict[str, Any]) -> list[dict[str, Any]]:
     product_name = _clean(tender.get("title")) or "Товар не указан"
     classifier_code = _clean(tender.get("okpd2"))
     classifier_type = _classifier_type_for_code(classifier_code)
+    document_snippets = _document_requirement_snippets(
+        product_name=product_name,
+        details=None,
+        documents=documents,
+        single_item=True,
+    )
     profiles.append(
         _profile(
             tender=tender,
@@ -67,8 +83,8 @@ def build_product_profiles(tender: dict[str, Any]) -> list[dict[str, Any]]:
             classifier_code=classifier_code,
             classifier_type=classifier_type,
             classifiers=_classifiers(classifier_code, classifier_type, classifier_code, "tender_card"),
-            evidence=_fallback_evidence(product_name, classifier_code),
-            required_characteristics=_characteristics("", text),
+            evidence=[*_fallback_evidence(product_name, classifier_code), *_document_evidence(document_snippets)],
+            required_characteristics=_characteristics("", text, document_snippets),
             standards=standards,
             cert_documents=cert_documents,
             origin_country_requirements=origin_country_requirements,
@@ -227,10 +243,12 @@ def _classifier_type_for_code(code: str | None) -> str | None:
     return "ОКПД2"
 
 
-def _characteristics(details: str | None, text: str) -> list[str]:
+def _characteristics(details: str | None, text: str, document_snippets: list[dict[str, str]] | None = None) -> list[str]:
     values: list[str] = []
     if details:
         values.append(details)
+    for snippet in document_snippets or []:
+        values.append(snippet.get("value"))
     lower = text.casefold()
     if "гост" in lower:
         values.append("ГОСТ")
@@ -247,6 +265,98 @@ def _characteristics(details: str | None, text: str) -> list[str]:
     ):
         values.append(_clean(match))
     return _unique(values)
+
+
+def _document_requirement_snippets(
+    *,
+    product_name: str,
+    details: str | None,
+    documents: list[dict[str, str]],
+    single_item: bool,
+) -> list[dict[str, str]]:
+    tokens = _requirement_tokens(product_name, details)
+    values: list[dict[str, str]] = []
+    for document in documents:
+        for sentence in _sentences(document["text"]):
+            normalized = sentence.casefold()
+            token_match = any(token in normalized for token in tokens)
+            risk_match = single_item and _looks_like_requirement(normalized)
+            if not token_match and not risk_match:
+                continue
+            value = _clean(sentence)
+            if not value:
+                continue
+            values.append({"source": document["name"], "value": _trim(value, 260)})
+            if len(values) >= 8:
+                return _unique_snippets(values)
+    return _unique_snippets(values)
+
+
+def _document_evidence(snippets: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        {"field": "document_requirement", "source": snippet["source"], "value": snippet["value"]}
+        for snippet in snippets
+    ]
+
+
+def _document_records(tender: dict[str, Any]) -> list[dict[str, str]]:
+    records: list[dict[str, str]] = []
+    for index, document in enumerate(tender.get("document_records") or [], start=1):
+        if not isinstance(document, dict):
+            continue
+        text = _clean(document.get("text_content"))
+        if not text:
+            continue
+        name = _clean(document.get("name")) or f"document_{index}"
+        records.append({"name": name, "text": text})
+    return records
+
+
+def _requirement_tokens(product_name: str, details: str | None) -> list[str]:
+    source = f"{product_name} {details or ''}"
+    ignored = {"для", "или", "при", "под", "над", "без", "поставка", "товар", "работ", "услуг"}
+    tokens = [
+        token
+        for token in re.findall(r"[A-Za-zА-Яа-яЁё0-9]{4,}", source.casefold())
+        if token not in ignored
+    ]
+    return _unique(tokens)
+
+
+def _sentences(text: str) -> list[str]:
+    return [part.strip() for part in re.split(r"(?<=[.!?])\s+|\n+", text) if part.strip()]
+
+
+def _looks_like_requirement(value: str) -> bool:
+    markers = (
+        "должен",
+        "должна",
+        "соответств",
+        "сертификат",
+        "деклараци",
+        "гост",
+        "ту ",
+        "срок поставки",
+        "страна происхождения",
+        "качества",
+    )
+    return any(marker in value for marker in markers)
+
+
+def _unique_snippets(values: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[tuple[str, str]] = set()
+    result: list[dict[str, str]] = []
+    for value in values:
+        key = (value["source"], value["value"])
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(value)
+    return result
+
+
+def _trim(value: str, limit: int) -> str:
+    return value if len(value) <= limit else f"{value[:limit].rstrip()}..."
 
 
 def _standards(text: str) -> list[str]:
