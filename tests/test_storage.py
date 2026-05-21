@@ -185,6 +185,24 @@ def test_store_upserts_product_profiles_without_duplicates_and_deserializes_json
     assert profiles[0]["raw_payload"] == {"row": 2}
 
 
+def test_store_preserves_product_profile_okpd2_distinct_from_classifier_code(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    profile = _product_profile(
+        position_index=1,
+        product_name="Extinguisher",
+        okpd2="28.29.22.110",
+        classifier_code="01.02.03.04.05.006",
+        classifier_type="КОЗ-2",
+    )
+
+    store.upsert_product_profiles("moscow", "abc", [profile])
+
+    saved = store.get_product_profiles("moscow", "abc")
+    assert saved[0]["okpd2"] == "28.29.22.110"
+    assert saved[0]["classifier_code"] == "01.02.03.04.05.006"
+
+
 def test_store_persists_and_reads_back_forty_product_profiles(tmp_path):
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()
@@ -211,6 +229,33 @@ def test_store_empty_product_profile_upsert_deletes_existing_profiles(tmp_path):
     )
 
     store.upsert_product_profiles("moscow", "abc", [])
+
+    assert store.get_product_profiles("moscow", "abc") == []
+
+
+def test_store_deletes_product_profiles_when_tender_is_refreshed(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="moscow",
+            external_id="abc",
+            url="https://example.test/abc",
+            title="Tender",
+            items=[TenderItem(name="Paper")],
+        )
+    )
+    store.upsert_product_profiles("moscow", "abc", [_product_profile(position_index=1, product_name="Paper")])
+
+    store.upsert_tender(
+        Tender(
+            source="moscow",
+            external_id="abc",
+            url="https://example.test/abc",
+            title="Tender refreshed",
+            items=[TenderItem(name="Paper"), TenderItem(name="Folder")],
+        )
+    )
 
     assert store.get_product_profiles("moscow", "abc") == []
 
@@ -248,6 +293,9 @@ def _product_profile(
     required_characteristics=None,
     evidence=None,
     raw_payload=None,
+    okpd2="17.12.14",
+    classifier_code="17.12.14",
+    classifier_type="okpd2",
 ) -> ProductProfile:
     return ProductProfile(
         tender_source="moscow",
@@ -261,8 +309,9 @@ def _product_profile(
         unit="pcs",
         unit_price=10.0,
         total_price=10.0 * position_index,
-        classifier_code="17.12.14",
-        classifier_type="okpd2",
+        okpd2=okpd2,
+        classifier_code=classifier_code,
+        classifier_type=classifier_type,
         classifiers=classifiers or [],
         required_characteristics=required_characteristics or [],
         standards=["GOST 1"],

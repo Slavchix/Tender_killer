@@ -151,6 +151,7 @@ class TenderStore:
                     unit TEXT,
                     unit_price REAL,
                     total_price REAL,
+                    okpd2 TEXT,
                     classifier_code TEXT,
                     classifier_type TEXT,
                     classifiers_json TEXT NOT NULL,
@@ -217,6 +218,10 @@ class TenderStore:
             )
             self._replace_items(connection, tender)
             self._replace_documents(connection, tender)
+            connection.execute(
+                "DELETE FROM product_profiles WHERE tender_source = ? AND tender_external_id = ?",
+                tender.identity,
+            )
             return SaveResult(created=not existed, updated=existed)
 
     def was_notified(self, tender: Tender) -> bool:
@@ -271,7 +276,7 @@ class TenderStore:
                 INSERT INTO product_profiles (
                     tender_source, tender_external_id, position_index, product_name,
                     normalized_name, details, category, quantity, unit, unit_price,
-                    total_price, classifier_code, classifier_type, classifiers_json,
+                    total_price, okpd2, classifier_code, classifier_type, classifiers_json,
                     required_characteristics_json, standards_json, cert_documents_json,
                     brand_model_json, origin_country_requirements_json, search_phrases_json,
                     stop_words_json, evidence_json, profile_status, confidence, source,
@@ -280,7 +285,7 @@ class TenderStore:
                 VALUES (
                     :tender_source, :tender_external_id, :position_index, :product_name,
                     :normalized_name, :details, :category, :quantity, :unit, :unit_price,
-                    :total_price, :classifier_code, :classifier_type, :classifiers_json,
+                    :total_price, :okpd2, :classifier_code, :classifier_type, :classifiers_json,
                     :required_characteristics_json, :standards_json, :cert_documents_json,
                     :brand_model_json, :origin_country_requirements_json, :search_phrases_json,
                     :stop_words_json, :evidence_json, :profile_status, :confidence, :source,
@@ -295,6 +300,7 @@ class TenderStore:
                     unit = excluded.unit,
                     unit_price = excluded.unit_price,
                     total_price = excluded.total_price,
+                    okpd2 = excluded.okpd2,
                     classifier_code = excluded.classifier_code,
                     classifier_type = excluded.classifier_type,
                     classifiers_json = excluded.classifiers_json,
@@ -322,7 +328,7 @@ class TenderStore:
                 SELECT
                     tender_source, tender_external_id, position_index, product_name,
                     normalized_name, details, category, quantity, unit, unit_price,
-                    total_price, classifier_code, classifier_type, classifiers_json,
+                    total_price, okpd2, classifier_code, classifier_type, classifiers_json,
                     required_characteristics_json, standards_json, cert_documents_json,
                     brand_model_json, origin_country_requirements_json, search_phrases_json,
                     stop_words_json, evidence_json, profile_status, confidence, source,
@@ -496,6 +502,7 @@ def _serialize_product_profile(
         "unit": values.get("unit"),
         "unit_price": values.get("unit_price"),
         "total_price": values.get("total_price"),
+        "okpd2": values.get("okpd2"),
         "classifier_code": values.get("classifier_code"),
         "classifier_type": values.get("classifier_type"),
         "profile_status": values.get("profile_status") or "needs_review",
@@ -520,6 +527,7 @@ def _deserialize_product_profile(row: sqlite3.Row) -> dict[str, Any]:
         "unit": row["unit"],
         "unit_price": row["unit_price"],
         "total_price": row["total_price"],
+        "okpd2": row["okpd2"],
         "classifier_code": row["classifier_code"],
         "classifier_type": row["classifier_type"],
         "profile_status": row["profile_status"],
@@ -565,6 +573,7 @@ def _ensure_product_profile_columns(connection: sqlite3.Connection) -> None:
         "unit": "TEXT",
         "unit_price": "REAL",
         "total_price": "REAL",
+        "okpd2": "TEXT",
         "classifier_code": "TEXT",
         "classifier_type": "TEXT",
         "classifiers_json": "TEXT NOT NULL DEFAULT '[]'",

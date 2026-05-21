@@ -44,6 +44,7 @@ class ProductProfile:
     unit: str | None = None
     unit_price: float | None = None
     total_price: float | None = None
+    okpd2: str | None = None
     classifier_code: str | None = None
     classifier_type: str | None = None
     classifiers: list[dict[str, Any]] = field(default_factory=list)
