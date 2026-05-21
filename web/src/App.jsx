@@ -502,6 +502,7 @@ function DatabaseView() {
 
 function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const raw = safeJson(tender.raw_payload_json)
+  const [activeTab, setActiveTab] = useState('overview')
   const [note, setNote] = useState(tender.workflow_note || '')
   const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState(false)
@@ -521,6 +522,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const [profilesLoading, setProfilesLoading] = useState(false)
 
   useEffect(() => {
+    setActiveTab('overview')
     setNote(tender.workflow_note || '')
     setNotifyStatus('')
     setDownloadStatus('')
@@ -660,200 +662,218 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       .finally(() => setProfilesLoading(false))
   }
 
+  const statusMessages = [detailStatus, notifyStatus, downloadStatus, extractStatus].filter(Boolean)
+  const tabs = [
+    { id: 'overview', label: 'Обзор' },
+    { id: 'products', label: `Товары ${productProfiles.length || tender.items?.length || 0}` },
+    { id: 'documents', label: `Документы ${documentRecords.length}` },
+    { id: 'analysis', label: 'Анализ' },
+    { id: 'workflow', label: 'Статус' },
+  ]
+
   return (
     <div className="details">
-      <div className="panel-title"><Building2 size={18} /> Карточка</div>
-      <h2>{tender.title}</h2>
-      <div className="detail-grid">
-        <Info label="Источник" value={sourceLabels[tender.source] || tender.source} />
-        <Info label="Номер" value={tender.external_id} />
-        <Info label="Цена" value={formatMoney(tender.price)} />
-        <Info label="Дедлайн" value={formatDate(tender.deadline_at)} />
-        <Info label="Статус" value={tender.status || 'не указан'} />
-        <Info label="Регион" value={tender.region || 'не указан'} />
+      <div className="details-header">
+        <div className="panel-title"><Building2 size={18} /> Карточка</div>
+        <h2>{tender.title}</h2>
+        <div className="detail-pills">
+          <span>{sourceLabels[tender.source] || tender.source}</span>
+          <span>{formatMoney(tender.price)}</span>
+          <span>{formatDate(tender.deadline_at)}</span>
+          <span>{workflowLabels[tender.workflow_status] || 'Новая'}</span>
+        </div>
       </div>
-      <a className="source-link" href={tender.url} target="_blank" rel="noreferrer">
-        Открыть источник <ExternalLink size={16} />
-      </a>
-      <button className="secondary-button" disabled={refreshingDetails} onClick={refreshDetails} type="button">
-        {refreshingDetails ? 'Обновление деталей...' : 'Обновить детали карточки'}
-      </button>
-      {detailStatus && <p className="inline-status">{detailStatus}</p>}
-      <button className="secondary-button" disabled={sending} onClick={sendToTelegram} type="button">
-        {sending ? 'Отправка...' : 'Отправить в Telegram'}
-      </button>
-      <a
-        className="secondary-link-button"
-        href={`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/report.docx`}
-      >
-        Скачать отчет Word
-      </a>
-      {notifyStatus && <p className="inline-status">{notifyStatus}</p>}
 
-      <section className="detail-section analysis-section">
-        <div className="section-heading-row">
-          <h3>Выжимка ТЗ</h3>
-          <button className="secondary-button" disabled={analyzing} onClick={analyzeTender} type="button">
-            {analyzing ? 'Анализ...' : 'Проанализировать ТЗ'}
-          </button>
-        </div>
-        {analysis ? (
-          <div className="analysis-card">
-            <div className="analysis-status-row">
-              <strong>{analysisStatusLabel(analysis.status)}</strong>
-              <span>Уверенность: {formatConfidence(analysis.confidence)}</span>
-            </div>
-            <p>{analysis.summary}</p>
-            <AnalysisList title="Требования" items={analysis.requirements} empty="Явные требования пока не найдены" />
-            <AnalysisList title="Риски" items={analysis.risks} empty="Явные риски пока не найдены" />
-            <AnalysisList title="Красные флаги" items={analysis.red_flags} empty="Критичные признаки пока не найдены" danger />
-          </div>
-        ) : (
-          <p>Сначала извлеки текст документов, затем запусти анализ ТЗ.</p>
-        )}
-      </section>
-
-      <section className="detail-section">
-        <h3>Рабочий статус</h3>
-        <div className="workflow-actions">
-          {Object.entries(workflowLabels).map(([status, label]) => (
-            <button
-              className={status === (tender.workflow_status || 'new') ? 'active' : ''}
-              disabled={saving}
-              key={status}
-              onClick={() => saveWorkflow(status)}
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <label className="note-editor">
-          Заметка
-          <textarea
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            placeholder="Например: проверить доставку, сертификаты, маржу."
-          />
-        </label>
-        <button className="secondary-button" disabled={saving} onClick={() => saveWorkflow()} type="button">
-          {saving ? 'Сохранение...' : 'Сохранить заметку'}
+      <div className="detail-actions">
+        <a className="detail-action primary" href={tender.url} target="_blank" rel="noreferrer">
+          Источник <ExternalLink size={15} />
+        </a>
+        <button disabled={refreshingDetails} onClick={refreshDetails} type="button">
+          {refreshingDetails ? 'Обновляю' : 'Обновить'}
         </button>
-      </section>
+        <button disabled={downloading} onClick={downloadDocuments} type="button">
+          {downloading ? 'Качаю' : 'Документы'}
+        </button>
+        <button disabled={extracting} onClick={extractDocumentText} type="button">
+          {extracting ? 'Читаю' : 'Текст'}
+        </button>
+        <button disabled={analyzing} onClick={analyzeTender} type="button">
+          {analyzing ? 'Анализ' : 'Анализ'}
+        </button>
+        <a
+          className="detail-action"
+          href={`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/report.docx`}
+        >
+          Word
+        </a>
+        <button disabled={sending} onClick={sendToTelegram} type="button">
+          {sending ? 'Отправка' : 'TG'}
+        </button>
+      </div>
 
-      <section className="detail-section">
-        <h3>Заказчик</h3>
-        <p>{tender.customer || 'Не указан'}</p>
-      </section>
-
-      <section className="detail-section product-profile-section">
-        <div className="section-heading-row">
-          <h3>Товарные профили</h3>
-          <button className="secondary-button compact" disabled={profilesLoading} onClick={rebuildProductProfiles} type="button">
-            {profilesLoading ? 'Обновление...' : 'Обновить профили'}
-          </button>
+      {statusMessages.length > 0 && (
+        <div className="status-stack">
+          {statusMessages.map((message) => <p className="inline-status" key={message}>{message}</p>)}
         </div>
+      )}
 
-        <ProfileSummary summary={productProfileSummary} total={productProfiles.length} />
+      <nav className="detail-tabs" aria-label="Разделы карточки">
+        {tabs.map((tab) => (
+          <button
+            className={activeTab === tab.id ? 'active' : ''}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            type="button"
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
 
-        {productProfiles.length ? (
-          <div className="profile-layout">
-            <div className="profile-list" role="listbox" aria-label="Товарные профили">
-              {productProfiles.map((profile, index) => (
+      <div className="detail-tab-panel">
+        {activeTab === 'overview' && (
+          <section className="detail-section active">
+            <div className="detail-grid">
+              <Info label="Номер" value={tender.external_id} />
+              <Info label="Статус площадки" value={tender.status || 'не указан'} />
+              <Info label="Регион" value={tender.region || 'не указан'} />
+              <Info label="Закон" value={raw.federalLawName || raw.SourcePlatformName || 'не найден'} />
+              <Info label="Заказчик" value={tender.customer || 'не указан'} />
+              <Info label="Категория" value={tender.category || raw.CategoryName || 'не найдена'} />
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'products' && (
+          <section className="detail-section active product-profile-section">
+            <div className="section-heading-row">
+              <h3>Товары</h3>
+              <button className="secondary-button compact" disabled={profilesLoading} onClick={rebuildProductProfiles} type="button">
+                {profilesLoading ? 'Обновление...' : 'Обновить профили'}
+              </button>
+            </div>
+            <ProfileSummary summary={productProfileSummary} total={productProfiles.length} />
+            {productProfiles.length ? (
+              <div className="profile-layout">
+                <div className="profile-list" role="listbox" aria-label="Товарные профили">
+                  {productProfiles.map((profile, index) => (
+                    <button
+                      className={index === selectedProfileIndex ? 'profile-row selected' : 'profile-row'}
+                      key={`${profile.position_index}-${profile.product_name}-${index}`}
+                      onClick={() => setSelectedProfileIndex(index)}
+                      type="button"
+                    >
+                      <span className="profile-position">#{profile.position_index || index + 1}</span>
+                      <span className="profile-name">{profile.product_name || 'Без названия'}</span>
+                      <span className="profile-meta quantity">{formatQuantity(profile.quantity, profile.unit)}</span>
+                      <span className="profile-meta classifier">{profile.classifier_type || 'код'} {profile.classifier_code || profile.okpd2 || 'не найден'}</span>
+                      <span className={`profile-status ${profile.profile_status || 'draft'}`}>{profileStatusLabel(profile.profile_status)}</span>
+                    </button>
+                  ))}
+                </div>
+                <ProductProfileDetail profile={productProfiles[selectedProfileIndex]} />
+              </div>
+            ) : (
+              <p className="muted-text">Товарные профили пока не сформированы.</p>
+            )}
+            <TenderItems items={tender.items || []} />
+          </section>
+        )}
+
+        {activeTab === 'documents' && (
+          <section className="detail-section active">
+            <h3>Документы</h3>
+            {documentRecords.length ? (
+              <div className="document-table">
+                {documentRecords.map((document) => (
+                  <div className="document-row" key={document.url}>
+                    <div>
+                      <a href={document.url} target="_blank" rel="noreferrer">
+                        {document.name || documentLabel(document.url)}
+                      </a>
+                      <span>{document.document_type || 'тип не указан'}</span>
+                      {document.text_content && (
+                        <details className="document-preview-toggle">
+                          <summary>Показать извлеченный текст</summary>
+                          <p className="document-preview">{documentTextPreview(document.text_content)}</p>
+                        </details>
+                      )}
+                      {document.text_error && <p className="document-error">{document.text_error}</p>}
+                    </div>
+                    <strong>{document.local_path ? 'скачан' : 'не скачан'}</strong>
+                    <em>{document.text_status || 'pending'}</em>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>Документы пока не найдены в карточке.</p>
+            )}
+          </section>
+        )}
+
+        {activeTab === 'analysis' && (
+          <section className="detail-section active analysis-section">
+            <div className="section-heading-row">
+              <h3>Выжимка ТЗ</h3>
+              <button className="secondary-button compact" disabled={analyzing} onClick={analyzeTender} type="button">
+                {analyzing ? 'Анализ...' : 'Проанализировать'}
+              </button>
+            </div>
+            {analysis ? (
+              <div className="analysis-card">
+                <div className="analysis-status-row">
+                  <strong>{analysisStatusLabel(analysis.status)}</strong>
+                  <span>Уверенность: {formatConfidence(analysis.confidence)}</span>
+                </div>
+                <p>{analysis.summary}</p>
+                <AnalysisList title="Требования" items={analysis.requirements} empty="Явные требования пока не найдены" />
+                <AnalysisList title="Риски" items={analysis.risks} empty="Явные риски пока не найдены" />
+                <AnalysisList title="Красные флаги" items={analysis.red_flags} empty="Критичные признаки пока не найдены" danger />
+              </div>
+            ) : (
+              <p>Сначала извлеки текст документов, затем запусти анализ ТЗ.</p>
+            )}
+          </section>
+        )}
+
+        {activeTab === 'workflow' && (
+          <section className="detail-section active">
+            <h3>Рабочий статус</h3>
+            <div className="workflow-actions">
+              {Object.entries(workflowLabels).map(([status, label]) => (
                 <button
-                  className={index === selectedProfileIndex ? 'profile-row selected' : 'profile-row'}
-                  key={`${profile.position_index}-${profile.product_name}-${index}`}
-                  onClick={() => setSelectedProfileIndex(index)}
+                  className={status === (tender.workflow_status || 'new') ? 'active' : ''}
+                  disabled={saving}
+                  key={status}
+                  onClick={() => saveWorkflow(status)}
                   type="button"
                 >
-                  <span className="profile-position">#{profile.position_index || index + 1}</span>
-                  <span className="profile-name">{profile.product_name || 'Без названия'}</span>
-                  <span className="profile-meta">{formatQuantity(profile.quantity, profile.unit)}</span>
-                  <span className="profile-meta">{profile.classifier_type || 'код'} {profile.classifier_code || profile.okpd2 || 'не найден'}</span>
-                  <span className={`profile-status ${profile.profile_status || 'draft'}`}>{profileStatusLabel(profile.profile_status)}</span>
+                  {label}
                 </button>
               ))}
             </div>
-            <ProductProfileDetail profile={productProfiles[selectedProfileIndex]} />
-          </div>
-        ) : (
-          <p className="muted-text">Товарные профили пока не сформированы.</p>
-        )}
-      </section>
-
-      <section className="detail-section">
-        <h3>Документы</h3>
-        {documentRecords.length ? (
-          <>
-            <button className="secondary-button" disabled={downloading} onClick={downloadDocuments} type="button">
-              {downloading ? 'Скачивание...' : 'Скачать документы'}
+            <label className="note-editor">
+              Заметка
+              <textarea
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="Например: проверить доставку, сертификаты, маржу."
+              />
+            </label>
+            <button className="secondary-button" disabled={saving} onClick={() => saveWorkflow()} type="button">
+              {saving ? 'Сохранение...' : 'Сохранить заметку'}
             </button>
-            <button className="secondary-button" disabled={extracting} onClick={extractDocumentText} type="button">
-              {extracting ? 'Извлечение...' : 'Извлечь текст'}
-            </button>
-            {downloadStatus && <p className="inline-status">{downloadStatus}</p>}
-            {extractStatus && <p className="inline-status">{extractStatus}</p>}
-            <div className="document-table">
-              {documentRecords.map((document) => (
-                <div className="document-row" key={document.url}>
-                  <div>
-                    <a href={document.url} target="_blank" rel="noreferrer">
-                      {document.name || documentLabel(document.url)}
-                    </a>
-                    <span>{document.document_type || 'тип не указан'}</span>
-                    {document.text_content && (
-                      <p className="document-preview">{documentTextPreview(document.text_content)}</p>
-                    )}
-                    {document.text_error && (
-                      <p className="document-error">{document.text_error}</p>
-                    )}
-                  </div>
-                  <strong>{document.local_path ? 'скачан' : 'не скачан'}</strong>
-                  <em>{document.text_status || 'pending'}</em>
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <p>Документы пока не найдены в карточке.</p>
-        )}
-      </section>
-
-      <section className="detail-section">
-        <h3>Позиции закупки</h3>
-        {tender.items?.length ? (
-          <div className="items-list">
-            {tender.items.map((item) => (
-              <div className="item-card" key={`${item.position_index}-${item.name}`}>
-                <div className="item-title">
-                  <span>№{item.position_index}</span>
-                  <strong>{item.name}</strong>
-                </div>
-                {item.details && <p>{item.details}</p>}
-                <div className="item-facts">
-                  <Info label="Кол-во" value={formatAmount(item.quantity, item.unit)} />
-                  <Info label="Цена за ед." value={formatMoney(item.unit_price)} />
-                  <Info label="Сумма" value={formatMoney(item.total_price)} />
-                  <Info label="ОКПД2/КОЗ" value={item.okpd2 || 'не найден'} />
-                  <Info label="Код классификатора" value={item.classifier_code || item.okpd2 || 'не найден'} />
-                  <Info label="Тип классификатора" value={item.classifier_type || 'не указан'} />
-                </div>
+            <details className="debug-details">
+              <summary>Сырые признаки</summary>
+              <div className="raw-grid">
+                <Info label="Закон" value={raw.federalLawName || raw.SourcePlatformName || 'не найден'} />
+                <Info label="ОКПД2" value={tender.okpd2 || raw.Koz2Value || 'не найден'} />
+                <Info label="Категория" value={tender.category || raw.CategoryName || 'не найдена'} />
               </div>
-            ))}
-          </div>
-        ) : (
-          <p>Позиции пока не найдены в данных карточки.</p>
+            </details>
+          </section>
         )}
-      </section>
-
-      <section className="detail-section">
-        <h3>Сырые признаки</h3>
-        <div className="raw-grid">
-          <Info label="Закон" value={raw.federalLawName || raw.SourcePlatformName || 'не найден'} />
-          <Info label="ОКПД2" value={tender.okpd2 || raw.Koz2Value || 'не найден'} />
-          <Info label="Категория" value={tender.category || raw.CategoryName || 'не найдена'} />
-        </div>
-      </section>
+      </div>
     </div>
   )
 }
@@ -892,6 +912,35 @@ function ProductProfileDetail({ profile }) {
       <AnalysisList title="Поисковые фразы" items={profile.search_phrases || []} empty="Поисковые фразы пока не сформированы" />
       <AnalysisList title="Стоп-слова" items={profile.stop_words || []} empty="Стоп-слова пока не заданы" danger />
     </div>
+  )
+}
+
+function TenderItems({ items }) {
+  if (!items.length) {
+    return <p className="muted-text">Позиции из карточки пока не найдены.</p>
+  }
+
+  return (
+    <details className="source-items">
+      <summary>Позиции из карточки ({items.length})</summary>
+      <div className="items-list">
+        {items.map((item) => (
+          <div className="item-card" key={`${item.position_index}-${item.name}`}>
+            <div className="item-title">
+              <span>№{item.position_index}</span>
+              <strong>{item.name}</strong>
+            </div>
+            {item.details && <p>{item.details}</p>}
+            <div className="item-facts">
+              <Info label="Кол-во" value={formatAmount(item.quantity, item.unit)} />
+              <Info label="Цена за ед." value={formatMoney(item.unit_price)} />
+              <Info label="Сумма" value={formatMoney(item.total_price)} />
+              <Info label="Классификатор" value={item.classifier_code || item.okpd2 || 'не найден'} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </details>
   )
 }
 
