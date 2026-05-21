@@ -905,20 +905,62 @@ function ProductProfileDetail({ profile }) {
     return <div className="profile-detail muted-text">Выбери позицию из списка</div>
   }
 
+  const documentEvidence = (profile.evidence || []).filter((item) => item?.field === 'document_requirement')
+  const classifierLabel = `${profile.classifier_type || 'тип не указан'} ${profile.classifier_code || 'код не найден'}`
+
   return (
     <div className="profile-detail">
-      <h4>{profile.product_name || 'Без названия'}</h4>
-      <div className="profile-detail-grid">
-        <Info label="Детали" value={profile.details || 'не найдено'} />
-        <Info label="Классификатор" value={`${profile.classifier_type || 'тип не указан'} ${profile.classifier_code || profile.okpd2 || 'код не найден'}`} />
-        <Info label="Количество" value={formatQuantity(profile.quantity, profile.unit)} />
-        <Info label="Статус" value={profileStatusLabel(profile.profile_status)} />
+      <div className="profile-detail-header">
+        <div>
+          <span>Позиция #{profile.position_index || '—'}</span>
+          <h4>{profile.product_name || 'Без названия'}</h4>
+        </div>
+        <strong className={`profile-status ${profile.profile_status || 'draft'}`}>
+          {profileStatusLabel(profile.profile_status)}
+        </strong>
       </div>
-      <AnalysisList title="Характеристики" items={profile.required_characteristics || []} empty="Характеристики пока не найдены" />
-      <AnalysisList title="Стандарты" items={profile.standards || []} empty="ГОСТ/ТУ пока не найдены" />
-      <AnalysisList title="Сертификаты и документы" items={profile.cert_documents || []} empty="Сертификаты/декларации пока не найдены" />
-      <AnalysisList title="Поисковые фразы" items={profile.search_phrases || []} empty="Поисковые фразы пока не сформированы" />
-      <AnalysisList title="Стоп-слова" items={profile.stop_words || []} empty="Стоп-слова пока не заданы" danger />
+
+      <section className="profile-block">
+        <h5>Идентификация позиции</h5>
+        <div className="profile-detail-grid">
+          <Info label="Детализированное наименование" value={profile.details || 'не найдено'} />
+          <Info label="Количество" value={formatQuantity(profile.quantity, profile.unit)} />
+          <Info label="Цена за ед." value={formatMoney(profile.unit_price)} />
+          <Info label="Сумма позиции" value={formatMoney(profile.total_price)} />
+          <Info label="ОКПД2" value={profile.okpd2 || 'не найден'} />
+          <Info label="Классификатор площадки" value={classifierLabel} />
+        </div>
+      </section>
+
+      <section className="profile-block">
+        <h5>Пакет для поиска товара</h5>
+        <AnalysisList title="Поисковые фразы" items={profile.search_phrases || []} empty="Поисковые фразы пока не сформированы" />
+        <AnalysisList title="Стоп-слова" items={profile.stop_words || []} empty="Стоп-слова пока не заданы" danger />
+      </section>
+
+      <section className="profile-block">
+        <h5>Требования и документы</h5>
+        <AnalysisList title="Характеристики из карточки и ТЗ" items={profile.required_characteristics || []} empty="Характеристики пока не найдены" />
+        <AnalysisList title="Стандарты" items={profile.standards || []} empty="ГОСТ/ТУ пока не найдены" />
+        <AnalysisList title="Сертификаты и документы" items={profile.cert_documents || []} empty="Сертификаты/декларации пока не найдены" />
+        <AnalysisList title="Страна происхождения" items={profile.origin_country_requirements || []} empty="Требования по стране пока не найдены" />
+      </section>
+
+      <section className="profile-block">
+        <h5>Подтверждения из ТЗ</h5>
+        {documentEvidence.length ? (
+          <div className="evidence-list">
+            {documentEvidence.map((item, index) => (
+              <div className="evidence-row" key={`${item.source}-${index}`}>
+                <span>{item.source || 'документ'}</span>
+                <p>{item.value}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="muted-text">Связанные фрагменты ТЗ пока не найдены.</p>
+        )}
+      </section>
     </div>
   )
 }

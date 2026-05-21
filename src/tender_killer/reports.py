@@ -112,6 +112,7 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
                     *_list_elements(profile.get("search_phrases") or []),
                     _p("Требования из карточки и ТЗ", "heading2"),
                     *_list_elements(profile.get("required_characteristics") or ["Пока не найдены."]),
+                    *_profile_evidence_elements(profile),
                     _p("Документы/сертификаты", "heading2"),
                     *_list_elements(profile.get("cert_documents") or ["Пока не найдены."]),
                     _p("Стандарты", "heading2"),
@@ -177,6 +178,20 @@ def _table(rows: list[list[Any]]) -> DocxElement:
 
 def _list_elements(values: list[Any]) -> list[DocxElement]:
     return [_p(f"- {_value(value)}", "normal") for value in values]
+
+
+def _profile_evidence_elements(profile: dict[str, Any]) -> list[DocxElement]:
+    rows = [
+        ["Документ", "Требование"],
+        *[
+            [_value(item.get("source")), _value(item.get("value"))]
+            for item in profile.get("evidence") or []
+            if isinstance(item, dict) and item.get("field") == "document_requirement"
+        ],
+    ]
+    if len(rows) == 1:
+        return []
+    return [_p("Подтверждения из ТЗ", "heading2"), _table(rows)]
 
 
 def _list_paragraphs(values: list[Any]) -> list[tuple[str, str]]:

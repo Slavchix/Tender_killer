@@ -92,6 +92,13 @@ def test_build_tender_report_docx_contains_key_sections():
                 "quantity": 5,
                 "unit": "шт",
                 "required_characteristics": ["сертификат соответствия"],
+                "evidence": [
+                    {
+                        "field": "document_requirement",
+                        "source": "Техническое задание.docx",
+                        "value": "Поставщик предоставляет сертификат соответствия.",
+                    }
+                ],
                 "search_phrases": ["Огнетушитель порошковый", "Огнетушитель порошковый 28.29.22.110"],
                 "stop_words": ["б/у"],
                 "source": "item",
@@ -114,6 +121,8 @@ def test_build_tender_report_docx_contains_key_sections():
     assert "<w:tbl>" in document_xml
     assert "Краткое решение" in document_xml
     assert "Документы и ТЗ" in document_xml
+    assert "Подтверждения из ТЗ" in document_xml
+    assert "Поставщик предоставляет сертификат соответствия." in document_xml
 
 
 def test_build_tender_report_docx_falls_back_to_card_subject_when_items_missing():
