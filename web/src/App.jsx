@@ -29,12 +29,37 @@ const workflowLabels = {
   archive: 'Архив',
 }
 
+const sourceOptions = [
+  { value: 'moscow_supplier_portal', label: 'Москва' },
+  { value: 'mosreg_market', label: 'МО' },
+]
+
+const lawOptions = [
+  { value: '', label: 'Все' },
+  { value: '44-ФЗ', label: '44-ФЗ' },
+  { value: '223-ФЗ', label: '223-ФЗ' },
+]
+
+const statusOptions = [
+  { value: 'active', label: 'Активные' },
+  { value: '', label: 'Все' },
+  { value: 'Прием', label: 'Прием заявок' },
+  { value: 'Заверш', label: 'Завершенные' },
+]
+
+const quickRegionOptions = [
+  { value: 'Москва', label: 'Москва' },
+  { value: 'Московская область', label: 'МО' },
+  { value: 'Москва + МО', label: 'Москва + МО' },
+]
+
 const initialFilters = {
   q: '',
   source: '',
   law: '',
   region: '',
-  status: '',
+  status: 'active',
+  workflow_status: '',
   okpd2: '',
   min_price: '',
   max_price: '',
@@ -50,6 +75,7 @@ function App() {
   const [error, setError] = useState('')
   const [searching, setSearching] = useState(false)
   const [searchSummary, setSearchSummary] = useState('')
+  const [view, setView] = useState('tenders')
 
   useEffect(() => {
     loadTenders()
@@ -89,13 +115,43 @@ function App() {
     return { active, totalPrice }
   }, [tenders])
 
+  const activeFilterChips = useMemo(() => filterSummary(appliedFilters), [appliedFilters])
+
   function updateFilter(name, value) {
     setFilters((current) => ({ ...current, [name]: value }))
+  }
+
+  function toggleMultiFilter(name, value) {
+    setFilters((current) => {
+      const values = splitFilterValues(current[name])
+      const nextValues = values.includes(value)
+        ? values.filter((item) => item !== value)
+        : [...values, value]
+      return { ...current, [name]: nextValues.join(',') }
+    })
+  }
+
+  function isSelected(name, value) {
+    return splitFilterValues(filters[name]).includes(value)
   }
 
   function applyFilters(event) {
     event.preventDefault()
     setAppliedFilters(filters)
+    setSelected(null)
+  }
+
+  function clearFilters() {
+    setFilters(initialFilters)
+    setAppliedFilters(initialFilters)
+    setSelected(null)
+    setSearchSummary('')
+  }
+
+  function setWorkflowFilter(workflowStatus) {
+    const nextFilters = { ...filters, workflow_status: workflowStatus }
+    setFilters(nextFilters)
+    setAppliedFilters(nextFilters)
     setSelected(null)
   }
 
@@ -151,7 +207,9 @@ function App() {
           <button className="icon-button" onClick={loadTenders} title="Обновить список">
             <RefreshCcw size={18} />
           </button>
-          <span className="status-pill"><Database size={16} /> SQLite</span>
+          <button className={`status-pill nav-pill ${view === 'database' ? 'active' : ''}`} onClick={() => setView(view === 'database' ? 'tenders' : 'database')} type="button">
+            <Database size={16} /> SQLite
+          </button>
           <span className="status-pill"><Bell size={16} /> Telegram: уведомления</span>
         </div>
       </header>
@@ -164,6 +222,9 @@ function App() {
       </section>
       {searchSummary && <div className="run-summary">{searchSummary}</div>}
 
+      {view === 'database' ? (
+        <DatabaseView />
+      ) : (
       <section className="workspace">
         <aside className="filters-panel">
           <div className="panel-title"><Filter size={18} /> Фильтры</div>
@@ -175,39 +236,70 @@ function App() {
                 <input value={filters.q} onChange={(event) => updateFilter('q', event.target.value)} placeholder="бумага, кабель, бетон" />
               </div>
             </label>
-            <label>
+            <div className="filter-group">
               Площадка
-              <select value={filters.source} onChange={(event) => updateFilter('source', event.target.value)}>
-                <option value="">Все</option>
-                <option value="moscow_supplier_portal">Москва</option>
-                <option value="mosreg_market">МО</option>
-              </select>
-            </label>
-            <label>
+              <div className="check-grid">
+                {sourceOptions.map((option) => (
+                  <button
+                    className={isSelected('source', option.value) || !filters.source ? 'selected' : ''}
+                    key={option.value}
+                    onClick={() => toggleMultiFilter('source', option.value)}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="filter-group">
               Закон
-              <select value={filters.law} onChange={(event) => updateFilter('law', event.target.value)}>
-                <option value="">Все</option>
-                <option value="44-ФЗ">44-ФЗ</option>
-                <option value="223-ФЗ">223-ФЗ</option>
-              </select>
-            </label>
-            <label>
+              <div className="segmented-control">
+                {lawOptions.map((option) => (
+                  <button
+                    className={filters.law === option.value ? 'selected' : ''}
+                    key={option.label}
+                    onClick={() => updateFilter('law', option.value)}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="filter-group">
               Регион
-              <input value={filters.region} onChange={(event) => updateFilter('region', event.target.value)} placeholder="Москва" />
-            </label>
-            <label>
+              <div className="segmented-control wrap">
+                {quickRegionOptions.map((option) => (
+                  <button
+                    className={filters.region === option.value ? 'selected' : ''}
+                    key={option.value}
+                    onClick={() => updateFilter('region', option.value)}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <input value={filters.region} onChange={(event) => updateFilter('region', event.target.value)} placeholder="Москва, Московская область" />
+            </div>
+            <div className="filter-group">
               Статус
-              <select value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}>
-                <option value="">Все</option>
-                <option value="active">Активные</option>
-                <option value="Прием">Прием заявок</option>
-                <option value="Заверш">Завершенные</option>
-                <option value="Отмен">Отмененные</option>
-              </select>
-            </label>
+              <div className="segmented-control wrap">
+                {statusOptions.map((option) => (
+                  <button
+                    className={filters.status === option.value ? 'selected' : ''}
+                    key={option.label}
+                    onClick={() => updateFilter('status', option.value)}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <label>
               ОКПД2
-              <input value={filters.okpd2} onChange={(event) => updateFilter('okpd2', event.target.value)} placeholder="17.12" />
+              <input value={filters.okpd2} onChange={(event) => updateFilter('okpd2', event.target.value)} placeholder="17.12, 22.23, 27" />
             </label>
             <div className="split">
               <label>
@@ -220,13 +312,33 @@ function App() {
               </label>
             </div>
             <button className="primary-button" type="submit">Применить</button>
+            <button className="secondary-button compact" onClick={clearFilters} type="button">Очистить</button>
           </form>
+          <div className="applied-filters">
+            <span>Применено сейчас</span>
+            <div>
+              {activeFilterChips.map((chip) => <strong key={chip}>{chip}</strong>)}
+            </div>
+          </div>
         </aside>
 
         <section className="tender-list">
           <div className="list-header">
             <h2>Закупки</h2>
             {loading && <span>обновление...</span>}
+          </div>
+          <div className="workflow-tabs">
+            <button className={!filters.workflow_status ? 'active' : ''} onClick={() => setWorkflowFilter('')} type="button">Все</button>
+            {Object.entries(workflowLabels).map(([status, label]) => (
+              <button
+                className={filters.workflow_status === status ? 'active' : ''}
+                key={status}
+                onClick={() => setWorkflowFilter(status)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
           </div>
           {error && <div className="error-box">{error}</div>}
           <div className="rows">
@@ -251,6 +363,7 @@ function App() {
                   <span><Scale size={15} /> {tender.law || 'закон не указан'}</span>
                   <span><CalendarClock size={15} /> {formatDate(tender.deadline_at)}</span>
                   <span><FileText size={15} /> {tender.documents_count}</span>
+                  <span>Позиций: {tender.items_count || 0}</span>
                 </div>
               </button>
             ))}
@@ -265,6 +378,7 @@ function App() {
           )}
         </aside>
       </section>
+      )}
     </main>
   )
 }
@@ -278,14 +392,123 @@ function Metric({ label, value, tone }) {
   )
 }
 
+function DatabaseView() {
+  const [tables, setTables] = useState([])
+  const [selectedTable, setSelectedTable] = useState('tenders')
+  const [tableData, setTableData] = useState({ columns: [], rows: [], total: 0 })
+  const [query, setQuery] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    fetch('/api/db/tables')
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось открыть SQLite')))
+      .then((payload) => {
+        const nextTables = payload.tables || []
+        setTables(nextTables)
+        setSelectedTable((current) => current || nextTables[0]?.name || 'tenders')
+      })
+      .catch((err) => setError(err.message))
+  }, [])
+
+  useEffect(() => {
+    if (!selectedTable) return
+    const params = new URLSearchParams({ limit: '100' })
+    if (query.trim()) params.set('q', query.trim())
+    setLoading(true)
+    setError('')
+    fetch(`/api/db/tables/${encodeURIComponent(selectedTable)}?${params.toString()}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось прочитать таблицу')))
+      .then(setTableData)
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [selectedTable, query])
+
+  return (
+    <section className="database-view">
+      <aside className="database-sidebar">
+        <div className="panel-title"><Database size={18} /> SQLite</div>
+        <div className="table-tabs">
+          {tables.map((table) => (
+            <button
+              className={selectedTable === table.name ? 'active' : ''}
+              key={table.name}
+              onClick={() => setSelectedTable(table.name)}
+              type="button"
+            >
+              <span>{table.name}</span>
+              <strong>{table.rows}</strong>
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      <section className="database-table-panel">
+        <div className="database-toolbar">
+          <div>
+            <h2>{selectedTable}</h2>
+            <span>{tableData.total || 0} строк, показаны первые {tableData.rows?.length || 0}</span>
+          </div>
+          <div className="input-with-icon db-search">
+            <Search size={16} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по таблице" />
+          </div>
+        </div>
+        {error && <div className="error-box">{error}</div>}
+        <div className="db-table-wrap">
+          <table className="db-table">
+            <thead>
+              <tr>
+                {tableData.columns.map((column) => <th key={column}>{column}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {(tableData.rows || []).map((row, index) => (
+                <tr key={`${selectedTable}-${index}`}>
+                  {tableData.columns.map((column) => (
+                    <td key={column}>{formatDbCell(row[column])}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!loading && !tableData.rows?.length && <div className="empty-state compact">Строки не найдены</div>}
+          {loading && <div className="empty-state compact">Загрузка таблицы...</div>}
+        </div>
+      </section>
+    </section>
+  )
+}
+
 function TenderDetails({ tender, onWorkflowUpdate }) {
   const raw = safeJson(tender.raw_payload_json)
   const [note, setNote] = useState(tender.workflow_note || '')
   const [saving, setSaving] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const [extracting, setExtracting] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [notifyStatus, setNotifyStatus] = useState('')
+  const [downloadStatus, setDownloadStatus] = useState('')
+  const [extractStatus, setExtractStatus] = useState('')
+  const [documentRecords, setDocumentRecords] = useState(documentRecordsForTender(tender))
+  const [analysis, setAnalysis] = useState(tender.analysis || null)
+  const [productProfiles, setProductProfiles] = useState(tender.product_profiles || [])
+  const [productProfileSummary, setProductProfileSummary] = useState(tender.product_profile_summary || null)
+  const [selectedProfileIndex, setSelectedProfileIndex] = useState(0)
+  const [profilesLoading, setProfilesLoading] = useState(false)
 
   useEffect(() => {
     setNote(tender.workflow_note || '')
-  }, [tender.source, tender.external_id, tender.workflow_note])
+    setNotifyStatus('')
+    setDownloadStatus('')
+    setExtractStatus('')
+    setDocumentRecords(documentRecordsForTender(tender))
+    setAnalysis(tender.analysis || null)
+    setProductProfiles(tender.product_profiles || [])
+    setProductProfileSummary(tender.product_profile_summary || null)
+    setSelectedProfileIndex(0)
+  }, [tender.source, tender.external_id, tender.workflow_note, tender.analysis, tender.product_profiles, tender.product_profile_summary])
 
   function saveWorkflow(workflowStatus = tender.workflow_status || 'new', workflowNote = note) {
     setSaving(true)
@@ -300,6 +523,92 @@ function TenderDetails({ tender, onWorkflowUpdate }) {
       .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось сохранить статус')))
       .then(onWorkflowUpdate)
       .finally(() => setSaving(false))
+  }
+
+  function sendToTelegram() {
+    setSending(true)
+    setNotifyStatus('')
+    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/notify`, {
+      method: 'POST',
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось отправить в Telegram')))
+      .then((payload) => setNotifyStatus(payload.sent ? 'Отправлено в Telegram' : 'Telegram не настроен'))
+      .catch((err) => setNotifyStatus(err.message))
+      .finally(() => setSending(false))
+  }
+
+  function downloadDocuments() {
+    setDownloading(true)
+    setDownloadStatus('')
+    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/documents/download`, {
+      method: 'POST',
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось скачать документы')))
+      .then((payload) => {
+        setDocumentRecords(payload.document_records || [])
+        const firstError = payload.failed?.[0]?.error
+        setDownloadStatus(
+          `Скачано: ${payload.downloaded || 0}${payload.failed?.length ? `, ошибок: ${payload.failed.length}${firstError ? `: ${firstError}` : ''}` : ''}`
+        )
+      })
+      .catch((err) => setDownloadStatus(err.message))
+      .finally(() => setDownloading(false))
+  }
+
+  function extractDocumentText() {
+    setExtracting(true)
+    setExtractStatus('')
+    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/documents/extract-text`, {
+      method: 'POST',
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось извлечь текст документов')))
+      .then((payload) => {
+        setDocumentRecords(payload.document_records || [])
+        const firstError = payload.failed?.[0]?.error
+        setExtractStatus(
+          `Извлечено: ${payload.extracted || 0}${payload.failed?.length ? `, ошибок: ${payload.failed.length}${firstError ? `: ${firstError}` : ''}` : ''}`
+        )
+      })
+      .catch((err) => setExtractStatus(err.message))
+      .finally(() => setExtracting(false))
+  }
+
+  function analyzeTender() {
+    setAnalyzing(true)
+    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/analysis/run`, {
+      method: 'POST',
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось проанализировать ТЗ')))
+      .then((payload) => setAnalysis(payload.analysis || null))
+      .catch((err) => {
+        setAnalysis({
+          summary: err.message,
+          requirements: [],
+          risks: [],
+          red_flags: ['ошибка анализа'],
+          status: 'needs_review',
+          confidence: 0,
+        })
+      })
+      .finally(() => setAnalyzing(false))
+  }
+
+  function rebuildProductProfiles() {
+    setProfilesLoading(true)
+    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/rebuild`, {
+      method: 'POST',
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось обновить товарные профили')))
+      .then((payload) => {
+        setProductProfiles(payload.product_profiles || [])
+        setProductProfileSummary(payload.summary || null)
+        setSelectedProfileIndex(0)
+      })
+      .catch((err) => {
+        setProductProfileSummary((current) => current || { total: productProfiles.length })
+        window.alert(err.message)
+      })
+      .finally(() => setProfilesLoading(false))
   }
 
   return (
@@ -317,6 +626,39 @@ function TenderDetails({ tender, onWorkflowUpdate }) {
       <a className="source-link" href={tender.url} target="_blank" rel="noreferrer">
         Открыть источник <ExternalLink size={16} />
       </a>
+      <button className="secondary-button" disabled={sending} onClick={sendToTelegram} type="button">
+        {sending ? 'Отправка...' : 'Отправить в Telegram'}
+      </button>
+      <a
+        className="secondary-link-button"
+        href={`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/report.docx`}
+      >
+        Скачать отчет Word
+      </a>
+      {notifyStatus && <p className="inline-status">{notifyStatus}</p>}
+
+      <section className="detail-section analysis-section">
+        <div className="section-heading-row">
+          <h3>Выжимка ТЗ</h3>
+          <button className="secondary-button" disabled={analyzing} onClick={analyzeTender} type="button">
+            {analyzing ? 'Анализ...' : 'Проанализировать ТЗ'}
+          </button>
+        </div>
+        {analysis ? (
+          <div className="analysis-card">
+            <div className="analysis-status-row">
+              <strong>{analysisStatusLabel(analysis.status)}</strong>
+              <span>Уверенность: {formatConfidence(analysis.confidence)}</span>
+            </div>
+            <p>{analysis.summary}</p>
+            <AnalysisList title="Требования" items={analysis.requirements} empty="Явные требования пока не найдены" />
+            <AnalysisList title="Риски" items={analysis.risks} empty="Явные риски пока не найдены" />
+            <AnalysisList title="Красные флаги" items={analysis.red_flags} empty="Критичные признаки пока не найдены" danger />
+          </div>
+        ) : (
+          <p>Сначала извлеки текст документов, затем запусти анализ ТЗ.</p>
+        )}
+      </section>
 
       <section className="detail-section">
         <h3>Рабочий статус</h3>
@@ -351,14 +693,103 @@ function TenderDetails({ tender, onWorkflowUpdate }) {
         <p>{tender.customer || 'Не указан'}</p>
       </section>
 
+      <section className="detail-section product-profile-section">
+        <div className="section-heading-row">
+          <h3>Товарные профили</h3>
+          <button className="secondary-button compact" disabled={profilesLoading} onClick={rebuildProductProfiles} type="button">
+            {profilesLoading ? 'Обновление...' : 'Обновить профили'}
+          </button>
+        </div>
+
+        <ProfileSummary summary={productProfileSummary} total={productProfiles.length} />
+
+        {productProfiles.length ? (
+          <div className="profile-layout">
+            <div className="profile-list" role="listbox" aria-label="Товарные профили">
+              {productProfiles.map((profile, index) => (
+                <button
+                  className={index === selectedProfileIndex ? 'profile-row selected' : 'profile-row'}
+                  key={`${profile.position_index}-${profile.product_name}-${index}`}
+                  onClick={() => setSelectedProfileIndex(index)}
+                  type="button"
+                >
+                  <span className="profile-position">#{profile.position_index || index + 1}</span>
+                  <span className="profile-name">{profile.product_name || 'Без названия'}</span>
+                  <span className="profile-meta">{formatQuantity(profile.quantity, profile.unit)}</span>
+                  <span className="profile-meta">{profile.classifier_type || 'код'} {profile.classifier_code || profile.okpd2 || 'не найден'}</span>
+                  <span className={`profile-status ${profile.profile_status || 'draft'}`}>{profileStatusLabel(profile.profile_status)}</span>
+                </button>
+              ))}
+            </div>
+            <ProductProfileDetail profile={productProfiles[selectedProfileIndex]} />
+          </div>
+        ) : (
+          <p className="muted-text">Товарные профили пока не сформированы.</p>
+        )}
+      </section>
+
       <section className="detail-section">
         <h3>Документы</h3>
-        {tender.documents?.length ? (
-          <ul className="document-list">
-            {tender.documents.map((url) => <li key={url}>{url}</li>)}
-          </ul>
+        {documentRecords.length ? (
+          <>
+            <button className="secondary-button" disabled={downloading} onClick={downloadDocuments} type="button">
+              {downloading ? 'Скачивание...' : 'Скачать документы'}
+            </button>
+            <button className="secondary-button" disabled={extracting} onClick={extractDocumentText} type="button">
+              {extracting ? 'Извлечение...' : 'Извлечь текст'}
+            </button>
+            {downloadStatus && <p className="inline-status">{downloadStatus}</p>}
+            {extractStatus && <p className="inline-status">{extractStatus}</p>}
+            <div className="document-table">
+              {documentRecords.map((document) => (
+                <div className="document-row" key={document.url}>
+                  <div>
+                    <a href={document.url} target="_blank" rel="noreferrer">
+                      {document.name || documentLabel(document.url)}
+                    </a>
+                    <span>{document.document_type || 'тип не указан'}</span>
+                    {document.text_content && (
+                      <p className="document-preview">{documentTextPreview(document.text_content)}</p>
+                    )}
+                    {document.text_error && (
+                      <p className="document-error">{document.text_error}</p>
+                    )}
+                  </div>
+                  <strong>{document.local_path ? 'скачан' : 'не скачан'}</strong>
+                  <em>{document.text_status || 'pending'}</em>
+                </div>
+              ))}
+            </div>
+          </>
         ) : (
           <p>Документы пока не найдены в карточке.</p>
+        )}
+      </section>
+
+      <section className="detail-section">
+        <h3>Позиции закупки</h3>
+        {tender.items?.length ? (
+          <div className="items-list">
+            {tender.items.map((item) => (
+              <div className="item-card" key={`${item.position_index}-${item.name}`}>
+                <div className="item-title">
+                  <span>№{item.position_index}</span>
+                  <strong>{item.name}</strong>
+                </div>
+                {item.details && <p>{item.details}</p>}
+                <div className="item-facts">
+                  <Info label="Кол-во" value={formatAmount(item.quantity, item.unit)} />
+                  <Info label="Цена за ед." value={formatMoney(item.unit_price)} />
+                  <Info label="Сумма" value={formatMoney(item.total_price)} />
+                  <Info label="ОКПД2/КОЗ" value={item.okpd2 || 'не найден'} />
+                  <Info label="Код классификатора" value={item.classifier_code || item.okpd2 || 'не найден'} />
+                  <Info label="Тип классификатора" value={item.classifier_type || 'не указан'} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p>Позиции пока не найдены в данных карточки.</p>
         )}
       </section>
 
@@ -374,6 +805,43 @@ function TenderDetails({ tender, onWorkflowUpdate }) {
   )
 }
 
+function ProfileSummary({ summary, total }) {
+  const data = summary || { total }
+  return (
+    <div className="profile-summary-grid">
+      <Info label="Всего позиций" value={data.total ?? total ?? 0} />
+      <Info label="Готовы" value={data.ready ?? 0} />
+      <Info label="Проверить" value={data.needs_review ?? 0} />
+      <Info label="Найдены" value={data.matched ?? 0} />
+      <Info label="Посчитаны" value={data.priced ?? 0} />
+      <Info label="Отклонены" value={data.rejected ?? 0} />
+    </div>
+  )
+}
+
+function ProductProfileDetail({ profile }) {
+  if (!profile) {
+    return <div className="profile-detail muted-text">Выбери позицию из списка</div>
+  }
+
+  return (
+    <div className="profile-detail">
+      <h4>{profile.product_name || 'Без названия'}</h4>
+      <div className="profile-detail-grid">
+        <Info label="Детали" value={profile.details || 'не найдено'} />
+        <Info label="Классификатор" value={`${profile.classifier_type || 'тип не указан'} ${profile.classifier_code || profile.okpd2 || 'код не найден'}`} />
+        <Info label="Количество" value={formatQuantity(profile.quantity, profile.unit)} />
+        <Info label="Статус" value={profileStatusLabel(profile.profile_status)} />
+      </div>
+      <AnalysisList title="Характеристики" items={profile.required_characteristics || []} empty="Характеристики пока не найдены" />
+      <AnalysisList title="Стандарты" items={profile.standards || []} empty="ГОСТ/ТУ пока не найдены" />
+      <AnalysisList title="Сертификаты и документы" items={profile.cert_documents || []} empty="Сертификаты/декларации пока не найдены" />
+      <AnalysisList title="Поисковые фразы" items={profile.search_phrases || []} empty="Поисковые фразы пока не сформированы" />
+      <AnalysisList title="Стоп-слова" items={profile.stop_words || []} empty="Стоп-слова пока не заданы" danger />
+    </div>
+  )
+}
+
 function Info({ label, value }) {
   return (
     <div className="info">
@@ -383,10 +851,77 @@ function Info({ label, value }) {
   )
 }
 
+function AnalysisList({ title, items = [], empty, danger = false }) {
+  const normalizedItems = normalizeListItems(items)
+  return (
+    <div className={danger ? 'analysis-list danger' : 'analysis-list'}>
+      <span>{title}</span>
+      {normalizedItems.length ? (
+        <ul>
+          {normalizedItems.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>{empty}</p>
+      )}
+    </div>
+  )
+}
+
+function normalizeListItems(items = []) {
+  return (Array.isArray(items) ? items : [items])
+    .map((item) => {
+      if (item === null || item === undefined || item === '') return ''
+      if (typeof item === 'string') return item
+      if (typeof item === 'number') return String(item)
+      return JSON.stringify(item)
+    })
+    .filter(Boolean)
+}
+
 function formatMoney(value) {
   const number = Number(value)
   if (!Number.isFinite(number)) return 'не указана'
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(number)
+}
+
+function formatAmount(quantity, unit) {
+  const number = Number(quantity)
+  const amount = Number.isFinite(number)
+    ? new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 4 }).format(number)
+    : 'не указано'
+  return unit ? `${amount} ${unit}` : amount
+}
+
+function formatQuantity(quantity, unit) {
+  return formatAmount(quantity, unit)
+}
+
+function profileStatusLabel(status) {
+  return {
+    draft: 'Черновик',
+    needs_review: 'Проверить',
+    ready: 'Готов',
+    searching: 'Поиск',
+    matched: 'Найдено',
+    priced: 'Расчет',
+    rejected: 'Отклонено',
+  }[status] || 'Черновик'
+}
+
+function formatConfidence(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return 'не указана'
+  return `${Math.round(number * 100)}%`
+}
+
+function analysisStatusLabel(status) {
+  return {
+    needs_review: 'Нужна проверка',
+    interesting: 'Интересно',
+    skipped: 'Пропустить',
+  }[status] || status || 'Нужна проверка'
 }
 
 function formatDate(value) {
@@ -396,12 +931,70 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date)
 }
 
+function formatDbCell(value) {
+  if (value === null || value === undefined || value === '') return '—'
+  if (typeof value === 'number') return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 4 }).format(value)
+  const text = typeof value === 'string' ? value : JSON.stringify(value)
+  return text.length > 180 ? `${text.slice(0, 180)}...` : text
+}
+
+function documentLabel(url) {
+  try {
+    const parsed = new URL(url)
+    const queryName = parsed.searchParams.get('fileName') || parsed.searchParams.get('name')
+    if (queryName) return queryName
+    const fileName = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() || '')
+    return fileName && fileName.includes('.') ? fileName : url
+  } catch {
+    return url
+  }
+}
+
+function documentTextPreview(value) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim()
+  return text.length > 420 ? `${text.slice(0, 420)}...` : text
+}
+
+function documentRecordsForTender(tender) {
+  if (tender.document_records?.length) return tender.document_records
+  return (tender.documents || []).map((url, index) => ({
+    document_index: index + 1,
+    name: documentLabel(url),
+    document_type: '',
+    url,
+    local_path: '',
+    text_status: 'pending',
+  }))
+}
+
 function safeJson(value) {
   try {
     return JSON.parse(value || '{}')
   } catch {
     return {}
   }
+}
+
+function splitFilterValues(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function filterSummary(filters) {
+  const chips = []
+  const sources = splitFilterValues(filters.source)
+  chips.push(sources.length ? sources.map((source) => sourceLabels[source] || source).join(' + ') : 'Все площадки')
+  chips.push(filters.law || 'Все законы')
+  chips.push(filters.status === 'active' ? 'Только активные' : filters.status || 'Все статусы')
+  if (filters.region) chips.push(filters.region)
+  if (filters.okpd2) chips.push(`ОКПД2: ${filters.okpd2}`)
+  if (filters.min_price || filters.max_price) {
+    chips.push(`Цена: ${filters.min_price || 0} - ${filters.max_price || '∞'}`)
+  }
+  if (filters.q) chips.push(`Поиск: ${filters.q}`)
+  return chips
 }
 
 export default App
