@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import json
@@ -44,7 +44,8 @@ def list_tenders_payload(database_path: str | Path, query: dict[str, str]) -> di
     filters, params = _build_filters(query)
     sql = (
         "SELECT tenders.source, tenders.external_id, url, title, customer, region, price, currency, status, "
-        "published_at, deadline_at, delivery_place, category, okpd2, documents_json, raw_payload_json, "
+        "status_normalized, law, region_code, published_at, deadline_at, delivery_place, category, okpd2, "
+        "documents_json, raw_payload_json, "
         "tenders.updated_at, COALESCE(workflow.workflow_status, 'new') AS workflow_status, "
         "COALESCE(workflow.workflow_note, '') AS workflow_note, "
         "(SELECT COUNT(*) FROM tender_items AS item_count "
@@ -135,7 +136,7 @@ def refresh_tender_detail_payload(
             "refreshed": False,
             "summary": _detail_refresh_summary(detail),
             "tender": detail,
-            "message": "Детальные данные не изменились или источник не отдал detail payload.",
+            "message": "Р”РµС‚Р°Р»СЊРЅС‹Рµ РґР°РЅРЅС‹Рµ РЅРµ РёР·РјРµРЅРёР»РёСЃСЊ РёР»Рё РёСЃС‚РѕС‡РЅРёРє РЅРµ РѕС‚РґР°Р» detail payload.",
         }
 
     refreshed_tender = detail_adapter.normalize_payload(enriched_payload)
@@ -168,7 +169,7 @@ def get_tender_payload(
         row = connection.execute(
             """
             SELECT tenders.source, tenders.external_id, url, title, customer, region, price, currency, status,
-                   published_at, deadline_at, delivery_place, category, okpd2,
+                   status_normalized, law, region_code, published_at, deadline_at, delivery_place, category, okpd2,
                    documents_json, raw_payload_json, created_at, tenders.updated_at,
                    COALESCE(workflow.workflow_status, 'new') AS workflow_status,
                    COALESCE(workflow.workflow_note, '') AS workflow_note
@@ -370,7 +371,7 @@ def build_search_collection(payload: dict[str, Any] | None) -> FilterProfileColl
         include_without_deadline=True,
     )
     return FilterProfileCollection(
-        profiles=(NamedFilterProfile(id="site", name="Сайт", profile=profile),),
+        profiles=(NamedFilterProfile(id="site", name="РЎР°Р№С‚", profile=profile),),
         active_profile_ids=("site",),
     )
 
@@ -411,7 +412,12 @@ def _build_filters(query: dict[str, str]) -> tuple[list[str], list[Any]]:
         params.extend(source_values)
     if region_values := _region_values(query.get("region")):
         region_filters, region_params = _text_like_any("tenders.region", region_values)
-        filters.append(region_filters)
+        region_codes = _region_code_query_values(query.get("region"))
+        if region_codes:
+            filters.append(f"({region_filters} OR {_in_clause('tenders.region_code', region_codes)})")
+            region_params.extend(region_codes)
+        else:
+            filters.append(region_filters)
         params.extend(region_params)
     if status := query.get("status"):
         if _is_active_status_query(status):
@@ -419,6 +425,7 @@ def _build_filters(query: dict[str, str]) -> tuple[list[str], list[Any]]:
                 "("
                 + " OR ".join(
                     [
+                        "COALESCE(tenders.status_normalized, '') = ?",
                         "COALESCE(tenders.status, '') LIKE ?",
                         "COALESCE(tenders.status, '') LIKE ?",
                         "COALESCE(tenders.status, '') LIKE ?",
@@ -427,7 +434,7 @@ def _build_filters(query: dict[str, str]) -> tuple[list[str], list[Any]]:
                 )
                 + ")"
             )
-            params.extend(["%Актив%", "%актив%", "%Прием%", "%Приём%"])
+            params.extend(["active", "%РђРєС‚РёРІ%", "%Р°РєС‚РёРІ%", "%РџСЂРёРµРј%", "%РџСЂРёС‘Рј%"])
         else:
             status_filters, status_params = _text_like_any("tenders.status", status)
             filters.append(status_filters)
@@ -452,8 +459,16 @@ def _build_filters(query: dict[str, str]) -> tuple[list[str], list[Any]]:
         for okpd2 in okpd2_values:
             params.extend([f"{okpd2}%", f"{okpd2}%"])
     if law_values := _law_query_values(query.get("law")):
-        filters.append("(" + " OR ".join(["LOWER(COALESCE(tenders.raw_payload_json, '')) LIKE ?"] * len(law_values)) + ")")
-        params.extend([f"%{law}%" for law in law_values])
+        filters.append(
+            "("
+            + " OR ".join(
+                ["LOWER(COALESCE(tenders.law, '')) = ? OR LOWER(COALESCE(tenders.raw_payload_json, '')) LIKE ?"]
+                * len(law_values)
+            )
+            + ")"
+        )
+        for law in law_values:
+            params.extend([law, f"%{law}%"])
     if min_price := _float_query(query.get("min_price")):
         filters.append("tenders.price >= ?")
         params.append(min_price)
@@ -489,15 +504,48 @@ def _multi_value_tuple(value: Any) -> tuple[str, ...]:
 def _region_values(value: Any) -> tuple[str, ...]:
     regions: list[str] = []
     for region in _multi_value_tuple(value):
-        normalized = region.casefold().replace("ё", "е")
-        if normalized in {"москва + мо", "москва и мо", "москва, мо", "мск + мо"}:
-            candidates = ("Москва", "Московская область")
+        normalized = region.casefold().replace("\u0451", "\u0435")
+        if normalized in {
+            "\u043c\u043e\u0441\u043a\u0432\u0430 + \u043c\u043e",
+            "\u043c\u043e\u0441\u043a\u0432\u0430 \u0438 \u043c\u043e",
+            "\u043c\u043e\u0441\u043a\u0432\u0430, \u043c\u043e",
+            "\u043c\u0441\u043a + \u043c\u043e",
+        }:
+            candidates = (
+                "\u041c\u043e\u0441\u043a\u0432\u0430",
+                "\u041c\u043e\u0441\u043a\u043e\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c",
+            )
         else:
             candidates = (region,)
         for candidate in candidates:
             if candidate not in regions:
                 regions.append(candidate)
     return tuple(regions)
+
+
+def _region_code_query_values(value: Any) -> tuple[str, ...]:
+    codes: list[str] = []
+    for region in _multi_value_tuple(value):
+        normalized = region.casefold().replace("\u0451", "\u0435")
+        if normalized in {
+            "mo",
+            "mosreg",
+            "moscow oblast",
+            "\u043c\u043e\u0441\u043a\u043e\u0432\u0441\u043a\u0430\u044f \u043e\u0431\u043b\u0430\u0441\u0442\u044c",
+            "\u043c\u043e\u0441\u043a\u0432\u0430 + \u043c\u043e",
+            "\u043c\u043e\u0441\u043a\u0432\u0430 \u0438 \u043c\u043e",
+        }:
+            candidates = ("50",)
+            if "\u043c\u043e\u0441\u043a\u0432\u0430" in normalized:
+                candidates = ("77", "50")
+        elif normalized in {"moscow", "msk", "\u043c\u043e\u0441\u043a\u0432\u0430"}:
+            candidates = ("77",)
+        else:
+            candidates = ()
+        for candidate in candidates:
+            if candidate not in codes:
+                codes.append(candidate)
+    return tuple(codes)
 
 
 def _source_query_values(value: Any) -> tuple[str, ...]:
@@ -523,8 +571,8 @@ def _in_clause(field: str, values: tuple[str, ...]) -> str:
 
 
 def _is_active_status_query(value: str) -> bool:
-    normalized = value.strip().casefold().replace("ё", "е")
-    return normalized in {"active", "актив", "активные", "прием", "прием заявок", "прием предложений"}
+    normalized = value.strip().casefold().replace("С‘", "Рµ")
+    return normalized in {"active", "Р°РєС‚РёРІ", "Р°РєС‚РёРІРЅС‹Рµ", "РїСЂРёРµРј", "РїСЂРёРµРј Р·Р°СЏРІРѕРє", "РїСЂРёРµРј РїСЂРµРґР»РѕР¶РµРЅРёР№"}
 
 
 def _text_like_any(field: str, values: str | tuple[str, ...]) -> tuple[str, list[Any]]:
@@ -552,7 +600,7 @@ def _row_to_list_item(row: sqlite3.Row) -> dict[str, Any]:
     documents = _json_list(payload.pop("documents_json"))
     raw_payload_json = payload.pop("raw_payload_json", None)
     payload["documents_count"] = len(documents)
-    payload["law"] = _law_label(raw_payload_json)
+    payload["law"] = payload.get("law") or _law_label(raw_payload_json)
     return payload
 
 
@@ -668,9 +716,9 @@ def _law_label(raw_payload_json: str | None) -> str | None:
         return None
     digits = re.sub(r"\D+", "", raw_payload_json)
     if "223" in digits:
-        return "223-ФЗ"
+        return "223-Р¤Р—"
     if "44" in digits:
-        return "44-ФЗ"
+        return "44-Р¤Р—"
     return None
 
 

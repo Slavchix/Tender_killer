@@ -57,7 +57,7 @@ def _store_with_tenders(tmp_path):
             price=50200.0,
             status="Активная",
             documents=["https://example.test/spec.docx"],
-            raw_payload={"federalLawName": "44-ФЗ"},
+            raw_payload={"federalLawName": "44-\u0424\u0417"},
         )
     )
     store.upsert_tender(
@@ -192,6 +192,29 @@ def test_list_tenders_payload_active_status_includes_mosreg_reception(tmp_path):
 
     assert payload["total"] == 1
     assert payload["items"][0]["status"] == "Прием предложений"
+
+
+def test_list_tenders_payload_returns_normalized_filter_fields(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="mo-normalized",
+            url="https://example.test/mo-normalized",
+            title="Paper supply",
+            region="Moscow Oblast",
+            status="Reception of proposals",
+            raw_payload={"federalLawName": "44-\u0424\u0417"},
+        )
+    )
+
+    payload = list_tenders_payload(store.database_path, {"law": "44-\u0424\u0417", "status": "active", "region": "MO"})
+
+    assert payload["total"] == 1
+    assert payload["items"][0]["law"] == "44-\u0424\u0417"
+    assert payload["items"][0]["status_normalized"] == "active"
+    assert payload["items"][0]["region_code"] == "50"
 
 
 def test_list_tenders_payload_filters_by_federal_law(tmp_path):

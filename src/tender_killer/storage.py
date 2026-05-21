@@ -8,6 +8,9 @@ from typing import Any
 
 from tender_killer.models import ProductProfile, Tender, TenderDocument
 from tender_killer.schema import initialize_schema
+from tender_killer.tender_metadata import normalize_law
+from tender_killer.tender_metadata import normalize_region_code
+from tender_killer.tender_metadata import normalize_status
 
 
 @dataclass(frozen=True)
@@ -39,12 +42,14 @@ class TenderStore:
                 """
                 INSERT INTO tenders (
                     source, external_id, url, title, customer, region, price, currency,
-                    status, published_at, deadline_at, delivery_place, category, okpd2,
+                    status, status_normalized, published_at, deadline_at, delivery_place,
+                    law, region_code, category, okpd2,
                     documents_json, raw_payload_json
                 )
                 VALUES (
                     :source, :external_id, :url, :title, :customer, :region, :price, :currency,
-                    :status, :published_at, :deadline_at, :delivery_place, :category, :okpd2,
+                    :status, :status_normalized, :published_at, :deadline_at, :delivery_place,
+                    :law, :region_code, :category, :okpd2,
                     :documents_json, :raw_payload_json
                 )
                 ON CONFLICT(source, external_id) DO UPDATE SET
@@ -55,9 +60,12 @@ class TenderStore:
                     price = excluded.price,
                     currency = excluded.currency,
                     status = excluded.status,
+                    status_normalized = excluded.status_normalized,
                     published_at = excluded.published_at,
                     deadline_at = excluded.deadline_at,
                     delivery_place = excluded.delivery_place,
+                    law = excluded.law,
+                    region_code = excluded.region_code,
                     category = excluded.category,
                     okpd2 = excluded.okpd2,
                     documents_json = excluded.documents_json,
@@ -207,9 +215,12 @@ class TenderStore:
             "price": tender.price,
             "currency": tender.currency,
             "status": tender.status,
+            "status_normalized": normalize_status(tender.status),
             "published_at": tender.published_at.isoformat() if tender.published_at else None,
             "deadline_at": tender.deadline_at.isoformat() if tender.deadline_at else None,
             "delivery_place": tender.delivery_place,
+            "law": normalize_law(tender.raw_payload),
+            "region_code": normalize_region_code(tender.region, tender.source),
             "category": tender.category,
             "okpd2": tender.okpd2,
             "documents_json": json.dumps(tender.documents, ensure_ascii=False),

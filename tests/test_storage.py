@@ -31,6 +31,32 @@ def test_store_deduplicates_by_source_and_external_id(tmp_path):
     assert store.count_tenders() == 1
 
 
+def test_store_persists_normalized_tender_filter_fields(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+
+    tender = Tender(
+        source="mosreg_market",
+        external_id="mo-1",
+        url="https://example.test/mo-1",
+        title="Paper supply",
+        region="Moscow Oblast",
+        status="Reception of proposals",
+        raw_payload={"federalLawName": "44-\u0424\u0417"},
+    )
+
+    store.upsert_tender(tender)
+
+    with sqlite3.connect(store.database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            "SELECT law, status_normalized, region_code FROM tenders WHERE source = ? AND external_id = ?",
+            tender.identity,
+        ).fetchone()
+
+    assert dict(row) == {"law": "44-\u0424\u0417", "status_normalized": "active", "region_code": "50"}
+
+
 def test_store_tracks_notification_state(tmp_path):
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()

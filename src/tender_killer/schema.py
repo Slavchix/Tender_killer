@@ -27,9 +27,12 @@ def ensure_tenders_table(connection: sqlite3.Connection) -> None:
             price REAL,
             currency TEXT NOT NULL,
             status TEXT,
+            status_normalized TEXT,
             published_at TEXT,
             deadline_at TEXT,
             delivery_place TEXT,
+            law TEXT,
+            region_code TEXT,
             category TEXT,
             okpd2 TEXT,
             documents_json TEXT NOT NULL,
@@ -40,6 +43,7 @@ def ensure_tenders_table(connection: sqlite3.Connection) -> None:
         )
         """
     )
+    ensure_tender_normalized_columns(connection)
 
 
 def ensure_notifications_table(connection: sqlite3.Connection) -> None:
@@ -237,6 +241,18 @@ def ensure_product_profile_columns(connection: sqlite3.Connection) -> None:
     for column, definition in definitions.items():
         if column not in columns:
             connection.execute(f"ALTER TABLE product_profiles ADD COLUMN {column} {definition}")
+
+
+def ensure_tender_normalized_columns(connection: sqlite3.Connection) -> None:
+    columns = _columns(connection, "tenders")
+    definitions = {
+        "law": "TEXT",
+        "status_normalized": "TEXT",
+        "region_code": "TEXT",
+    }
+    for column, definition in definitions.items():
+        if column not in columns:
+            connection.execute(f"ALTER TABLE tenders ADD COLUMN {column} {definition}")
 
 
 def _columns(connection: sqlite3.Connection, table: str) -> set[str]:
