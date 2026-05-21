@@ -449,6 +449,66 @@ def test_refresh_tender_detail_payload_keeps_existing_data_when_detail_unavailab
     assert payload["tender"]["items"][0]["name"] == "Папка-вкладыш"
 
 
+def test_refresh_tender_detail_payload_parses_mosreg_html_items(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="3666760",
+            url="https://market.mosreg.ru/Trade/ViewTrade/3666760",
+            title="Поставка зачетных книжек",
+            price=105637.0,
+            raw_payload={"Id": 3666760, "TradeName": "Поставка зачетных книжек"},
+        )
+    )
+
+    class HtmlDetailAdapter:
+        source = "mosreg_market"
+
+        def _enrich_payload(self, payload):
+            enriched = dict(payload)
+            enriched["__html"] = """
+            <div class="informationAboutCustomer__resultBlock objectPurchase">
+              <div class="outputResults__oneResult">
+                <p><span class="grayText">Наименование товара, работ, услуг:</span> Бланк из бумаги или картона</p>
+                <p><span class="grayText">Детализированное наименование:</span> Поставка зачетных книжек</p>
+                <p><span class="grayText">Код классификатор:</span><span>11.105.01.02.08.01.008</span></p>
+                <p><span class="grayText">Тип классификатор:</span><span>КОЗ-2</span></p>
+                <p><span class="grayText">Единицы измерения:</span> Штука</p>
+                <p><span class="grayText">Количество:</span> 700,00000000000</p>
+                <p><span class="grayText">Стоимость единицы продукции ( в т.ч. НДС при наличии):</span> 150,91000</p>
+                <p><span class="grayText">Стоимость поставленого товара, выполненых работ, оказываемых услуг ( в т.ч. НДС при наличии):</span> 105637,00</p>
+              </div>
+            </div>
+            """
+            return enriched
+
+        def normalize_payload(self, payload):
+            from tender_killer.adapters.mosreg import MosregMarketAdapter
+
+            return MosregMarketAdapter(enrich_documents=False).normalize_payload(payload)
+
+    payload = refresh_tender_detail_payload(
+        store.database_path,
+        "mosreg_market",
+        "3666760",
+        adapter=HtmlDetailAdapter(),
+    )
+
+    item = payload["tender"]["items"][0]
+    profile = payload["tender"]["product_profiles"][0]
+    assert item["name"] == "Бланк из бумаги или картона"
+    assert item["details"] == "Поставка зачетных книжек"
+    assert item["quantity"] == 700.0
+    assert item["unit"] == "Штука"
+    assert item["classifier_code"] == "11.105.01.02.08.01.008"
+    assert item["classifier_type"] == "КОЗ-2"
+    assert profile["product_name"] == "Бланк из бумаги или картона"
+    assert profile["quantity"] == 700.0
+    assert profile["classifier_code"] == "11.105.01.02.08.01.008"
+
+
 def test_get_tender_payload_returns_document_records(tmp_path):
     store = _store_with_tenders(tmp_path)
 

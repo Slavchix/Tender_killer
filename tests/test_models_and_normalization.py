@@ -153,6 +153,46 @@ def test_mosreg_adapter_normalizes_items_from_trade_payload():
     assert tender.items[0].classifier_type == "КОЗ-2"
 
 
+def test_mosreg_adapter_normalizes_items_from_trade_html_card():
+    payload = {
+        "Id": 3666760,
+        "TradeName": "Поставка зачетных книжек",
+        "__html": """
+        <div class="informationAboutCustomer__resultBlock objectPurchase">
+          <div class="outputResults__oneResult">
+            <p class="outputResults__oneResult-top"><b>№</b>1</p>
+            <div class="outputResults__oneResult-leftPart leftPart">
+              <p class="leftPart__parag"><span class="grayText">Наименование товара, работ, услуг:</span> Бланк из бумаги или картона</p>
+              <p class="leftPart__parag"><span class="grayText">Детализированное наименование:</span> Поставка зачетных книжек</p>
+              <p class="leftPart__parag"><span class="grayText">Код классификатор:</span><span>11.105.01.02.08.01.008</span></p>
+              <p class="leftPart__parag"><span class="grayText">Тип классификатор:</span><span>КОЗ-2</span></p>
+            </div>
+            <div class="outputResults__oneResult-centerPart centerPart">
+              <p class="centerPart__contentResult-parag"><span class="grayText">Единицы измерения:</span> Штука</p>
+              <p class="centerPart__contentResult-parag"><span class="grayText">Количество:</span> 700,00000000000</p>
+            </div>
+            <div class="outputResults__oneResult-rightPart rightPart">
+              <p class="rightPart__contentResult-parag"><span class="grayText">Стоимость единицы продукции ( в т.ч. НДС при наличии):</span> 150,91000</p>
+              <p class="rightPart__contentResult-parag"><span class="grayText">Стоимость поставленого товара, выполненых работ, оказываемых услуг ( в т.ч. НДС при наличии):</span> 105637,00</p>
+            </div>
+          </div>
+        </div>
+        """,
+    }
+
+    tender = MosregMarketAdapter().normalize_payload(payload)
+
+    assert len(tender.items) == 1
+    assert tender.items[0].name == "Бланк из бумаги или картона"
+    assert tender.items[0].details == "Поставка зачетных книжек"
+    assert tender.items[0].quantity == 700.0
+    assert tender.items[0].unit == "Штука"
+    assert tender.items[0].unit_price == 150.91
+    assert tender.items[0].total_price == 105637.0
+    assert tender.items[0].classifier_code == "11.105.01.02.08.01.008"
+    assert tender.items[0].classifier_type == "КОЗ-2"
+
+
 def test_mosreg_adapter_uses_real_document_urls_from_enriched_payload():
     payload = {
         "Id": 3668200,

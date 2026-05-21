@@ -149,12 +149,12 @@ def _detail_adapter_for_source(source: str):
     if source == "moscow_supplier_portal":
         return MoscowSupplierPortalAdapter(enrich_details=True)
     if source == "mosreg_market":
-        return MosregMarketAdapter(enrich_documents=True)
+        return MosregMarketAdapter(enrich_documents=True, enrich_html=True)
     raise ValueError(f"Unsupported source for detail refresh: {source}")
 
 
 def _has_detail_markers(payload: dict[str, Any]) -> bool:
-    return "__detail" in payload or "__documents" in payload
+    return "__detail" in payload or "__documents" in payload or "__html" in payload
 
 
 def _detail_refresh_summary(tender: dict[str, Any]) -> dict[str, int]:
