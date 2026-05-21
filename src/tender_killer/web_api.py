@@ -24,6 +24,10 @@ from tender_killer.normalization import parse_datetime
 from tender_killer.pipeline import PipelineStats, TenderPipeline
 from tender_killer.product_profile import build_product_profiles
 from tender_killer.reports import build_tender_report_docx, report_filename
+from tender_killer.schema import ensure_analysis_table
+from tender_killer.schema import ensure_documents_table
+from tender_killer.schema import ensure_items_table
+from tender_killer.schema import ensure_workflow_table
 from tender_killer.sources import build_adapters_for_collection, normalize_sources
 from tender_killer.storage import TenderStore
 from tender_killer.telegram import TelegramNotifier, build_tender_message
@@ -44,10 +48,10 @@ DATABASE_VIEW_TABLES = (
 def list_database_tables_payload(database_path: str | Path) -> dict[str, Any]:
     TenderStore(database_path).initialize()
     with _connect(database_path) as connection:
-        _ensure_workflow_table(connection)
-        _ensure_items_table(connection)
-        _ensure_documents_table(connection)
-        _ensure_analysis_table(connection)
+        ensure_workflow_table(connection)
+        ensure_items_table(connection)
+        ensure_documents_table(connection)
+        ensure_analysis_table(connection)
         tables = [{"name": table, "rows": _table_count(connection, table)} for table in DATABASE_VIEW_TABLES]
     return {"tables": tables}
 
@@ -61,10 +65,10 @@ def get_database_table_payload(database_path: str | Path, table: str, query: dic
     search = str(query.get("q") or "").strip()
 
     with _connect(database_path) as connection:
-        _ensure_workflow_table(connection)
-        _ensure_items_table(connection)
-        _ensure_documents_table(connection)
-        _ensure_analysis_table(connection)
+        ensure_workflow_table(connection)
+        ensure_items_table(connection)
+        ensure_documents_table(connection)
+        ensure_analysis_table(connection)
         columns = _table_columns(connection, table)
         where_sql = ""
         params: list[Any] = []
@@ -105,10 +109,10 @@ def list_tenders_payload(database_path: str | Path, query: dict[str, str]) -> di
     params.append(_int_query(query.get("limit"), 100))
 
     with _connect(database_path) as connection:
-        _ensure_workflow_table(connection)
-        _ensure_items_table(connection)
-        _ensure_documents_table(connection)
-        _ensure_analysis_table(connection)
+        ensure_workflow_table(connection)
+        ensure_items_table(connection)
+        ensure_documents_table(connection)
+        ensure_analysis_table(connection)
         rows = connection.execute(sql, params).fetchall()
     items = [_row_to_list_item(row) for row in rows]
     return {"total": len(items), "items": items}
@@ -226,9 +230,9 @@ def get_tender_payload(
     include_product_profiles: bool = True,
 ) -> dict[str, Any]:
     with _connect(database_path) as connection:
-        _ensure_workflow_table(connection)
-        _ensure_items_table(connection)
-        _ensure_documents_table(connection)
+        ensure_workflow_table(connection)
+        ensure_items_table(connection)
+        ensure_documents_table(connection)
         row = connection.execute(
             """
             SELECT tenders.source, tenders.external_id, url, title, customer, region, price, currency, status,
@@ -309,7 +313,7 @@ def download_tender_documents_payload(
     document_listing_resolver = document_listing_resolver or _resolve_document_listing
 
     with _connect(database_path) as connection:
-        _ensure_documents_table(connection)
+        ensure_documents_table(connection)
         rows = connection.execute(
             """
             SELECT document_index, name, url
@@ -398,7 +402,7 @@ def extract_tender_document_text_payload(
     failed: list[dict[str, str]] = []
 
     with _connect(database_path) as connection:
-        _ensure_documents_table(connection)
+        ensure_documents_table(connection)
         exists = connection.execute(
             "SELECT 1 FROM tenders WHERE source = ? AND external_id = ?",
             (source, external_id),
@@ -460,8 +464,8 @@ def extract_tender_document_text_payload(
 
 def analyze_tender_payload(database_path: str | Path, source: str, external_id: str) -> dict[str, Any]:
     with _connect(database_path) as connection:
-        _ensure_documents_table(connection)
-        _ensure_analysis_table(connection)
+        ensure_documents_table(connection)
+        ensure_analysis_table(connection)
         exists = connection.execute(
             "SELECT 1 FROM tenders WHERE source = ? AND external_id = ?",
             (source, external_id),
@@ -533,7 +537,7 @@ def update_tender_workflow(
     if workflow_status not in WORKFLOW_STATUSES:
         raise ValueError(f"Unknown workflow status: {workflow_status}")
     with _connect(database_path) as connection:
-        _ensure_workflow_table(connection)
+        ensure_workflow_table(connection)
         exists = connection.execute(
             "SELECT 1 FROM tenders WHERE source = ? AND external_id = ?",
             (source, external_id),
@@ -834,108 +838,6 @@ def _connect(database_path: str | Path) -> sqlite3.Connection:
     connection = sqlite3.connect(database_path)
     connection.row_factory = sqlite3.Row
     return connection
-
-
-def _ensure_workflow_table(connection: sqlite3.Connection) -> None:
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS tender_workflow (
-            source TEXT NOT NULL,
-            external_id TEXT NOT NULL,
-            workflow_status TEXT NOT NULL DEFAULT 'new',
-            workflow_note TEXT NOT NULL DEFAULT '',
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (source, external_id)
-        )
-        """
-    )
-
-
-def _ensure_items_table(connection: sqlite3.Connection) -> None:
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS tender_items (
-            source TEXT NOT NULL,
-            external_id TEXT NOT NULL,
-            position_index INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            details TEXT,
-            quantity REAL,
-            unit TEXT,
-            unit_price REAL,
-            total_price REAL,
-            okpd2 TEXT,
-            classifier_code TEXT,
-            classifier_type TEXT,
-            raw_payload_json TEXT NOT NULL,
-            PRIMARY KEY (source, external_id, position_index)
-        )
-        """
-    )
-    _ensure_item_classifier_columns(connection)
-
-
-def _ensure_item_classifier_columns(connection: sqlite3.Connection) -> None:
-    columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(tender_items)").fetchall()}
-    for column in ("classifier_code", "classifier_type"):
-        if column not in columns:
-            connection.execute(f"ALTER TABLE tender_items ADD COLUMN {column} TEXT")
-
-
-def _ensure_documents_table(connection: sqlite3.Connection) -> None:
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS tender_documents (
-            source TEXT NOT NULL,
-            external_id TEXT NOT NULL,
-            document_index INTEGER NOT NULL,
-            name TEXT,
-            document_type TEXT,
-            url TEXT NOT NULL,
-            source_document_id TEXT,
-            local_path TEXT,
-            downloaded_at TEXT,
-            text_status TEXT NOT NULL DEFAULT 'pending',
-            text_content TEXT,
-            text_extracted_at TEXT,
-            text_error TEXT,
-            raw_payload_json TEXT NOT NULL,
-            PRIMARY KEY (source, external_id, url)
-        )
-        """
-    )
-    _ensure_document_text_columns(connection)
-
-
-def _ensure_analysis_table(connection: sqlite3.Connection) -> None:
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS tender_analysis (
-            source TEXT NOT NULL,
-            external_id TEXT NOT NULL,
-            summary TEXT NOT NULL,
-            requirements_json TEXT NOT NULL,
-            risks_json TEXT NOT NULL,
-            red_flags_json TEXT NOT NULL,
-            recommended_status TEXT NOT NULL,
-            confidence REAL NOT NULL,
-            raw_payload_json TEXT NOT NULL,
-            analyzed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (source, external_id)
-        )
-        """
-    )
-
-
-def _ensure_document_text_columns(connection: sqlite3.Connection) -> None:
-    columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(tender_documents)").fetchall()}
-    for column, definition in {
-        "text_content": "TEXT",
-        "text_extracted_at": "TEXT",
-        "text_error": "TEXT",
-    }.items():
-        if column not in columns:
-            connection.execute(f"ALTER TABLE tender_documents ADD COLUMN {column} {definition}")
 
 
 def _item_row_to_payload(row: sqlite3.Row) -> dict[str, Any]:
