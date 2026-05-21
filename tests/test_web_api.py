@@ -382,7 +382,7 @@ def test_refresh_tender_detail_payload_saves_detail_items_documents_and_profiles
     class DetailAdapter:
         source = "moscow_supplier_portal"
 
-        def _enrich_payload(self, payload):
+        def enrich_payload(self, payload):
             enriched = dict(payload)
             enriched["__detail"] = {
                 "id": 10205109,
@@ -431,7 +431,7 @@ def test_refresh_tender_detail_payload_keeps_existing_data_when_detail_unavailab
     class EmptyAdapter:
         source = "mosreg_market"
 
-        def _enrich_payload(self, payload):
+        def enrich_payload(self, payload):
             return dict(payload)
 
         def normalize_payload(self, payload):
@@ -466,7 +466,7 @@ def test_refresh_tender_detail_payload_parses_mosreg_html_items(tmp_path):
     class HtmlDetailAdapter:
         source = "mosreg_market"
 
-        def _enrich_payload(self, payload):
+        def enrich_payload(self, payload):
             enriched = dict(payload)
             enriched["__html"] = """
             <div class="informationAboutCustomer__resultBlock objectPurchase">

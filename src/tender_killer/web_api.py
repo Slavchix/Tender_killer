@@ -191,7 +191,7 @@ def refresh_tender_detail_payload(
     raw_payload = _raw_payload_from_tender(current)
     _seed_detail_identifier(raw_payload, source, external_id)
     detail_adapter = adapter or _detail_adapter_for_source(source)
-    enriched_payload = detail_adapter._enrich_payload(raw_payload)  # noqa: SLF001 - adapter owns source specifics.
+    enriched_payload = detail_adapter.enrich_payload(raw_payload)
     if enriched_payload == raw_payload or not _has_detail_markers(enriched_payload):
         detail = get_tender_payload(database_path, source, external_id)
         return {

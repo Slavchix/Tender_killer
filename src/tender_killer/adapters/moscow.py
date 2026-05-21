@@ -37,7 +37,7 @@ class MoscowSupplierPortalAdapter(BaseAdapter):
             payloads = [payload for payload in self._payloads_from_json(data) if payload.get("auctionId")]
             for payload in payloads:
                 try:
-                    payload = self._enrich_payload(payload)
+                    payload = self.enrich_payload(payload)
                     tenders.append(self.normalize_payload(payload))
                 except Exception as exc:  # noqa: BLE001 - adapter must continue on bad records.
                     LOGGER.warning("Failed to normalize %s payload: %s", self.source, exc)
@@ -68,7 +68,7 @@ class MoscowSupplierPortalAdapter(BaseAdapter):
             raise AdapterError("Moscow purchase query returned non-object JSON.")
         return data
 
-    def _enrich_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def enrich_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         if not self.enrich_details:
             return payload
         auction_id = first_present(payload, "auctionId", "id", "number")
