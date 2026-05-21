@@ -450,6 +450,7 @@ Date: 2026-05-21.
 - `TenderStore.upsert_tender()` fills these fields via `src/tender_killer/tender_metadata.py`.
 - Web list filters now support stable filters for active status, law, quick region code, `procedure_type`, `source_family`, and `customer_inn`, while retaining legacy text fallback where useful.
 - Practical meaning: later UI filters, analytics, margin workflow, and customer/risk views can use stable columns rather than source-specific payload strings.
+- Session handoff note: after this checkpoint, branch `codex/moscow-mo-parser` was ahead of origin by the normalized metadata commits. README now contains a `Current Handoff Snapshot` with the current architecture, verification command, and recommended next steps for a fresh session.
 
 ## Architecture cleanup checkpoint: product profile service split
 
