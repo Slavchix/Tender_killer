@@ -266,3 +266,74 @@ def test_build_product_profiles_links_document_requirements_to_item_profile():
         "source": "Техническое задание.docx",
         "value": "Бланк из бумаги или картона должен соответствовать требованиям качества.",
     } in profile["evidence"]
+
+
+def test_build_product_profiles_extracts_concrete_tz_requirements_without_llm():
+    tender = {
+        "source": "mosreg_market",
+        "external_id": "paper-1",
+        "title": "Поставка бумаги офисной",
+        "items": [
+            {
+                "position_index": 1,
+                "name": "Бумага офисная А4",
+                "details": "Бумага офисная белая",
+                "quantity": 100,
+                "unit": "пачка",
+                "classifier_code": "17.12.14.110",
+                "classifier_type": "ОКПД2",
+            }
+        ],
+        "document_records": [
+            {
+                "name": "Описание объекта закупки.docx",
+                "text_content": (
+                    "Бумага офисная А4 должна иметь формат А4, плотность не менее 80 г/м2, "
+                    "белизну не менее 146 CIE, количество листов в пачке не менее 500. "
+                    "Товар должен быть новым, не бывшим в употреблении. "
+                    "Поставщик предоставляет декларацию соответствия и паспорт качества."
+                ),
+            }
+        ],
+    }
+
+    profile = build_product_profiles(tender)[0]
+
+    assert "формат А4" in profile["required_characteristics"]
+    assert "плотность не менее 80 г/м2" in profile["required_characteristics"]
+    assert "белизну не менее 146 CIE" in profile["required_characteristics"]
+    assert "количество листов в пачке не менее 500" in profile["required_characteristics"]
+    assert "новый товар" in profile["required_characteristics"]
+    assert "декларация соответствия" in profile["cert_documents"]
+    assert "паспорт качества" in profile["cert_documents"]
+    assert {
+        "field": "document_requirement",
+        "source": "Описание объекта закупки.docx",
+        "value": (
+            "Бумага офисная А4 должна иметь формат А4, плотность не менее 80 г/м2, "
+            "белизну не менее 146 CIE, количество листов в пачке не менее 500."
+        ),
+    } in profile["evidence"]
+
+
+def test_build_product_profiles_extracts_national_regime_and_registry_requirements():
+    tender = {
+        "title": "Поставка мебели",
+        "items": [{"name": "Стол письменный", "details": "Стол офисный", "quantity": 10, "unit": "шт"}],
+        "document_records": [
+            {
+                "name": "Требования к закупке.docx",
+                "text_content": (
+                    "При исполнении контракта применяется национальный режим по постановлению 1875. "
+                    "Участник указывает страну происхождения товара. "
+                    "Товар должен быть включен в реестр российской промышленной продукции."
+                ),
+            }
+        ],
+    }
+
+    profile = build_product_profiles(tender)[0]
+
+    assert "национальный режим / ПП 1875" in profile["origin_country_requirements"]
+    assert "страна происхождения товара" in profile["origin_country_requirements"]
+    assert "реестр российской промышленной продукции" in profile["origin_country_requirements"]

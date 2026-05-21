@@ -35,3 +35,20 @@ def test_analyze_tender_texts_handles_empty_text_cautiously():
     assert result.confidence == 0.1
     assert result.summary == "Текст документов не извлечен или пустой."
     assert result.red_flags == ["нет текста для анализа"]
+
+
+def test_analyze_tender_texts_flags_registry_and_quality_documents():
+    result = analyze_tender_texts(
+        [
+            """
+            Предмет контракта: поставка мебели офисной.
+            Поставщик предоставляет паспорт качества.
+            Товар должен быть включен в реестр российской промышленной продукции.
+            Участник указывает страну происхождения товара.
+            """
+        ]
+    )
+
+    assert "паспорт качества" in result.requirements
+    assert "реестр российской продукции" in result.red_flags
+    assert "национальный режим/страна происхождения" in result.red_flags

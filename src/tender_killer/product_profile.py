@@ -258,12 +258,26 @@ def _characteristics(details: str | None, text: str, document_snippets: list[dic
         values.append("декларация соответствия")
     if "страна происхождения" in lower:
         values.append("страна происхождения")
-    for match in re.findall(
-        r"(?:белизн[а-я\s]*?\d+\s*CIE|плотност[а-я\s]*?\d+\s*г/м2|формат\s*[AА]\d)",
-        text,
-        flags=re.IGNORECASE,
-    ):
-        values.append(_clean(match))
+    values.extend(_technical_characteristics(text))
+    if "новым" in lower and "бывш" in lower and "употреблен" in lower:
+        values.append("новый товар")
+    return _unique(values)
+
+
+def _technical_characteristics(text: str) -> list[str]:
+    patterns = (
+        r"\bформат\s*[AА]\d\b",
+        r"\bплотност[а-я]*\s+(?:не\s+менее|не\s+более|от|до)?\s*\d+(?:[,.]\d+)?\s*г/м2\b",
+        r"\bбелизн[а-я]*\s+(?:не\s+менее|не\s+более|от|до)?\s*\d+(?:[,.]\d+)?\s*CIE\b",
+        r"\bколичество\s+листов\s+в\s+пачке\s+(?:не\s+менее|не\s+более|от|до)?\s*\d+\b",
+        r"\bразмер[а-я]*\s+(?:не\s+менее|не\s+более|от|до)?\s*\d+(?:[,.]\d+)?\s*(?:мм|см|м)\b",
+        r"\bмасса\s+(?:заряда\s+)?(?:не\s+менее|не\s+более|от|до)?\s*\d+(?:[,.]\d+)?\s*(?:кг|г)\b",
+        r"\bобъем\s+(?:не\s+менее|не\s+более|от|до)?\s*\d+(?:[,.]\d+)?\s*(?:л|мл)\b",
+    )
+    values: list[str] = []
+    for pattern in patterns:
+        for match in re.findall(pattern, text, flags=re.IGNORECASE):
+            values.append(_clean(match))
     return _unique(values)
 
 
@@ -339,6 +353,9 @@ def _looks_like_requirement(value: str) -> bool:
         "срок поставки",
         "страна происхождения",
         "качества",
+        "национальный режим",
+        "1875",
+        "реестр российской",
     )
     return any(marker in value for marker in markers)
 
@@ -376,10 +393,12 @@ def _standards(text: str) -> list[str]:
 def _cert_documents(text: str) -> list[str]:
     lower = text.casefold()
     values: list[str] = []
-    if "сертификат соответствия" in lower:
+    if "сертификат соответствия" in lower or ("сертификат" in lower and "соответств" in lower):
         values.append("сертификат соответствия")
-    if "декларация соответствия" in lower:
+    if "декларация соответствия" in lower or ("деклараци" in lower and "соответств" in lower):
         values.append("декларация соответствия")
+    if "паспорт качества" in lower:
+        values.append("паспорт качества")
     if "регистрационное удостоверение" in lower:
         values.append("регистрационное удостоверение")
     if re.search(r"\bсгр\b", text, flags=re.IGNORECASE):
@@ -390,10 +409,23 @@ def _cert_documents(text: str) -> list[str]:
 def _origin_country_requirements(text: str) -> list[str]:
     lower = text.casefold()
     values: list[str] = []
-    if "страна происхождения" in lower:
+    if "национальный режим" in lower or "1875" in lower:
+        values.append("национальный режим / ПП 1875")
+    if "стран" in lower and "происхожд" in lower:
         values.append("страна происхождения")
+        values.append("страна происхождения товара")
     if "российский товар" in lower:
         values.append("российский товар")
+    if "реестр российской промышленной продукции" in lower:
+        values.append("реестр российской промышленной продукции")
+    elif "реестр российской продукции" in lower:
+        values.append("реестр российской продукции")
+    if "ррпп" in lower:
+        values.append("РРПП")
+    if "рпп" in lower:
+        values.append("РПП")
+    if "ерпт" in lower:
+        values.append("ЕРПТ")
     return values
 
 
