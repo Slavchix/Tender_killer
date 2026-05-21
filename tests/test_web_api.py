@@ -23,6 +23,7 @@ from tender_killer.web_api import (
     list_database_tables_payload,
     list_tenders_payload,
     rebuild_product_profiles,
+    refresh_tender_detail_payload,
     run_search_payload,
     send_tender_notification_payload,
     update_tender_workflow,
@@ -357,6 +358,95 @@ def test_rebuild_product_profiles_handles_forty_items(tmp_path):
     assert len(result["product_profiles"]) == 40
     assert result["product_profiles"][39]["product_name"] == "Item 40"
     assert len(store.get_product_profiles("mosreg_market", "bulk")) == 40
+
+
+def test_refresh_tender_detail_payload_saves_detail_items_documents_and_profiles(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="moscow_supplier_portal",
+            external_id="10205109",
+            url="https://zakupki.mos.ru/auction/10205109",
+            title="ТОВАРЫ СТРОИТЕЛЬНЫЕ",
+            customer="Школа",
+            raw_payload={
+                "auctionId": 10205109,
+                "number": "10205109",
+                "name": "ТОВАРЫ СТРОИТЕЛЬНЫЕ",
+                "stateName": "Активная",
+            },
+        )
+    )
+
+    class DetailAdapter:
+        source = "moscow_supplier_portal"
+
+        def _enrich_payload(self, payload):
+            enriched = dict(payload)
+            enriched["__detail"] = {
+                "id": 10205109,
+                "name": "ТОВАРЫ СТРОИТЕЛЬНЫЕ",
+                "startCost": 86330.0,
+                "state": {"name": "Активная"},
+                "files": [{"id": 275311511, "name": "Проект контракта.pdf"}],
+                "items": [
+                    {
+                        "name": "Краска акриловая",
+                        "productionDirectoryName": "Краска акриловая интерьерная",
+                        "currentValue": 50,
+                        "costPerUnit": 1567,
+                        "okeiName": "шт",
+                        "okpd2": "20.30.11.120",
+                    }
+                ],
+            }
+            return enriched
+
+        def normalize_payload(self, payload):
+            from tender_killer.adapters.moscow import MoscowSupplierPortalAdapter
+
+            return MoscowSupplierPortalAdapter(enrich_details=False).normalize_payload(payload)
+
+    payload = refresh_tender_detail_payload(
+        store.database_path,
+        "moscow_supplier_portal",
+        "10205109",
+        adapter=DetailAdapter(),
+    )
+
+    assert payload["ok"] is True
+    assert payload["refreshed"] is True
+    assert payload["summary"]["items_count"] == 1
+    assert payload["summary"]["documents_count"] == 1
+    assert payload["summary"]["product_profiles_count"] == 1
+    assert payload["tender"]["items"][0]["name"] == "Краска акриловая"
+    assert payload["tender"]["document_records"][0]["name"] == "Проект контракта.pdf"
+    assert payload["tender"]["product_profiles"][0]["product_name"] == "Краска акриловая"
+
+
+def test_refresh_tender_detail_payload_keeps_existing_data_when_detail_unavailable(tmp_path):
+    store = _store_with_tenders(tmp_path)
+
+    class EmptyAdapter:
+        source = "mosreg_market"
+
+        def _enrich_payload(self, payload):
+            return dict(payload)
+
+        def normalize_payload(self, payload):
+            raise AssertionError("refresh should not normalize unchanged payload")
+
+    payload = refresh_tender_detail_payload(
+        store.database_path,
+        "mosreg_market",
+        "3668200",
+        adapter=EmptyAdapter(),
+    )
+
+    assert payload["ok"] is True
+    assert payload["refreshed"] is False
+    assert payload["tender"]["items"][0]["name"] == "Папка-вкладыш"
 
 
 def test_get_tender_payload_returns_document_records(tmp_path):

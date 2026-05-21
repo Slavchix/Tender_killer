@@ -13,6 +13,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 import httpx
 
 from tender_killer.analysis import analyze_tender_texts
+from tender_killer.adapters import MoscowSupplierPortalAdapter, MosregMarketAdapter
 from tender_killer.config import Settings
 from tender_killer.documents import DocumentTextExtractor
 from tender_killer.filter_store import FilterProfileCollection, FilterProfileStore, NamedFilterProfile
@@ -122,6 +123,48 @@ def _product_profile_summary(profiles: list[dict[str, Any]]) -> dict[str, int]:
     return summary
 
 
+def _raw_payload_from_tender(tender: dict[str, Any]) -> dict[str, Any]:
+    raw_payload = tender.get("raw_payload_json")
+    if isinstance(raw_payload, str):
+        try:
+            data = json.loads(raw_payload)
+        except json.JSONDecodeError:
+            data = {}
+    elif isinstance(raw_payload, dict):
+        data = raw_payload
+    else:
+        data = {}
+    return dict(data) if isinstance(data, dict) else {}
+
+
+def _seed_detail_identifier(payload: dict[str, Any], source: str, external_id: str) -> None:
+    if source == "moscow_supplier_portal":
+        payload.setdefault("auctionId", external_id)
+        payload.setdefault("number", external_id)
+    elif source == "mosreg_market":
+        payload.setdefault("Id", external_id)
+
+
+def _detail_adapter_for_source(source: str):
+    if source == "moscow_supplier_portal":
+        return MoscowSupplierPortalAdapter(enrich_details=True)
+    if source == "mosreg_market":
+        return MosregMarketAdapter(enrich_documents=True)
+    raise ValueError(f"Unsupported source for detail refresh: {source}")
+
+
+def _has_detail_markers(payload: dict[str, Any]) -> bool:
+    return "__detail" in payload or "__documents" in payload
+
+
+def _detail_refresh_summary(tender: dict[str, Any]) -> dict[str, int]:
+    return {
+        "items_count": len(tender.get("items") or []),
+        "documents_count": len(tender.get("document_records") or []),
+        "product_profiles_count": len(tender.get("product_profiles") or []),
+    }
+
+
 def rebuild_product_profiles(database_path: str | Path, source: str, external_id: str) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
@@ -133,6 +176,46 @@ def rebuild_product_profiles(database_path: str | Path, source: str, external_id
         "ok": True,
         "summary": _product_profile_summary(saved_profiles),
         "product_profiles": saved_profiles,
+    }
+
+
+def refresh_tender_detail_payload(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    adapter: Any | None = None,
+) -> dict[str, Any]:
+    store = TenderStore(database_path)
+    store.initialize()
+    current = get_tender_payload(database_path, source, external_id, include_product_profiles=False)
+    raw_payload = _raw_payload_from_tender(current)
+    _seed_detail_identifier(raw_payload, source, external_id)
+    detail_adapter = adapter or _detail_adapter_for_source(source)
+    enriched_payload = detail_adapter._enrich_payload(raw_payload)  # noqa: SLF001 - adapter owns source specifics.
+    if enriched_payload == raw_payload or not _has_detail_markers(enriched_payload):
+        detail = get_tender_payload(database_path, source, external_id)
+        return {
+            "ok": True,
+            "refreshed": False,
+            "summary": _detail_refresh_summary(detail),
+            "tender": detail,
+            "message": "Детальные данные не изменились или источник не отдал detail payload.",
+        }
+
+    refreshed_tender = detail_adapter.normalize_payload(enriched_payload)
+    if refreshed_tender.source != source or refreshed_tender.external_id != external_id:
+        raise ValueError("Detail adapter returned another tender identity.")
+    store.upsert_tender(refreshed_tender)
+    profiles_result = rebuild_product_profiles(database_path, source, external_id)
+    detail = get_tender_payload(database_path, source, external_id)
+    return {
+        "ok": True,
+        "refreshed": True,
+        "summary": {
+            **_detail_refresh_summary(detail),
+            "product_profiles_count": profiles_result["summary"]["total"],
+        },
+        "tender": detail,
     }
 
 
@@ -1220,6 +1303,14 @@ class TenderApiHandler(BaseHTTPRequestHandler):
                     return
                 source, external_id = unquote(parts[3]), unquote(parts[4])
                 self._send_json(analyze_tender_payload(self.database_path, source, external_id))
+                return
+            if parsed.path.startswith("/api/tenders/") and parsed.path.endswith("/details/refresh"):
+                parts = parsed.path.split("/")
+                if len(parts) != 7:
+                    self._send_json({"error": "invalid detail refresh path"}, status=400)
+                    return
+                source, external_id = unquote(parts[3]), unquote(parts[4])
+                self._send_json(refresh_tender_detail_payload(self.database_path, source, external_id))
                 return
             if parsed.path.startswith("/api/tenders/") and parsed.path.endswith("/product-profiles/rebuild"):
                 parts = parsed.path.split("/")

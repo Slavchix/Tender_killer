@@ -168,6 +168,26 @@ function App() {
     )))
   }
 
+  function updateTenderDetails(updatedTender) {
+    setDetails(updatedTender)
+    setTenders((current) => current.map((item) => (
+      item.source === updatedTender.source && item.external_id === updatedTender.external_id
+        ? {
+            ...item,
+            title: updatedTender.title,
+            customer: updatedTender.customer,
+            price: updatedTender.price,
+            status: updatedTender.status,
+            deadline_at: updatedTender.deadline_at,
+            documents_count: updatedTender.document_records?.length || updatedTender.documents?.length || 0,
+            items_count: updatedTender.items?.length || 0,
+            workflow_status: updatedTender.workflow_status,
+            workflow_note: updatedTender.workflow_note,
+          }
+        : item
+    )))
+  }
+
   function runSearch() {
     const nextFilters = { ...filters }
     setSearching(true)
@@ -372,7 +392,7 @@ function App() {
 
         <aside className="details-panel">
           {details ? (
-            <TenderDetails tender={details} onWorkflowUpdate={updateTenderWorkflow} />
+            <TenderDetails tender={details} onTenderRefresh={updateTenderDetails} onWorkflowUpdate={updateTenderWorkflow} />
           ) : (
             <div className="empty-state">Выбери закупку из списка</div>
           )}
@@ -480,7 +500,7 @@ function DatabaseView() {
   )
 }
 
-function TenderDetails({ tender, onWorkflowUpdate }) {
+function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const raw = safeJson(tender.raw_payload_json)
   const [note, setNote] = useState(tender.workflow_note || '')
   const [saving, setSaving] = useState(false)
@@ -488,9 +508,11 @@ function TenderDetails({ tender, onWorkflowUpdate }) {
   const [downloading, setDownloading] = useState(false)
   const [extracting, setExtracting] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
+  const [refreshingDetails, setRefreshingDetails] = useState(false)
   const [notifyStatus, setNotifyStatus] = useState('')
   const [downloadStatus, setDownloadStatus] = useState('')
   const [extractStatus, setExtractStatus] = useState('')
+  const [detailStatus, setDetailStatus] = useState('')
   const [documentRecords, setDocumentRecords] = useState(documentRecordsForTender(tender))
   const [analysis, setAnalysis] = useState(tender.analysis || null)
   const [productProfiles, setProductProfiles] = useState(tender.product_profiles || [])
@@ -503,6 +525,7 @@ function TenderDetails({ tender, onWorkflowUpdate }) {
     setNotifyStatus('')
     setDownloadStatus('')
     setExtractStatus('')
+    setDetailStatus('')
     setDocumentRecords(documentRecordsForTender(tender))
     setAnalysis(tender.analysis || null)
     setProductProfiles(tender.product_profiles || [])
@@ -593,6 +616,32 @@ function TenderDetails({ tender, onWorkflowUpdate }) {
       .finally(() => setAnalyzing(false))
   }
 
+  function refreshDetails() {
+    setRefreshingDetails(true)
+    setDetailStatus('')
+    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/details/refresh`, {
+      method: 'POST',
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось обновить детали')))
+      .then((payload) => {
+        const nextTender = payload.tender || tender
+        onTenderRefresh(nextTender)
+        setDocumentRecords(nextTender.document_records || [])
+        setAnalysis(nextTender.analysis || null)
+        setProductProfiles(nextTender.product_profiles || [])
+        setProductProfileSummary(nextTender.product_profile_summary || null)
+        setSelectedProfileIndex(0)
+        const summary = payload.summary || {}
+        setDetailStatus(
+          payload.refreshed
+            ? `Обновлено: позиций ${summary.items_count || 0}, документов ${summary.documents_count || 0}, профилей ${summary.product_profiles_count || 0}`
+            : payload.message || 'Источник не отдал новые детали'
+        )
+      })
+      .catch((err) => setDetailStatus(err.message))
+      .finally(() => setRefreshingDetails(false))
+  }
+
   function rebuildProductProfiles() {
     setProfilesLoading(true)
     fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/rebuild`, {
@@ -626,6 +675,10 @@ function TenderDetails({ tender, onWorkflowUpdate }) {
       <a className="source-link" href={tender.url} target="_blank" rel="noreferrer">
         Открыть источник <ExternalLink size={16} />
       </a>
+      <button className="secondary-button" disabled={refreshingDetails} onClick={refreshDetails} type="button">
+        {refreshingDetails ? 'Обновление деталей...' : 'Обновить детали карточки'}
+      </button>
+      {detailStatus && <p className="inline-status">{detailStatus}</p>}
       <button className="secondary-button" disabled={sending} onClick={sendToTelegram} type="button">
         {sending ? 'Отправка...' : 'Отправить в Telegram'}
       </button>
