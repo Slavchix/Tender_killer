@@ -51,6 +51,7 @@ def main() -> None:
         store=TenderStore(database_path),
         material_filter=MultiProfileTenderFilter(filter_collection),
         notifier=TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id, dry_run=dry_run),
+        source_overlap_minutes=settings.source_incremental_overlap_minutes,
     )
     stats = pipeline.run()
     print(

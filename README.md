@@ -17,10 +17,24 @@ Current product shape:
 Recent architecture cleanup:
 
 - `web_api.py` is being split into services.
+- Tender list SQL and site filter construction now live in `src/tender_killer/tender_query_service.py`.
 - SQLite schema is centralized in `src/tender_killer/schema.py`.
 - Adapter detail enrichment now uses public `enrich_payload(...)` contracts.
 - Product profiles, document operations, and SQLite admin views were moved into separate service modules.
 - Tender filtering now has normalized DB fields: `law`, `status_normalized`, `region_code`, `source_family`, `procedure_type`, `customer_inn`.
+- The site exposes normalized metadata filters for source family, procedure type, and customer INN.
+- Source adapters accept configurable pagination via `TENDER_KILLER_SOURCE_MAX_PAGES`.
+- Source runs now keep SQLite checkpoints with last success, last seen publication date, and last error diagnostics.
+- The site exposes source run diagnostics through `/api/sources/status` and shows checkpoint/error state in the tender cockpit.
+- Incremental source fetches use a configurable overlap window via `TENDER_KILLER_SOURCE_OVERLAP_MINUTES`.
+- Tender list pagination is explicit in the UI: the site requests bounded pages and uses API `total/limit/offset` navigation metadata.
+- Workflow status persistence is isolated in `src/tender_killer/workflow_service.py`.
+- Report download payload construction is isolated in `src/tender_killer/report_service.py`.
+- Tender detail payload/refresh logic is isolated in `src/tender_killer/tender_detail_service.py`.
+- Manual Telegram notification payload construction is isolated in `src/tender_killer/notification_service.py`.
+- TZ analysis run persistence is isolated in `src/tender_killer/analysis_service.py`.
+- Search run orchestration is isolated in `src/tender_killer/search_service.py`.
+- The tender list has a page-size selector for 10/25/50/100 rows while keeping 25 as the default.
 
 Current verification command:
 
@@ -28,14 +42,12 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `139 passed`.
+Latest verified result before this handoff: `162 passed`.
 
 Good next steps:
 
-1. Finish audit item `3.4` by moving query/filter construction out of `web_api.py` into a dedicated tender query service.
-2. Continue audit item `3.5`: add source pagination and incremental search by publication/update date.
-3. Improve UI filters so normalized fields can be exposed cleanly without clutter.
-4. After architecture cleanup, return to deeper TZ extraction and product search/economics.
+1. After architecture cleanup, return to deeper TZ extraction and product search/economics.
+2. Start margin/economics workflow once product search inputs are reliable.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.
 
@@ -81,6 +93,8 @@ python -m pip install -e ".[dev]"
 - `TENDER_KILLER_MOSREG_URL` - переопределить URL источника МО.
 - `TENDER_KILLER_FILTERS` - путь к JSON-файлу с профилями поиска.
 - `TENDER_KILLER_AUTO_SEARCH_MINUTES` - интервал авто-поиска в минутах, по умолчанию `30`.
+- `TENDER_KILLER_SOURCE_MAX_PAGES` - сколько страниц запрашивать у каждого источника, по умолчанию `1`.
+- `TENDER_KILLER_SOURCE_OVERLAP_MINUTES` - на сколько минут откатывать checkpoint при инкрементальном поиске, по умолчанию `60`.
 
 ## Профили Поиска
 

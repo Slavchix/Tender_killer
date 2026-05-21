@@ -3,6 +3,8 @@ import {
   Bell,
   Building2,
   CalendarClock,
+  ChevronLeft,
+  ChevronRight,
   CircleDollarSign,
   Database,
   ExternalLink,
@@ -53,16 +55,47 @@ const quickRegionOptions = [
   { value: 'Москва + МО', label: 'Москва + МО' },
 ]
 
+const sourceFamilyOptions = [
+  { value: '', label: 'Все' },
+  { value: 'moscow', label: 'Москва' },
+  { value: 'mosreg', label: 'МО' },
+]
+
+const procedureTypeOptions = [
+  { value: '', label: 'Все' },
+  { value: 'electronic_shop', label: 'Эл-магазин' },
+  { value: 'quotation_session', label: 'Котировка' },
+  { value: 'supplier_portal', label: 'Портал' },
+  { value: 'need', label: 'Потребность' },
+  { value: 'tender', label: 'Тендер' },
+]
+
 const initialFilters = {
   q: '',
   source: '',
   law: '',
   region: '',
   status: 'active',
+  source_family: '',
+  procedure_type: '',
+  customer_inn: '',
   workflow_status: '',
   okpd2: '',
   min_price: '',
   max_price: '',
+}
+
+const defaultTenderPageLimit = 25
+const tenderPageLimitOptions = [10, 25, 50, 100]
+
+const initialTenderPage = {
+  total: 0,
+  limit: defaultTenderPageLimit,
+  offset: 0,
+  has_previous: false,
+  previous_offset: null,
+  has_next: false,
+  next_offset: null,
 }
 
 function App() {
@@ -76,10 +109,19 @@ function App() {
   const [searching, setSearching] = useState(false)
   const [searchSummary, setSearchSummary] = useState('')
   const [view, setView] = useState('tenders')
+  const [sourceStatus, setSourceStatus] = useState([])
+  const [sourceStatusError, setSourceStatusError] = useState('')
+  const [pageOffset, setPageOffset] = useState(0)
+  const [pageLimit, setPageLimit] = useState(defaultTenderPageLimit)
+  const [tenderPage, setTenderPage] = useState(initialTenderPage)
 
   useEffect(() => {
-    loadTenders()
-  }, [appliedFilters])
+    loadTenders(appliedFilters, pageOffset)
+  }, [appliedFilters, pageOffset, pageLimit])
+
+  useEffect(() => {
+    loadSourceStatus()
+  }, [])
 
   useEffect(() => {
     if (!selected) {
@@ -92,21 +134,50 @@ function App() {
       .catch((err) => setError(err.message))
   }, [selected])
 
-  function loadTenders(nextAppliedFilters = appliedFilters) {
+  function loadTenders(nextAppliedFilters = appliedFilters, nextOffset = pageOffset) {
+    if (nextAppliedFilters && typeof nextAppliedFilters.preventDefault === 'function') {
+      nextAppliedFilters = appliedFilters
+      nextOffset = pageOffset
+    }
     setLoading(true)
     setError('')
     const params = new URLSearchParams()
     Object.entries(nextAppliedFilters).forEach(([key, value]) => {
       if (value) params.set(key, value)
     })
-    fetch(`/api/tenders?${params.toString()}`)
+    params.set('limit', String(pageLimit))
+    params.set('offset', String(Math.max(0, Number(nextOffset) || 0)))
+    return fetch(`/api/tenders?${params.toString()}`)
       .then((response) => response.ok ? response.json() : Promise.reject(new Error('API не отвечает')))
       .then((payload) => {
         setTenders(payload.items || [])
-        setSelected((current) => current || payload.items?.[0] || null)
+        setTenderPage({
+          total: payload.total || 0,
+          limit: payload.limit || pageLimit,
+          offset: payload.offset || 0,
+          has_previous: Boolean(payload.has_previous),
+          previous_offset: payload.previous_offset,
+          has_next: Boolean(payload.has_next),
+          next_offset: payload.next_offset,
+        })
+        setSelected((current) => {
+          const items = payload.items || []
+          const stillVisible = current && items.some((item) => (
+            item.source === current.source && item.external_id === current.external_id
+          ))
+          return stillVisible ? current : items[0] || null
+        })
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
+  }
+
+  function loadSourceStatus() {
+    setSourceStatusError('')
+    return fetch('/api/sources/status')
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('API не отвечает')))
+      .then((payload) => setSourceStatus(payload.sources || []))
+      .catch((err) => setSourceStatusError(err.message))
   }
 
   const stats = useMemo(() => {
@@ -137,12 +208,14 @@ function App() {
 
   function applyFilters(event) {
     event.preventDefault()
+    setPageOffset(0)
     setAppliedFilters(filters)
     setSelected(null)
   }
 
   function clearFilters() {
     setFilters(initialFilters)
+    setPageOffset(0)
     setAppliedFilters(initialFilters)
     setSelected(null)
     setSearchSummary('')
@@ -151,8 +224,23 @@ function App() {
   function setWorkflowFilter(workflowStatus) {
     const nextFilters = { ...filters, workflow_status: workflowStatus }
     setFilters(nextFilters)
+    setPageOffset(0)
     setAppliedFilters(nextFilters)
     setSelected(null)
+  }
+
+  function goToOffset(nextOffset) {
+    if (nextOffset === null || nextOffset === undefined) return
+    setSelected(null)
+    setPageOffset(Math.max(0, Number(nextOffset) || 0))
+  }
+
+  function changePageLimit(nextLimit) {
+    const parsedLimit = Number(nextLimit)
+    const normalizedLimit = tenderPageLimitOptions.includes(parsedLimit) ? parsedLimit : defaultTenderPageLimit
+    setSelected(null)
+    setPageOffset(0)
+    setPageLimit(normalizedLimit)
   }
 
   function updateTenderWorkflow(updatedTender) {
@@ -194,6 +282,7 @@ function App() {
     setError('')
     setSearchSummary('')
     setSelected(null)
+    setPageOffset(0)
     setAppliedFilters(nextFilters)
     fetch('/api/search', {
       method: 'POST',
@@ -206,7 +295,8 @@ function App() {
         setSearchSummary(
           `Fetched=${stats.fetched || 0} Saved=${stats.saved || 0} Matched=${stats.matched || 0} Notified=${stats.notified || 0} Telegram=${payload.notifications_enabled ? 'on' : 'off'}`
         )
-        return loadTenders(nextFilters)
+        loadSourceStatus()
+        return loadTenders(nextFilters, 0)
       })
       .catch((err) => setError(err.message))
       .finally(() => setSearching(false))
@@ -235,12 +325,19 @@ function App() {
       </header>
 
       <section className="metrics">
-        <Metric label="Найдено" value={tenders.length} />
+        <Metric label="Найдено" value={tenderPage.total} />
         <Metric label="Активные" value={stats.active} />
         <Metric label="Сумма в выдаче" value={formatMoney(stats.totalPrice)} />
         <Metric label="API" value={error ? 'ошибка' : 'ok'} tone={error ? 'danger' : 'good'} />
       </section>
       {searchSummary && <div className="run-summary">{searchSummary}</div>}
+      {view !== 'database' && (
+        <SourceStatusPanel
+          error={sourceStatusError}
+          onRefresh={loadSourceStatus}
+          sources={sourceStatus}
+        />
+      )}
 
       {view === 'database' ? (
         <DatabaseView />
@@ -321,6 +418,40 @@ function App() {
               ОКПД2
               <input value={filters.okpd2} onChange={(event) => updateFilter('okpd2', event.target.value)} placeholder="17.12, 22.23, 27" />
             </label>
+            <div className="filter-group">
+              Тип источника
+              <div className="segmented-control">
+                {sourceFamilyOptions.map((option) => (
+                  <button
+                    className={filters.source_family === option.value ? 'selected' : ''}
+                    key={option.label}
+                    onClick={() => updateFilter('source_family', option.value)}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="filter-group">
+              Тип процедуры
+              <div className="segmented-control wrap procedure-control">
+                {procedureTypeOptions.map((option) => (
+                  <button
+                    className={filters.procedure_type === option.value ? 'selected' : ''}
+                    key={option.label}
+                    onClick={() => updateFilter('procedure_type', option.value)}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label>
+              ИНН заказчика
+              <input value={filters.customer_inn} onChange={(event) => updateFilter('customer_inn', event.target.value)} inputMode="numeric" placeholder="7708044657" />
+            </label>
             <div className="split">
               <label>
                 Мин. цена
@@ -360,6 +491,16 @@ function App() {
               </button>
             ))}
           </div>
+          <PaginationBar
+            loading={loading}
+            onNext={() => goToOffset(tenderPage.next_offset)}
+            onPageLimitChange={changePageLimit}
+            onPrevious={() => goToOffset(tenderPage.previous_offset)}
+            page={tenderPage}
+            pageLimit={pageLimit}
+            pageLimitOptions={tenderPageLimitOptions}
+            shown={tenders.length}
+          />
           {error && <div className="error-box">{error}</div>}
           <div className="rows">
             {tenders.map((tender) => (
@@ -408,6 +549,88 @@ function Metric({ label, value, tone }) {
     <div className={`metric ${tone || ''}`}>
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  )
+}
+
+function SourceStatusPanel({ sources, error, onRefresh }) {
+  return (
+    <section className="source-status-panel">
+      <div className="source-status-header">
+        <div className="panel-title"><RefreshCcw size={18} /> Источники</div>
+        <button className="icon-button small" onClick={onRefresh} title="Обновить статус источников" type="button">
+          <RefreshCcw size={16} />
+        </button>
+      </div>
+      {error && <div className="source-status-error">{error}</div>}
+      <div className="source-status-list">
+        {(sources || []).map((source) => (
+          <SourceStatusRow key={source.source} source={source} />
+        ))}
+        {!sources?.length && !error && <span className="source-status-empty">Статус источников пока не загружен</span>}
+      </div>
+    </section>
+  )
+}
+
+function SourceStatusRow({ source }) {
+  const tone = source.last_error ? 'danger' : source.last_success_at ? 'good' : 'idle'
+  const statusText = source.last_error ? 'ошибка' : source.last_success_at ? 'ok' : 'нет запусков'
+  return (
+    <div className={`source-status-row ${tone}`}>
+      <span className="source-status-dot" />
+      <div className="source-status-main">
+        <div>
+          <strong>{source.label || sourceLabels[source.source] || source.source}</strong>
+          <span>{statusText}</span>
+        </div>
+        <div className="source-status-meta">
+          <span>успех: {formatDateTime(source.last_success_at)}</span>
+          <span>checkpoint: {formatDateTime(source.last_seen_published_at)}</span>
+          {source.last_error && <span className="source-status-message">{source.last_error}</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PaginationBar({ page, shown, loading, onPrevious, onNext, pageLimit, pageLimitOptions, onPageLimitChange }) {
+  const total = Number(page.total) || 0
+  const offset = Number(page.offset) || 0
+  const limit = Math.max(1, Number(page.limit) || pageLimit || defaultTenderPageLimit)
+  const from = total === 0 ? 0 : offset + 1
+  const to = Math.min(total, offset + shown)
+  const pageNumber = total === 0 ? 0 : Math.floor(offset / limit) + 1
+  const pageCount = total === 0 ? 0 : Math.ceil(total / limit)
+
+  return (
+    <div className="pagination-bar">
+      <div>
+        <strong>{from}-{to}</strong>
+        <span>из {total}</span>
+        <em>{pageNumber}/{pageCount}</em>
+      </div>
+      <div className="pagination-actions">
+        <label className="page-size-control">
+          <span>РќР° СЃС‚СЂР°РЅРёС†Рµ</span>
+          <select
+            aria-label="Р—Р°РєСѓРїРѕРє РЅР° СЃС‚СЂР°РЅРёС†Рµ"
+            disabled={loading}
+            onChange={(event) => onPageLimitChange(event.target.value)}
+            value={pageLimit}
+          >
+            {pageLimitOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        </label>
+        <button disabled={loading || !page.has_previous} onClick={onPrevious} title="Предыдущая страница" type="button">
+          <ChevronLeft size={18} />
+        </button>
+        <button disabled={loading || !page.has_next} onClick={onNext} title="Следующая страница" type="button">
+          <ChevronRight size={18} />
+        </button>
+      </div>
     </div>
   )
 }
@@ -1082,6 +1305,18 @@ function analysisStatusLabel(status) {
   }[status] || status || 'Нужна проверка'
 }
 
+function formatDateTime(value) {
+  if (!value) return 'нет'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
 function formatDate(value) {
   if (!value) return 'не указан'
   const date = new Date(value)
@@ -1140,6 +1375,10 @@ function splitFilterValues(value) {
     .filter(Boolean)
 }
 
+function optionLabel(options, value) {
+  return options.find((option) => option.value === value)?.label || value
+}
+
 function filterSummary(filters) {
   const chips = []
   const sources = splitFilterValues(filters.source)
@@ -1148,6 +1387,9 @@ function filterSummary(filters) {
   chips.push(filters.status === 'active' ? 'Только активные' : filters.status || 'Все статусы')
   if (filters.region) chips.push(filters.region)
   if (filters.okpd2) chips.push(`ОКПД2: ${filters.okpd2}`)
+  if (filters.source_family) chips.push(`Тип источника: ${optionLabel(sourceFamilyOptions, filters.source_family)}`)
+  if (filters.procedure_type) chips.push(`Процедура: ${optionLabel(procedureTypeOptions, filters.procedure_type)}`)
+  if (filters.customer_inn) chips.push(`ИНН: ${filters.customer_inn}`)
   if (filters.min_price || filters.max_price) {
     chips.push(`Цена: ${filters.min_price || 0} - ${filters.max_price || '∞'}`)
   }

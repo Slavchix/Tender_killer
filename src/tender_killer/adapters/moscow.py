@@ -21,9 +21,18 @@ class MoscowSupplierPortalAdapter(BaseAdapter):
     items_per_page = 50
     max_pages = 1
 
-    def __init__(self, url: str | None = None, timeout_seconds: float = 20, enrich_details: bool = True) -> None:
+    def __init__(
+        self,
+        url: str | None = None,
+        timeout_seconds: float = 20,
+        enrich_details: bool = True,
+        max_pages: int | None = None,
+        published_from: Any | None = None,
+    ) -> None:
         super().__init__(url, timeout_seconds)
         self.enrich_details = enrich_details
+        self.max_pages = max(1, int(max_pages or self.max_pages))
+        self.published_from = published_from
 
     @property
     def default_url(self) -> str:
@@ -52,7 +61,11 @@ class MoscowSupplierPortalAdapter(BaseAdapter):
             "Referer": "https://zakupki.mos.ru/",
             "User-Agent": "TenderKiller/0.1 (+https://github.com/Slavchix/Tender_killer)",
         }
-        query = self.purchase_query(skip=skip, take=self.items_per_page)
+        query = self.purchase_query(
+            skip=skip,
+            take=self.items_per_page,
+            published_from=_checkpoint_value(self.published_from),
+        )
         try:
             response = httpx.get(
                 self.url,
@@ -103,8 +116,8 @@ class MoscowSupplierPortalAdapter(BaseAdapter):
         return data if isinstance(data, dict) else {}
 
     @staticmethod
-    def purchase_query(skip: int, take: int) -> dict[str, Any]:
-        return {
+    def purchase_query(skip: int, take: int, published_from: Any | None = None) -> dict[str, Any]:
+        query = {
             "filter": {
                 "typeIn": {},
                 "nameLike": {"contains": True},
@@ -126,6 +139,9 @@ class MoscowSupplierPortalAdapter(BaseAdapter):
             "take": take,
             "skip": skip,
         }
+        if published_from:
+            query["filter"]["publicationDateFrom"] = _checkpoint_value(published_from)
+        return query
 
     def normalize_payload(self, payload: dict[str, Any]) -> Tender:
         external_id = str(
@@ -289,3 +305,12 @@ class MoscowSupplierPortalAdapter(BaseAdapter):
                         )
                     )
         return records
+
+
+def _checkpoint_value(value: Any | None) -> str | None:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    text = str(value).strip()
+    return text or None

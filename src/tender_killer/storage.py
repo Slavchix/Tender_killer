@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import asdict, dataclass, is_dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from tender_killer.models import ProductProfile, Tender, TenderDocument
+from tender_killer.normalization import parse_datetime
 from tender_killer.schema import initialize_schema
 from tender_killer.tender_metadata import normalize_customer_inn
 from tender_killer.tender_metadata import normalize_law
@@ -110,6 +112,67 @@ class TenderStore:
         with self._connect() as connection:
             row = connection.execute("SELECT COUNT(*) FROM tenders").fetchone()
         return int(row[0])
+
+    def get_source_checkpoint(self, source: str) -> dict[str, Any]:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT source, last_success_at, last_seen_published_at,
+                       last_error_at, last_error, updated_at
+                FROM source_runs
+                WHERE source = ?
+                """,
+                (source,),
+            ).fetchone()
+        if row is None:
+            return {
+                "source": source,
+                "last_success_at": None,
+                "last_seen_published_at": None,
+                "last_error_at": None,
+                "last_error": None,
+                "updated_at": None,
+            }
+        return _deserialize_source_checkpoint(row)
+
+    def record_source_success(self, source: str, last_seen_published_at: datetime | None = None) -> None:
+        now = datetime.now(UTC).isoformat(timespec="seconds")
+        seen_value = last_seen_published_at.isoformat() if last_seen_published_at else None
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO source_runs (
+                    source, last_success_at, last_seen_published_at,
+                    last_error_at, last_error, updated_at
+                )
+                VALUES (?, ?, ?, NULL, NULL, ?)
+                ON CONFLICT(source) DO UPDATE SET
+                    last_success_at = excluded.last_success_at,
+                    last_seen_published_at = COALESCE(excluded.last_seen_published_at, source_runs.last_seen_published_at),
+                    last_error_at = NULL,
+                    last_error = NULL,
+                    updated_at = excluded.updated_at
+                """,
+                (source, now, seen_value, now),
+            )
+
+    def record_source_error(self, source: str, error: str) -> None:
+        now = datetime.now(UTC).isoformat(timespec="seconds")
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO source_runs (
+                    source, last_success_at, last_seen_published_at,
+                    last_error_at, last_error, updated_at
+                )
+                VALUES (?, NULL, NULL, ?, ?, ?)
+                ON CONFLICT(source) DO UPDATE SET
+                    last_error_at = excluded.last_error_at,
+                    last_error = excluded.last_error,
+                    updated_at = excluded.updated_at
+                """,
+                (source, now, error, now),
+            )
 
     def upsert_product_profiles(
         self,
@@ -336,6 +399,17 @@ def _document_records_for_tender(tender: Tender) -> list[TenderDocument]:
     if tender.document_records:
         return tender.document_records
     return [TenderDocument(url=url) for url in tender.documents]
+
+
+def _deserialize_source_checkpoint(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "source": row["source"],
+        "last_success_at": parse_datetime(row["last_success_at"]),
+        "last_seen_published_at": parse_datetime(row["last_seen_published_at"]),
+        "last_error_at": parse_datetime(row["last_error_at"]),
+        "last_error": row["last_error"],
+        "updated_at": parse_datetime(row["updated_at"]),
+    }
 
 
 _PRODUCT_PROFILE_JSON_FIELDS = (

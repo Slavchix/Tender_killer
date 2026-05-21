@@ -17,6 +17,8 @@ def settings(tmp_path):
         filter_profile_path=None,
         request_timeout_seconds=7,
         bot_auto_search_minutes=30,
+        source_max_pages=4,
+        source_incremental_overlap_minutes=60,
     )
 
 
@@ -25,6 +27,7 @@ def test_build_adapters_uses_selected_sources(tmp_path):
 
     assert [adapter.source for adapter in adapters] == ["mosreg_market"]
     assert adapters[0].url == "https://mosreg.test/api"
+    assert adapters[0].max_pages == 4
 
 
 def test_build_adapters_uses_all_sources_by_default(tmp_path):
@@ -127,6 +130,14 @@ def test_moscow_purchase_query_payload_requests_active_moscow_auctions():
     assert query["skip"] == 0
 
 
+def test_moscow_purchase_query_payload_supports_publication_checkpoint():
+    published_from = "2026-05-20T10:30:00+00:00"
+
+    query = MoscowSupplierPortalAdapter.purchase_query(skip=0, take=50, published_from=published_from)
+
+    assert query["filter"]["publicationDateFrom"] == published_from
+
+
 def test_mosreg_adapter_fetches_active_trades_from_post_endpoint(monkeypatch):
     adapter = MosregMarketAdapter()
 
@@ -162,3 +173,38 @@ def test_mosreg_adapter_fetches_active_trades_from_post_endpoint(monkeypatch):
     assert tenders[0].url == "https://market.mosreg.ru/Trade/ViewTrade/3668200"
     assert tenders[0].documents == ["https://example.test/tz.docx"]
     assert tenders[0].raw_payload["__documents"][0]["FileName"] == "Техническое задание.docx"
+
+
+def test_mosreg_adapter_paginates_until_configured_limit(monkeypatch):
+    adapter = MosregMarketAdapter(max_pages=2, enrich_documents=False)
+    seen_pages = []
+
+    def fetch_page(page):
+        seen_pages.append(page)
+        return {
+            "totalpages": 3,
+            "invdata": [
+                {
+                    "Id": 3668200 + page,
+                    "TradeName": f"Trade {page}",
+                    "PublicationDate": f"2026-05-2{page}T05:19:46Z",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(adapter, "_fetch_page", fetch_page)
+
+    tenders = adapter.fetch()
+
+    assert seen_pages == [1, 2]
+    assert [tender.external_id for tender in tenders] == ["3668201", "3668202"]
+
+
+def test_mosreg_trade_search_payload_supports_publication_checkpoint():
+    payload = MosregMarketAdapter.trade_search_payload(
+        page=1,
+        items_per_page=50,
+        published_from="2026-05-20T10:30:00+00:00",
+    )
+
+    assert payload["filterDateFrom"] == "2026-05-20T10:30:00+00:00"

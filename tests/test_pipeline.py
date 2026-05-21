@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from tender_killer.filters import FilterProfile, MaterialFilter, TenderFilter
 from tender_killer.models import Tender
 from tender_killer.pipeline import TenderPipeline
@@ -19,6 +21,19 @@ class FailingAdapter:
 
     def fetch(self):
         raise RuntimeError("source unavailable")
+
+
+class CheckpointAdapter:
+    source = "checkpoint"
+
+    def __init__(self, tenders):
+        self.tenders = tenders
+        self.published_from = None
+        self.seen_published_from = None
+
+    def fetch(self):
+        self.seen_published_from = self.published_from
+        return self.tenders
 
 
 class SpyNotifier:
@@ -192,3 +207,107 @@ def test_pipeline_rejects_unknown_activity_with_only_active_filter(tmp_path):
     assert stats.matched == 0
     assert stats.notified == 0
     assert notifier.messages == []
+
+
+def test_pipeline_passes_source_checkpoint_to_incremental_adapter_and_records_success(tmp_path):
+    store = TenderStore(tmp_path / "db.sqlite")
+    store.initialize()
+    previous_checkpoint = datetime(2026, 5, 20, 10, 30, tzinfo=UTC)
+    next_checkpoint = datetime(2026, 5, 21, 9, 15, tzinfo=UTC)
+    store.record_source_success("checkpoint", last_seen_published_at=previous_checkpoint)
+    adapter = CheckpointAdapter(
+        [
+            Tender(
+                source="checkpoint",
+                external_id="2",
+                url="https://example.test/2",
+                title="Incremental tender",
+                status="active",
+                published_at=next_checkpoint,
+            )
+        ]
+    )
+    pipeline = TenderPipeline(
+        adapters=[adapter],
+        store=store,
+        material_filter=MaterialFilter(),
+        notifier=SpyNotifier(),
+    )
+
+    stats = pipeline.run()
+    checkpoint = store.get_source_checkpoint("checkpoint")
+
+    assert adapter.seen_published_from == previous_checkpoint
+    assert stats.fetched == 1
+    assert checkpoint["last_seen_published_at"] == next_checkpoint
+    assert checkpoint["last_error"] is None
+
+
+def test_pipeline_applies_source_checkpoint_overlap_for_incremental_fetch(tmp_path):
+    store = TenderStore(tmp_path / "db.sqlite")
+    store.initialize()
+    previous_checkpoint = datetime(2026, 5, 22, 10, 30, tzinfo=UTC)
+    expected_fetch_from = datetime(2026, 5, 22, 9, 0, tzinfo=UTC)
+    store.record_source_success("checkpoint", last_seen_published_at=previous_checkpoint)
+    adapter = CheckpointAdapter([])
+    pipeline = TenderPipeline(
+        adapters=[adapter],
+        store=store,
+        material_filter=MaterialFilter(),
+        notifier=SpyNotifier(),
+        source_overlap_minutes=90,
+    )
+
+    pipeline.run()
+    checkpoint = store.get_source_checkpoint("checkpoint")
+
+    assert adapter.seen_published_from == expected_fetch_from
+    assert checkpoint["last_seen_published_at"] == previous_checkpoint
+
+
+def test_pipeline_records_source_errors_for_diagnostics(tmp_path):
+    store = TenderStore(tmp_path / "db.sqlite")
+    pipeline = TenderPipeline(
+        adapters=[FailingAdapter()],
+        store=store,
+        material_filter=MaterialFilter(),
+        notifier=SpyNotifier(),
+    )
+
+    stats = pipeline.run()
+    checkpoint = store.get_source_checkpoint("failing")
+
+    assert stats.failed_sources == 1
+    assert checkpoint["last_error"] == "source unavailable"
+    assert checkpoint["last_error_at"] is not None
+
+
+def test_pipeline_does_not_move_source_checkpoint_backwards(tmp_path):
+    store = TenderStore(tmp_path / "db.sqlite")
+    store.initialize()
+    previous_checkpoint = datetime(2026, 5, 22, 10, 30, tzinfo=UTC)
+    older_publication = datetime(2026, 5, 21, 9, 15, tzinfo=UTC)
+    store.record_source_success("checkpoint", last_seen_published_at=previous_checkpoint)
+    adapter = CheckpointAdapter(
+        [
+            Tender(
+                source="checkpoint",
+                external_id="older",
+                url="https://example.test/older",
+                title="Older tender",
+                status="active",
+                published_at=older_publication,
+            )
+        ]
+    )
+    pipeline = TenderPipeline(
+        adapters=[adapter],
+        store=store,
+        material_filter=MaterialFilter(),
+        notifier=SpyNotifier(),
+    )
+
+    pipeline.run()
+    checkpoint = store.get_source_checkpoint("checkpoint")
+
+    assert checkpoint["last_seen_published_at"] == previous_checkpoint

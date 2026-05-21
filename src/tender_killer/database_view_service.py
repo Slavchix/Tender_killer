@@ -7,6 +7,7 @@ from typing import Any
 from tender_killer.schema import ensure_analysis_table
 from tender_killer.schema import ensure_documents_table
 from tender_killer.schema import ensure_items_table
+from tender_killer.schema import ensure_source_runs_table
 from tender_killer.schema import ensure_workflow_table
 from tender_killer.storage import TenderStore
 
@@ -18,6 +19,7 @@ DATABASE_VIEW_TABLES = (
     "tender_analysis",
     "tender_workflow",
     "product_profiles",
+    "source_runs",
 )
 
 
@@ -65,6 +67,7 @@ def _ensure_database_view_tables(connection: sqlite3.Connection) -> None:
     ensure_items_table(connection)
     ensure_documents_table(connection)
     ensure_analysis_table(connection)
+    ensure_source_runs_table(connection)
 
 
 def _connect(database_path: str | Path) -> sqlite3.Connection:

@@ -27,3 +27,19 @@ def test_settings_reads_bot_auto_search_minutes(monkeypatch):
     settings = Settings.from_env()
 
     assert settings.bot_auto_search_minutes == 15
+
+
+def test_settings_reads_source_max_pages(monkeypatch):
+    monkeypatch.setenv("TENDER_KILLER_SOURCE_MAX_PAGES", "5")
+
+    settings = Settings.from_env()
+
+    assert settings.source_max_pages == 5
+
+
+def test_settings_reads_source_incremental_overlap_minutes(monkeypatch):
+    monkeypatch.setenv("TENDER_KILLER_SOURCE_OVERLAP_MINUTES", "90")
+
+    settings = Settings.from_env()
+
+    assert settings.source_incremental_overlap_minutes == 90

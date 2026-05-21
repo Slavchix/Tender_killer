@@ -27,10 +27,14 @@ class MosregMarketAdapter(BaseAdapter):
         timeout_seconds: float = 20,
         enrich_documents: bool = True,
         enrich_html: bool = False,
+        max_pages: int | None = None,
+        published_from: Any | None = None,
     ) -> None:
         super().__init__(url, timeout_seconds)
         self.enrich_documents = enrich_documents
         self.enrich_html = enrich_html
+        self.max_pages = max(1, int(max_pages or self.max_pages))
+        self.published_from = published_from
 
     @property
     def default_url(self) -> str:
@@ -64,7 +68,11 @@ class MosregMarketAdapter(BaseAdapter):
         try:
             response = httpx.post(
                 self.url,
-                json=_trade_search_payload(page, self.items_per_page),
+                json=self.trade_search_payload(
+                    page=page,
+                    items_per_page=self.items_per_page,
+                    published_from=_checkpoint_value(self.published_from),
+                ),
                 headers=headers,
                 timeout=self.timeout_seconds,
             )
@@ -322,8 +330,16 @@ class MosregMarketAdapter(BaseAdapter):
             )
         return records
 
+    @staticmethod
+    def trade_search_payload(
+        page: int,
+        items_per_page: int,
+        published_from: Any | None = None,
+    ) -> dict[str, Any]:
+        return _trade_search_payload(page, items_per_page, published_from)
 
-def _trade_search_payload(page: int, items_per_page: int) -> dict[str, Any]:
+
+def _trade_search_payload(page: int, items_per_page: int, published_from: Any | None = None) -> dict[str, Any]:
     return {
         "page": page,
         "itemsPerPage": items_per_page,
@@ -332,7 +348,7 @@ def _trade_search_payload(page: int, items_per_page: int) -> dict[str, Any]:
         "sortingParams": [],
         "filterPriceMin": "",
         "filterPriceMax": "",
-        "filterDateFrom": None,
+        "filterDateFrom": _checkpoint_value(published_from),
         "filterDateTo": None,
         "filterFillingApplicationEndDateFrom": None,
         "FilterFillingApplicationEndDateTo": None,
@@ -349,6 +365,15 @@ def _trade_search_payload(page: int, items_per_page: int) -> dict[str, Any]:
         "ProductPriceMin": "",
         "ProductPriceMax": "",
     }
+
+
+def _checkpoint_value(value: Any | None) -> str | None:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    text = str(value).strip()
+    return text or None
 
 
 def _html_labeled_value(card: Any, label: str) -> str | None:

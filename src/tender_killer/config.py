@@ -16,6 +16,8 @@ class Settings:
     filter_profile_path: Path | None
     request_timeout_seconds: float
     bot_auto_search_minutes: int
+    source_max_pages: int
+    source_incremental_overlap_minutes: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -37,4 +39,6 @@ class Settings:
             ),
             request_timeout_seconds=float(os.getenv("TENDER_KILLER_TIMEOUT", "20")),
             bot_auto_search_minutes=int(os.getenv("TENDER_KILLER_AUTO_SEARCH_MINUTES", "0")),
+            source_max_pages=max(1, int(os.getenv("TENDER_KILLER_SOURCE_MAX_PAGES", "1"))),
+            source_incremental_overlap_minutes=max(0, int(os.getenv("TENDER_KILLER_SOURCE_OVERLAP_MINUTES", "60"))),
         )

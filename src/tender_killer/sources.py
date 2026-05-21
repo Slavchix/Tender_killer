@@ -51,8 +51,21 @@ def build_adapters_for_collection(collection: FilterProfileCollection, settings:
 
 def _build_adapters_for_sources(sources: tuple[str, ...], settings: Settings) -> list[BaseAdapter]:
     adapters: list[BaseAdapter] = []
+    source_max_pages = getattr(settings, "source_max_pages", 1)
     if "moscow" in sources:
-        adapters.append(MoscowSupplierPortalAdapter(settings.moscow_url, settings.request_timeout_seconds))
+        adapters.append(
+            MoscowSupplierPortalAdapter(
+                settings.moscow_url,
+                settings.request_timeout_seconds,
+                max_pages=source_max_pages,
+            )
+        )
     if "mosreg" in sources:
-        adapters.append(MosregMarketAdapter(settings.mosreg_url, settings.request_timeout_seconds))
+        adapters.append(
+            MosregMarketAdapter(
+                settings.mosreg_url,
+                settings.request_timeout_seconds,
+                max_pages=source_max_pages,
+            )
+        )
     return adapters

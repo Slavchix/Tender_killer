@@ -21,6 +21,7 @@ from tender_killer.web_api import (
     get_database_table_payload,
     get_tender_payload,
     list_database_tables_payload,
+    list_source_runs_payload,
     list_tenders_payload,
     rebuild_product_profiles,
     refresh_tender_detail_payload,
@@ -123,6 +124,7 @@ def test_list_database_tables_payload_returns_admin_readonly_tables(tmp_path):
         {"name": "tender_analysis", "rows": 0},
         {"name": "tender_workflow", "rows": 0},
         {"name": "product_profiles", "rows": 0},
+        {"name": "source_runs", "rows": 0},
     ]
 
 
@@ -153,6 +155,17 @@ def test_database_table_payloads_initialize_product_profiles_on_legacy_database(
     assert product_profiles["table"] == "product_profiles"
     assert "okpd2" in product_profiles["columns"]
     assert product_profiles["rows"] == []
+
+
+def test_list_source_runs_payload_returns_source_checkpoints_for_site(tmp_path):
+    store = _store_with_tenders(tmp_path)
+    store.record_source_error("mosreg_market", "timeout")
+
+    payload = list_source_runs_payload(store.database_path)
+
+    by_source = {row["source"]: row for row in payload["sources"]}
+    assert by_source["mosreg_market"]["last_error"] == "timeout"
+    assert by_source["moscow_supplier_portal"]["source"] == "moscow_supplier_portal"
 
 
 def test_get_database_table_payload_returns_columns_and_rows(tmp_path):

@@ -465,3 +465,44 @@ Date: 2026-05-21.
 - `web_api.py` сохранил совместимый endpoint/wrapper `rebuild_product_profiles`, но больше не содержит саму бизнес-логику summary/rebuild.
 - Добавлены тесты `tests/test_product_profile_service.py`.
 - Следующий срез по 3.1: вынести document service (`download_tender_documents_payload`, `extract_tender_document_text_payload`) из `web_api.py`.
+
+## Architecture cleanup checkpoint: tender query service and source checkpoints
+
+Date: 2026-05-21.
+
+- Continued audit items 3.4 and 3.5.
+- Tender list SQL, list filtering, pagination, and site search filter construction moved from `src/tender_killer/web_api.py` to `src/tender_killer/tender_query_service.py`.
+- `GET /api/tenders` payload now includes real filtered `total`, `limit`, and `offset` in addition to `items`.
+- Source adapters accept configurable page depth through `TENDER_KILLER_SOURCE_MAX_PAGES`; default remains `1` to preserve conservative MVP behavior.
+- Moscow and Mosreg adapters now accept a `published_from` checkpoint and pass it into source query payloads (`publicationDateFrom` / `filterDateFrom`).
+- SQLite schema now includes `source_runs` for source success/error diagnostics and last seen publication date.
+- `TenderPipeline` passes stored source checkpoints into adapters before fetch, records successful runs with the newest fetched publication date, and records source errors for diagnostics.
+- Source publication checkpoints are monotonic: older fetched pages cannot move `last_seen_published_at` backwards.
+- Verification during this slice:
+  - `25 passed` for `tests/test_tender_query_service.py tests/test_sources.py tests/test_pipeline.py tests/test_config.py`
+  - `40 passed` for `tests/test_web_api.py tests/test_schema.py`
+  - `147 passed` for full `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`
+  - `148 passed` after adding the monotonic checkpoint regression test
+
+## Architecture cleanup checkpoint: source status UI and incremental overlap
+
+Date: 2026-05-21.
+
+- Continued audit item 3.5.
+- Added `src/tender_killer/source_run_service.py` as the public service for source run diagnostics.
+- The local API now exposes `GET /api/sources/status` with known source rows, labels, last success, checkpoint, and last error state.
+- SQLite admin view includes the `source_runs` table, so checkpoint and error diagnostics are inspectable from the site database tab.
+- The React tender cockpit shows source status/checkpoint rows and refreshes them after manual search.
+- `TENDER_KILLER_SOURCE_OVERLAP_MINUTES` controls the incremental overlap window, defaulting to `60`.
+- `TenderPipeline` applies the overlap only to `adapter.published_from`; stored `last_seen_published_at` remains monotonic and is not moved backwards by older pages.
+- Tender list pagination now has explicit API navigation fields (`has_next`, `has_previous`, `next_offset`, `previous_offset`) and the React cockpit uses them for next/previous controls.
+- The site requests tender pages with a bounded limit of 25 rows, shows the total count, and resets offset when filters/workflow tabs change.
+- The React filter panel now exposes normalized metadata filters for `source_family`, `procedure_type`, and `customer_inn`.
+- Workflow persistence moved from `web_api.py` into `src/tender_killer/workflow_service.py`; `web_api.update_tender_workflow(...)` remains as a compatibility wrapper that returns the full tender payload.
+- Report download payload construction moved into `src/tender_killer/report_service.py`; `web_api.build_tender_report_response(...)` remains as a compatibility wrapper that loads the tender payload and delegates DOCX response construction.
+- Tender detail payload loading and detail refresh moved into `src/tender_killer/tender_detail_service.py`; `web_api.py` imports the public functions and keeps the existing routes/API names.
+- Manual Telegram notification payload construction moved into `src/tender_killer/notification_service.py`; `web_api.py` no longer owns payload-to-`Tender` conversion for manual notifications.
+- TZ analysis run persistence moved into `src/tender_killer/analysis_service.py`; `web_api.py` keeps the existing `analyze_tender_payload` import/API surface.
+- Search run orchestration moved into `src/tender_killer/search_service.py`; `web_api.py` keeps `/api/search` as a thin route and re-exports `build_search_collection` for compatibility.
+- The React tender list now has a page-size selector for 10/25/50/100 rows. Default remains 25, and changing page size resets the list to offset 0 while keeping active filters.
+- Latest full verification in this slice: `162 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.

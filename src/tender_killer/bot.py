@@ -549,6 +549,7 @@ def _run_search(
         material_filter=MultiProfileTenderFilter(collection),
         notifier=TelegramNotifier(settings.telegram_bot_token, chat_id, dry_run=settings.dry_run),
         notify_mode=notify_mode,
+        source_overlap_minutes=settings.source_incremental_overlap_minutes,
     )
     return pipeline.run()
 

@@ -22,13 +22,17 @@ def test_database_view_service_lists_allowed_tables_and_reads_rows(tmp_path):
     )
 
     tables = list_database_tables_payload(store.database_path)
+    source_runs = get_database_table_payload(store.database_path, "source_runs", {"limit": "10"})
     tenders = get_database_table_payload(store.database_path, "tenders", {"limit": "10", "q": "бумаги"})
 
     assert {"name": "tenders", "rows": 1} in tables["tables"]
+    assert {"name": "source_runs", "rows": 0} in tables["tables"]
     assert tenders["table"] == "tenders"
     assert "external_id" in tenders["columns"]
     assert tenders["total"] == 1
     assert tenders["rows"][0]["external_id"] == "3668200"
+    assert source_runs["table"] == "source_runs"
+    assert "last_error" in source_runs["columns"]
 
 
 def test_database_view_service_rejects_non_allowlisted_tables(tmp_path):

@@ -11,6 +11,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
     ensure_documents_table(connection)
     ensure_analysis_table(connection)
     ensure_product_profiles_table(connection)
+    ensure_source_runs_table(connection)
 
 
 def ensure_tenders_table(connection: sqlite3.Connection) -> None:
@@ -193,6 +194,22 @@ def ensure_product_profiles_table(connection: sqlite3.Connection) -> None:
     ensure_product_profile_columns(connection)
 
 
+def ensure_source_runs_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS source_runs (
+            source TEXT NOT NULL PRIMARY KEY,
+            last_success_at TEXT,
+            last_seen_published_at TEXT,
+            last_error_at TEXT,
+            last_error TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    ensure_source_run_columns(connection)
+
+
 def ensure_document_text_columns(connection: sqlite3.Connection) -> None:
     columns = _columns(connection, "tender_documents")
     for column, definition in {
@@ -259,6 +276,20 @@ def ensure_tender_normalized_columns(connection: sqlite3.Connection) -> None:
     for column, definition in definitions.items():
         if column not in columns:
             connection.execute(f"ALTER TABLE tenders ADD COLUMN {column} {definition}")
+
+
+def ensure_source_run_columns(connection: sqlite3.Connection) -> None:
+    columns = _columns(connection, "source_runs")
+    definitions = {
+        "last_success_at": "TEXT",
+        "last_seen_published_at": "TEXT",
+        "last_error_at": "TEXT",
+        "last_error": "TEXT",
+        "updated_at": "TEXT NOT NULL DEFAULT ''",
+    }
+    for column, definition in definitions.items():
+        if column not in columns:
+            connection.execute(f"ALTER TABLE source_runs ADD COLUMN {column} {definition}")
 
 
 def _columns(connection: sqlite3.Connection, table: str) -> set[str]:
