@@ -32,9 +32,12 @@ Recent architecture cleanup:
 - Report download payload construction is isolated in `src/tender_killer/report_service.py`.
 - Tender detail payload/refresh logic is isolated in `src/tender_killer/tender_detail_service.py`.
 - Manual Telegram notification payload construction is isolated in `src/tender_killer/notification_service.py`.
+- Tender/database API path parsing is isolated in `src/tender_killer/api_routes.py`.
 - TZ analysis run persistence is isolated in `src/tender_killer/analysis_service.py`.
 - Search run orchestration is isolated in `src/tender_killer/search_service.py`.
 - The tender list has a page-size selector for 10/25/50/100 rows while keeping 25 as the default.
+- Local dev startup is guarded by `tender_killer.dev_health`, which checks both `/api/health` and `/api/sources/status` before the frontend starts.
+- Runtime/UI text encoding is guarded by `tender_killer.encoding_guard`; `dev_smoke` reuses it to catch Cyrillic mojibake regressions.
 
 Current verification command:
 
@@ -42,7 +45,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `162 passed`.
+Latest verified result before this handoff: `172 passed`.
 
 Good next steps:
 
@@ -189,6 +192,28 @@ Frontend:
 cd web
 npm run dev
 ```
+
+Recommended combined local startup:
+
+```powershell
+npm run dev
+```
+
+This starts the backend from `.\.venv\Scripts\python.exe`, waits until both `/api/health` and `/api/sources/status` respond, then starts Vite. If port `8000` is already occupied by an old or incompatible API process, the script stops with a clear error instead of silently proxying the site to the wrong backend.
+
+Manual API health check:
+
+```powershell
+.\.venv\Scripts\python.exe -m tender_killer.dev_health --base-url http://127.0.0.1:8000
+```
+
+Local site smoke check after Vite is running:
+
+```powershell
+.\.venv\Scripts\python.exe -m tender_killer.dev_smoke --api-base-url http://127.0.0.1:8000 --web-base-url http://127.0.0.1:5173
+```
+
+The smoke check verifies direct API health, Vite HTML, Vite `/api` proxy health, source status proxying, key UI labels, and Cyrillic mojibake detection.
 
 Открыть: `http://127.0.0.1:5173`.
 

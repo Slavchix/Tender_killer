@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tender_killer.encoding_guard import find_mojibake
+
 
 APP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "App.jsx"
 
@@ -28,4 +30,4 @@ def test_tender_cockpit_exposes_page_size_selector():
     assert "onPageLimitChange={changePageLimit}" in source
     assert "На странице" in source
     assert "Закупок на странице" in source
-    assert "РќР° СЃС‚СЂР°РЅРёС†Рµ" not in source
+    assert find_mojibake(source, APP_SOURCE) == []

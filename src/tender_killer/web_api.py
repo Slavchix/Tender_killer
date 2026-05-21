@@ -5,9 +5,11 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, urlparse
 
 from tender_killer.analysis_service import analyze_tender_payload
+from tender_killer.api_routes import parse_database_table_path
+from tender_killer.api_routes import parse_tender_path
 from tender_killer.config import Settings
 from tender_killer.database_view_service import get_database_table_payload
 from tender_killer.database_view_service import list_database_tables_payload
@@ -56,11 +58,11 @@ class TenderApiHandler(BaseHTTPRequestHandler):
                 self._send_json(list_database_tables_payload(self.database_path))
                 return
             if parsed.path.startswith("/api/db/tables/"):
-                parts = parsed.path.split("/")
-                if len(parts) != 5:
+                table_name = parse_database_table_path(parsed.path)
+                if table_name is None:
                     self._send_json({"error": "invalid database table path"}, status=400)
                     return
-                self._send_json(get_database_table_payload(self.database_path, unquote(parts[4]), query))
+                self._send_json(get_database_table_payload(self.database_path, table_name, query))
                 return
             if parsed.path == "/api/sources/status":
                 self._send_json(list_source_runs_payload(self.database_path))
@@ -69,20 +71,18 @@ class TenderApiHandler(BaseHTTPRequestHandler):
                 self._send_json(list_tenders_payload(self.database_path, query))
                 return
             if parsed.path.startswith("/api/tenders/") and parsed.path.endswith("/report.docx"):
-                parts = parsed.path.split("/")
-                if len(parts) != 6:
+                route = parse_tender_path(parsed.path, suffix="report.docx")
+                if route is None:
                     self._send_json({"error": "invalid report path"}, status=400)
                     return
-                source, external_id = unquote(parts[3]), unquote(parts[4])
-                self._send_binary(build_tender_report_response(self.database_path, source, external_id))
+                self._send_binary(build_tender_report_response(self.database_path, route.source, route.external_id))
                 return
             if parsed.path.startswith("/api/tenders/") and parsed.path.endswith("/product-profiles"):
-                parts = parsed.path.split("/")
-                if len(parts) != 6:
+                route = parse_tender_path(parsed.path, suffix="product-profiles")
+                if route is None:
                     self._send_json({"error": "invalid product profiles path"}, status=400)
                     return
-                source, external_id = unquote(parts[3]), unquote(parts[4])
-                detail = get_tender_payload(self.database_path, source, external_id)
+                detail = get_tender_payload(self.database_path, route.source, route.external_id)
                 self._send_json(
                     {
                         "ok": True,
@@ -92,12 +92,11 @@ class TenderApiHandler(BaseHTTPRequestHandler):
                 )
                 return
             if parsed.path.startswith("/api/tenders/"):
-                parts = parsed.path.split("/")
-                if len(parts) != 5:
+                route = parse_tender_path(parsed.path)
+                if route is None:
                     self._send_json({"error": "invalid tender path"}, status=400)
                     return
-                source, external_id = parts[3], parts[4]
-                self._send_json(get_tender_payload(self.database_path, unquote(source), unquote(external_id)))
+                self._send_json(get_tender_payload(self.database_path, route.source, route.external_id))
                 return
             if parsed.path == "/api/health":
                 self._send_json({"ok": True})
@@ -115,68 +114,61 @@ class TenderApiHandler(BaseHTTPRequestHandler):
                 self._send_json(run_search_payload(Settings.from_env(), filters_payload=self._read_json_body()))
                 return
             if parsed.path.startswith("/api/tenders/") and parsed.path.endswith("/workflow"):
-                parts = parsed.path.split("/")
-                if len(parts) != 6:
+                route = parse_tender_path(parsed.path, suffix="workflow")
+                if route is None:
                     self._send_json({"error": "invalid workflow path"}, status=400)
                     return
-                source, external_id = unquote(parts[3]), unquote(parts[4])
                 payload = self._read_json_body()
-                self._send_json(update_tender_workflow(self.database_path, source, external_id, payload))
+                self._send_json(update_tender_workflow(self.database_path, route.source, route.external_id, payload))
                 return
             if parsed.path.startswith("/api/tenders/") and parsed.path.endswith("/notify"):
-                parts = parsed.path.split("/")
-                if len(parts) != 6:
+                route = parse_tender_path(parsed.path, suffix="notify")
+                if route is None:
                     self._send_json({"error": "invalid notify path"}, status=400)
                     return
-                source, external_id = unquote(parts[3]), unquote(parts[4])
                 self._send_json(
                     send_tender_notification_payload(
                         self.database_path,
-                        source,
-                        external_id,
+                        route.source,
+                        route.external_id,
                         Settings.from_env(),
                     )
                 )
                 return
             if parsed.path.startswith("/api/tenders/") and parsed.path.endswith("/documents/download"):
-                parts = parsed.path.split("/")
-                if len(parts) != 7:
+                route = parse_tender_path(parsed.path, suffix="documents/download")
+                if route is None:
                     self._send_json({"error": "invalid documents download path"}, status=400)
                     return
-                source, external_id = unquote(parts[3]), unquote(parts[4])
-                self._send_json(download_tender_documents_payload(self.database_path, source, external_id))
+                self._send_json(download_tender_documents_payload(self.database_path, route.source, route.external_id))
                 return
             if parsed.path.startswith("/api/tenders/") and parsed.path.endswith("/documents/extract-text"):
-                parts = parsed.path.split("/")
-                if len(parts) != 7:
+                route = parse_tender_path(parsed.path, suffix="documents/extract-text")
+                if route is None:
                     self._send_json({"error": "invalid documents extract path"}, status=400)
                     return
-                source, external_id = unquote(parts[3]), unquote(parts[4])
-                self._send_json(extract_tender_document_text_payload(self.database_path, source, external_id))
+                self._send_json(extract_tender_document_text_payload(self.database_path, route.source, route.external_id))
                 return
             if parsed.path.startswith("/api/tenders/") and parsed.path.endswith("/analysis/run"):
-                parts = parsed.path.split("/")
-                if len(parts) != 7:
+                route = parse_tender_path(parsed.path, suffix="analysis/run")
+                if route is None:
                     self._send_json({"error": "invalid analysis path"}, status=400)
                     return
-                source, external_id = unquote(parts[3]), unquote(parts[4])
-                self._send_json(analyze_tender_payload(self.database_path, source, external_id))
+                self._send_json(analyze_tender_payload(self.database_path, route.source, route.external_id))
                 return
             if parsed.path.startswith("/api/tenders/") and parsed.path.endswith("/details/refresh"):
-                parts = parsed.path.split("/")
-                if len(parts) != 7:
+                route = parse_tender_path(parsed.path, suffix="details/refresh")
+                if route is None:
                     self._send_json({"error": "invalid detail refresh path"}, status=400)
                     return
-                source, external_id = unquote(parts[3]), unquote(parts[4])
-                self._send_json(refresh_tender_detail_payload(self.database_path, source, external_id))
+                self._send_json(refresh_tender_detail_payload(self.database_path, route.source, route.external_id))
                 return
             if parsed.path.startswith("/api/tenders/") and parsed.path.endswith("/product-profiles/rebuild"):
-                parts = parsed.path.split("/")
-                if len(parts) != 7:
+                route = parse_tender_path(parsed.path, suffix="product-profiles/rebuild")
+                if route is None:
                     self._send_json({"error": "invalid product profiles rebuild path"}, status=400)
                     return
-                source, external_id = unquote(parts[3]), unquote(parts[4])
-                self._send_json(rebuild_product_profiles(self.database_path, source, external_id))
+                self._send_json(rebuild_product_profiles(self.database_path, route.source, route.external_id))
                 return
             self._send_json({"error": "not found"}, status=404)
         except ValueError as exc:

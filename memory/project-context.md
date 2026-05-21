@@ -505,4 +505,8 @@ Date: 2026-05-21.
 - TZ analysis run persistence moved into `src/tender_killer/analysis_service.py`; `web_api.py` keeps the existing `analyze_tender_payload` import/API surface.
 - Search run orchestration moved into `src/tender_killer/search_service.py`; `web_api.py` keeps `/api/search` as a thin route and re-exports `build_search_collection` for compatibility.
 - The React tender list now has a page-size selector for 10/25/50/100 rows. Default remains 25, and changing page size resets the list to offset 0 while keeping active filters.
-- Latest full verification in this slice: `162 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- Added `src/tender_killer/dev_health.py` and wired `scripts/dev-web.ps1` through it. `npm run dev` now checks both `/api/health` and `/api/sources/status`, reuses a healthy existing API, and fails clearly if port 8000 is occupied by a stale or incompatible backend.
+- Added `src/tender_killer/dev_smoke.py` for local site smoke checks: direct API, Vite HTML, Vite `/api` proxy, source status proxying, and key UI labels that guard against the page-size mojibake regression.
+- Added `src/tender_killer/encoding_guard.py` plus `tests/test_encoding_guard.py` to scan runtime/UI/docs files for Cyrillic mojibake; `dev_smoke` now uses the same detector instead of a hand-written forbidden-string list.
+- Added `src/tender_killer/api_routes.py` so tender/database API path parsing is no longer hand-split throughout `web_api.py`.
+- Latest full verification in this slice: `172 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
