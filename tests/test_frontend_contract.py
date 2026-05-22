@@ -149,8 +149,8 @@ def test_global_shell_exposes_dashboard_and_side_navigation():
     assert "dashboard: 'Дашборд'" in app_source
     assert "tenders: 'Закупки'" in app_source
     assert "const navItems = [" in app_source
-    assert "className=\"app-frame\"" in app_source
-    assert "className=\"app-sidebar\"" in app_source
+    assert "app-frame" in app_source
+    assert "app-sidebar" in app_source
     assert "className=\"side-nav\"" in app_source
     assert "setView(item.id)" in app_source
     assert "function DashboardView" in app_source
@@ -160,5 +160,42 @@ def test_global_shell_exposes_dashboard_and_side_navigation():
     assert ".app-sidebar" in styles_source
     assert ".side-nav" in styles_source
     assert ".dashboard-grid" in styles_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_sidebar_can_collapse_without_losing_navigation():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "const [sidebarCollapsed, setSidebarCollapsed]" in app_source
+    assert "sidebarCollapsed ? 'app-frame sidebar-collapsed' : 'app-frame'" in app_source
+    assert "sidebarCollapsed ? 'app-sidebar collapsed' : 'app-sidebar'" in app_source
+    assert "sidebar-toggle-button" in app_source
+    assert "sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'" in app_source
+    assert "title={item.label}" in app_source
+    assert ".app-frame.sidebar-collapsed" in styles_source
+    assert ".app-sidebar.collapsed" in styles_source
+    assert ".sidebar-text" in styles_source
+    assert ".sidebar-caption" in styles_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_dashboard_surfaces_attention_and_recent_tenders():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "function DashboardAttentionPanel" in app_source
+    assert "function DashboardTenderPreview" in app_source
+    assert "<DashboardAttentionPanel" in app_source
+    assert "<DashboardTenderPreview" in app_source
+    assert "Требует внимания" in app_source
+    assert "Последние закупки" in app_source
+    assert "dashboard-attention-list" in app_source
+    assert "dashboard-tender-list" in app_source
+    assert ".dashboard-secondary-grid" in styles_source
+    assert ".dashboard-attention-list" in styles_source
+    assert ".dashboard-tender-list" in styles_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []

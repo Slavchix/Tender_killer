@@ -128,6 +128,7 @@ function App() {
   const [searching, setSearching] = useState(false)
   const [searchSummary, setSearchSummary] = useState('')
   const [view, setView] = useState('dashboard')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [filtersCollapsed, setFiltersCollapsed] = useState(false)
   const [sourceStatus, setSourceStatus] = useState([])
   const [sourceStatusError, setSourceStatusError] = useState('')
@@ -333,11 +334,22 @@ function App() {
 
   return (
     <main className="app-shell">
-      <div className="app-frame">
-        <aside className="app-sidebar">
+      <div className={sidebarCollapsed ? 'app-frame sidebar-collapsed' : 'app-frame'}>
+        <aside className={sidebarCollapsed ? 'app-sidebar collapsed' : 'app-sidebar'}>
           <div className="sidebar-brand">
-            <strong>Tender Killer</strong>
-            <span>Москва / МО</span>
+            <div>
+              <strong>Tender Killer</strong>
+              <span>Москва / МО</span>
+            </div>
+            <button
+              aria-label={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'}
+              className="icon-button small sidebar-toggle-button"
+              onClick={() => setSidebarCollapsed((current) => !current)}
+              title={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'}
+              type="button"
+            >
+              {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            </button>
           </div>
           <nav aria-label="Основная навигация" className="side-nav">
             {navItems.map((item) => {
@@ -347,11 +359,12 @@ function App() {
                   className={view === item.id ? 'active' : ''}
                   key={item.id}
                   onClick={() => setView(item.id)}
+                  title={item.label}
                   type="button"
                 >
                   <Icon size={18} />
-                  <span>{item.label}</span>
-                  <small>{item.caption}</small>
+                  <span className="sidebar-text">{item.label}</span>
+                  <small className="sidebar-caption">{item.caption}</small>
                 </button>
               )
             })}
@@ -386,6 +399,7 @@ function App() {
               sources={sourceStatus}
               stats={stats}
               tenderPage={tenderPage}
+              tenders={tenders}
               workflowCounts={workflowCounts}
             />
           )}
@@ -623,7 +637,7 @@ function Metric({ label, value, tone }) {
   )
 }
 
-function DashboardView({ tenderPage, stats, workflowCounts, sources, sourceStatusError, searchSummary, error, onRefreshSources, onOpenTenders }) {
+function DashboardView({ tenderPage, stats, workflowCounts, sources, sourceStatusError, searchSummary, error, onRefreshSources, onOpenTenders, tenders }) {
   const queue = [
     { label: 'Новые', value: workflowCounts.new || 0 },
     { label: 'Интересные', value: workflowCounts.interesting || 0 },
@@ -661,6 +675,59 @@ function DashboardView({ tenderPage, stats, workflowCounts, sources, sourceStatu
           </button>
         </section>
       </section>
+      <section className="dashboard-secondary-grid">
+        <DashboardAttentionPanel
+          error={error}
+          onOpenTenders={onOpenTenders}
+          sources={sources}
+          workflowCounts={workflowCounts}
+        />
+        <DashboardTenderPreview onOpenTenders={onOpenTenders} tenders={tenders} />
+      </section>
+    </section>
+  )
+}
+
+function DashboardAttentionPanel({ error, sources, workflowCounts, onOpenTenders }) {
+  const sourceErrors = (sources || []).filter((source) => source.last_error)
+  const attentionItems = []
+
+  if (error) attentionItems.push({ label: 'API сайта', value: error })
+  if (sourceErrors.length) attentionItems.push({ label: 'Источники', value: `${sourceErrors.length} требуют проверки` })
+  if (workflowCounts.new) attentionItems.push({ label: 'Новые закупки', value: `${workflowCounts.new} еще не разобраны` })
+  if (workflowCounts.interesting) attentionItems.push({ label: 'Интересные', value: `${workflowCounts.interesting} ждут решения` })
+
+  return (
+    <section className="dashboard-panel">
+      <div className="panel-title"><Bell size={18} /> Требует внимания</div>
+      <div className="dashboard-attention-list">
+        {attentionItems.map((item) => (
+          <button key={item.label} onClick={onOpenTenders} type="button">
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </button>
+        ))}
+        {!attentionItems.length && <div className="dashboard-empty-note">Критичных событий нет</div>}
+      </div>
+    </section>
+  )
+}
+
+function DashboardTenderPreview({ tenders, onOpenTenders }) {
+  const previewTenders = (tenders || []).slice(0, 5)
+
+  return (
+    <section className="dashboard-panel">
+      <div className="panel-title"><FileText size={18} /> Последние закупки</div>
+      <div className="dashboard-tender-list">
+        {previewTenders.map((tender) => (
+          <button key={`${tender.source}-${tender.external_id}`} onClick={onOpenTenders} type="button">
+            <strong>{tender.title}</strong>
+            <span>{sourceLabels[tender.source] || tender.source} · {formatMoney(tender.price)} · {formatDate(tender.deadline_at)}</span>
+          </button>
+        ))}
+        {!previewTenders.length && <div className="dashboard-empty-note">Запусти поиск, чтобы увидеть свежие закупки</div>}
+      </div>
     </section>
   )
 }

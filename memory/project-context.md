@@ -606,3 +606,12 @@ Date: 2026-05-22.
 - Added a global SaaS-style shell with left navigation for `Дашборд`, `Закупки`, and `SQLite`; filters remain inside the `Закупки` workbench and are not mixed with product navigation.
 - The app now opens on `Дашборд`, showing the existing metrics, source status, and workflow queue counts. `Закупки` keeps the workbench/list/card flow, and `SQLite` remains a separate data view.
 - Verification in this slice before full run: frontend contract `11 passed`; JSX syntax parsed successfully through Babel parser in the Node REPL.
+
+## Frontend UX checkpoint: collapsible sidebar and dashboard contents
+
+Date: 2026-05-22.
+
+- The global left navigation now collapses into a narrow icon rail and expands back by button click; the main content grid shifts with it instead of overlaying the work area.
+- Dashboard V1 is framed as an operational start screen: metrics, source state, workflow queue, `Требует внимания`, and `Последние закупки`.
+- The attention panel uses existing local state: API error, source errors, new tenders, and interesting tenders. No new backend endpoint is needed for this slice.
+- Frontend contract after this slice: `13 passed`; JSX syntax parsed successfully through Babel parser in the Node REPL.
