@@ -8,6 +8,7 @@ from typing import Any
 from tender_killer.analysis_service import analyze_tender_payload
 from tender_killer.api_routes import parse_database_table_path
 from tender_killer.api_routes import parse_product_profile_economics_path
+from tender_killer.api_routes import parse_product_profile_supplier_options_path
 from tender_killer.api_routes import parse_tender_path
 from tender_killer.config import Settings
 from tender_killer.database_view_service import get_database_table_payload
@@ -20,6 +21,7 @@ from tender_killer.product_profile_service import rebuild_product_profiles as re
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
 from tender_killer.search_service import run_search_payload
 from tender_killer.source_run_service import list_source_runs_payload
+from tender_killer.supplier_option_service import add_profile_supplier_option
 from tender_killer.tender_detail_service import get_tender_payload
 from tender_killer.tender_detail_service import refresh_tender_detail_payload
 from tender_killer.workflow_service import save_tender_workflow
@@ -63,6 +65,17 @@ def update_product_profile_economics(
     data: dict[str, Any],
 ) -> dict[str, Any]:
     update_profile_economics_inputs(database_path, source, external_id, position_index, data)
+    return get_tender_payload(database_path, source, external_id)
+
+
+def add_product_profile_supplier_option(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    add_profile_supplier_option(database_path, source, external_id, position_index, data)
     return get_tender_payload(database_path, source, external_id)
 
 
@@ -156,6 +169,19 @@ def handle_post_request(
             return ApiResponse({"error": "invalid product profile economics path"}, status=400)
         return ApiResponse(
             update_product_profile_economics(
+                database_path,
+                route.source,
+                route.external_id,
+                route.position_index,
+                body,
+            )
+        )
+    if path.startswith("/api/tenders/") and path.endswith("/supplier-options"):
+        route = parse_product_profile_supplier_options_path(path)
+        if route is None:
+            return ApiResponse({"error": "invalid product profile supplier options path"}, status=400)
+        return ApiResponse(
+            add_product_profile_supplier_option(
                 database_path,
                 route.source,
                 route.external_id,

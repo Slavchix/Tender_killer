@@ -78,3 +78,16 @@ def test_product_profile_renders_economics_input_form():
     assert "other_costs" in source
     assert "Себестоимость" in source
     assert find_mojibake(source, APP_SOURCE) == []
+
+
+def test_product_profile_renders_supplier_option_form():
+    source = APP_SOURCE.read_text(encoding="utf-8")
+
+    assert "function ProductSupplierOptionsForm" in source
+    assert "onSupplierOptionSave" in source
+    assert "product-profiles/${profile.position_index}/supplier-options" in source
+    assert "supplier_options" in source
+    assert "unit_price" in source
+    assert "availability" in source
+    assert "Поставщики" in source
+    assert find_mojibake(source, APP_SOURCE) == []

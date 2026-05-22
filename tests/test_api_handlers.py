@@ -86,6 +86,47 @@ def test_handle_post_request_routes_product_profile_economics_update(tmp_path) -
     assert response.payload["economics"]["supplier_cost"] == 65000.0
 
 
+def test_handle_post_request_routes_product_profile_supplier_option_create(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/product-profiles/1/supplier-options",
+        {
+            "name": "Paper shop",
+            "url": "https://example.com/paper",
+            "unit_price": "1234.50",
+            "availability": "in_stock",
+            "status": "candidate",
+        },
+    )
+
+    assert response.status == 200
+    assert response.payload["product_profiles"][0]["raw_payload"]["supplier_options"] == [
+        {
+            "name": "Paper shop",
+            "url": "https://example.com/paper",
+            "unit_price": 1234.5,
+            "availability": "in_stock",
+            "status": "candidate",
+        }
+    ]
+
+
 def test_handle_request_reports_invalid_tender_route(tmp_path) -> None:
     response = handle_get_request(tmp_path / "tenders.sqlite", "/api/tenders/mosreg_market/3668200/extra", {})
 

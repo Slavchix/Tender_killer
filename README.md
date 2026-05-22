@@ -41,6 +41,7 @@ Recent architecture cleanup:
 - Product profiles now extract and persist fulfillment requirements for delivery, packaging, warranty, and acceptance; the product tab shows them as inputs for future economics.
 - Draft economics now calculates revenue, manual supplier cost, risk reserve, estimated total cost, gross margin, margin percent, and missing cost inputs.
 - The site can save per-position supplier economics inputs (unit cost, logistics, documents, other costs) and immediately refresh the tender economics summary from SQLite.
+- The site can save manual supplier candidates per product position: supplier name, URL, unit price, availability, status, and note.
 - The tender list has a page-size selector for 10/25/50/100 rows while keeping 25 as the default.
 - Local dev startup is guarded by `tender_killer.dev_health`, which checks both `/api/health` and `/api/sources/status` before the frontend starts.
 - Runtime/UI text encoding is guarded by `tender_killer.encoding_guard`; `dev_smoke` reuses it to catch Cyrillic mojibake regressions.
@@ -51,12 +52,12 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `189 passed`.
+Latest verified result before this handoff: `194 passed`.
 
 Good next steps:
 
-1. Continue product search inputs for supplier matching.
-2. Refine margin thresholds and recommendations after more real cost examples.
+1. Let the user verify supplier candidates and economics inputs in the local UI.
+2. Connect a selected supplier candidate to economics inputs, then refine margin thresholds and recommendations.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.
 

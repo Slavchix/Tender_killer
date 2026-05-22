@@ -746,6 +746,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const [selectedProfileIndex, setSelectedProfileIndex] = useState(0)
   const [profilesLoading, setProfilesLoading] = useState(false)
   const [savingEconomicsPosition, setSavingEconomicsPosition] = useState(null)
+  const [savingSupplierOptionPosition, setSavingSupplierOptionPosition] = useState(null)
 
   useEffect(() => {
     setActiveTab('overview')
@@ -761,6 +762,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     setEconomics(tender.economics || null)
     setSelectedProfileIndex(0)
     setSavingEconomicsPosition(null)
+    setSavingSupplierOptionPosition(null)
   }, [tender.source, tender.external_id, tender.workflow_note, tender.analysis, tender.product_profiles, tender.product_profile_summary, tender.economics])
 
   useEffect(() => {
@@ -920,6 +922,31 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       .finally(() => setSavingEconomicsPosition(null))
   }
 
+  function saveSupplierOption(profile, supplierOption) {
+    if (!profile?.position_index) return null
+    setSavingSupplierOptionPosition(profile.position_index)
+    setDetailStatus('')
+    return fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/supplier-options`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(supplierOption),
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось сохранить поставщика')))
+      .then((nextTender) => {
+        onTenderRefresh(nextTender)
+        setProductProfiles(nextTender.product_profiles || [])
+        setProductProfileSummary(nextTender.product_profile_summary || null)
+        setEconomics(nextTender.economics || null)
+        setDetailStatus('Поставщик добавлен')
+        return nextTender
+      })
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setSavingSupplierOptionPosition(null))
+  }
+
   const statusMessages = [detailStatus, notifyStatus, downloadStatus, extractStatus].filter(Boolean)
   const tabs = [
     { id: 'overview', label: 'Обзор' },
@@ -1033,7 +1060,9 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
                 <ProductProfileDetail
                   profile={productProfiles[selectedProfileIndex]}
                   onEconomicsSave={saveProfileEconomics}
+                  onSupplierOptionSave={saveSupplierOption}
                   savingEconomics={savingEconomicsPosition === productProfiles[selectedProfileIndex]?.position_index}
+                  savingSupplierOption={savingSupplierOptionPosition === productProfiles[selectedProfileIndex]?.position_index}
                 />
               </div>
             ) : (
@@ -1210,7 +1239,13 @@ function ProfileSummary({ summary, total }) {
   )
 }
 
-function ProductProfileDetail({ profile, onEconomicsSave, savingEconomics = false }) {
+function ProductProfileDetail({
+  profile,
+  onEconomicsSave,
+  onSupplierOptionSave,
+  savingEconomics = false,
+  savingSupplierOption = false,
+}) {
   if (!profile) {
     return <div className="profile-detail muted-text">Выбери позицию из списка</div>
   }
@@ -1243,6 +1278,8 @@ function ProductProfileDetail({ profile, onEconomicsSave, savingEconomics = fals
       </section>
 
       <ProductEconomicsForm profile={profile} onSave={onEconomicsSave} saving={savingEconomics} />
+
+      <ProductSupplierOptionsForm profile={profile} onSave={onSupplierOptionSave} saving={savingSupplierOption} />
 
       <section className="profile-block">
         <h5>Пакет для поиска товара</h5>
@@ -1357,6 +1394,145 @@ function economicsFormValues(economics = {}) {
     documents_cost: economics.documents_cost ?? '',
     other_costs: economics.other_costs ?? '',
   }
+}
+
+function ProductSupplierOptionsForm({ profile, onSave, saving = false }) {
+  const supplierOptions = Array.isArray(profile?.raw_payload?.supplier_options)
+    ? profile.raw_payload.supplier_options
+    : []
+  const [values, setValues] = useState(() => supplierOptionFormValues())
+
+  useEffect(() => {
+    setValues(supplierOptionFormValues())
+  }, [profile?.position_index])
+
+  function updateField(name, value) {
+    setValues((current) => ({ ...current, [name]: value }))
+  }
+
+  function submitSupplierOption(event) {
+    event.preventDefault()
+    if (!onSave) return
+    const result = onSave(profile, values)
+    if (result?.then) {
+      result.then(() => setValues(supplierOptionFormValues())).catch(() => {})
+      return
+    }
+    setValues(supplierOptionFormValues())
+  }
+
+  return (
+    <section className="profile-block supplier-options-block">
+      <form className="supplier-input-form" onSubmit={submitSupplierOption}>
+        <div className="profile-block-heading">
+          <h5>Поставщики</h5>
+          <button className="secondary-button compact" disabled={saving || !onSave || !hasSupplierOptionInput(values)} type="submit">
+            {saving ? 'Сохраняю...' : 'Добавить'}
+          </button>
+        </div>
+        <div className="supplier-input-grid">
+          <label>
+            <span>Поставщик</span>
+            <input
+              name="name"
+              onChange={(event) => updateField('name', event.target.value)}
+              placeholder="Название"
+              value={values.name}
+            />
+          </label>
+          <label>
+            <span>Ссылка</span>
+            <input
+              name="url"
+              onChange={(event) => updateField('url', event.target.value)}
+              placeholder="https://"
+              value={values.url}
+            />
+          </label>
+          <label>
+            <span>Цена за ед.</span>
+            <input
+              inputMode="decimal"
+              name="unit_price"
+              onChange={(event) => updateField('unit_price', event.target.value)}
+              placeholder="0"
+              value={values.unit_price}
+            />
+          </label>
+          <label>
+            <span>Наличие</span>
+            <select
+              name="availability"
+              onChange={(event) => updateField('availability', event.target.value)}
+              value={values.availability}
+            >
+              <option value="unknown">Неясно</option>
+              <option value="in_stock">В наличии</option>
+              <option value="on_request">Под заказ</option>
+              <option value="not_available">Нет</option>
+            </select>
+          </label>
+          <label>
+            <span>Статус</span>
+            <select
+              name="status"
+              onChange={(event) => updateField('status', event.target.value)}
+              value={values.status}
+            >
+              <option value="candidate">Кандидат</option>
+              <option value="suitable">Подходит</option>
+              <option value="rejected">Не подходит</option>
+            </select>
+          </label>
+        </div>
+        <label className="supplier-note-field">
+          <span>Заметка</span>
+          <textarea
+            name="note"
+            onChange={(event) => updateField('note', event.target.value)}
+            placeholder="Условия, НДС, доставка, ограничения"
+            value={values.note}
+          />
+        </label>
+      </form>
+
+      {supplierOptions.length ? (
+        <div className="supplier-options-list">
+          {supplierOptions.map((option, index) => (
+            <div className="supplier-option-row" key={`${option.url || option.name || 'supplier'}-${index}`}>
+              <div>
+                {option.url ? (
+                  <a href={option.url} target="_blank" rel="noreferrer">{option.name || option.url}</a>
+                ) : (
+                  <strong>{option.name || 'Поставщик'}</strong>
+                )}
+                {option.note && <p>{option.note}</p>}
+              </div>
+              <span>{formatMoney(option.unit_price)}</span>
+              <em>{supplierAvailabilityLabel(option.availability)} · {supplierStatusLabel(option.status)}</em>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="muted-text">Кандидаты поставщиков пока не добавлены.</p>
+      )}
+    </section>
+  )
+}
+
+function supplierOptionFormValues() {
+  return {
+    name: '',
+    url: '',
+    unit_price: '',
+    availability: 'unknown',
+    status: 'candidate',
+    note: '',
+  }
+}
+
+function hasSupplierOptionInput(values) {
+  return Boolean(values.name || values.url || values.unit_price || values.note)
 }
 
 function TenderItems({ items }) {
@@ -1557,6 +1733,23 @@ function economicsStatusLabel(status) {
     needs_costs: 'Нужны цены',
     needs_price: 'Нужна НМЦК',
   }[status] || status || 'Проверить'
+}
+
+function supplierAvailabilityLabel(value) {
+  return {
+    unknown: 'наличие неясно',
+    in_stock: 'в наличии',
+    on_request: 'под заказ',
+    not_available: 'нет',
+  }[value] || value || 'наличие неясно'
+}
+
+function supplierStatusLabel(value) {
+  return {
+    candidate: 'кандидат',
+    suitable: 'подходит',
+    rejected: 'не подходит',
+  }[value] || value || 'кандидат'
 }
 
 function formatPercent(value) {

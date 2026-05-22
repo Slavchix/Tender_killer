@@ -565,3 +565,14 @@ Date: 2026-05-22.
 - After save, the API returns the full tender detail payload, so the React card refreshes product profiles and the `Экономика` tab immediately shows the recalculated margin.
 - The product profile detail on the site now has a compact `Себестоимость` form next to the position context. This makes the first economics workflow usable without a supplier parser yet.
 - Full verification after this slice: `189 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Supplier options checkpoint: manual product candidates
+
+Date: 2026-05-22.
+
+- Added `src/tender_killer/supplier_option_service.py` for appending manual supplier candidates to a product profile.
+- Added `POST /api/tenders/{source}/{external_id}/product-profiles/{position_index}/supplier-options`; route parsing lives in `src/tender_killer/api_routes.py`, request dispatch lives in `src/tender_killer/api_handlers.py`.
+- The service stores cleaned candidate rows in `profile.raw_payload.supplier_options`: `name`, `url`, `unit_price`, `availability`, `status`, and `note`. Existing raw payload keys and existing candidates are preserved.
+- The React product profile detail now has a `Поставщики` block: a compact form for adding a candidate and a list of saved candidates with link, price, availability/status, and note.
+- Supplier candidates intentionally do not overwrite `raw_payload.economics` yet. Next step after UI review: choose/mark a candidate and copy its unit price into the economics input deliberately.
+- Full verification after this slice: `194 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
