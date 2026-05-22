@@ -1307,7 +1307,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         )}
 
         {activeTab === 'economics' && (
-          <EconomicsTabPanel economics={economics} />
+          <EconomicsTabPanel tender={tender} economics={economics} />
         )}
 
         {activeTab === 'workflow' && (
@@ -1427,8 +1427,9 @@ function AnalysisTabPanel({ analysis, analyzing, onAnalyze }) {
   )
 }
 
-function EconomicsTabPanel({ economics }) {
+function EconomicsTabPanel({ tender, economics }) {
   const missingInputs = economics?.missing_cost_inputs?.length || 0
+  const displayedRevenue = economics?.revenue ?? tender?.price
 
   return (
     <section className="detail-section active economics-section">
@@ -1437,12 +1438,12 @@ function EconomicsTabPanel({ economics }) {
       </div>
       <div className="economics-tab-summary tab-summary-grid" aria-label="Сводка экономики">
         <SummaryMetric value={economics ? economicsStatusLabel(economics.status) : 'не рассчитана'} label="статус" />
-        <SummaryMetric value={formatMoney(economics?.revenue)} label="НМЦК" />
+        <SummaryMetric value={formatMoney(displayedRevenue)} label="НМЦК" />
         <SummaryMetric value={formatMoney(economics?.estimated_total_cost)} label="затраты" />
         <SummaryMetric value={economics ? formatPercent(economics.margin_percent) : 'нет'} label="маржа" />
         <SummaryMetric value={missingInputs} label="цен добавить" />
       </div>
-      <EconomicsSummary economics={economics} />
+      <EconomicsSummary economics={economics} tender={tender} />
     </section>
   )
 }
@@ -1528,9 +1529,13 @@ function TenderDecisionSummary({ tender, economics }) {
   )
 }
 
-function EconomicsSummary({ economics }) {
+function EconomicsSummary({ economics, tender }) {
   if (!economics) {
-    return <p className="muted-text">Черновик экономики пока не рассчитан.</p>
+    return (
+      <p className="muted-text">
+        {tender?.price ? 'НМЦК подтянута из карточки закупки. Добавь себестоимость по позициям, чтобы посчитать маржу.' : 'Черновик экономики пока не рассчитан.'}
+      </p>
+    )
   }
 
   const missingInputs = economics.missing_cost_inputs || []

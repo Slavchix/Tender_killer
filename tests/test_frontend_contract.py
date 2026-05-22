@@ -66,7 +66,7 @@ def test_tender_details_render_economics_summary():
     source = APP_SOURCE.read_text(encoding="utf-8")
 
     assert "{ id: 'economics', label: 'Экономика' }" in source
-    assert "<EconomicsSummary economics={economics} />" in source
+    assert "<EconomicsSummary economics={economics} tender={tender} />" in source
     assert "function EconomicsSummary" in source
     assert "economicsStatusLabel" in source
     assert "Маржа" in source
@@ -185,7 +185,7 @@ def test_decision_tabs_are_extracted_to_consistent_work_panels():
     assert "function EconomicsTabPanel" in app_source
     assert "function WorkflowTabPanel" in app_source
     assert "<AnalysisTabPanel" in app_source
-    assert "<EconomicsTabPanel economics={economics} />" in app_source
+    assert "<EconomicsTabPanel tender={tender} economics={economics} />" in app_source
     assert "<WorkflowTabPanel" in app_source
     assert "analysis-tab-summary" in app_source
     assert "economics-tab-summary" in app_source
@@ -197,6 +197,16 @@ def test_decision_tabs_are_extracted_to_consistent_work_panels():
     assert ".workflow-note-panel" in styles_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_economics_tab_uses_tender_price_before_manual_calculation():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+
+    assert "function EconomicsTabPanel({ tender, economics })" in app_source
+    assert "const displayedRevenue = economics?.revenue ?? tender?.price" in app_source
+    assert "<SummaryMetric value={formatMoney(displayedRevenue)} label=\"НМЦК\" />" in app_source
+    assert "НМЦК подтянута из карточки закупки" in app_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
 
 
 def test_tender_detail_visual_density_has_stable_grids_and_no_negative_offsets():
