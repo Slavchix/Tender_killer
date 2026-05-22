@@ -742,8 +742,10 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const [analysis, setAnalysis] = useState(tender.analysis || null)
   const [productProfiles, setProductProfiles] = useState(tender.product_profiles || [])
   const [productProfileSummary, setProductProfileSummary] = useState(tender.product_profile_summary || null)
+  const [economics, setEconomics] = useState(tender.economics || null)
   const [selectedProfileIndex, setSelectedProfileIndex] = useState(0)
   const [profilesLoading, setProfilesLoading] = useState(false)
+  const [savingEconomicsPosition, setSavingEconomicsPosition] = useState(null)
 
   useEffect(() => {
     setActiveTab('overview')
@@ -756,8 +758,10 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     setAnalysis(tender.analysis || null)
     setProductProfiles(tender.product_profiles || [])
     setProductProfileSummary(tender.product_profile_summary || null)
+    setEconomics(tender.economics || null)
     setSelectedProfileIndex(0)
-  }, [tender.source, tender.external_id, tender.workflow_note, tender.analysis, tender.product_profiles, tender.product_profile_summary])
+    setSavingEconomicsPosition(null)
+  }, [tender.source, tender.external_id, tender.workflow_note, tender.analysis, tender.product_profiles, tender.product_profile_summary, tender.economics])
 
   useEffect(() => {
     const key = `${tender.source}/${tender.external_id}`
@@ -864,6 +868,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         setAnalysis(nextTender.analysis || null)
         setProductProfiles(nextTender.product_profiles || [])
         setProductProfileSummary(nextTender.product_profile_summary || null)
+        setEconomics(nextTender.economics || null)
         setSelectedProfileIndex(0)
         const summary = payload.summary || {}
         setDetailStatus(
@@ -892,6 +897,27 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         window.alert(err.message)
       })
       .finally(() => setProfilesLoading(false))
+  }
+
+  function saveProfileEconomics(profile, economicsInputs) {
+    if (!profile?.position_index) return
+    setSavingEconomicsPosition(profile.position_index)
+    setDetailStatus('')
+    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/economics`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(economicsInputs),
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось сохранить экономику')))
+      .then((nextTender) => {
+        onTenderRefresh(nextTender)
+        setProductProfiles(nextTender.product_profiles || [])
+        setProductProfileSummary(nextTender.product_profile_summary || null)
+        setEconomics(nextTender.economics || null)
+        setDetailStatus('Экономика обновлена')
+      })
+      .catch((err) => setDetailStatus(err.message))
+      .finally(() => setSavingEconomicsPosition(null))
   }
 
   const statusMessages = [detailStatus, notifyStatus, downloadStatus, extractStatus].filter(Boolean)
@@ -1004,7 +1030,11 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
                     </button>
                   ))}
                 </div>
-                <ProductProfileDetail profile={productProfiles[selectedProfileIndex]} />
+                <ProductProfileDetail
+                  profile={productProfiles[selectedProfileIndex]}
+                  onEconomicsSave={saveProfileEconomics}
+                  savingEconomics={savingEconomicsPosition === productProfiles[selectedProfileIndex]?.position_index}
+                />
               </div>
             ) : (
               <p className="muted-text">Товарные профили пока не сформированы.</p>
@@ -1075,7 +1105,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
             <div className="section-heading-row">
               <h3>Экономика</h3>
             </div>
-            <EconomicsSummary economics={tender.economics} />
+            <EconomicsSummary economics={economics} />
           </section>
         )}
 
@@ -1180,7 +1210,7 @@ function ProfileSummary({ summary, total }) {
   )
 }
 
-function ProductProfileDetail({ profile }) {
+function ProductProfileDetail({ profile, onEconomicsSave, savingEconomics = false }) {
   if (!profile) {
     return <div className="profile-detail muted-text">Выбери позицию из списка</div>
   }
@@ -1211,6 +1241,8 @@ function ProductProfileDetail({ profile }) {
           <Info label="Классификатор площадки" value={classifierLabel} />
         </div>
       </section>
+
+      <ProductEconomicsForm profile={profile} onSave={onEconomicsSave} saving={savingEconomics} />
 
       <section className="profile-block">
         <h5>Пакет для поиска товара</h5>
@@ -1244,6 +1276,87 @@ function ProductProfileDetail({ profile }) {
       </section>
     </div>
   )
+}
+
+function ProductEconomicsForm({ profile, onSave, saving = false }) {
+  const economics = profile?.raw_payload?.economics || {}
+  const [values, setValues] = useState(() => economicsFormValues(economics))
+
+  useEffect(() => {
+    setValues(economicsFormValues(economics))
+  }, [profile?.position_index, profile?.raw_payload])
+
+  function updateField(name, value) {
+    setValues((current) => ({ ...current, [name]: value }))
+  }
+
+  function submitEconomics(event) {
+    event.preventDefault()
+    if (!onSave) return
+    onSave(profile, values)
+  }
+
+  return (
+    <form className="economics-input-form" onSubmit={submitEconomics}>
+      <div className="profile-block-heading">
+        <h5>Себестоимость</h5>
+        <button className="secondary-button compact" disabled={saving || !onSave} type="submit">
+          {saving ? 'Сохраняю...' : 'Сохранить'}
+        </button>
+      </div>
+      <div className="economics-input-grid">
+        <label>
+          <span>За единицу</span>
+          <input
+            inputMode="decimal"
+            name="unit_cost"
+            onChange={(event) => updateField('unit_cost', event.target.value)}
+            placeholder="0"
+            value={values.unit_cost}
+          />
+        </label>
+        <label>
+          <span>Логистика</span>
+          <input
+            inputMode="decimal"
+            name="logistics_cost"
+            onChange={(event) => updateField('logistics_cost', event.target.value)}
+            placeholder="0"
+            value={values.logistics_cost}
+          />
+        </label>
+        <label>
+          <span>Документы</span>
+          <input
+            inputMode="decimal"
+            name="documents_cost"
+            onChange={(event) => updateField('documents_cost', event.target.value)}
+            placeholder="0"
+            value={values.documents_cost}
+          />
+        </label>
+        <label>
+          <span>Прочее</span>
+          <input
+            inputMode="decimal"
+            name="other_costs"
+            onChange={(event) => updateField('other_costs', event.target.value)}
+            placeholder="0"
+            value={values.other_costs}
+          />
+        </label>
+      </div>
+    </form>
+  )
+}
+
+function economicsFormValues(economics = {}) {
+  return {
+    unit_cost: economics.unit_cost ?? '',
+    logistics_cost: economics.logistics_cost ?? '',
+    documents_cost: economics.documents_cost ?? '',
+    other_costs: economics.other_costs ?? '',
+  }
 }
 
 function TenderItems({ items }) {

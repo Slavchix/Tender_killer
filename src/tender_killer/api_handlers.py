@@ -7,12 +7,14 @@ from typing import Any
 
 from tender_killer.analysis_service import analyze_tender_payload
 from tender_killer.api_routes import parse_database_table_path
+from tender_killer.api_routes import parse_product_profile_economics_path
 from tender_killer.api_routes import parse_tender_path
 from tender_killer.config import Settings
 from tender_killer.database_view_service import get_database_table_payload
 from tender_killer.database_view_service import list_database_tables_payload
 from tender_killer.document_service import download_tender_documents_payload
 from tender_killer.document_service import extract_tender_document_text_payload
+from tender_killer.economics_service import update_profile_economics as update_profile_economics_inputs
 from tender_killer.notification_service import send_tender_notification_payload
 from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
@@ -50,6 +52,17 @@ def update_tender_workflow(
     data: dict[str, Any],
 ) -> dict[str, Any]:
     save_tender_workflow(database_path, source, external_id, data)
+    return get_tender_payload(database_path, source, external_id)
+
+
+def update_product_profile_economics(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    update_profile_economics_inputs(database_path, source, external_id, position_index, data)
     return get_tender_payload(database_path, source, external_id)
 
 
@@ -137,6 +150,19 @@ def handle_post_request(
         if route is None:
             return ApiResponse({"error": "invalid detail refresh path"}, status=400)
         return ApiResponse(refresh_tender_detail_payload(database_path, route.source, route.external_id))
+    if path.startswith("/api/tenders/") and path.endswith("/economics"):
+        route = parse_product_profile_economics_path(path)
+        if route is None:
+            return ApiResponse({"error": "invalid product profile economics path"}, status=400)
+        return ApiResponse(
+            update_product_profile_economics(
+                database_path,
+                route.source,
+                route.external_id,
+                route.position_index,
+                body,
+            )
+        )
     if path.startswith("/api/tenders/") and path.endswith("/product-profiles/rebuild"):
         route = parse_tender_path(path, suffix="product-profiles/rebuild")
         if route is None:

@@ -554,3 +554,14 @@ Date: 2026-05-22.
 - The site has an `Экономика` tab in the tender card with the same summary and missing-cost prompts.
 - The service does not guess market prices; if supplier costs are absent, it returns `needs_costs`.
 - Full verification after this slice: `185 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Economics input checkpoint: site cost entry
+
+Date: 2026-05-22.
+
+- Added `src/tender_killer/economics_service.py` for saving supplier cost inputs into a product profile without putting this logic back into `web_api.py`.
+- Added `POST /api/tenders/{source}/{external_id}/product-profiles/{position_index}/economics`; route parsing lives in `src/tender_killer/api_routes.py`, request dispatch lives in `src/tender_killer/api_handlers.py`.
+- The service stores cleaned numeric inputs in `profile.raw_payload.economics`: `unit_cost`, `logistics_cost`, `documents_cost`, and `other_costs`. Existing raw payload keys are preserved.
+- After save, the API returns the full tender detail payload, so the React card refreshes product profiles and the `Экономика` tab immediately shows the recalculated margin.
+- The product profile detail on the site now has a compact `Себестоимость` form next to the position context. This makes the first economics workflow usable without a supplier parser yet.
+- Full verification after this slice: `189 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.

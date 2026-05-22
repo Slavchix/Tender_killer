@@ -59,8 +59,22 @@ def test_tender_details_render_economics_summary():
     source = APP_SOURCE.read_text(encoding="utf-8")
 
     assert "{ id: 'economics', label: 'Экономика' }" in source
-    assert "<EconomicsSummary economics={tender.economics} />" in source
+    assert "<EconomicsSummary economics={economics} />" in source
     assert "function EconomicsSummary" in source
     assert "economicsStatusLabel" in source
     assert "Маржа" in source
+    assert find_mojibake(source, APP_SOURCE) == []
+
+
+def test_product_profile_renders_economics_input_form():
+    source = APP_SOURCE.read_text(encoding="utf-8")
+
+    assert "function ProductEconomicsForm" in source
+    assert "onEconomicsSave" in source
+    assert "product-profiles/${profile.position_index}/economics" in source
+    assert "unit_cost" in source
+    assert "logistics_cost" in source
+    assert "documents_cost" in source
+    assert "other_costs" in source
+    assert "Себестоимость" in source
     assert find_mojibake(source, APP_SOURCE) == []
