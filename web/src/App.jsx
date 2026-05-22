@@ -102,8 +102,6 @@ const tenderPageLimitOptions = [10, 25, 50, 100]
 
 const productDetailModes = [
   { id: 'overview', label: 'Паспорт' },
-  { id: 'pricing', label: 'Цены' },
-  { id: 'suppliers', label: 'Поставщики' },
   { id: 'requirements', label: 'ТЗ' },
 ]
 
@@ -1244,10 +1242,6 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
                 </div>
                 <ProductProfileDetail
                   profile={productProfiles[selectedProfileIndex]}
-                  onEconomicsSave={saveProfileEconomics}
-                  onSupplierOptionSave={saveSupplierOption}
-                  savingEconomics={savingEconomicsPosition === productProfiles[selectedProfileIndex]?.position_index}
-                  savingSupplierOption={savingSupplierOptionPosition === productProfiles[selectedProfileIndex]?.position_index}
                 />
               </div>
             ) : (
@@ -1308,7 +1302,17 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         )}
 
         {activeTab === 'economics' && (
-          <EconomicsTabPanel tender={tender} economics={economics} />
+          <EconomicsTabPanel
+            tender={tender}
+            economics={economics}
+            productProfiles={productProfiles}
+            selectedEconomicsProfileIndex={selectedProfileIndex}
+            onSelectedEconomicsProfileChange={setSelectedProfileIndex}
+            onEconomicsSave={saveProfileEconomics}
+            onSupplierOptionSave={saveSupplierOption}
+            savingEconomicsPosition={savingEconomicsPosition}
+            savingSupplierOptionPosition={savingSupplierOptionPosition}
+          />
         )}
 
         {activeTab === 'workflow' && (
@@ -1428,9 +1432,24 @@ function AnalysisTabPanel({ analysis, analyzing, onAnalyze }) {
   )
 }
 
-function EconomicsTabPanel({ tender, economics }) {
+function EconomicsTabPanel({
+  tender,
+  economics,
+  productProfiles = [],
+  selectedEconomicsProfileIndex = 0,
+  onSelectedEconomicsProfileChange,
+  onEconomicsSave,
+  onSupplierOptionSave,
+  savingEconomicsPosition = null,
+  savingSupplierOptionPosition = null,
+}) {
   const missingInputs = economics?.missing_cost_inputs?.length || 0
   const displayedRevenue = economics?.revenue ?? tender?.price
+  const profiles = productProfiles || []
+  const selectedEconomicsProfile = profiles[selectedEconomicsProfileIndex] || profiles[0] || null
+  const selectedPosition = selectedEconomicsProfile?.position_index
+  const savingEconomics = savingEconomicsPosition === selectedPosition
+  const savingSupplierOption = savingSupplierOptionPosition === selectedPosition
 
   return (
     <section className="detail-section active economics-section">
@@ -1446,6 +1465,49 @@ function EconomicsTabPanel({ tender, economics }) {
         <SummaryMetric value={missingInputs} label="цен добавить" />
       </div>
       <EconomicsSummary economics={economics} tender={tender} />
+      <div className="economics-workbench">
+        <div className="economics-position-list" role="listbox" aria-label="Позиции для экономики">
+          {profiles.length ? profiles.map((profile, index) => {
+            const supplierOptions = Array.isArray(profile.raw_payload?.supplier_options)
+              ? profile.raw_payload.supplier_options
+              : []
+            const profileEconomics = profile.raw_payload?.economics || {}
+            const costValue = profileEconomics.total_cost ?? profileEconomics.unit_cost
+            return (
+              <button
+                className={index === selectedEconomicsProfileIndex ? 'profile-row selected' : 'profile-row'}
+                key={`${profile.position_index}-${profile.product_name}-${index}`}
+                onClick={() => onSelectedEconomicsProfileChange?.(index)}
+                type="button"
+              >
+                <span className="profile-position">#{profile.position_index || index + 1}</span>
+                <span className="profile-name">{profile.product_name || 'Без названия'}</span>
+                <span className="profile-meta quantity">{formatQuantity(profile.quantity, profile.unit)}</span>
+                <span className="profile-meta classifier">
+                  {costValue ? `себестоимость ${formatMoney(costValue)}` : `${supplierOptions.length} поставщиков`}
+                </span>
+                <span className={`profile-status ${profile.profile_status || 'draft'}`}>{profileStatusLabel(profile.profile_status)}</span>
+              </button>
+            )
+          }) : (
+            <p className="muted-text">Товарные позиции пока не сформированы.</p>
+          )}
+        </div>
+        <div className="economics-position-panel">
+          {selectedEconomicsProfile ? (
+            <>
+              <div className="economics-position-heading">
+                <span>Позиция #{selectedEconomicsProfile.position_index || selectedEconomicsProfileIndex + 1}</span>
+                <strong>{selectedEconomicsProfile.product_name || 'Без названия'}</strong>
+              </div>
+              <ProductEconomicsForm profile={selectedEconomicsProfile} onSave={onEconomicsSave} saving={savingEconomics} />
+              <ProductSupplierOptionsForm profile={selectedEconomicsProfile} onSave={onSupplierOptionSave} saving={savingSupplierOption} />
+            </>
+          ) : (
+            <p className="muted-text">Сначала обнови детали закупки, чтобы появились товарные позиции.</p>
+          )}
+        </div>
+      </div>
     </section>
   )
 }
@@ -1627,13 +1689,7 @@ function ProfileSummary({ summary, total }) {
   )
 }
 
-function ProductProfileDetail({
-  profile,
-  onEconomicsSave,
-  onSupplierOptionSave,
-  savingEconomics = false,
-  savingSupplierOption = false,
-}) {
+function ProductProfileDetail({ profile }) {
   const [activeProfileMode, setActiveProfileMode] = useState('overview')
 
   useEffect(() => {
@@ -1692,14 +1748,6 @@ function ProductProfileDetail({
             <AnalysisList title="Стоп-слова" items={profile.stop_words || []} empty="Стоп-слова пока не заданы" danger />
           </section>
         </>
-      )}
-
-      {activeProfileMode === 'pricing' && (
-        <ProductEconomicsForm profile={profile} onSave={onEconomicsSave} saving={savingEconomics} />
-      )}
-
-      {activeProfileMode === 'suppliers' && (
-        <ProductSupplierOptionsForm profile={profile} onSave={onSupplierOptionSave} saving={savingSupplierOption} />
       )}
 
       {activeProfileMode === 'requirements' && (

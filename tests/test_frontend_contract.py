@@ -100,6 +100,32 @@ def test_product_profile_renders_supplier_option_form():
     assert find_mojibake(source, APP_SOURCE) == []
 
 
+def test_economics_tab_owns_product_costs_and_suppliers():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "function EconomicsTabPanel({" in app_source
+    assert "productProfiles" in app_source
+    assert "selectedEconomicsProfileIndex" in app_source
+    assert "<ProductEconomicsForm profile={selectedEconomicsProfile}" in app_source
+    assert "<ProductSupplierOptionsForm profile={selectedEconomicsProfile}" in app_source
+    assert "economics-workbench" in app_source
+    assert ".economics-workbench" in styles_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_product_detail_keeps_passport_and_requirements_only():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+
+    assert "const productDetailModes = [" in app_source
+    assert "{ id: 'pricing'" not in app_source
+    assert "{ id: 'suppliers'" not in app_source
+    assert "activeProfileMode === 'pricing'" not in app_source
+    assert "activeProfileMode === 'suppliers'" not in app_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+
+
 def test_tender_workbench_v1_reduces_detail_panel_overload():
     source = APP_SOURCE.read_text(encoding="utf-8")
 
@@ -110,9 +136,8 @@ def test_tender_workbench_v1_reduces_detail_panel_overload():
     assert "product-detail-tabs" in source
     assert "const productDetailModes" in source
     assert "Паспорт" in source
-    assert "Цены" in source
-    assert "Поставщики" in source
     assert "ТЗ" in source
+    assert "economics-workbench" in source
     assert find_mojibake(source, APP_SOURCE) == []
 
 
@@ -185,7 +210,8 @@ def test_decision_tabs_are_extracted_to_consistent_work_panels():
     assert "function EconomicsTabPanel" in app_source
     assert "function WorkflowTabPanel" in app_source
     assert "<AnalysisTabPanel" in app_source
-    assert "<EconomicsTabPanel tender={tender} economics={economics} />" in app_source
+    assert "<EconomicsTabPanel" in app_source
+    assert "productProfiles={productProfiles}" in app_source
     assert "<WorkflowTabPanel" in app_source
     assert "analysis-tab-summary" in app_source
     assert "economics-tab-summary" in app_source
@@ -202,7 +228,7 @@ def test_decision_tabs_are_extracted_to_consistent_work_panels():
 def test_economics_tab_uses_tender_price_before_manual_calculation():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
 
-    assert "function EconomicsTabPanel({ tender, economics })" in app_source
+    assert "function EconomicsTabPanel({" in app_source
     assert "const displayedRevenue = economics?.revenue ?? tender?.price" in app_source
     assert "<SummaryMetric value={formatMoney(displayedRevenue)} label=\"НМЦК\" />" in app_source
     assert "НМЦК подтянута из карточки закупки" in app_source

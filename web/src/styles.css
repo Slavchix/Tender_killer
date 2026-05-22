@@ -1674,6 +1674,53 @@ textarea:focus {
   margin: 0;
 }
 
+.economics-workbench {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.4fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.economics-position-list {
+  max-height: 460px;
+  overflow: auto;
+  background: #202b27;
+  border: 1px solid #304039;
+  border-radius: 7px;
+}
+
+.economics-position-list .muted-text {
+  margin: 0;
+  padding: 12px;
+}
+
+.economics-position-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.economics-position-heading {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  background: #202b27;
+  border: 1px solid #304039;
+  border-radius: 7px;
+}
+
+.economics-position-heading span {
+  color: #9bb2aa;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.economics-position-heading strong {
+  color: #eef8f2;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
 .economics-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2492,6 +2539,10 @@ textarea:focus {
 
   .price-change-values {
     justify-content: flex-start;
+  }
+
+  .economics-workbench {
+    grid-template-columns: 1fr;
   }
 
   .section-heading-row {
