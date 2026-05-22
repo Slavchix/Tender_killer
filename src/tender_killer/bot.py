@@ -15,6 +15,7 @@ from tender_killer.pipeline import TenderPipeline, PipelineStats
 from tender_killer.quick_search import QUICK_SEARCH_PROFILE_ID
 from tender_killer.quick_search import QUICK_SEARCH_RUN_BUTTON
 from tender_killer.quick_search import format_quick_search_confirmation
+from tender_killer.quick_search import normalize_quick_search_profile
 from tender_killer.quick_search import parse_quick_search_text
 from tender_killer.quick_search import save_quick_search_profile
 from tender_killer.sources import SOURCE_ALIASES, SOURCE_LABELS, build_adapters_for_collection, normalize_sources
@@ -311,6 +312,11 @@ async def quick_search_command(update: Update, context: ContextTypes.DEFAULT_TYP
     if quick_profile is None:
         await _reply(update, "Сначала опишите закупки обычным текстом, например: строительные материалы Москва МО до 2 млн 44-ФЗ")
         return
+    quick_profile = NamedFilterProfile(
+        id=quick_profile.id,
+        name=quick_profile.name,
+        profile=normalize_quick_search_profile(quick_profile.profile),
+    )
     await _reply(update, "Запускаю быстрый поиск по последнему quick-профилю.")
     settings: Settings = context.application.bot_data["settings"]
     store = _store(context)

@@ -1,4 +1,6 @@
 from tender_killer.filter_store import FilterProfileStore
+from tender_killer.filters import FilterProfile
+from tender_killer import quick_search
 from tender_killer.quick_search import (
     QUICK_SEARCH_PROFILE_ID,
     format_quick_search_confirmation,
@@ -53,6 +55,15 @@ def test_parse_quick_search_text_expands_stroymaterialy_alias():
     assert draft.title == "стройматериалы"
     assert draft.profile.keywords == EXPECTED_CONSTRUCTION_MATERIAL_KEYWORDS
     assert draft.profile.regions == ("Москва",)
+
+
+def test_normalize_quick_search_profile_expands_saved_legacy_construction_phrase():
+    legacy_profile = FilterProfile(keywords=("строительные материалы",), regions=("Москва",))
+
+    normalized = quick_search.normalize_quick_search_profile(legacy_profile)
+
+    assert normalized.keywords == EXPECTED_CONSTRUCTION_MATERIAL_KEYWORDS
+    assert normalized.regions == ("Москва",)
 
 
 def test_save_quick_search_profile_upserts_without_removing_existing_profiles(tmp_path):

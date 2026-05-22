@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from tender_killer.filter_store import FilterProfileCollection, FilterProfileStore, NamedFilterProfile
 from tender_killer.filters import FilterProfile
@@ -86,6 +86,15 @@ def save_quick_search_profile(store: FilterProfileStore, draft: QuickSearchDraft
         active_ids.append(QUICK_SEARCH_PROFILE_ID)
     store.save_collection(FilterProfileCollection(profiles=profiles, active_profile_ids=tuple(active_ids)))
     return named
+
+
+def normalize_quick_search_profile(profile: FilterProfile) -> FilterProfile:
+    if len(profile.keywords) != 1:
+        return profile
+    keywords = _expand_quick_keywords(profile.keywords[0])
+    if keywords == profile.keywords:
+        return profile
+    return replace(profile, keywords=keywords)
 
 
 def format_quick_search_confirmation(profile: NamedFilterProfile, draft: QuickSearchDraft) -> str:
