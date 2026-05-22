@@ -6,6 +6,7 @@ from tender_killer.encoding_guard import find_mojibake
 
 
 APP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "App.jsx"
+STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css"
 
 
 def test_tender_cockpit_exposes_normalized_metadata_filters():
@@ -96,7 +97,7 @@ def test_product_profile_renders_supplier_option_form():
 def test_tender_workbench_v1_reduces_detail_panel_overload():
     source = APP_SOURCE.read_text(encoding="utf-8")
 
-    assert 'className="workspace workbench-layout"' in source
+    assert "workspace workbench-layout" in source
     assert "function TenderDecisionSummary" in source
     assert "<TenderDecisionSummary tender={tender} economics={economics} />" in source
     assert "decision-summary-grid" in source
@@ -107,3 +108,19 @@ def test_tender_workbench_v1_reduces_detail_panel_overload():
     assert "Поставщики" in source
     assert "ТЗ" in source
     assert find_mojibake(source, APP_SOURCE) == []
+
+
+def test_tender_workbench_has_collapsible_filters_and_wider_list():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "const [filtersCollapsed, setFiltersCollapsed]" in app_source
+    assert "filtersCollapsed ? 'workspace workbench-layout filters-collapsed' : 'workspace workbench-layout'" in app_source
+    assert "filter-collapse-button" in app_source
+    assert "Свернуть фильтры" in app_source
+    assert "Развернуть фильтры" in app_source
+    assert ".workbench-layout.filters-collapsed" in styles_source
+    assert "minmax(560px, 1.1fr)" in styles_source
+    assert ".filters-panel.collapsed" in styles_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []

@@ -116,6 +116,7 @@ function App() {
   const [searching, setSearching] = useState(false)
   const [searchSummary, setSearchSummary] = useState('')
   const [view, setView] = useState('tenders')
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false)
   const [sourceStatus, setSourceStatus] = useState([])
   const [sourceStatusError, setSourceStatusError] = useState('')
   const [pageOffset, setPageOffset] = useState(0)
@@ -349,10 +350,23 @@ function App() {
       {view === 'database' ? (
         <DatabaseView />
       ) : (
-      <section className="workspace workbench-layout">
-        <aside className="filters-panel">
-          <div className="panel-title"><Filter size={18} /> Фильтры</div>
-          <form onSubmit={applyFilters}>
+      <section className={filtersCollapsed ? 'workspace workbench-layout filters-collapsed' : 'workspace workbench-layout'}>
+        <aside className={filtersCollapsed ? 'filters-panel collapsed' : 'filters-panel'}>
+          <div className="filters-header">
+            <div className="panel-title"><Filter size={18} /> <span className="filters-title-text">Фильтры</span></div>
+            <button
+              aria-expanded={!filtersCollapsed}
+              className="icon-button small filter-collapse-button"
+              onClick={() => setFiltersCollapsed((current) => !current)}
+              title={filtersCollapsed ? 'Развернуть фильтры' : 'Свернуть фильтры'}
+              type="button"
+            >
+              {filtersCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            </button>
+          </div>
+          {!filtersCollapsed && (
+            <>
+              <form onSubmit={applyFilters}>
             <label>
               Поиск
               <div className="input-with-icon">
@@ -471,13 +485,15 @@ function App() {
             </div>
             <button className="primary-button" type="submit">Применить</button>
             <button className="secondary-button compact" onClick={clearFilters} type="button">Очистить</button>
-          </form>
-          <div className="applied-filters">
-            <span>Применено сейчас</span>
-            <div>
-              {activeFilterChips.map((chip) => <strong key={chip}>{chip}</strong>)}
-            </div>
-          </div>
+              </form>
+              <div className="applied-filters">
+                <span>Применено сейчас</span>
+                <div>
+                  {activeFilterChips.map((chip) => <strong key={chip}>{chip}</strong>)}
+                </div>
+              </div>
+            </>
+          )}
         </aside>
 
         <section className="tender-list">

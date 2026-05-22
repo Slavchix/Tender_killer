@@ -588,3 +588,12 @@ Date: 2026-05-22.
 - The global SaaS shell/dashboard is intentionally left for the next UX slice; the first priority was making the tender workbench readable.
 - Verification: frontend contract `8 passed`; full `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full` returned `195 passed`.
 - Build note: direct `node ... vite build` is blocked in this Windows shell with `Access is denied`; JSX syntax was checked separately through Babel parser in the Node REPL.
+
+## Frontend UX checkpoint: collapsible tender filters
+
+Date: 2026-05-22.
+
+- Continued the workbench readability slice after user review: the left filter panel can now collapse into a narrow rail.
+- Collapsing filters changes the desktop grid to give the tender list more width while keeping the selected tender detail visible on the right.
+- Mobile keeps a single-column layout and shows the filter title again when collapsed, so the control remains understandable on narrow screens.
+- Verification in this slice: frontend contract `9 passed`; JSX syntax parsed successfully through Babel parser in the Node REPL.
