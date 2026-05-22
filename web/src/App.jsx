@@ -1441,6 +1441,7 @@ function EconomicsTabPanel({ tender, economics }) {
         <SummaryMetric value={economics ? economicsStatusLabel(economics.status) : 'не рассчитана'} label="статус" />
         <SummaryMetric value={formatMoney(displayedRevenue)} label="НМЦК" />
         <SummaryMetric value={formatMoney(economics?.estimated_total_cost)} label="затраты" />
+        <SummaryMetric value={formatMoney(economics?.break_even_price)} label="безубыток" />
         <SummaryMetric value={economics ? formatPercent(economics.margin_percent) : 'нет'} label="маржа" />
         <SummaryMetric value={missingInputs} label="цен добавить" />
       </div>
@@ -1585,6 +1586,9 @@ function EconomicsSummary({ economics, tender }) {
         <Info label="Себестоимость" value={formatMoney(economics.supplier_cost)} />
         <Info label="Резерв риска" value={`${formatMoney(economics.risk_reserve)} · ${formatPercent(economics.risk_reserve_rate_percent)}`} />
         <Info label="Итого затраты" value={formatMoney(economics.estimated_total_cost)} />
+        <Info label="Безубыток" value={formatMoney(economics.break_even_price)} />
+        <Info label="Минимальная ставка" value={formatMoney(economics.minimum_margin_price)} />
+        <Info label="Интересная ставка" value={formatMoney(economics.interesting_price)} />
         <Info label="Маржа" value={`${formatMoney(economics.gross_margin)} · ${formatPercent(economics.margin_percent)}`} />
         <Info label="Риски исполнения" value={riskTypes.length ? riskTypes.join(', ') : 'нет'} />
       </div>

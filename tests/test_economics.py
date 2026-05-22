@@ -65,3 +65,24 @@ def test_build_economics_summary_requires_manual_costs_before_margin_decision():
     assert summary["margin_percent"] is None
     assert summary["missing_cost_inputs"] == ["Огнетушитель ОП-5"]
     assert summary["recommendation"] == "Нужно добавить закупочную себестоимость по позициям."
+
+
+def test_build_economics_summary_returns_bid_thresholds():
+    summary = build_economics_summary(
+        {
+            "price": 100000.0,
+            "current_offer_price": 90000.0,
+            "product_profiles": [
+                {
+                    "product_name": "Fuel",
+                    "quantity": 1000,
+                    "raw_payload": {"economics": {"unit_cost": 70, "logistics_cost": 1000}},
+                }
+            ],
+        }
+    )
+
+    assert summary["revenue"] == 100000.0
+    assert summary["break_even_price"] == 71000.0
+    assert summary["minimum_margin_price"] == 76344.09
+    assert summary["interesting_price"] == 83529.41

@@ -209,6 +209,19 @@ def test_economics_tab_uses_tender_price_before_manual_calculation():
     assert find_mojibake(app_source, APP_SOURCE) == []
 
 
+def test_economics_tab_renders_bid_thresholds():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+
+    assert "economics?.break_even_price" in app_source
+    assert "economics.break_even_price" in app_source
+    assert "economics.minimum_margin_price" in app_source
+    assert "economics.interesting_price" in app_source
+    assert "Безубыток" in app_source
+    assert "Минимальная ставка" in app_source
+    assert "Интересная ставка" in app_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+
+
 def test_tender_detail_renders_price_change_banner():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")

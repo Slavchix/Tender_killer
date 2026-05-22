@@ -41,6 +41,9 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
             "risk_reserve_rate_percent": risk_reserve_rate_percent,
             "risk_reserve": None,
             "estimated_total_cost": None,
+            "break_even_price": None,
+            "minimum_margin_price": None,
+            "interesting_price": None,
             "gross_margin": None,
             "margin_percent": None,
             "missing_cost_inputs": missing_cost_inputs,
@@ -57,6 +60,9 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
             "risk_reserve_rate_percent": risk_reserve_rate_percent,
             "risk_reserve": risk_reserve,
             "estimated_total_cost": None,
+            "break_even_price": None,
+            "minimum_margin_price": None,
+            "interesting_price": None,
             "gross_margin": None,
             "margin_percent": None,
             "missing_cost_inputs": missing_cost_inputs or ["товарные позиции"],
@@ -66,6 +72,9 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
 
     supplier_cost = _round_money(supplier_cost)
     estimated_total_cost = _round_money(supplier_cost + (risk_reserve or 0.0))
+    break_even_price = estimated_total_cost
+    minimum_margin_price = _price_for_margin(estimated_total_cost, LOW_MARGIN_PERCENT)
+    interesting_price = _price_for_margin(estimated_total_cost, INTERESTING_MARGIN_PERCENT)
     gross_margin = _round_money(revenue - estimated_total_cost)
     margin_percent = _round_percent((gross_margin / revenue) * 100) if revenue else None
     status = _status_for_margin(margin_percent)
@@ -77,6 +86,9 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         "risk_reserve_rate_percent": risk_reserve_rate_percent,
         "risk_reserve": risk_reserve,
         "estimated_total_cost": estimated_total_cost,
+        "break_even_price": break_even_price,
+        "minimum_margin_price": minimum_margin_price,
+        "interesting_price": interesting_price,
         "gross_margin": gross_margin,
         "margin_percent": margin_percent,
         "missing_cost_inputs": [],
@@ -168,3 +180,7 @@ def _round_money(value: float) -> float:
 
 def _round_percent(value: float) -> float:
     return round(value, 2)
+
+
+def _price_for_margin(cost: float, margin_percent: float) -> float:
+    return _round_money(cost / (1 - margin_percent / 100))
