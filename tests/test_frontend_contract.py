@@ -209,6 +209,19 @@ def test_economics_tab_uses_tender_price_before_manual_calculation():
     assert find_mojibake(app_source, APP_SOURCE) == []
 
 
+def test_tender_detail_renders_price_change_banner():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "<PriceChangeBanner change={tender.price_change} />" in app_source
+    assert "function PriceChangeBanner({ change })" in app_source
+    assert "formatPriceChangeDirection" in app_source
+    assert "price-change-banner" in app_source
+    assert ".price-change-banner" in styles_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_tender_detail_visual_density_has_stable_grids_and_no_negative_offsets():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")

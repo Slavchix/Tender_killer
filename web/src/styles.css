@@ -1147,6 +1147,69 @@ textarea:focus {
   gap: 8px;
 }
 
+.price-change-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: #1d2b24;
+  border: 1px solid #3d6e3d;
+  border-left: 3px solid #6edc61;
+  border-radius: 7px;
+}
+
+.price-change-banner.increased {
+  border-color: #6f5f35;
+  border-left-color: #e0b95b;
+}
+
+.price-change-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.price-change-copy span,
+.price-change-values span {
+  color: #9bb2aa;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.price-change-copy strong {
+  color: #eef8f2;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.price-change-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.price-change-values span,
+.price-change-delta {
+  padding: 5px 7px;
+  background: #202b27;
+  border: 1px solid #304039;
+  border-radius: 7px;
+}
+
+.price-change-delta {
+  color: #9fe29a;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.price-change-banner.increased .price-change-delta {
+  color: #ffd06d;
+}
+
 .detail-grid,
 .raw-grid {
   display: grid;
@@ -2421,6 +2484,14 @@ textarea:focus {
   .supplier-input-grid,
   .economics-input-grid {
     grid-template-columns: 1fr;
+  }
+
+  .price-change-banner {
+    grid-template-columns: 1fr;
+  }
+
+  .price-change-values {
+    justify-content: flex-start;
   }
 
   .section-heading-row {

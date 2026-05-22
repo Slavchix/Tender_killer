@@ -1154,6 +1154,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       </div>
 
       <TenderDecisionSummary tender={tender} economics={economics} />
+      <PriceChangeBanner change={tender.price_change} />
 
       <div className="detail-actions" aria-label="Действия с закупкой">
         <div className="details-action-group primary-actions">
@@ -1524,6 +1525,36 @@ function TenderDecisionSummary({ tender, economics }) {
         <Info label="Экономика" value={economicsText} />
         <Info label="Статус" value={workflowLabels[tender.workflow_status] || 'Новая'} />
         <Info label="Следующий шаг" value={nextStep} />
+      </div>
+    </section>
+  )
+}
+
+function PriceChangeBanner({ change }) {
+  if (!change) return null
+  const previousPrice = Number(change.previous_price)
+  const currentPrice = Number(change.current_price)
+  if (!Number.isFinite(previousPrice) || !Number.isFinite(currentPrice)) return null
+
+  const delta = Number(change.delta)
+  const deltaPercent = Number(change.delta_percent)
+  const kindLabel = change.price_kind === 'current_offer' ? 'Цена участника' : 'НМЦК'
+  const percentText = Number.isFinite(deltaPercent) ? ` · ${formatSignedPercent(deltaPercent)}` : ''
+
+  return (
+    <section className={`price-change-banner ${change.direction || 'changed'}`} aria-label="Изменение цены">
+      <div className="price-change-copy">
+        <span>{kindLabel}</span>
+        <strong>{formatPriceChangeDirection(change)}</strong>
+      </div>
+      <div className="price-change-values">
+        <span>было {formatMoney(previousPrice)}</span>
+        <span>стало {formatMoney(currentPrice)}</span>
+        {Number.isFinite(delta) && (
+          <strong className="price-change-delta">
+            {formatSignedMoney(delta)}{percentText}
+          </strong>
+        )}
       </div>
     </section>
   )
@@ -2069,6 +2100,32 @@ function formatMoney(value) {
   const number = Number(value)
   if (!Number.isFinite(number)) return 'не указана'
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(number)
+}
+
+function formatSignedMoney(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return 'не указана'
+  const sign = number > 0 ? '+' : ''
+  return `${sign}${formatMoney(number)}`
+}
+
+function formatSignedPercent(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return 'не указано'
+  const sign = number > 0 ? '+' : ''
+  return `${sign}${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(number)}%`
+}
+
+function formatPriceChangeDirection(change) {
+  const direction = change?.direction || 'changed'
+  if (change?.price_kind === 'current_offer') {
+    if (direction === 'decreased') return 'участник снизил цену'
+    if (direction === 'increased') return 'участник повысил цену'
+    return 'цена участника изменилась'
+  }
+  if (direction === 'decreased') return 'НМЦК снизилась'
+  if (direction === 'increased') return 'НМЦК выросла'
+  return 'НМЦК изменилась'
 }
 
 function formatAmount(quantity, unit) {
