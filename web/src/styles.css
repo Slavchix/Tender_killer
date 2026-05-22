@@ -36,7 +36,7 @@ textarea {
 .metrics,
 .source-status-panel,
 .workspace {
-  max-width: 1520px;
+  max-width: 1680px;
   margin: 0 auto;
 }
 
@@ -147,7 +147,7 @@ h1 {
 }
 
 .run-summary {
-  max-width: 1520px;
+  max-width: 1680px;
   margin: -4px auto 14px;
   padding: 10px 12px;
   color: #dbe8e2;
@@ -295,9 +295,13 @@ label,
 
 .workspace {
   display: grid;
-  grid-template-columns: 300px minmax(420px, 1fr) 380px;
+  grid-template-columns: 280px minmax(360px, 0.8fr) minmax(640px, 1.4fr);
   gap: 14px;
   align-items: start;
+}
+
+.workbench-layout .details-panel {
+  min-width: 0;
 }
 
 .database-view {
@@ -824,6 +828,19 @@ textarea:focus {
   font-weight: 800;
 }
 
+.decision-summary {
+  padding: 10px;
+  background: #1b2622;
+  border: 1px solid #33443d;
+  border-radius: 7px;
+}
+
+.decision-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .detail-grid,
 .raw-grid {
   display: grid;
@@ -962,6 +979,12 @@ textarea:focus {
 
 .secondary-button.compact {
   margin-top: -4px;
+}
+
+.profile-block-heading .secondary-button.compact {
+  width: auto;
+  min-width: 104px;
+  margin-top: 0;
 }
 
 .secondary-button:disabled,
@@ -1493,6 +1516,30 @@ textarea:focus {
   line-height: 1.25;
 }
 
+.product-detail-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.product-detail-tabs button {
+  min-height: 32px;
+  padding: 0 10px;
+  color: #bcd1c9;
+  background: #18231f;
+  border: 1px solid #304039;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.product-detail-tabs button.active {
+  color: #0d160f;
+  background: #6edc61;
+  border-color: #6edc61;
+}
+
 .profile-block {
   display: grid;
   gap: 8px;
@@ -1809,7 +1856,10 @@ textarea:focus {
   .document-row,
   .source-status-list,
   .profile-summary-grid,
-  .profile-detail-grid {
+  .profile-detail-grid,
+  .decision-summary-grid,
+  .supplier-input-grid,
+  .economics-input-grid {
     grid-template-columns: 1fr;
   }
 

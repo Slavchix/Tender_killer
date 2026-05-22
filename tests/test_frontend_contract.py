@@ -91,3 +91,19 @@ def test_product_profile_renders_supplier_option_form():
     assert "availability" in source
     assert "Поставщики" in source
     assert find_mojibake(source, APP_SOURCE) == []
+
+
+def test_tender_workbench_v1_reduces_detail_panel_overload():
+    source = APP_SOURCE.read_text(encoding="utf-8")
+
+    assert 'className="workspace workbench-layout"' in source
+    assert "function TenderDecisionSummary" in source
+    assert "<TenderDecisionSummary tender={tender} economics={economics} />" in source
+    assert "decision-summary-grid" in source
+    assert "product-detail-tabs" in source
+    assert "const productDetailModes" in source
+    assert "Паспорт" in source
+    assert "Цены" in source
+    assert "Поставщики" in source
+    assert "ТЗ" in source
+    assert find_mojibake(source, APP_SOURCE) == []

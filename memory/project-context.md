@@ -576,3 +576,15 @@ Date: 2026-05-22.
 - The React product profile detail now has a `Поставщики` block: a compact form for adding a candidate and a list of saved candidates with link, price, availability/status, and note.
 - Supplier candidates intentionally do not overwrite `raw_payload.economics` yet. Next step after UI review: choose/mark a candidate and copy its unit price into the economics input deliberately.
 - Full verification after this slice: `194 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Frontend UX checkpoint: Tender Workbench v1
+
+Date: 2026-05-22.
+
+- UX issue found after adding economics and supplier candidates: the selected tender card became a full workbench squeezed into a narrow right sidebar.
+- First repair slice keeps the current app structure but changes the tender screen into `workspace workbench-layout`, giving the selected tender detail a wider desktop area.
+- Added `TenderDecisionSummary` at the top of the tender card: НМЦК, срок, заказчик, экономика/margin, workflow status, and next step are visible before the deeper tabs.
+- Product detail is split into sub-tabs: `Паспорт`, `Цены`, `Поставщики`, and `ТЗ`. This removes the long single-column product profile stream while keeping the data close to the selected position.
+- The global SaaS shell/dashboard is intentionally left for the next UX slice; the first priority was making the tender workbench readable.
+- Verification: frontend contract `8 passed`; full `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full` returned `195 passed`.
+- Build note: direct `node ... vite build` is blocked in this Windows shell with `Access is denied`; JSX syntax was checked separately through Babel parser in the Node REPL.

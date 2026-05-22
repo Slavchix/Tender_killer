@@ -88,6 +88,13 @@ const initialFilters = {
 const defaultTenderPageLimit = 25
 const tenderPageLimitOptions = [10, 25, 50, 100]
 
+const productDetailModes = [
+  { id: 'overview', label: 'Паспорт' },
+  { id: 'pricing', label: 'Цены' },
+  { id: 'suppliers', label: 'Поставщики' },
+  { id: 'requirements', label: 'ТЗ' },
+]
+
 const initialTenderPage = {
   total: 0,
   limit: defaultTenderPageLimit,
@@ -342,7 +349,7 @@ function App() {
       {view === 'database' ? (
         <DatabaseView />
       ) : (
-      <section className="workspace">
+      <section className="workspace workbench-layout">
         <aside className="filters-panel">
           <div className="panel-title"><Filter size={18} /> Фильтры</div>
           <form onSubmit={applyFilters}>
@@ -970,6 +977,8 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         </div>
       </div>
 
+      <TenderDecisionSummary tender={tender} economics={economics} />
+
       <div className="detail-actions">
         <a className="detail-action primary" href={tender.url} target="_blank" rel="noreferrer">
           Источник <ExternalLink size={15} />
@@ -1180,6 +1189,26 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   )
 }
 
+function TenderDecisionSummary({ tender, economics }) {
+  const marginValue = Number(economics?.margin_percent)
+  const marginText = Number.isFinite(marginValue) ? formatPercent(marginValue) : 'нужны цены'
+  const economicsText = economics ? `${economicsStatusLabel(economics.status)} · ${marginText}` : 'экономика не рассчитана'
+  const nextStep = tenderDecisionNextStep(tender, economics)
+
+  return (
+    <section className="decision-summary" aria-label="Краткое решение по закупке">
+      <div className="decision-summary-grid">
+        <Info label="НМЦК" value={formatMoney(tender.price)} />
+        <Info label="Срок" value={formatDate(tender.deadline_at)} />
+        <Info label="Заказчик" value={tender.customer || 'не указан'} />
+        <Info label="Экономика" value={economicsText} />
+        <Info label="Статус" value={workflowLabels[tender.workflow_status] || 'Новая'} />
+        <Info label="Следующий шаг" value={nextStep} />
+      </div>
+    </section>
+  )
+}
+
 function EconomicsSummary({ economics }) {
   if (!economics) {
     return <p className="muted-text">Черновик экономики пока не рассчитан.</p>
@@ -1246,6 +1275,12 @@ function ProductProfileDetail({
   savingEconomics = false,
   savingSupplierOption = false,
 }) {
+  const [activeProfileMode, setActiveProfileMode] = useState('overview')
+
+  useEffect(() => {
+    setActiveProfileMode('overview')
+  }, [profile?.position_index])
+
   if (!profile) {
     return <div className="profile-detail muted-text">Выбери позицию из списка</div>
   }
@@ -1265,52 +1300,77 @@ function ProductProfileDetail({
         </strong>
       </div>
 
-      <section className="profile-block">
-        <h5>Идентификация позиции</h5>
-        <div className="profile-detail-grid">
-          <Info label="Детализированное наименование" value={profile.details || 'не найдено'} />
-          <Info label="Количество" value={formatQuantity(profile.quantity, profile.unit)} />
-          <Info label="Цена за ед." value={formatMoney(profile.unit_price)} />
-          <Info label="Сумма позиции" value={formatMoney(profile.total_price)} />
-          <Info label="ОКПД2" value={profile.okpd2 || 'не найден'} />
-          <Info label="Классификатор площадки" value={classifierLabel} />
-        </div>
-      </section>
+      <nav className="product-detail-tabs" aria-label="Разделы товарного профиля">
+        {productDetailModes.map((mode) => (
+          <button
+            className={activeProfileMode === mode.id ? 'active' : ''}
+            key={mode.id}
+            onClick={() => setActiveProfileMode(mode.id)}
+            type="button"
+          >
+            {mode.label}
+          </button>
+        ))}
+      </nav>
 
-      <ProductEconomicsForm profile={profile} onSave={onEconomicsSave} saving={savingEconomics} />
+      {activeProfileMode === 'overview' && (
+        <>
+          <section className="profile-block">
+            <h5>Идентификация позиции</h5>
+            <div className="profile-detail-grid">
+              <Info label="Детализированное наименование" value={profile.details || 'не найдено'} />
+              <Info label="Количество" value={formatQuantity(profile.quantity, profile.unit)} />
+              <Info label="Цена за ед." value={formatMoney(profile.unit_price)} />
+              <Info label="Сумма позиции" value={formatMoney(profile.total_price)} />
+              <Info label="ОКПД2" value={profile.okpd2 || 'не найден'} />
+              <Info label="Классификатор площадки" value={classifierLabel} />
+            </div>
+          </section>
 
-      <ProductSupplierOptionsForm profile={profile} onSave={onSupplierOptionSave} saving={savingSupplierOption} />
+          <section className="profile-block">
+            <h5>Пакет для поиска товара</h5>
+            <AnalysisList title="Поисковые фразы" items={profile.search_phrases || []} empty="Поисковые фразы пока не сформированы" />
+            <AnalysisList title="Стоп-слова" items={profile.stop_words || []} empty="Стоп-слова пока не заданы" danger />
+          </section>
+        </>
+      )}
 
-      <section className="profile-block">
-        <h5>Пакет для поиска товара</h5>
-        <AnalysisList title="Поисковые фразы" items={profile.search_phrases || []} empty="Поисковые фразы пока не сформированы" />
-        <AnalysisList title="Стоп-слова" items={profile.stop_words || []} empty="Стоп-слова пока не заданы" danger />
-      </section>
+      {activeProfileMode === 'pricing' && (
+        <ProductEconomicsForm profile={profile} onSave={onEconomicsSave} saving={savingEconomics} />
+      )}
 
-      <section className="profile-block">
-        <h5>Требования и документы</h5>
-        <AnalysisList title="Характеристики из карточки и ТЗ" items={profile.required_characteristics || []} empty="Характеристики пока не найдены" />
-        <AnalysisList title="Стандарты" items={profile.standards || []} empty="ГОСТ/ТУ пока не найдены" />
-        <AnalysisList title="Сертификаты и документы" items={profile.cert_documents || []} empty="Сертификаты/декларации пока не найдены" />
-        <AnalysisList title="Поставка и исполнение" items={formatFulfillmentRequirements(profile.fulfillment_requirements || [])} empty="Требования к поставке и исполнению пока не найдены" />
-        <AnalysisList title="Страна происхождения" items={profile.origin_country_requirements || []} empty="Требования по стране пока не найдены" />
-      </section>
+      {activeProfileMode === 'suppliers' && (
+        <ProductSupplierOptionsForm profile={profile} onSave={onSupplierOptionSave} saving={savingSupplierOption} />
+      )}
 
-      <section className="profile-block">
-        <h5>Подтверждения из ТЗ</h5>
-        {documentEvidence.length ? (
-          <div className="evidence-list">
-            {documentEvidence.map((item, index) => (
-              <div className="evidence-row" key={`${item.source}-${index}`}>
-                <span>{item.source || 'документ'}</span>
-                <p>{item.value}</p>
+      {activeProfileMode === 'requirements' && (
+        <>
+          <section className="profile-block">
+            <h5>Требования и документы</h5>
+            <AnalysisList title="Характеристики из карточки и ТЗ" items={profile.required_characteristics || []} empty="Характеристики пока не найдены" />
+            <AnalysisList title="Стандарты" items={profile.standards || []} empty="ГОСТ/ТУ пока не найдены" />
+            <AnalysisList title="Сертификаты и документы" items={profile.cert_documents || []} empty="Сертификаты/декларации пока не найдены" />
+            <AnalysisList title="Поставка и исполнение" items={formatFulfillmentRequirements(profile.fulfillment_requirements || [])} empty="Требования к поставке и исполнению пока не найдены" />
+            <AnalysisList title="Страна происхождения" items={profile.origin_country_requirements || []} empty="Требования по стране пока не найдены" />
+          </section>
+
+          <section className="profile-block">
+            <h5>Подтверждения из ТЗ</h5>
+            {documentEvidence.length ? (
+              <div className="evidence-list">
+                {documentEvidence.map((item, index) => (
+                  <div className="evidence-row" key={`${item.source}-${index}`}>
+                    <span>{item.source || 'документ'}</span>
+                    <p>{item.value}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        ) : (
-          <p className="muted-text">Связанные фрагменты ТЗ пока не найдены.</p>
-        )}
-      </section>
+            ) : (
+              <p className="muted-text">Связанные фрагменты ТЗ пока не найдены.</p>
+            )}
+          </section>
+        </>
+      )}
     </div>
   )
 }
@@ -1733,6 +1793,18 @@ function economicsStatusLabel(status) {
     needs_costs: 'Нужны цены',
     needs_price: 'Нужна НМЦК',
   }[status] || status || 'Проверить'
+}
+
+function tenderDecisionNextStep(tender, economics) {
+  if (!economics) return 'обновить детали и цены'
+  if (economics.status === 'needs_costs') return 'добавить себестоимость'
+  if (economics.status === 'needs_price') return 'проверить НМЦК'
+  if (economics.status === 'low_margin') return 'оценить отказ'
+  if ((tender.product_profiles || []).some((profile) => !profile.raw_payload?.supplier_options?.length)) {
+    return 'добавить поставщиков'
+  }
+  if (economics.status === 'interesting') return 'вести в работу'
+  return 'проверить риски'
 }
 
 function supplierAvailabilityLabel(value) {
