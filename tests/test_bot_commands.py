@@ -7,6 +7,8 @@ from tender_killer.bot import (
     apply_profile_edit,
     create_profile_from_template,
     format_filter_profile,
+    format_tender_analysis_reply,
+    format_tender_documents_reply,
     format_profile_details,
     format_profiles,
     format_search_summary,
@@ -155,6 +157,42 @@ def test_format_sources_status_shows_last_stats_and_errors():
 
     assert "Последний запуск" in text
     assert "moscow_supplier_portal: HTTP Error 500" in text
+
+
+def test_format_tender_documents_reply_lists_saved_documents():
+    text = format_tender_documents_reply(
+        {
+            "title": "Поставка бумаги",
+            "url": "https://example.test/tender",
+            "document_records": [
+                {"name": "Извещение.docx", "url": "https://example.test/notice.docx"},
+                {"name": "Проект договора.pdf", "url": "https://example.test/contract.pdf"},
+            ],
+        }
+    )
+
+    assert "Документы закупки" in text
+    assert "Извещение.docx" in text
+    assert "https://example.test/contract.pdf" in text
+
+
+def test_format_tender_analysis_reply_shows_existing_checklist():
+    text = format_tender_analysis_reply(
+        {
+            "title": "Поставка бумаги",
+            "analysis": {
+                "summary": "Срок поставки короткий, сертификаты нужны.",
+                "checklist": [
+                    {"label": "Проверить сертификаты", "severity": "high"},
+                    {"label": "Уточнить доставку", "severity": "medium"},
+                ],
+            },
+        }
+    )
+
+    assert "Анализ закупки" in text
+    assert "Срок поставки короткий" in text
+    assert "Проверить сертификаты" in text
 
 
 def test_apply_profile_edit_updates_named_profile(tmp_path):

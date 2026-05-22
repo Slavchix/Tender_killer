@@ -37,6 +37,7 @@ Recent architecture cleanup:
 - TZ analysis run persistence is isolated in `src/tender_killer/analysis_service.py`.
 - Search run orchestration is isolated in `src/tender_killer/search_service.py`.
 - Telegram now supports a quick-entry profile: send a natural-language request like `строительные материалы Москва МО до 2 млн 44-ФЗ`, and the bot saves it as a separate `quick-entry` profile without deleting existing filters.
+- Telegram tender notifications now use compact cards with inline buttons for opening the source, showing saved documents, and showing saved analysis.
 - Rule-based TZ analysis now emits an actionable checklist with category, severity, and source evidence for supplier-side checks.
 - The site renders the TZ checklist in the tender analysis tab, so supplier-side checks are visible without opening the Word report.
 - Product profiles now extract and persist fulfillment requirements for delivery, packaging, warranty, and acceptance; the product tab shows them as inputs for future economics.
@@ -59,12 +60,12 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `207 passed`.
+Latest verified result before this handoff: `212 passed`.
 
 Good next steps:
 
 1. Let the user verify the new dashboard/sidebar, collapsing navigation rail, wrapped workflow tabs, collapsible filters, supplier candidates, and economics inputs in the local UI.
-2. Continue the competitor-inspired Telegram slice: shorten Telegram tender cards with action buttons.
+2. Continue the competitor-inspired Telegram slice after user verification: add richer safe actions, such as workflow status changes from Telegram or a direct local-site card link.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.
 
@@ -172,6 +173,7 @@ $env:TENDER_KILLER_AUTO_SEARCH_MINUTES="30"
 Команды:
 
 - Можно отправить обычный текст, например `строительные материалы Москва МО до 2 млн 44-ФЗ`. Бот сохранит отдельный быстрый профиль `quick-entry` и предложит запустить поиск только по нему. Старые фильтры и профили останутся на месте.
+- Карточки найденных закупок короткие: название, площадка/закон, сумма/срок, заказчик/регион, фильтр и ссылка. Под карточкой есть кнопки `Открыть источник`, `Документы`, `Анализ`; документы и анализ берутся из локальной SQLite, если они уже сохранены.
 - `Настроить поиск` - мастер создания профиля: шаблон, закон, этап, регион, цена, ОКПД2, площадки.
 - `/profiles` - показать профили и их id.
 - `/profile_new Бумага` - создать новый профиль.

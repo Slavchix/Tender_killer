@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from telegram import ReplyKeyboardMarkup, Update
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters as tg_filters
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters as tg_filters
 
 from tender_killer.config import Settings
 from tender_killer.filter_store import FilterProfileCollection, FilterProfileStore, NamedFilterProfile
@@ -20,6 +20,8 @@ from tender_killer.quick_search import save_quick_search_profile
 from tender_killer.sources import SOURCE_ALIASES, SOURCE_LABELS, build_adapters_for_collection, normalize_sources
 from tender_killer.storage import TenderStore
 from tender_killer.telegram import TelegramNotifier
+from tender_killer.telegram import parse_tender_action
+from tender_killer.tender_detail_service import get_tender_payload
 
 LOGGER = logging.getLogger(__name__)
 
@@ -317,6 +319,34 @@ async def sources_status_command(update: Update, context: ContextTypes.DEFAULT_T
     await _reply(update, format_sources_status(context.application.bot_data.get("last_stats")))
 
 
+async def tender_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if not query:
+        return
+    action = parse_tender_action(query.data)
+    if action is None:
+        await query.answer("Действие не найдено")
+        return
+    settings: Settings = context.application.bot_data["settings"]
+    try:
+        payload = await asyncio.to_thread(
+            get_tender_payload,
+            settings.database_path,
+            action.source,
+            action.external_id,
+        )
+    except (KeyError, ValueError):
+        await query.answer("Карточка не найдена")
+        return
+    if action.action == "docs":
+        text = format_tender_documents_reply(payload)
+    else:
+        text = format_tender_analysis_reply(payload)
+    await query.answer()
+    if query.message:
+        await query.message.reply_text(text, disable_web_page_preview=True)
+
+
 async def deprecated_interactive_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _reply(update, NOTIFICATION_ONLY_MESSAGE)
 
@@ -560,6 +590,60 @@ def format_sources_status(stats: PipelineStats | None) -> str:
     return "\n".join(lines)
 
 
+def format_tender_documents_reply(payload: dict) -> str:
+    documents = [
+        document
+        for document in payload.get("document_records") or []
+        if document.get("url")
+    ]
+    title = _shorten(payload.get("title") or "Закупка", 120)
+    if not documents:
+        lines = [
+            "Документы закупки",
+            title,
+            "",
+            "Документы пока не загружены в локальную базу. Откройте карточку на сайте и нажмите «Документы» или «Обновить».",
+        ]
+        if payload.get("url"):
+            lines.extend(["", payload["url"]])
+        return "\n".join(lines)
+    lines = ["Документы закупки", title, ""]
+    for index, document in enumerate(documents[:5], start=1):
+        name = _shorten(document.get("name") or document.get("document_type") or f"Документ {index}", 90)
+        lines.append(f"{index}. {name}")
+        lines.append(document["url"])
+    if len(documents) > 5:
+        lines.append(f"Еще документов: {len(documents) - 5}")
+    return "\n".join(lines)
+
+
+def format_tender_analysis_reply(payload: dict) -> str:
+    analysis = payload.get("analysis") or {}
+    title = _shorten(payload.get("title") or "Закупка", 120)
+    summary = str(analysis.get("summary") or "").strip()
+    checklist = analysis.get("checklist") or []
+    if not summary and not checklist:
+        return "\n".join(
+            [
+                "Анализ закупки",
+                title,
+                "",
+                "Анализ ТЗ пока не запускался. Откройте карточку на сайте и нажмите «Анализ».",
+            ]
+        )
+    lines = ["Анализ закупки", title]
+    if summary:
+        lines.extend(["", _shorten(summary, 700)])
+    if checklist:
+        lines.extend(["", "Проверить:"])
+        for item in checklist[:5]:
+            label = _shorten(str(item.get("label") or item.get("value") or "Пункт проверки"), 120)
+            severity = str(item.get("severity") or "").strip()
+            suffix = f" [{severity}]" if severity else ""
+            lines.append(f"- {label}{suffix}")
+    return "\n".join(lines)
+
+
 def _append_count_section(
     lines: list[str],
     title: str,
@@ -578,6 +662,13 @@ def _append_count_section(
 def _source_label(source: str) -> str:
     normalized = SOURCE_ALIASES.get(source.strip().lower())
     return SOURCE_LABELS.get(normalized or source, source)
+
+
+def _shorten(value: str, limit: int) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "…"
 
 
 async def _update_filter(update: Update, context: ContextTypes.DEFAULT_TYPE, command: str, args: str) -> None:
@@ -779,6 +870,7 @@ def main() -> None:
             deprecated_interactive_command,
         )
     )
+    application.add_handler(CallbackQueryHandler(tender_action_callback, pattern=r"^tk:"))
     application.add_handler(MessageHandler(tg_filters.TEXT & ~tg_filters.COMMAND, text_menu_handler))
     LOGGER.info("Starting Tender Killer bot with filter profile %s", filter_path)
     application.run_polling()

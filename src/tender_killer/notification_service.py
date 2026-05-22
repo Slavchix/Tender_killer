@@ -8,6 +8,7 @@ from tender_killer.models import Tender
 from tender_killer.models import TenderDocument
 from tender_killer.normalization import parse_datetime
 from tender_killer.telegram import TelegramNotifier
+from tender_killer.telegram import build_tender_actions
 from tender_killer.telegram import build_tender_message
 from tender_killer.tender_detail_service import get_tender_payload
 
@@ -22,7 +23,7 @@ def send_tender_notification_payload(
     tender_payload = get_tender_payload(database_path, source, external_id)
     sender = notifier or TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id, dry_run=settings.dry_run)
     tender = _payload_to_tender(tender_payload)
-    sent = sender.send(build_tender_message(tender, ["manual:site"]))
+    sent = sender.send(build_tender_message(tender, ["manual:site"]), reply_markup=build_tender_actions(tender))
     return {"ok": True, "sent": bool(sent)}
 
 

@@ -39,9 +39,11 @@ class CheckpointAdapter:
 class SpyNotifier:
     def __init__(self):
         self.messages = []
+        self.reply_markups = []
 
-    def send(self, text):
+    def send(self, text, reply_markup=None):
         self.messages.append(text)
+        self.reply_markups.append(reply_markup)
         return True
 
 
@@ -155,6 +157,7 @@ def test_pipeline_new_only_notification_mode_sends_new_tenders(tmp_path):
     assert stats.matched == 1
     assert stats.notified == 1
     assert len(notifier.messages) == 1
+    assert notifier.reply_markups[0]["inline_keyboard"][0][0]["text"] == "Открыть источник"
 
 
 def test_pipeline_stats_tracks_matched_breakdowns(tmp_path):

@@ -643,3 +643,13 @@ Date: 2026-05-22.
 - Telegram `/search`, `/test_search`, and `/sources_status` now show readable Russian summaries instead of raw `Fetched/Saved/Matched` counters.
 - `/api/search/run` exposes the same structured counters through `source_counts`, `law_counts`, and `region_counts`, so the site can later render a competitor-style search results panel.
 - Full verification after this slice: `207 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Competitor-inspired Telegram checkpoint: compact tender cards
+
+Date: 2026-05-22.
+
+- Telegram tender notifications are now compact: title, source/law, price/deadline, customer/region, matched filter, and source URL.
+- `build_tender_actions(...)` adds inline buttons: `Открыть источник`, `Документы`, and `Анализ`.
+- `TelegramNotifier.send(...)` can send Telegram `reply_markup`, and both pipeline notifications and manual site notifications pass the new inline keyboard.
+- Bot callback handling for `Документы` and `Анализ` reads the local SQLite tender payload and replies with saved document links or saved analysis/checklist. It does not submit applications, log in, sign, or mutate procurement data.
+- Full verification after this slice: `212 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.

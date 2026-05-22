@@ -999,9 +999,11 @@ def test_send_tender_notification_payload_sends_selected_card(tmp_path):
     class FakeNotifier:
         def __init__(self):
             self.messages = []
+            self.reply_markups = []
 
-        def send(self, text):
+        def send(self, text, reply_markup=None):
             self.messages.append(text)
+            self.reply_markups.append(reply_markup)
             return True
 
     notifier = FakeNotifier()
@@ -1017,3 +1019,4 @@ def test_send_tender_notification_payload_sends_selected_card(tmp_path):
     assert payload == {"ok": True, "sent": True}
     assert len(notifier.messages) == 1
     assert "Поставка бумаги" in notifier.messages[0]
+    assert notifier.reply_markups[0]["inline_keyboard"][0][0]["text"] == "Открыть источник"

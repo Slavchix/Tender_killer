@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from tender_killer.adapters.base import BaseAdapter
 from tender_killer.filters import TenderFilter
 from tender_killer.storage import TenderStore
-from tender_killer.telegram import TelegramNotifier, build_tender_message
+from tender_killer.telegram import TelegramNotifier, build_tender_actions, build_tender_message
 from tender_killer.tender_metadata import normalize_law
 
 LOGGER = logging.getLogger(__name__)
@@ -96,7 +96,10 @@ class TenderPipeline:
                     continue
                 if self.notify_mode != "preview" and self.store.was_notified(tender):
                     continue
-                if self.notifier.send(build_tender_message(tender, filter_result.reasons)):
+                if self.notifier.send(
+                    build_tender_message(tender, filter_result.reasons),
+                    reply_markup=build_tender_actions(tender),
+                ):
                     if self.notify_mode != "preview":
                         self.store.mark_notified(tender)
                     notified += 1
