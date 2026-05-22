@@ -2,6 +2,7 @@ import json
 
 from tender_killer.filters import FilterProfile, TenderFilter
 from tender_killer.models import Tender
+from tender_killer.quick_search import parse_quick_search_text
 
 
 def tender(**overrides):
@@ -75,6 +76,21 @@ def test_filter_profile_matches_full_okpd2_code():
 
     assert result.matched is True
     assert result.reasons == ["okpd2:17.12.14"]
+
+
+def test_quick_search_construction_materials_matches_common_procurement_wording():
+    draft = parse_quick_search_text("строительные материалы москва")
+    item = tender(
+        title="Поставка материалов для ремонта помещений",
+        category="Сухие смеси, краски и малярный инструмент",
+        region="Москва",
+        delivery_place="Москва",
+    )
+
+    result = TenderFilter(draft.profile).match(item)
+
+    assert result.matched is True
+    assert "keyword:материал" in result.reasons
 
 
 def test_filter_profile_rejects_non_matching_okpd2():

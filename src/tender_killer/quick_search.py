@@ -12,6 +12,20 @@ QUICK_SEARCH_PROFILE_NAME = "Быстрый вход"
 QUICK_SEARCH_RUN_BUTTON = "Запустить быстрый поиск"
 
 ACTIVE_STATUSES = ("прием предложений", "прием заявок", "active")
+CONSTRUCTION_MATERIAL_KEYWORDS = (
+    "стройматериал",
+    "материал",
+    "смесь",
+    "шпатлев",
+    "штукатур",
+    "цемент",
+    "крепеж",
+    "саморез",
+    "краск",
+    "лак",
+    "эмаль",
+    "инструмент",
+)
 
 
 @dataclass(frozen=True)
@@ -35,9 +49,10 @@ def parse_quick_search_text(text: str) -> QuickSearchDraft:
     regions = _extract_regions(working)
     working = _remove_regions(working)
 
-    keywords = _keywords_from_text(working) or original_text
+    keyword_text = _keywords_from_text(working) or original_text
+    keywords = _expand_quick_keywords(keyword_text)
     profile = FilterProfile(
-        keywords=(keywords,),
+        keywords=keywords,
         exclude_keywords=(),
         regions=regions,
         sources=("moscow", "mosreg"),
@@ -50,7 +65,7 @@ def parse_quick_search_text(text: str) -> QuickSearchDraft:
         include_without_price=True,
         include_without_deadline=True,
     )
-    return QuickSearchDraft(original_text=original_text, title=keywords[:80], profile=profile)
+    return QuickSearchDraft(original_text=original_text, title=keyword_text[:80], profile=profile)
 
 
 def save_quick_search_profile(store: FilterProfileStore, draft: QuickSearchDraft) -> NamedFilterProfile:
@@ -204,6 +219,13 @@ def _keywords_from_text(text: str) -> str:
     }
     cleaned = [word for word in words if word.lower() not in stop_words]
     return " ".join(cleaned).strip()
+
+
+def _expand_quick_keywords(text: str) -> tuple[str, ...]:
+    normalized = text.lower().replace("ё", "е")
+    if "стройматериал" in normalized or ("строительн" in normalized and "материал" in normalized):
+        return CONSTRUCTION_MATERIAL_KEYWORDS
+    return (text,)
 
 
 def _format_list(values: tuple[str, ...]) -> str:

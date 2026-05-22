@@ -20,7 +20,7 @@ from tender_killer.bot import (
 from tender_killer.filter_store import FilterProfileCollection, FilterProfileStore, NamedFilterProfile
 from tender_killer.filters import FilterProfile
 from tender_killer.pipeline import PipelineStats
-from tender_killer.quick_search import QUICK_SEARCH_PROFILE_ID
+from tender_killer.quick_search import CONSTRUCTION_MATERIAL_KEYWORDS, QUICK_SEARCH_PROFILE_ID
 from tender_killer.telegram_chat_service import get_remembered_telegram_chat_id
 
 
@@ -294,7 +294,7 @@ def test_text_menu_handler_accepts_quick_search_text_without_removing_filters(tm
     assert existing.id in {profile.id for profile in collection.profiles}
     assert existing.id in collection.active_profile_ids
     assert QUICK_SEARCH_PROFILE_ID in collection.active_profile_ids
-    assert quick_profile.profile.keywords == ("строительные материалы",)
+    assert quick_profile.profile.keywords == CONSTRUCTION_MATERIAL_KEYWORDS
     assert message.replies
     assert "Быстрый вход сохранен" in message.replies[0]
     assert "Запустить быстрый поиск" in message.replies[0]

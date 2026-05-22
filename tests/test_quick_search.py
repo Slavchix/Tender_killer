@@ -7,12 +7,28 @@ from tender_killer.quick_search import (
 )
 
 
+EXPECTED_CONSTRUCTION_MATERIAL_KEYWORDS = (
+    "стройматериал",
+    "материал",
+    "смесь",
+    "шпатлев",
+    "штукатур",
+    "цемент",
+    "крепеж",
+    "саморез",
+    "краск",
+    "лак",
+    "эмаль",
+    "инструмент",
+)
+
+
 def test_parse_quick_search_text_extracts_region_law_price_and_keywords():
     draft = parse_quick_search_text("строительные материалы в Москве и Московской области до 2 млн 44-ФЗ")
 
     assert draft.original_text == "строительные материалы в Москве и Московской области до 2 млн 44-ФЗ"
     assert draft.title == "строительные материалы"
-    assert draft.profile.keywords == ("строительные материалы",)
+    assert draft.profile.keywords == EXPECTED_CONSTRUCTION_MATERIAL_KEYWORDS
     assert draft.profile.regions == ("Москва", "Московская область")
     assert draft.profile.laws == ("44-ФЗ",)
     assert draft.profile.max_price == 2_000_000
@@ -29,6 +45,14 @@ def test_parse_quick_search_text_extracts_okpd2_and_source_words():
     assert draft.profile.okpd2 == ("27.32.13",)
     assert draft.profile.min_price == 100_000
     assert draft.profile.max_price == 1_000_000
+
+
+def test_parse_quick_search_text_expands_stroymaterialy_alias():
+    draft = parse_quick_search_text("стройматериалы москва")
+
+    assert draft.title == "стройматериалы"
+    assert draft.profile.keywords == EXPECTED_CONSTRUCTION_MATERIAL_KEYWORDS
+    assert draft.profile.regions == ("Москва",)
 
 
 def test_save_quick_search_profile_upserts_without_removing_existing_profiles(tmp_path):
@@ -59,7 +83,7 @@ def test_format_quick_search_confirmation_shows_parsed_profile(tmp_path):
 
     assert "Быстрый вход сохранен" in text
     assert "Запрос: строительные материалы Москва МО до 2 млн 44-ФЗ" in text
-    assert "Ключевые слова: строительные материалы" in text
+    assert "Ключевые слова: стройматериал, материал, смесь" in text
     assert "Регионы: Москва, Московская область" in text
     assert "Цена: любая - 2 000 000" in text
     assert "Запустить быстрый поиск" in text
