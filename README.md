@@ -36,6 +36,7 @@ Recent architecture cleanup:
 - GET/POST API dispatch is isolated in `src/tender_killer/api_handlers.py`, leaving `web_api.py` as a thin HTTP adapter.
 - TZ analysis run persistence is isolated in `src/tender_killer/analysis_service.py`.
 - Search run orchestration is isolated in `src/tender_killer/search_service.py`.
+- Telegram now supports a quick-entry profile: send a natural-language request like `строительные материалы Москва МО до 2 млн 44-ФЗ`, and the bot saves it as a separate `quick-entry` profile without deleting existing filters.
 - Rule-based TZ analysis now emits an actionable checklist with category, severity, and source evidence for supplier-side checks.
 - The site renders the TZ checklist in the tender analysis tab, so supplier-side checks are visible without opening the Word report.
 - Product profiles now extract and persist fulfillment requirements for delivery, packaging, warranty, and acceptance; the product tab shows them as inputs for future economics.
@@ -57,12 +58,12 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `201 passed`.
+Latest verified result before this handoff: `206 passed`.
 
 Good next steps:
 
 1. Let the user verify the new dashboard/sidebar, collapsing navigation rail, wrapped workflow tabs, collapsible filters, supplier candidates, and economics inputs in the local UI.
-2. Connect a selected supplier candidate to economics inputs, then split source diagnostics into a dedicated operational page if the dashboard starts to feel crowded.
+2. Continue the competitor-inspired Telegram slice: improve search stats, then shorten Telegram tender cards with action buttons.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.
 
@@ -169,6 +170,7 @@ $env:TENDER_KILLER_AUTO_SEARCH_MINUTES="30"
 
 Команды:
 
+- Можно отправить обычный текст, например `строительные материалы Москва МО до 2 млн 44-ФЗ`. Бот сохранит отдельный быстрый профиль `quick-entry` и предложит запустить поиск только по нему. Старые фильтры и профили останутся на месте.
 - `Настроить поиск` - мастер создания профиля: шаблон, закон, этап, регион, цена, ОКПД2, площадки.
 - `/profiles` - показать профили и их id.
 - `/profile_new Бумага` - создать новый профиль.

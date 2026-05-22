@@ -623,3 +623,13 @@ Date: 2026-05-22.
 - Fixed the first visual pass of the dashboard: metrics now occupy the same full-width content container as the rest of the page instead of floating in the middle.
 - Dashboard rows now share the same two-column grid, and cards stretch to the row height. This removes the accidental uneven gaps between source status, queue, attention, and recent tender blocks.
 - Added a frontend contract that keeps the dashboard on a full-width aligned grid.
+
+## Competitor-inspired Telegram checkpoint: quick entry
+
+Date: 2026-05-22.
+
+- After reviewing Zakupki Assistant, the product direction is: keep the website as the main workbench, but add Telegram as a fast entry point for natural-language search setup.
+- Added `src/tender_killer/quick_search.py`: parses text like `строительные материалы Москва МО до 2 млн 44-ФЗ` into a dedicated `quick-entry` filter profile.
+- Existing filters/profiles are preserved. The quick profile is upserted separately and can be used for an immediate preview search.
+- Telegram `text_menu_handler` now treats unknown free text as quick-entry setup and replies with a parsed summary plus `Запустить быстрый поиск`.
+- Added competitor notes in `docs/competitors/zakupkiassistant-analysis.md`.

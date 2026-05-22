@@ -1,3 +1,6 @@
+import asyncio
+from types import SimpleNamespace
+
 from tender_killer.bot import (
     MENU,
     apply_filter_command,
@@ -10,10 +13,12 @@ from tender_killer.bot import (
     format_test_search_summary,
     format_sources_status,
     parse_csv_args,
+    text_menu_handler,
 )
 from tender_killer.filter_store import FilterProfileCollection, FilterProfileStore, NamedFilterProfile
 from tender_killer.filters import FilterProfile
 from tender_killer.pipeline import PipelineStats
+from tender_killer.quick_search import QUICK_SEARCH_PROFILE_ID
 
 
 def test_parse_csv_args_accepts_spaces_and_commas():
@@ -206,3 +211,35 @@ def test_profile_toggle_command_disables_profile(tmp_path):
     collection = store.load_collection()
 
     assert profile.id not in collection.active_profile_ids
+
+
+class FakeMessage:
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.replies: list[str] = []
+
+    async def reply_text(self, text: str, **kwargs) -> None:
+        self.replies.append(text)
+
+
+def test_text_menu_handler_accepts_quick_search_text_without_removing_filters(tmp_path):
+    store = FilterProfileStore(tmp_path / "filters.json")
+    existing = store.add_profile("Бумага", keywords=("бумага",))
+    message = FakeMessage("строительные материалы Москва МО до 2 млн 44-ФЗ")
+    update = SimpleNamespace(message=message)
+    context = SimpleNamespace(
+        user_data={},
+        application=SimpleNamespace(bot_data={"filter_store": store}),
+    )
+
+    asyncio.run(text_menu_handler(update, context))
+    collection = store.load_collection()
+    quick_profile = next(profile for profile in collection.profiles if profile.id == QUICK_SEARCH_PROFILE_ID)
+
+    assert existing.id in {profile.id for profile in collection.profiles}
+    assert existing.id in collection.active_profile_ids
+    assert QUICK_SEARCH_PROFILE_ID in collection.active_profile_ids
+    assert quick_profile.profile.keywords == ("строительные материалы",)
+    assert message.replies
+    assert "Быстрый вход сохранен" in message.replies[0]
+    assert "Запустить быстрый поиск" in message.replies[0]

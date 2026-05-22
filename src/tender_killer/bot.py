@@ -11,6 +11,11 @@ from tender_killer.config import Settings
 from tender_killer.filter_store import FilterProfileCollection, FilterProfileStore, NamedFilterProfile
 from tender_killer.filters import FilterProfile, MultiProfileTenderFilter
 from tender_killer.pipeline import TenderPipeline, PipelineStats
+from tender_killer.quick_search import QUICK_SEARCH_PROFILE_ID
+from tender_killer.quick_search import QUICK_SEARCH_RUN_BUTTON
+from tender_killer.quick_search import format_quick_search_confirmation
+from tender_killer.quick_search import parse_quick_search_text
+from tender_killer.quick_search import save_quick_search_profile
 from tender_killer.sources import SOURCE_LABELS, build_adapters_for_collection, normalize_sources
 from tender_killer.storage import TenderStore
 from tender_killer.telegram import TelegramNotifier
@@ -191,8 +196,10 @@ def format_filter_profile(profile: FilterProfile) -> str:
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _reply(
         update,
-        f"{NOTIFICATION_ONLY_MESSAGE}\n\nЗдесь будут приходить новые подходящие закупки. "
-        "Для проверки состояния нажми «Статус источников» или отправь /sources_status.",
+        f"{NOTIFICATION_ONLY_MESSAGE}\n\n"
+        "Можно быстро создать профиль обычным текстом, например:\n"
+        "строительные материалы Москва МО до 2 млн 44-ФЗ\n\n"
+        "Я сохраню это как отдельный быстрый профиль, старые фильтры не удалю и предложу запустить поиск.",
     )
 
 
@@ -285,6 +292,22 @@ async def test_search_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     settings: Settings = context.application.bot_data["settings"]
     store = _store(context)
     stats = await asyncio.to_thread(_run_search, settings, store, str(update.effective_chat.id), "preview")
+    context.application.bot_data["last_stats"] = stats
+    await _reply(update, format_test_search_summary(stats))
+
+
+async def quick_search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.effective_chat:
+        return
+    quick_profile = _quick_profile(_store(context).load_collection())
+    if quick_profile is None:
+        await _reply(update, "Сначала опишите закупки обычным текстом, например: строительные материалы Москва МО до 2 млн 44-ФЗ")
+        return
+    await _reply(update, "Запускаю быстрый поиск по последнему quick-профилю.")
+    settings: Settings = context.application.bot_data["settings"]
+    store = _store(context)
+    collection = FilterProfileCollection(profiles=(quick_profile,), active_profile_ids=(quick_profile.id,))
+    stats = await asyncio.to_thread(_run_search, settings, store, str(update.effective_chat.id), "preview", collection)
     context.application.bot_data["last_stats"] = stats
     await _reply(update, format_test_search_summary(stats))
 
@@ -424,6 +447,8 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await _reply(update, NOTIFICATION_ONLY_MESSAGE)
     elif text == "Статус источников":
         await sources_status_command(update, context)
+    elif text == QUICK_SEARCH_RUN_BUTTON:
+        await quick_search_command(update, context)
     elif text.startswith("Редактировать "):
         profile_id = text.removeprefix("Редактировать ").strip()
         context.user_data["editing_profile_id"] = profile_id
@@ -449,7 +474,9 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         context.user_data["awaiting"] = "profile_edit_value"
         await _reply(update, f"Введите значение для поля `{text}`.\nПример: {FIELD_EXAMPLES[field]}")
     else:
-        await _reply(update, NOTIFICATION_ONLY_MESSAGE)
+        draft = parse_quick_search_text(text)
+        profile = save_quick_search_profile(_store(context), draft)
+        await _reply(update, format_quick_search_confirmation(profile, draft), reply_markup=_quick_search_keyboard())
 
 
 def format_search_summary(stats: PipelineStats) -> str:
@@ -541,8 +568,9 @@ def _run_search(
     store: FilterProfileStore,
     chat_id: str,
     notify_mode: str = "normal",
+    collection: FilterProfileCollection | None = None,
 ) -> PipelineStats:
-    collection = store.load_collection()
+    collection = collection or store.load_collection()
     pipeline = TenderPipeline(
         adapters=build_adapters_for_collection(collection, settings),
         store=TenderStore(settings.database_path),
@@ -558,6 +586,13 @@ def _store(context: ContextTypes.DEFAULT_TYPE) -> FilterProfileStore:
     return context.application.bot_data["filter_store"]
 
 
+def _quick_profile(collection: FilterProfileCollection) -> NamedFilterProfile | None:
+    for profile in collection.profiles:
+        if profile.id == QUICK_SEARCH_PROFILE_ID:
+            return profile
+    return None
+
+
 async def _reply(update: Update, text: str, reply_markup: ReplyKeyboardMarkup = MENU) -> None:
     if update.message:
         await update.message.reply_text(text, reply_markup=reply_markup, disable_web_page_preview=True)
@@ -567,6 +602,13 @@ def _profile_action_keyboard(collection: FilterProfileCollection, action: str) -
     rows = [[f"{action} {profile.id}"] for profile in collection.profiles]
     rows.append(["Профили", "Запустить поиск"])
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
+
+
+def _quick_search_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [[QUICK_SEARCH_RUN_BUTTON], ["Статус источников"]],
+        resize_keyboard=True,
+    )
 
 
 def _profile_field_keyboard() -> ReplyKeyboardMarkup:
