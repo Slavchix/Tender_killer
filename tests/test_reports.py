@@ -95,6 +95,29 @@ def test_build_tender_report_docx_contains_key_sections():
             "status": "needs_review",
             "confidence": 0.84,
         },
+        "economics": {
+            "status": "interesting",
+            "recommendation": "Маржа выглядит интересной, но требует проверки поставщика и условий исполнения.",
+            "revenue": 38064.0,
+            "supplier_cost": 25000.0,
+            "risk_reserve_rate_percent": 3.5,
+            "risk_reserve": 1332.24,
+            "estimated_total_cost": 26332.24,
+            "gross_margin": 11731.76,
+            "margin_percent": 30.82,
+            "missing_cost_inputs": [],
+            "risk_types": ["delivery", "warranty", "acceptance"],
+            "items": [
+                {
+                    "product_name": "Огнетушитель порошковый",
+                    "quantity": 5,
+                    "unit": "шт",
+                    "unit_cost": 5000.0,
+                    "total_cost": 25000.0,
+                    "extra_costs": 0.0,
+                }
+            ],
+        },
         "product_profiles": [
             {
                 "position_index": 1,
@@ -135,7 +158,10 @@ def test_build_tender_report_docx_contains_key_sections():
     assert "medium" in document_xml
     assert "Поставщик предоставляет сертификат соответствия." in document_xml
     assert "короткий срок поставки" in document_xml
-    assert "Будущий расчет экономики" in document_xml
+    assert "Черновик экономики" in document_xml
+    assert "Маржа" in document_xml
+    assert "30.82%" in document_xml
+    assert "Маржа выглядит интересной" in document_xml
     assert "<w:tbl>" in document_xml
     assert "Краткое решение" in document_xml
     assert "Документы и ТЗ" in document_xml

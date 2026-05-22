@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from tender_killer.models import ProductProfile
 from tender_killer.models import Tender
 from tender_killer.models import TenderDocument
 from tender_killer.models import TenderItem
@@ -71,3 +72,40 @@ def test_refresh_tender_detail_payload_saves_detail_and_rebuilds_profiles(tmp_pa
     detail = get_tender_payload(store.database_path, "mosreg_market", "3668200")
     assert detail["product_profile_summary"]["total"] == 1
     assert detail["product_profiles"][0]["product_name"] == "Office paper"
+
+
+def test_get_tender_payload_includes_economics_summary_from_product_profiles(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="economics-1",
+            url="https://market.mosreg.ru/Trade/ViewTrade/economics-1",
+            title="Paper tender",
+            price=100000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "economics-1",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="economics-1",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+                fulfillment_requirements=[{"type": "delivery", "source": "TZ.docx", "value": "Delivery 5 days."}],
+                raw_payload={"economics": {"unit_cost": 6000, "logistics_cost": 5000}},
+            )
+        ],
+    )
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "economics-1")
+
+    assert detail["economics"]["status"] == "interesting"
+    assert detail["economics"]["supplier_cost"] == 65000.0
+    assert detail["economics"]["risk_reserve"] == 1500.0
+    assert detail["economics"]["gross_margin"] == 33500.0

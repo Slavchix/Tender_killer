@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+from tender_killer.economics import build_economics_summary
+
+
+def test_build_economics_summary_calculates_margin_from_manual_profile_costs():
+    tender = {
+        "price": 100000.0,
+        "product_profiles": [
+            {
+                "product_name": "Бумага офисная А4",
+                "quantity": 10,
+                "unit": "пачка",
+                "raw_payload": {
+                    "economics": {
+                        "unit_cost": 6000,
+                        "logistics_cost": 5000,
+                        "documents_cost": 2000,
+                    }
+                },
+                "fulfillment_requirements": [
+                    {"type": "delivery", "source": "ТЗ.docx", "value": "Срок поставки 5 дней."},
+                    {"type": "warranty", "source": "ТЗ.docx", "value": "Гарантия 12 месяцев."},
+                    {"type": "acceptance", "source": "ТЗ.docx", "value": "Приемка через ЕИС."},
+                ],
+            }
+        ],
+    }
+
+    summary = build_economics_summary(tender)
+
+    assert summary["status"] == "interesting"
+    assert summary["revenue"] == 100000.0
+    assert summary["supplier_cost"] == 67000.0
+    assert summary["risk_reserve_rate_percent"] == 3.5
+    assert summary["risk_reserve"] == 3500.0
+    assert summary["estimated_total_cost"] == 70500.0
+    assert summary["gross_margin"] == 29500.0
+    assert summary["margin_percent"] == 29.5
+    assert summary["missing_cost_inputs"] == []
+    assert summary["items"][0]["total_cost"] == 60000.0
+    assert summary["items"][0]["extra_costs"] == 7000.0
+    assert "delivery" in summary["risk_types"]
+
+
+def test_build_economics_summary_requires_manual_costs_before_margin_decision():
+    tender = {
+        "price": 50000.0,
+        "product_profiles": [
+            {
+                "product_name": "Огнетушитель ОП-5",
+                "quantity": 5,
+                "unit": "шт",
+                "fulfillment_requirements": [{"type": "packaging", "source": "ТЗ.docx", "value": "Заводская упаковка."}],
+            }
+        ],
+    }
+
+    summary = build_economics_summary(tender)
+
+    assert summary["status"] == "needs_costs"
+    assert summary["revenue"] == 50000.0
+    assert summary["estimated_total_cost"] is None
+    assert summary["gross_margin"] is None
+    assert summary["margin_percent"] is None
+    assert summary["missing_cost_inputs"] == ["Огнетушитель ОП-5"]
+    assert summary["recommendation"] == "Нужно добавить закупочную себестоимость по позициям."

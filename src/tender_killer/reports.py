@@ -10,6 +10,7 @@ DocxElement = tuple[str, Any, str]
 
 def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
     analysis = tender.get("analysis") or {}
+    economics = tender.get("economics") or {}
     documents = tender.get("document_records") or []
     product_profiles = tender.get("product_profiles") or []
     product_profile_summary = _product_profile_summary(tender, product_profiles)
@@ -146,8 +147,7 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
             *_list_elements(analysis.get("risks") or ["Риски пока не найдены."]),
             _p("Красные флаги", "heading"),
             *_list_elements(analysis.get("red_flags") or ["Красные флаги пока не найдены."]),
-            _p("Будущий расчет экономики", "heading"),
-            _p("Минимальная возможная цена, найденные товары, поставщики, доставка, налоги, маржа и ставка будут добавлены после подключения товарного поиска и аналитиков.", "normal"),
+            *_economics_elements(economics),
         ]
     )
 
@@ -200,6 +200,42 @@ def _analysis_checklist_elements(analysis: dict[str, Any]) -> list[DocxElement]:
     if len(rows) == 1:
         return []
     return [_p("Проверочный список", "heading"), _table(rows)]
+
+
+def _economics_elements(economics: dict[str, Any]) -> list[DocxElement]:
+    if not economics:
+        return [
+            _p("Будущий расчет экономики", "heading"),
+            _p("Минимальная возможная цена, найденные товары, поставщики, доставка, налоги, маржа и ставка будут добавлены после подключения товарного поиска и аналитиков.", "normal"),
+        ]
+    rows = [
+        ["Статус", _economics_status(economics.get("status"))],
+        ["НМЦК/выручка", _money(economics.get("revenue"))],
+        ["Себестоимость поставщика", _money(economics.get("supplier_cost"))],
+        ["Резерв риска", f"{_money(economics.get('risk_reserve'))} / {_percent(economics.get('risk_reserve_rate_percent'))}"],
+        ["Итого затраты", _money(economics.get("estimated_total_cost"))],
+        ["Маржа", f"{_money(economics.get('gross_margin'))} / {_percent(economics.get('margin_percent'))}"],
+        ["Не хватает цен", ", ".join(economics.get("missing_cost_inputs") or []) or "нет"],
+        ["Риски исполнения", ", ".join(economics.get("risk_types") or []) or "нет"],
+    ]
+    elements = [_p("Черновик экономики", "heading"), _table(rows)]
+    if economics.get("recommendation"):
+        elements.append(_p(_value(economics.get("recommendation")), "normal"))
+    item_rows = [["Товар", "Кол-во", "Себестоимость", "Доп. расходы"]]
+    for item in economics.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        item_rows.append(
+            [
+                _value(item.get("product_name")),
+                f"{_value(item.get('quantity'))} {_value(item.get('unit'), '')}".strip(),
+                _money(item.get("total_cost")),
+                _money(item.get("extra_costs")),
+            ]
+        )
+    if len(item_rows) > 1:
+        elements.extend([_p("Позиции расчета", "heading2"), _table(item_rows)])
+    return elements
 
 
 def _profile_evidence_elements(profile: dict[str, Any]) -> list[DocxElement]:
@@ -356,6 +392,13 @@ def _money(value: Any) -> str:
         return "не указано"
 
 
+def _percent(value: Any) -> str:
+    try:
+        return f"{float(value):.2f}%"
+    except (TypeError, ValueError):
+        return "не указано"
+
+
 def _classifier_label(code: Any, classifier_type: Any) -> str:
     if code and classifier_type:
         return f"{classifier_type}: {code}"
@@ -378,6 +421,16 @@ def _analysis_status(value: Any) -> str:
         str(value or ""),
         "Нужна проверка",
     )
+
+
+def _economics_status(value: Any) -> str:
+    return {
+        "interesting": "интересно",
+        "manual_review": "ручная проверка",
+        "low_margin": "низкая маржа",
+        "needs_costs": "нужны себестоимости",
+        "needs_price": "нужна НМЦК",
+    }.get(str(value or ""), "ручная проверка")
 
 
 def _trim_text(value: str, limit: int) -> str:

@@ -542,3 +542,15 @@ Date: 2026-05-22.
 - SQLite persists the new field through `fulfillment_requirements_json`, including migration for existing `product_profiles` tables.
 - The product tab renders these rows under `Поставка и исполнение`, so the future economics workflow can see non-price obligations next to item characteristics.
 - Full verification after this slice: `181 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Economics checkpoint: draft margin summary
+
+Date: 2026-05-22.
+
+- Added `src/tender_killer/economics.py` as the first draft calculation service.
+- The calculation uses tender price as revenue, manual per-profile cost inputs from `profile.raw_payload.economics`, and fulfillment requirements to create a simple risk reserve.
+- `get_tender_payload(...)` now returns `economics` with status, recommendation, revenue, supplier cost, risk reserve, estimated total cost, gross margin, margin percent, missing cost inputs, risk types, and item rows.
+- Word reports render `Черновик экономики` when an economics payload is present.
+- The site has an `Экономика` tab in the tender card with the same summary and missing-cost prompts.
+- The service does not guess market prices; if supplier costs are absent, it returns `needs_costs`.
+- Full verification after this slice: `185 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.

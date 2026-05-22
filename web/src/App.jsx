@@ -900,6 +900,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     { id: 'products', label: `Товары ${productProfiles.length || tender.items?.length || 0}` },
     { id: 'documents', label: `Документы ${documentRecords.length}` },
     { id: 'analysis', label: 'Анализ' },
+    { id: 'economics', label: 'Экономика' },
     { id: 'workflow', label: 'Статус' },
   ]
 
@@ -1069,6 +1070,15 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
           </section>
         )}
 
+        {activeTab === 'economics' && (
+          <section className="detail-section active economics-section">
+            <div className="section-heading-row">
+              <h3>Экономика</h3>
+            </div>
+            <EconomicsSummary economics={tender.economics} />
+          </section>
+        )}
+
         {activeTab === 'workflow' && (
           <section className="detail-section active">
             <h3>Рабочий статус</h3>
@@ -1107,6 +1117,51 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
           </section>
         )}
       </div>
+    </div>
+  )
+}
+
+function EconomicsSummary({ economics }) {
+  if (!economics) {
+    return <p className="muted-text">Черновик экономики пока не рассчитан.</p>
+  }
+
+  const missingInputs = economics.missing_cost_inputs || []
+  const riskTypes = economics.risk_types || []
+  const items = economics.items || []
+
+  return (
+    <div className="economics-card">
+      <div className="analysis-status-row">
+        <strong>{economicsStatusLabel(economics.status)}</strong>
+        <span>Маржа: {formatPercent(economics.margin_percent)}</span>
+      </div>
+      {economics.recommendation && <p>{economics.recommendation}</p>}
+      <div className="economics-grid">
+        <Info label="НМЦК" value={formatMoney(economics.revenue)} />
+        <Info label="Себестоимость" value={formatMoney(economics.supplier_cost)} />
+        <Info label="Резерв риска" value={`${formatMoney(economics.risk_reserve)} · ${formatPercent(economics.risk_reserve_rate_percent)}`} />
+        <Info label="Итого затраты" value={formatMoney(economics.estimated_total_cost)} />
+        <Info label="Маржа" value={`${formatMoney(economics.gross_margin)} · ${formatPercent(economics.margin_percent)}`} />
+        <Info label="Риски исполнения" value={riskTypes.length ? riskTypes.join(', ') : 'нет'} />
+      </div>
+      {missingInputs.length > 0 && (
+        <div className="economics-warning">
+          <strong>Нужны цены</strong>
+          <p>{missingInputs.join(', ')}</p>
+        </div>
+      )}
+      {items.length > 0 && (
+        <div className="economics-items">
+          {items.map((item, index) => (
+            <div className="economics-item" key={`${item.product_name}-${index}`}>
+              <strong>{item.product_name}</strong>
+              <span>{formatQuantity(item.quantity, item.unit)}</span>
+              <span>{formatMoney(item.total_cost)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -1379,6 +1434,22 @@ function analysisStatusLabel(status) {
     interesting: 'Интересно',
     skipped: 'Пропустить',
   }[status] || status || 'Нужна проверка'
+}
+
+function economicsStatusLabel(status) {
+  return {
+    interesting: 'Интересно',
+    manual_review: 'Проверить',
+    low_margin: 'Низкая маржа',
+    needs_costs: 'Нужны цены',
+    needs_price: 'Нужна НМЦК',
+  }[status] || status || 'Проверить'
+}
+
+function formatPercent(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return 'не указано'
+  return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(number)}%`
 }
 
 function formatDateTime(value) {

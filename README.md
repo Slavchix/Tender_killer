@@ -39,6 +39,7 @@ Recent architecture cleanup:
 - Rule-based TZ analysis now emits an actionable checklist with category, severity, and source evidence for supplier-side checks.
 - The site renders the TZ checklist in the tender analysis tab, so supplier-side checks are visible without opening the Word report.
 - Product profiles now extract and persist fulfillment requirements for delivery, packaging, warranty, and acceptance; the product tab shows them as inputs for future economics.
+- Draft economics now calculates revenue, manual supplier cost, risk reserve, estimated total cost, gross margin, margin percent, and missing cost inputs.
 - The tender list has a page-size selector for 10/25/50/100 rows while keeping 25 as the default.
 - Local dev startup is guarded by `tender_killer.dev_health`, which checks both `/api/health` and `/api/sources/status` before the frontend starts.
 - Runtime/UI text encoding is guarded by `tender_killer.encoding_guard`; `dev_smoke` reuses it to catch Cyrillic mojibake regressions.
@@ -49,12 +50,12 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `181 passed`.
+Latest verified result before this handoff: `185 passed`.
 
 Good next steps:
 
-1. After architecture cleanup, return to deeper TZ extraction and product search/economics.
-2. Start margin/economics workflow once product search inputs are reliable.
+1. Add site controls to enter supplier unit cost/logistics/documents cost into product profile economics inputs.
+2. Continue product search inputs, then refine margin thresholds and recommendations.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.
 

@@ -53,3 +53,14 @@ def test_product_profile_renders_fulfillment_requirements():
     assert "fulfillmentRequirementTypeLabel" in source
     assert "Поставка и исполнение" in source
     assert find_mojibake(source, APP_SOURCE) == []
+
+
+def test_tender_details_render_economics_summary():
+    source = APP_SOURCE.read_text(encoding="utf-8")
+
+    assert "{ id: 'economics', label: 'Экономика' }" in source
+    assert "<EconomicsSummary economics={tender.economics} />" in source
+    assert "function EconomicsSummary" in source
+    assert "economicsStatusLabel" in source
+    assert "Маржа" in source
+    assert find_mojibake(source, APP_SOURCE) == []
