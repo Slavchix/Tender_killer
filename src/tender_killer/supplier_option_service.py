@@ -45,6 +45,53 @@ def add_profile_supplier_option(
     return {"ok": True}
 
 
+def select_profile_supplier_option(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+    option_index: int,
+) -> dict[str, Any]:
+    store = TenderStore(database_path)
+    store.initialize()
+    profiles = store.get_product_profiles(source, external_id)
+    if not profiles:
+        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+
+    target = None
+    for profile in profiles:
+        if int(profile.get("position_index") or 0) == position_index:
+            target = profile
+            break
+    if target is None:
+        raise KeyError(f"Product profile position {position_index} not found.")
+
+    raw_payload = dict(target.get("raw_payload") or {})
+    supplier_options = _supplier_options(raw_payload.get("supplier_options"))
+    if option_index < 0 or option_index >= len(supplier_options):
+        raise IndexError(f"Supplier option index {option_index} not found.")
+
+    selected_option = supplier_options[option_index]
+    for index, option in enumerate(supplier_options):
+        if index == option_index:
+            option["status"] = "selected"
+        elif option.get("status") == "selected":
+            option["status"] = "candidate"
+
+    raw_payload["supplier_options"] = supplier_options
+    raw_payload["selected_supplier_option_index"] = option_index
+    unit_price = _number(selected_option.get("unit_price"))
+    if unit_price is not None:
+        economics = dict(raw_payload.get("economics") or {})
+        economics["unit_cost"] = unit_price
+        raw_payload["economics"] = economics
+        target["profile_status"] = "priced"
+    target["raw_payload"] = raw_payload
+
+    store.upsert_product_profiles(source, external_id, profiles)
+    return {"ok": True}
+
+
 def _supplier_option(data: dict[str, Any]) -> dict[str, Any]:
     option: dict[str, Any] = {}
     for field in SUPPLIER_OPTION_TEXT_FIELDS:

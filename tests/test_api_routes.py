@@ -1,6 +1,7 @@
 from tender_killer.api_routes import (
     parse_database_table_path,
     parse_product_profile_economics_path,
+    parse_product_profile_supplier_option_select_path,
     parse_product_profile_supplier_options_path,
     parse_tender_path,
 )
@@ -56,4 +57,23 @@ def test_parse_product_profile_supplier_options_path_decodes_position_route() ->
     ) is None
     assert parse_product_profile_supplier_options_path(
         "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-options"
+    ) is None
+
+
+def test_parse_product_profile_supplier_option_select_path_decodes_option_route() -> None:
+    route = parse_product_profile_supplier_option_select_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/supplier-options/1/select"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+    assert route.option_index == 1
+
+    assert parse_product_profile_supplier_option_select_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/3/supplier-options/-1/select"
+    ) is None
+    assert parse_product_profile_supplier_option_select_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-options/1/select"
     ) is None

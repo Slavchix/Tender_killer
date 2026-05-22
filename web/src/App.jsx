@@ -1124,6 +1124,29 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       .finally(() => setSavingSupplierOptionPosition(null))
   }
 
+  function selectSupplierOption(profile, optionIndex) {
+    if (!profile?.position_index) return null
+    setSavingSupplierOptionPosition(profile.position_index)
+    setDetailStatus('')
+    return fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/supplier-options/${optionIndex}/select`, {
+      method: 'POST',
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось взять поставщика в расчет')))
+      .then((nextTender) => {
+        onTenderRefresh(nextTender)
+        setProductProfiles(nextTender.product_profiles || [])
+        setProductProfileSummary(nextTender.product_profile_summary || null)
+        setEconomics(nextTender.economics || null)
+        setDetailStatus('Поставщик взят в расчет')
+        return nextTender
+      })
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setSavingSupplierOptionPosition(null))
+  }
+
   const statusMessages = [detailStatus, notifyStatus, downloadStatus, extractStatus].filter(Boolean)
   const tabs = [
     { id: 'overview', label: 'Обзор' },
@@ -1310,6 +1333,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
             onSelectedEconomicsProfileChange={setSelectedProfileIndex}
             onEconomicsSave={saveProfileEconomics}
             onSupplierOptionSave={saveSupplierOption}
+            onSupplierOptionSelect={selectSupplierOption}
             savingEconomicsPosition={savingEconomicsPosition}
             savingSupplierOptionPosition={savingSupplierOptionPosition}
           />
@@ -1440,6 +1464,7 @@ function EconomicsTabPanel({
   onSelectedEconomicsProfileChange,
   onEconomicsSave,
   onSupplierOptionSave,
+  onSupplierOptionSelect,
   savingEconomicsPosition = null,
   savingSupplierOptionPosition = null,
 }) {
@@ -1501,7 +1526,12 @@ function EconomicsTabPanel({
                 <strong>{selectedEconomicsProfile.product_name || 'Без названия'}</strong>
               </div>
               <ProductEconomicsForm profile={selectedEconomicsProfile} onSave={onEconomicsSave} saving={savingEconomics} />
-              <ProductSupplierOptionsForm profile={selectedEconomicsProfile} onSave={onSupplierOptionSave} saving={savingSupplierOption} />
+              <ProductSupplierOptionsForm
+                profile={selectedEconomicsProfile}
+                onSave={onSupplierOptionSave}
+                onSelect={onSupplierOptionSelect}
+                saving={savingSupplierOption}
+              />
             </>
           ) : (
             <p className="muted-text">Сначала обнови детали закупки, чтобы появились товарные позиции.</p>
@@ -1863,7 +1893,7 @@ function economicsFormValues(economics = {}) {
   }
 }
 
-function ProductSupplierOptionsForm({ profile, onSave, saving = false }) {
+function ProductSupplierOptionsForm({ profile, onSave, onSelect, saving = false }) {
   const supplierOptions = Array.isArray(profile?.raw_payload?.supplier_options)
     ? profile.raw_payload.supplier_options
     : []
@@ -1966,7 +1996,10 @@ function ProductSupplierOptionsForm({ profile, onSave, saving = false }) {
       {supplierOptions.length ? (
         <div className="supplier-options-list">
           {supplierOptions.map((option, index) => (
-            <div className="supplier-option-row" key={`${option.url || option.name || 'supplier'}-${index}`}>
+            <div
+              className={option.status === 'selected' ? 'supplier-option-row selected' : 'supplier-option-row'}
+              key={`${option.url || option.name || 'supplier'}-${index}`}
+            >
               <div>
                 {option.url ? (
                   <a href={option.url} target="_blank" rel="noreferrer">{option.name || option.url}</a>
@@ -1977,6 +2010,14 @@ function ProductSupplierOptionsForm({ profile, onSave, saving = false }) {
               </div>
               <span>{formatMoney(option.unit_price)}</span>
               <em>{supplierAvailabilityLabel(option.availability)} · {supplierStatusLabel(option.status)}</em>
+              <button
+                className="supplier-select-button"
+                disabled={saving || !onSelect || option.status === 'selected'}
+                onClick={() => onSelect?.(profile, index)}
+                type="button"
+              >
+                {option.status === 'selected' ? 'В расчете' : 'В расчет'}
+              </button>
             </div>
           ))}
         </div>
@@ -2252,6 +2293,7 @@ function supplierAvailabilityLabel(value) {
 function supplierStatusLabel(value) {
   return {
     candidate: 'кандидат',
+    selected: 'в расчете',
     suitable: 'подходит',
     rejected: 'не подходит',
   }[value] || value || 'кандидат'

@@ -92,10 +92,15 @@ def test_product_profile_renders_supplier_option_form():
 
     assert "function ProductSupplierOptionsForm" in source
     assert "onSupplierOptionSave" in source
+    assert "selectSupplierOption" in source
+    assert "onSupplierOptionSelect" in source
     assert "product-profiles/${profile.position_index}/supplier-options" in source
+    assert "supplier-options/${optionIndex}/select" in source
     assert "supplier_options" in source
     assert "unit_price" in source
     assert "availability" in source
+    assert "В расчет" in source
+    assert "selected: 'в расчете'" in source
     assert "Поставщики" in source
     assert find_mojibake(source, APP_SOURCE) == []
 
@@ -108,7 +113,8 @@ def test_economics_tab_owns_product_costs_and_suppliers():
     assert "productProfiles" in app_source
     assert "selectedEconomicsProfileIndex" in app_source
     assert "<ProductEconomicsForm profile={selectedEconomicsProfile}" in app_source
-    assert "<ProductSupplierOptionsForm profile={selectedEconomicsProfile}" in app_source
+    assert "<ProductSupplierOptionsForm" in app_source
+    assert "profile={selectedEconomicsProfile}" in app_source
     assert "economics-workbench" in app_source
     assert ".economics-workbench" in styles_source
     assert find_mojibake(app_source, APP_SOURCE) == []
