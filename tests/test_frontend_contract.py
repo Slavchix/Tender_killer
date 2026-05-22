@@ -9,6 +9,12 @@ APP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "App.jsx"
 STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css"
 
 
+def _css_rule(source: str, selector: str) -> str:
+    start = source.index(selector)
+    end = source.index("}", start)
+    return source[start:end]
+
+
 def test_tender_cockpit_exposes_normalized_metadata_filters():
     source = APP_SOURCE.read_text(encoding="utf-8")
 
@@ -122,5 +128,37 @@ def test_tender_workbench_has_collapsible_filters_and_wider_list():
     assert ".workbench-layout.filters-collapsed" in styles_source
     assert "minmax(560px, 1.1fr)" in styles_source
     assert ".filters-panel.collapsed" in styles_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_tender_workflow_tabs_wrap_without_horizontal_scrollbar():
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    workflow_tabs_rule = _css_rule(styles_source, ".workflow-tabs")
+
+    assert "flex-wrap: wrap" in workflow_tabs_rule
+    assert "overflow-x: auto" not in workflow_tabs_rule
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_global_shell_exposes_dashboard_and_side_navigation():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "const viewLabels = {" in app_source
+    assert "dashboard: 'Дашборд'" in app_source
+    assert "tenders: 'Закупки'" in app_source
+    assert "const navItems = [" in app_source
+    assert "className=\"app-frame\"" in app_source
+    assert "className=\"app-sidebar\"" in app_source
+    assert "className=\"side-nav\"" in app_source
+    assert "setView(item.id)" in app_source
+    assert "function DashboardView" in app_source
+    assert "<DashboardView" in app_source
+    assert "view === 'dashboard'" in app_source
+    assert ".app-frame" in styles_source
+    assert ".app-sidebar" in styles_source
+    assert ".side-nav" in styles_source
+    assert ".dashboard-grid" in styles_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []

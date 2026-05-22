@@ -31,6 +31,18 @@ const workflowLabels = {
   archive: 'Архив',
 }
 
+const viewLabels = {
+  dashboard: 'Дашборд',
+  tenders: 'Закупки',
+  database: 'SQLite',
+}
+
+const navItems = [
+  { id: 'dashboard', label: viewLabels.dashboard, caption: 'Сводка', icon: Building2 },
+  { id: 'tenders', label: viewLabels.tenders, caption: 'Работа', icon: FileText },
+  { id: 'database', label: viewLabels.database, caption: 'Данные', icon: Database },
+]
+
 const sourceOptions = [
   { value: 'moscow_supplier_portal', label: 'Москва' },
   { value: 'mosreg_market', label: 'МО' },
@@ -115,7 +127,7 @@ function App() {
   const [error, setError] = useState('')
   const [searching, setSearching] = useState(false)
   const [searchSummary, setSearchSummary] = useState('')
-  const [view, setView] = useState('tenders')
+  const [view, setView] = useState('dashboard')
   const [filtersCollapsed, setFiltersCollapsed] = useState(false)
   const [sourceStatus, setSourceStatus] = useState([])
   const [sourceStatusError, setSourceStatusError] = useState('')
@@ -194,7 +206,16 @@ function App() {
     return { active, totalPrice }
   }, [tenders])
 
+  const workflowCounts = useMemo(() => {
+    return tenders.reduce((counts, item) => {
+      const status = item.workflow_status || 'new'
+      counts[status] = (counts[status] || 0) + 1
+      return counts
+    }, {})
+  }, [tenders])
+
   const activeFilterChips = useMemo(() => filterSummary(appliedFilters), [appliedFilters])
+  const pageTitle = viewLabels[view] || viewLabels.dashboard
 
   function updateFilter(name, value) {
     setFilters((current) => ({ ...current, [name]: value }))
@@ -312,44 +333,68 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <div>
-          <div className="eyebrow">Tender Killer</div>
-          <h1>Панель закупок</h1>
-        </div>
-        <div className="top-actions">
-          <button className="primary-action" disabled={searching} onClick={runSearch} type="button">
-            <PlayCircle size={18} />
-            {searching ? 'Поиск...' : 'Запустить поиск'}
-          </button>
-          <button className="icon-button" onClick={loadTenders} title="Обновить список">
-            <RefreshCcw size={18} />
-          </button>
-          <button className={`status-pill nav-pill ${view === 'database' ? 'active' : ''}`} onClick={() => setView(view === 'database' ? 'tenders' : 'database')} type="button">
-            <Database size={16} /> SQLite
-          </button>
-          <span className="status-pill"><Bell size={16} /> Telegram: уведомления</span>
-        </div>
-      </header>
+      <div className="app-frame">
+        <aside className="app-sidebar">
+          <div className="sidebar-brand">
+            <strong>Tender Killer</strong>
+            <span>Москва / МО</span>
+          </div>
+          <nav aria-label="Основная навигация" className="side-nav">
+            {navItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <button
+                  className={view === item.id ? 'active' : ''}
+                  key={item.id}
+                  onClick={() => setView(item.id)}
+                  type="button"
+                >
+                  <Icon size={18} />
+                  <span>{item.label}</span>
+                  <small>{item.caption}</small>
+                </button>
+              )
+            })}
+          </nav>
+        </aside>
 
-      <section className="metrics">
-        <Metric label="Найдено" value={tenderPage.total} />
-        <Metric label="Активные" value={stats.active} />
-        <Metric label="Сумма в выдаче" value={formatMoney(stats.totalPrice)} />
-        <Metric label="API" value={error ? 'ошибка' : 'ok'} tone={error ? 'danger' : 'good'} />
-      </section>
-      {searchSummary && <div className="run-summary">{searchSummary}</div>}
-      {view !== 'database' && (
-        <SourceStatusPanel
-          error={sourceStatusError}
-          onRefresh={loadSourceStatus}
-          sources={sourceStatus}
-        />
+        <section className="app-main">
+          <header className="topbar">
+            <div>
+              <div className="eyebrow">Tender Killer</div>
+              <h1>{pageTitle}</h1>
+            </div>
+            <div className="top-actions">
+              <button className="primary-action" disabled={searching} onClick={runSearch} type="button">
+                <PlayCircle size={18} />
+                {searching ? 'Поиск...' : 'Запустить поиск'}
+              </button>
+              <button className="icon-button" onClick={loadTenders} title="Обновить список">
+                <RefreshCcw size={18} />
+              </button>
+              <span className="status-pill"><Bell size={16} /> Telegram: уведомления</span>
+            </div>
+          </header>
+
+          {view === 'dashboard' && (
+            <DashboardView
+              error={error}
+              onOpenTenders={() => setView('tenders')}
+              onRefreshSources={loadSourceStatus}
+              searchSummary={searchSummary}
+              sourceStatusError={sourceStatusError}
+              sources={sourceStatus}
+              stats={stats}
+              tenderPage={tenderPage}
+              workflowCounts={workflowCounts}
+            />
+          )}
+
+          {view === 'database' && (
+        <DatabaseView />
       )}
 
-      {view === 'database' ? (
-        <DatabaseView />
-      ) : (
+          {view === 'tenders' && (
       <section className={filtersCollapsed ? 'workspace workbench-layout filters-collapsed' : 'workspace workbench-layout'}>
         <aside className={filtersCollapsed ? 'filters-panel collapsed' : 'filters-panel'}>
           <div className="filters-header">
@@ -563,6 +608,8 @@ function App() {
         </aside>
       </section>
       )}
+        </section>
+      </div>
     </main>
   )
 }
@@ -573,6 +620,48 @@ function Metric({ label, value, tone }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  )
+}
+
+function DashboardView({ tenderPage, stats, workflowCounts, sources, sourceStatusError, searchSummary, error, onRefreshSources, onOpenTenders }) {
+  const queue = [
+    { label: 'Новые', value: workflowCounts.new || 0 },
+    { label: 'Интересные', value: workflowCounts.interesting || 0 },
+    { label: 'В работе', value: workflowCounts.in_progress || 0 },
+    { label: 'Архив', value: workflowCounts.archive || 0 },
+  ]
+
+  return (
+    <section className="dashboard-view">
+      <section className="metrics">
+        <Metric label="Найдено" value={tenderPage.total} />
+        <Metric label="Активные" value={stats.active} />
+        <Metric label="Сумма в выдаче" value={formatMoney(stats.totalPrice)} />
+        <Metric label="API" value={error ? 'ошибка' : 'ok'} tone={error ? 'danger' : 'good'} />
+      </section>
+      {searchSummary && <div className="run-summary">{searchSummary}</div>}
+      <section className="dashboard-grid">
+        <SourceStatusPanel
+          error={sourceStatusError}
+          onRefresh={onRefreshSources}
+          sources={sources}
+        />
+        <section className="dashboard-panel">
+          <div className="panel-title"><FileText size={18} /> Очередь</div>
+          <div className="dashboard-kpis">
+            {queue.map((item) => (
+              <div key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+          <button className="primary-button dashboard-open-button" onClick={onOpenTenders} type="button">
+            Открыть закупки
+          </button>
+        </section>
+      </section>
+    </section>
   )
 }
 

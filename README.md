@@ -44,6 +44,7 @@ Recent architecture cleanup:
 - The site can save manual supplier candidates per product position: supplier name, URL, unit price, availability, status, and note.
 - Tender Workbench v1 makes the selected tender area wider, adds a compact decision summary, and splits product details into `Паспорт`, `Цены`, `Поставщики`, and `ТЗ` sub-tabs.
 - Tender filters are collapsible in the workbench, letting the tender list expand while preserving quick access to filter controls.
+- The site now has a global shell with left navigation for `Дашборд`, `Закупки`, and `SQLite`; the dashboard shows metrics, source state, and workflow queue counts.
 - The tender list has a page-size selector for 10/25/50/100 rows while keeping 25 as the default.
 - Local dev startup is guarded by `tender_killer.dev_health`, which checks both `/api/health` and `/api/sources/status` before the frontend starts.
 - Runtime/UI text encoding is guarded by `tender_killer.encoding_guard`; `dev_smoke` reuses it to catch Cyrillic mojibake regressions.
@@ -54,12 +55,12 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `196 passed`.
+Latest verified result before this handoff: `198 passed`.
 
 Good next steps:
 
-1. Let the user verify the new workbench layout, collapsible filters, supplier candidates, and economics inputs in the local UI.
-2. Connect a selected supplier candidate to economics inputs, then add the global dashboard/navigation shell.
+1. Let the user verify the new dashboard/sidebar, wrapped workflow tabs, collapsible filters, supplier candidates, and economics inputs in the local UI.
+2. Connect a selected supplier candidate to economics inputs, then split source diagnostics into a dedicated operational page if the dashboard starts to feel crowded.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.
 

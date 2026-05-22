@@ -597,3 +597,12 @@ Date: 2026-05-22.
 - Collapsing filters changes the desktop grid to give the tender list more width while keeping the selected tender detail visible on the right.
 - Mobile keeps a single-column layout and shows the filter title again when collapsed, so the control remains understandable on narrow screens.
 - Verification in this slice: frontend contract `9 passed`; JSX syntax parsed successfully through Babel parser in the Node REPL.
+
+## Frontend UX checkpoint: global shell and dashboard
+
+Date: 2026-05-22.
+
+- Fixed the tender workflow status row: buttons now wrap instead of forcing a horizontal scrollbar under the list header.
+- Added a global SaaS-style shell with left navigation for `Дашборд`, `Закупки`, and `SQLite`; filters remain inside the `Закупки` workbench and are not mixed with product navigation.
+- The app now opens on `Дашборд`, showing the existing metrics, source status, and workflow queue counts. `Закупки` keeps the workbench/list/card flow, and `SQLite` remains a separate data view.
+- Verification in this slice before full run: frontend contract `11 passed`; JSX syntax parsed successfully through Babel parser in the Node REPL.
