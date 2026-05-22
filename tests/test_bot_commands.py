@@ -90,24 +90,36 @@ def test_format_filter_profile_shows_sources_and_core_filters(tmp_path):
 def test_format_search_summary_shows_failed_source_names():
     text = format_search_summary(
         PipelineStats(
-            fetched=25,
+            fetched=126,
             saved=25,
-            matched=1,
-            notified=1,
+            matched=46,
+            matched_new=24,
+            matched_existing=22,
+            notified=5,
             failed_sources=1,
             failed_source_names=("moscow_supplier_portal",),
             failed_source_errors=("moscow_supplier_portal: HTTP Error 500",),
+            source_counts=(("moscow_supplier_portal", 24), ("mosreg_market", 22)),
+            law_counts=(("44-ФЗ", 26), ("223-ФЗ", 12), ("Запрос цен", 8)),
+            region_counts=(("Москва", 22), ("Московская область", 21)),
         )
     )
 
-    assert "FailedSources=1" in text
+    assert "Просмотрено: 126" in text
+    assert "Новых в базе: 25" in text
+    assert "Релевантных: 46" in text
+    assert "Новые релевантные: 24" in text
+    assert "Уже известных релевантных: 22" in text
+    assert "44-ФЗ: 26" in text
+    assert "Москва: 22" in text
+    assert "Москва: zakupki.mos.ru: 24" in text
     assert "Упали источники: moscow_supplier_portal" in text
     assert "moscow_supplier_portal: HTTP Error 500" in text
 
 
 def test_format_test_search_summary_explains_preview_mode():
     text = format_test_search_summary(
-        PipelineStats(fetched=50, saved=0, matched=2, notified=2, failed_sources=0)
+        PipelineStats(fetched=50, saved=0, matched=2, matched_new=0, matched_existing=2, notified=2, failed_sources=0)
     )
 
     assert "Тест поиска" in text

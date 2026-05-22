@@ -905,10 +905,15 @@ def test_run_search_payload_returns_pipeline_stats_and_notification_state(tmp_pa
         "fetched": 10,
         "saved": 2,
         "matched": 3,
+        "matched_new": 0,
+        "matched_existing": 0,
         "notified": 1,
         "failed_sources": 0,
         "failed_source_names": [],
         "failed_source_errors": [],
+        "source_counts": [],
+        "law_counts": [],
+        "region_counts": [],
     }
 
 

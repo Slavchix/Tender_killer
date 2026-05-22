@@ -49,6 +49,7 @@ Recent architecture cleanup:
 - The left navigation can collapse into an icon rail, and the dashboard now also surfaces attention items plus recent tender previews.
 - Dashboard cards share one aligned full-width grid, so metrics, source status, queue, attention items, and recent tenders read as one organized workspace.
 - The tender list has a page-size selector for 10/25/50/100 rows while keeping 25 as the default.
+- Search runs now return readable statistics: new/existing relevant matches plus breakdowns by law, region, and source for Telegram summaries and `/api/search/run`.
 - Local dev startup is guarded by `tender_killer.dev_health`, which checks both `/api/health` and `/api/sources/status` before the frontend starts.
 - Runtime/UI text encoding is guarded by `tender_killer.encoding_guard`; `dev_smoke` reuses it to catch Cyrillic mojibake regressions.
 
@@ -58,12 +59,12 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `206 passed`.
+Latest verified result before this handoff: `207 passed`.
 
 Good next steps:
 
 1. Let the user verify the new dashboard/sidebar, collapsing navigation rail, wrapped workflow tabs, collapsible filters, supplier candidates, and economics inputs in the local UI.
-2. Continue the competitor-inspired Telegram slice: improve search stats, then shorten Telegram tender cards with action buttons.
+2. Continue the competitor-inspired Telegram slice: shorten Telegram tender cards with action buttons.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.
 

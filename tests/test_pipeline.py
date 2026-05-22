@@ -157,6 +157,49 @@ def test_pipeline_new_only_notification_mode_sends_new_tenders(tmp_path):
     assert len(notifier.messages) == 1
 
 
+def test_pipeline_stats_tracks_matched_breakdowns(tmp_path):
+    existing = Tender(
+        source="mosreg_market",
+        external_id="existing",
+        url="https://example.test/existing",
+        title="Поставка кабеля",
+        customer="ГБУ",
+        region="Московская область",
+        status="active",
+        raw_payload={"law": "223-ФЗ"},
+    )
+    fresh = Tender(
+        source="moscow_supplier_portal",
+        external_id="fresh",
+        url="https://example.test/fresh",
+        title="Поставка бумаги",
+        customer="ГБУ",
+        region="Москва",
+        status="active",
+        raw_payload={"law": "44-ФЗ"},
+    )
+    store = TenderStore(tmp_path / "db.sqlite")
+    store.initialize()
+    store.upsert_tender(existing)
+    pipeline = TenderPipeline(
+        adapters=[StaticAdapter([existing, fresh])],
+        store=store,
+        material_filter=MaterialFilter(("поставка",)),
+        notifier=SpyNotifier(),
+    )
+
+    stats = pipeline.run()
+
+    assert stats.fetched == 2
+    assert stats.saved == 1
+    assert stats.matched == 2
+    assert stats.matched_new == 1
+    assert stats.matched_existing == 1
+    assert stats.source_counts == (("moscow_supplier_portal", 1), ("mosreg_market", 1))
+    assert stats.law_counts == (("223-ФЗ", 1), ("44-ФЗ", 1))
+    assert stats.region_counts == (("Москва", 1), ("Московская область", 1))
+
+
 def test_pipeline_preview_resends_matched_tenders_without_marking_notifications(tmp_path):
     tender = Tender(
         source="static",

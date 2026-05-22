@@ -633,3 +633,13 @@ Date: 2026-05-22.
 - Existing filters/profiles are preserved. The quick profile is upserted separately and can be used for an immediate preview search.
 - Telegram `text_menu_handler` now treats unknown free text as quick-entry setup and replies with a parsed summary plus `Запустить быстрый поиск`.
 - Added competitor notes in `docs/competitors/zakupkiassistant-analysis.md`.
+
+## Competitor-inspired Telegram checkpoint: search statistics
+
+Date: 2026-05-22.
+
+- `PipelineStats` now separates relevant matches into `matched_new` and `matched_existing`.
+- Search stats now include compact breakdowns by source, law, and region, collected only for tenders that matched active filters.
+- Telegram `/search`, `/test_search`, and `/sources_status` now show readable Russian summaries instead of raw `Fetched/Saved/Matched` counters.
+- `/api/search/run` exposes the same structured counters through `source_counts`, `law_counts`, and `region_counts`, so the site can later render a competitor-style search results panel.
+- Full verification after this slice: `207 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.

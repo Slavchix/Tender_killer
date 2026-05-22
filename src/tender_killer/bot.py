@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from telegram import ReplyKeyboardMarkup, Update
@@ -16,7 +17,7 @@ from tender_killer.quick_search import QUICK_SEARCH_RUN_BUTTON
 from tender_killer.quick_search import format_quick_search_confirmation
 from tender_killer.quick_search import parse_quick_search_text
 from tender_killer.quick_search import save_quick_search_profile
-from tender_killer.sources import SOURCE_LABELS, build_adapters_for_collection, normalize_sources
+from tender_killer.sources import SOURCE_ALIASES, SOURCE_LABELS, build_adapters_for_collection, normalize_sources
 from tender_killer.storage import TenderStore
 from tender_killer.telegram import TelegramNotifier
 
@@ -481,10 +482,20 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 def format_search_summary(stats: PipelineStats) -> str:
     lines = [
-        "Готово: Fetched={fetched} Saved={saved} Matched={matched} "
-        "Notified={notified} FailedSources={failed_sources}".format(**stats.__dict__)
+        "Поиск завершен",
+        "",
+        f"Просмотрено: {stats.fetched}",
+        f"Новых в базе: {stats.saved}",
+        f"Релевантных: {stats.matched}",
+        f"Новые релевантные: {stats.matched_new}",
+        f"Уже известных релевантных: {stats.matched_existing}",
+        f"Отправлено уведомлений: {stats.notified}",
     ]
+    _append_count_section(lines, "По законам", stats.law_counts)
+    _append_count_section(lines, "По регионам", stats.region_counts)
+    _append_count_section(lines, "По источникам", stats.source_counts, labeler=_source_label)
     if stats.failed_source_names:
+        lines.append("")
         lines.append(f"Упали источники: {', '.join(stats.failed_source_names)}")
     if stats.failed_source_errors:
         lines.append("Ошибки:")
@@ -495,8 +506,8 @@ def format_search_summary(stats: PipelineStats) -> str:
 def format_test_search_summary(stats: PipelineStats) -> str:
     return "\n".join(
         [
-            "Тест поиска: Fetched={fetched} Saved={saved} Matched={matched} "
-            "Sent={notified} FailedSources={failed_sources}".format(**stats.__dict__),
+            "Тест поиска",
+            format_search_summary(stats),
             "В этом режиме подходящие карточки отправлены повторно и не помечены как новые уведомления.",
         ]
     )
@@ -535,14 +546,38 @@ def format_sources_status(stats: PipelineStats | None) -> str:
     lines = [
         "Статус источников",
         "",
-        "Последний запуск: Fetched={fetched} Saved={saved} Matched={matched} "
-        "Notified={notified} FailedSources={failed_sources}".format(**stats.__dict__),
+        "Последний запуск",
+        f"Просмотрено: {stats.fetched}",
+        f"Новых в базе: {stats.saved}",
+        f"Релевантных: {stats.matched}",
+        f"Отправлено уведомлений: {stats.notified}",
     ]
+    _append_count_section(lines, "По источникам", stats.source_counts, labeler=_source_label)
     if stats.failed_source_errors:
         lines.append("")
         lines.append("Ошибки:")
         lines.extend(stats.failed_source_errors)
     return "\n".join(lines)
+
+
+def _append_count_section(
+    lines: list[str],
+    title: str,
+    counts: tuple[tuple[str, int], ...],
+    labeler: Callable[[str], str] | None = None,
+) -> None:
+    if not counts:
+        return
+    lines.append("")
+    lines.append(f"{title}:")
+    for value, count in counts:
+        label = labeler(value) if labeler else value
+        lines.append(f"{label}: {count}")
+
+
+def _source_label(source: str) -> str:
+    normalized = SOURCE_ALIASES.get(source.strip().lower())
+    return SOURCE_LABELS.get(normalized or source, source)
 
 
 async def _update_filter(update: Update, context: ContextTypes.DEFAULT_TYPE, command: str, args: str) -> None:

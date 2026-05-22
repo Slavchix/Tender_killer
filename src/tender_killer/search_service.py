@@ -46,8 +46,17 @@ def _stats_payload(stats: PipelineStats) -> dict[str, Any]:
         "fetched": stats.fetched,
         "saved": stats.saved,
         "matched": stats.matched,
+        "matched_new": stats.matched_new,
+        "matched_existing": stats.matched_existing,
         "notified": stats.notified,
         "failed_sources": stats.failed_sources,
         "failed_source_names": list(stats.failed_source_names),
         "failed_source_errors": list(stats.failed_source_errors),
+        "source_counts": _count_rows(stats.source_counts),
+        "law_counts": _count_rows(stats.law_counts),
+        "region_counts": _count_rows(stats.region_counts),
     }
+
+
+def _count_rows(rows: tuple[tuple[str, int], ...]) -> list[dict[str, Any]]:
+    return [{"value": value, "count": count} for value, count in rows]

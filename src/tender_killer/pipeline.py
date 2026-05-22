@@ -8,6 +8,7 @@ from tender_killer.adapters.base import BaseAdapter
 from tender_killer.filters import TenderFilter
 from tender_killer.storage import TenderStore
 from tender_killer.telegram import TelegramNotifier, build_tender_message
+from tender_killer.tender_metadata import normalize_law
 
 LOGGER = logging.getLogger(__name__)
 
@@ -17,10 +18,15 @@ class PipelineStats:
     fetched: int = 0
     saved: int = 0
     matched: int = 0
+    matched_new: int = 0
+    matched_existing: int = 0
     notified: int = 0
     failed_sources: int = 0
     failed_source_names: tuple[str, ...] = ()
     failed_source_errors: tuple[str, ...] = ()
+    source_counts: tuple[tuple[str, int], ...] = ()
+    law_counts: tuple[tuple[str, int], ...] = ()
+    region_counts: tuple[tuple[str, int], ...] = ()
 
 
 class TenderPipeline:
@@ -42,9 +48,12 @@ class TenderPipeline:
 
     def run(self) -> PipelineStats:
         self.store.initialize()
-        fetched = saved = matched = notified = failed_sources = 0
+        fetched = saved = matched = matched_new = matched_existing = notified = failed_sources = 0
         failed_source_names: list[str] = []
         failed_source_errors: list[str] = []
+        source_counts: dict[str, int] = {}
+        law_counts: dict[str, int] = {}
+        region_counts: dict[str, int] = {}
 
         for adapter in self.adapters:
             checkpoint = self.store.get_source_checkpoint(adapter.source)
@@ -75,6 +84,13 @@ class TenderPipeline:
                 if not filter_result.matched:
                     continue
                 matched += 1
+                if result.created:
+                    matched_new += 1
+                else:
+                    matched_existing += 1
+                _increment_count(source_counts, tender.source)
+                _increment_count(law_counts, normalize_law(tender.raw_payload) or "Не указан")
+                _increment_count(region_counts, tender.region or "Не указан")
 
                 if self.notify_mode == "new_only" and not result.created:
                     continue
@@ -89,10 +105,15 @@ class TenderPipeline:
             fetched=fetched,
             saved=saved,
             matched=matched,
+            matched_new=matched_new,
+            matched_existing=matched_existing,
             notified=notified,
             failed_sources=failed_sources,
             failed_source_names=tuple(failed_source_names),
             failed_source_errors=tuple(failed_source_errors),
+            source_counts=_sorted_counts(source_counts),
+            law_counts=_sorted_counts(law_counts),
+            region_counts=_sorted_counts(region_counts),
         )
 
 
@@ -127,3 +148,12 @@ def _as_aware_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def _increment_count(counts: dict[str, int], value: str | None) -> None:
+    key = str(value or "").strip() or "Не указан"
+    counts[key] = counts.get(key, 0) + 1
+
+
+def _sorted_counts(counts: dict[str, int]) -> tuple[tuple[str, int], ...]:
+    return tuple(sorted(counts.items(), key=lambda item: (-item[1], item[0].casefold())))
