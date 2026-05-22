@@ -21,6 +21,7 @@ from tender_killer.sources import SOURCE_ALIASES, SOURCE_LABELS, build_adapters_
 from tender_killer.storage import TenderStore
 from tender_killer.telegram import TelegramNotifier
 from tender_killer.telegram import parse_tender_action
+from tender_killer.telegram_chat_service import remember_telegram_chat
 from tender_killer.tender_detail_service import get_tender_payload
 
 LOGGER = logging.getLogger(__name__)
@@ -197,6 +198,7 @@ def format_filter_profile(profile: FilterProfile) -> str:
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    _remember_chat(update, context)
     await _reply(
         update,
         f"{NOTIFICATION_ONLY_MESSAGE}\n\n"
@@ -280,6 +282,7 @@ async def profile_toggle_command(update: Update, context: ContextTypes.DEFAULT_T
 async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.effective_chat:
         return
+    _remember_chat(update, context)
     await _reply(update, "Запускаю поиск по текущим фильтрам.")
     settings: Settings = context.application.bot_data["settings"]
     store = _store(context)
@@ -291,6 +294,7 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def test_search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.effective_chat:
         return
+    _remember_chat(update, context)
     await _reply(update, "Запускаю тест поиска: подходящие карточки будут показаны даже если уже приходили.")
     settings: Settings = context.application.bot_data["settings"]
     store = _store(context)
@@ -302,6 +306,7 @@ async def test_search_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def quick_search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.effective_chat:
         return
+    _remember_chat(update, context)
     quick_profile = _quick_profile(_store(context).load_collection())
     if quick_profile is None:
         await _reply(update, "Сначала опишите закупки обычным текстом, например: строительные материалы Москва МО до 2 млн 44-ФЗ")
@@ -316,6 +321,7 @@ async def quick_search_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def sources_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    _remember_chat(update, context)
     await _reply(update, format_sources_status(context.application.bot_data.get("last_stats")))
 
 
@@ -348,6 +354,7 @@ async def tender_action_callback(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def deprecated_interactive_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    _remember_chat(update, context)
     await _reply(update, NOTIFICATION_ONLY_MESSAGE)
 
 
@@ -376,6 +383,7 @@ async def auto_search_loop(application: Application) -> None:
 async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message or not update.message.text:
         return
+    _remember_chat(update, context)
     text = update.message.text.strip()
     awaiting = context.user_data.get("awaiting")
     if awaiting == "profile_new_name":
@@ -710,6 +718,16 @@ def _run_search(
 
 def _store(context: ContextTypes.DEFAULT_TYPE) -> FilterProfileStore:
     return context.application.bot_data["filter_store"]
+
+
+def _remember_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat = getattr(update, "effective_chat", None)
+    if not chat:
+        return
+    settings = context.application.bot_data.get("settings")
+    if settings is None:
+        return
+    remember_telegram_chat(settings.database_path, chat.id)
 
 
 def _quick_profile(collection: FilterProfileCollection) -> NamedFilterProfile | None:

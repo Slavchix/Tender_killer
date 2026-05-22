@@ -653,3 +653,14 @@ Date: 2026-05-22.
 - `TelegramNotifier.send(...)` can send Telegram `reply_markup`, and both pipeline notifications and manual site notifications pass the new inline keyboard.
 - Bot callback handling for `Документы` and `Анализ` reads the local SQLite tender payload and replies with saved document links or saved analysis/checklist. It does not submit applications, log in, sign, or mutate procurement data.
 - Full verification after this slice: `212 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Telegram site notification diagnostics checkpoint
+
+Date: 2026-05-22.
+
+- Root cause of the site `TG` button appearing to do nothing: `/api/tenders/{source}/{external_id}/notify` returned `sent=false` when the API process did not have Telegram settings, and the UI only showed a generic `Telegram не настроен`.
+- Added local `app_state` table plus `telegram_chat_service.py`; the bot stores the last chat id after user interaction, so the site can reuse it when `TELEGRAM_CHAT_ID` is not set.
+- The API still requires `TELEGRAM_BOT_TOKEN` in the API process environment; the token is not stored in SQLite.
+- Manual notification payloads now return explicit `reason`, `missing`, and `message` fields for missing Telegram settings or send failure.
+- The React tender card now displays the backend message, so the user sees which setting is missing instead of a silent/no-op feeling.
+- Full verification after this slice: `216 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.

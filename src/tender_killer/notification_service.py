@@ -10,6 +10,7 @@ from tender_killer.normalization import parse_datetime
 from tender_killer.telegram import TelegramNotifier
 from tender_killer.telegram import build_tender_actions
 from tender_killer.telegram import build_tender_message
+from tender_killer.telegram_chat_service import get_remembered_telegram_chat_id
 from tender_killer.tender_detail_service import get_tender_payload
 
 
@@ -19,12 +20,38 @@ def send_tender_notification_payload(
     external_id: str,
     settings: Any,
     notifier: Any | None = None,
+    notifier_factory=TelegramNotifier,
 ) -> dict[str, Any]:
     tender_payload = get_tender_payload(database_path, source, external_id)
-    sender = notifier or TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id, dry_run=settings.dry_run)
     tender = _payload_to_tender(tender_payload)
+    if notifier is None:
+        bot_token = getattr(settings, "telegram_bot_token", None)
+        chat_id = getattr(settings, "telegram_chat_id", None) or get_remembered_telegram_chat_id(database_path)
+        missing = []
+        if not bot_token:
+            missing.append("TELEGRAM_BOT_TOKEN")
+        if not chat_id:
+            missing.append("TELEGRAM_CHAT_ID")
+        if missing:
+            return {
+                "ok": False,
+                "sent": False,
+                "reason": "missing_telegram_settings",
+                "missing": missing,
+                "message": _missing_settings_message(missing),
+            }
+        sender = notifier_factory(bot_token, chat_id, dry_run=settings.dry_run)
+    else:
+        sender = notifier
     sent = sender.send(build_tender_message(tender, ["manual:site"]), reply_markup=build_tender_actions(tender))
-    return {"ok": True, "sent": bool(sent)}
+    if not sent:
+        return {
+            "ok": False,
+            "sent": False,
+            "reason": "telegram_send_failed",
+            "message": "Telegram настроен, но API Telegram не подтвердил отправку.",
+        }
+    return {"ok": True, "sent": True}
 
 
 def _payload_to_tender(payload: dict[str, Any]) -> Tender:
@@ -70,3 +97,14 @@ def _json_object(value: str | None) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _missing_settings_message(missing: list[str]) -> str:
+    if missing == ["TELEGRAM_CHAT_ID"]:
+        return (
+            "Не задан TELEGRAM_CHAT_ID. Напишите боту любое сообщение или задайте "
+            "TELEGRAM_CHAT_ID перед запуском сайта."
+        )
+    if missing == ["TELEGRAM_BOT_TOKEN"]:
+        return "Не задан TELEGRAM_BOT_TOKEN для API сайта. Запустите сайт с тем же токеном, что и бота."
+    return "Telegram не настроен для API сайта: задайте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID."

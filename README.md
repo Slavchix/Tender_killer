@@ -38,6 +38,7 @@ Recent architecture cleanup:
 - Search run orchestration is isolated in `src/tender_killer/search_service.py`.
 - Telegram now supports a quick-entry profile: send a natural-language request like `строительные материалы Москва МО до 2 млн 44-ФЗ`, and the bot saves it as a separate `quick-entry` profile without deleting existing filters.
 - Telegram tender notifications now use compact cards with inline buttons for opening the source, showing saved documents, and showing saved analysis.
+- Manual site-to-Telegram sending now reports missing Telegram configuration explicitly. The bot remembers the last chat id in local SQLite after any user message, so the site can reuse it when `TELEGRAM_BOT_TOKEN` is available to the API process.
 - Rule-based TZ analysis now emits an actionable checklist with category, severity, and source evidence for supplier-side checks.
 - The site renders the TZ checklist in the tender analysis tab, so supplier-side checks are visible without opening the Word report.
 - Product profiles now extract and persist fulfillment requirements for delivery, packaging, warranty, and acceptance; the product tab shows them as inputs for future economics.
@@ -60,7 +61,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `212 passed`.
+Latest verified result before this handoff: `216 passed`.
 
 Good next steps:
 
@@ -174,6 +175,7 @@ $env:TENDER_KILLER_AUTO_SEARCH_MINUTES="30"
 
 - Можно отправить обычный текст, например `строительные материалы Москва МО до 2 млн 44-ФЗ`. Бот сохранит отдельный быстрый профиль `quick-entry` и предложит запустить поиск только по нему. Старые фильтры и профили останутся на месте.
 - Карточки найденных закупок короткие: название, площадка/закон, сумма/срок, заказчик/регион, фильтр и ссылка. Под карточкой есть кнопки `Открыть источник`, `Документы`, `Анализ`; документы и анализ берутся из локальной SQLite, если они уже сохранены.
+- Чтобы кнопка `TG` на сайте отправляла выбранную закупку, API сайта должен быть запущен с `TELEGRAM_BOT_TOKEN`. `TELEGRAM_CHAT_ID` можно не задавать вручную после того, как вы написали боту любое сообщение: бот сохранит последний chat id в локальную SQLite, и сайт использует его для ручной отправки.
 - `Настроить поиск` - мастер создания профиля: шаблон, закон, этап, регион, цена, ОКПД2, площадки.
 - `/profiles` - показать профили и их id.
 - `/profile_new Бумага` - создать новый профиль.

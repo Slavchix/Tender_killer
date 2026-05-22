@@ -25,6 +25,7 @@ def test_initialize_schema_creates_core_tables_and_columns():
         "tender_documents",
         "tender_analysis",
         "product_profiles",
+        "app_state",
     }.issubset(tables)
     assert {"classifier_code", "classifier_type"}.issubset(_columns(connection, "tender_items"))
     assert {"text_content", "text_extracted_at", "text_error"}.issubset(_columns(connection, "tender_documents"))

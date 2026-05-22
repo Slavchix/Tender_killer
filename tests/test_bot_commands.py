@@ -21,6 +21,7 @@ from tender_killer.filter_store import FilterProfileCollection, FilterProfileSto
 from tender_killer.filters import FilterProfile
 from tender_killer.pipeline import PipelineStats
 from tender_killer.quick_search import QUICK_SEARCH_PROFILE_ID
+from tender_killer.telegram_chat_service import get_remembered_telegram_chat_id
 
 
 def test_parse_csv_args_accepts_spaces_and_commas():
@@ -272,6 +273,10 @@ class FakeMessage:
         self.replies.append(text)
 
 
+class FakeChat:
+    id = 777
+
+
 def test_text_menu_handler_accepts_quick_search_text_without_removing_filters(tmp_path):
     store = FilterProfileStore(tmp_path / "filters.json")
     existing = store.add_profile("Бумага", keywords=("бумага",))
@@ -293,3 +298,23 @@ def test_text_menu_handler_accepts_quick_search_text_without_removing_filters(tm
     assert message.replies
     assert "Быстрый вход сохранен" in message.replies[0]
     assert "Запустить быстрый поиск" in message.replies[0]
+
+
+def test_text_menu_handler_remembers_chat_id_for_site_notifications(tmp_path):
+    store = FilterProfileStore(tmp_path / "filters.json")
+    database_path = tmp_path / "tenders.sqlite"
+    message = FakeMessage("строительные материалы Москва")
+    update = SimpleNamespace(message=message, effective_chat=FakeChat())
+    context = SimpleNamespace(
+        user_data={},
+        application=SimpleNamespace(
+            bot_data={
+                "filter_store": store,
+                "settings": SimpleNamespace(database_path=database_path),
+            }
+        ),
+    )
+
+    asyncio.run(text_menu_handler(update, context))
+
+    assert get_remembered_telegram_chat_id(database_path) == "777"

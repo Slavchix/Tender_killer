@@ -12,6 +12,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
     ensure_analysis_table(connection)
     ensure_product_profiles_table(connection)
     ensure_source_runs_table(connection)
+    ensure_app_state_table(connection)
 
 
 def ensure_tenders_table(connection: sqlite3.Connection) -> None:
@@ -209,6 +210,18 @@ def ensure_source_runs_table(connection: sqlite3.Connection) -> None:
         """
     )
     ensure_source_run_columns(connection)
+
+
+def ensure_app_state_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS app_state (
+            key TEXT NOT NULL PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
 
 
 def ensure_document_text_columns(connection: sqlite3.Connection) -> None:

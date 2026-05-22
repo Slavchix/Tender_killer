@@ -973,7 +973,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       method: 'POST',
     })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось отправить в Telegram')))
-      .then((payload) => setNotifyStatus(payload.sent ? 'Отправлено в Telegram' : 'Telegram не настроен'))
+      .then((payload) => setNotifyStatus(payload.message || (payload.sent ? 'Отправлено в Telegram' : 'Telegram не настроен')))
       .catch((err) => setNotifyStatus(err.message))
       .finally(() => setSending(false))
   }

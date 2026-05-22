@@ -217,3 +217,10 @@ def test_dashboard_layout_uses_aligned_full_width_grid():
     assert "minmax(360px, 0.9fr) minmax(0, 1.1fr)" in dashboard_secondary_rule
     assert "height: 100%" in dashboard_children_rule
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_tender_notify_uses_backend_message_for_configuration_errors():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+
+    assert "payload.message || (payload.sent ? 'Отправлено в Telegram' : 'Telegram не настроен')" in app_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
