@@ -78,6 +78,20 @@ def test_build_tender_report_docx_contains_key_sections():
             "requirements": ["сертификат/декларация", "срок поставки"],
             "risks": ["короткий срок поставки"],
             "red_flags": ["национальный режим/страна происхождения"],
+            "checklist": [
+                {
+                    "label": "сертификат/декларация",
+                    "category": "documents",
+                    "severity": "medium",
+                    "evidence": "Поставщик предоставляет сертификат соответствия.",
+                },
+                {
+                    "label": "короткий срок поставки",
+                    "category": "delivery",
+                    "severity": "high",
+                    "evidence": "Срок поставки 3 дня.",
+                },
+            ],
             "status": "needs_review",
             "confidence": 0.84,
         },
@@ -116,6 +130,10 @@ def test_build_tender_report_docx_contains_key_sections():
     assert "КОЗ-2" in document_xml
     assert "Огнетушитель порошковый 28.29.22.110" in document_xml
     assert "сертификат/декларация" in document_xml
+    assert "Проверочный список" in document_xml
+    assert "documents" in document_xml
+    assert "medium" in document_xml
+    assert "Поставщик предоставляет сертификат соответствия." in document_xml
     assert "короткий срок поставки" in document_xml
     assert "Будущий расчет экономики" in document_xml
     assert "<w:tbl>" in document_xml

@@ -198,6 +198,7 @@ def _analysis_row_to_payload(row: sqlite3.Row) -> dict[str, Any]:
     payload["risks"] = _json_list(payload.pop("risks_json"))
     payload["red_flags"] = _json_list(payload.pop("red_flags_json"))
     payload["raw_payload"] = _json_object(payload.pop("raw_payload_json"))
+    payload["checklist"] = payload["raw_payload"].get("checklist", [])
     payload["status"] = payload.pop("recommended_status")
     return payload
 

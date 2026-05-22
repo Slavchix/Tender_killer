@@ -55,6 +55,10 @@ def test_analyze_tender_payload_saves_structured_summary_from_extracted_text(tmp
     assert "сертификат/декларация" in payload["analysis"]["requirements"]
     assert "обеспечение исполнения контракта" in payload["analysis"]["risks"]
     assert "национальный режим/страна происхождения" in payload["analysis"]["red_flags"]
+    assert payload["analysis"]["checklist"][0]["label"] == "сертификат/декларация"
+    assert payload["analysis"]["checklist"][0]["category"] == "documents"
+    assert "Поставщик обязан предоставить сертификат" in payload["analysis"]["checklist"][0]["evidence"]
 
     detail = get_tender_payload(store.database_path, "mosreg_market", "3668200")
     assert detail["analysis"]["summary"] == payload["analysis"]["summary"]
+    assert detail["analysis"]["checklist"] == payload["analysis"]["checklist"]

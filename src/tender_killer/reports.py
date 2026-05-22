@@ -139,6 +139,7 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
         [
             _p("Выжимка ТЗ", "heading"),
             _p(_value(analysis.get("summary"), "Анализ ТЗ еще не выполнен."), "normal"),
+            *_analysis_checklist_elements(analysis),
             _p("Требования", "heading"),
             *_list_elements(analysis.get("requirements") or ["Требования пока не найдены."]),
             _p("Риски", "heading"),
@@ -178,6 +179,27 @@ def _table(rows: list[list[Any]]) -> DocxElement:
 
 def _list_elements(values: list[Any]) -> list[DocxElement]:
     return [_p(f"- {_value(value)}", "normal") for value in values]
+
+
+def _analysis_checklist_elements(analysis: dict[str, Any]) -> list[DocxElement]:
+    checklist = analysis.get("checklist") or []
+    if not isinstance(checklist, list) or not checklist:
+        return []
+    rows = [["Категория", "Проверка", "Важность", "Фрагмент"]]
+    for item in checklist:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            [
+                _value(item.get("category")),
+                _value(item.get("label")),
+                _value(item.get("severity")),
+                _value(item.get("evidence"), ""),
+            ]
+        )
+    if len(rows) == 1:
+        return []
+    return [_p("Проверочный список", "heading"), _table(rows)]
 
 
 def _profile_evidence_elements(profile: dict[str, Any]) -> list[DocxElement]:

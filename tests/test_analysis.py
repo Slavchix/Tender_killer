@@ -28,6 +28,31 @@ def test_analyze_tender_texts_extracts_supplier_requirements_and_red_flags():
     assert "штрафы/пени" in result.risks
 
 
+def test_analyze_tender_texts_builds_actionable_checklist_with_evidence():
+    result = analyze_tender_texts(
+        [
+            """
+            Техническое задание: поставка бумаги офисной.
+            Бумага должна соответствовать ГОСТ Р 57641-2017.
+            Поставщик предоставляет декларацию о соответствии.
+            Гарантийный срок на товар не менее 12 месяцев.
+            Срок поставки: 5 календарных дней.
+            """
+        ]
+    )
+
+    labels = [item["label"] for item in result.checklist]
+    assert "ГОСТ/ТУ" in labels
+    assert "сертификат/декларация" in labels
+    assert "гарантия" in labels
+    assert "срок поставки" in labels
+
+    warranty = next(item for item in result.checklist if item["label"] == "гарантия")
+    assert warranty["category"] == "contract"
+    assert warranty["severity"] == "medium"
+    assert "12 месяцев" in warranty["evidence"]
+
+
 def test_analyze_tender_texts_handles_empty_text_cautiously():
     result = analyze_tender_texts(["", "   "])
 

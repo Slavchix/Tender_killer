@@ -14,6 +14,7 @@ class TenderAnalysisResult:
     status: str = "needs_review"
     confidence: float = 0.1
     matches: dict[str, list[str]] = field(default_factory=dict)
+    checklist: list[dict[str, str]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -25,6 +26,7 @@ RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("requirements", "срок поставки", ("срок постав",)),
     ("requirements", "приемка через ЕИС", ("приемка", "еис")),
     ("requirements", "ГОСТ/ТУ", ("гост", "техническ")),
+    ("requirements", "гарантия", ("гарантийн", "гарантия")),
     ("risks", "обеспечение исполнения контракта", ("обеспечение исполнения", "независимая гарантия")),
     ("risks", "штрафы/пени", ("штраф", "пеня", "пени")),
     ("risks", "короткий срок поставки", ("в течение 3", "в течение трех", "3 рабочих")),
@@ -36,6 +38,21 @@ RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("red_flags", "реестр российской продукции", ("реестр российской промышленной продукции", "ррпп", "рпп", "ерпт")),
     ("red_flags", "лицензия/СРО", ("лиценз", "сро")),
 )
+
+RULE_METADATA: dict[str, tuple[str, str]] = {
+    "сертификат/декларация": ("documents", "medium"),
+    "паспорт качества": ("documents", "medium"),
+    "срок поставки": ("delivery", "medium"),
+    "приемка через ЕИС": ("acceptance", "medium"),
+    "ГОСТ/ТУ": ("standards", "medium"),
+    "гарантия": ("contract", "medium"),
+    "обеспечение исполнения контракта": ("financial", "high"),
+    "штрафы/пени": ("financial", "medium"),
+    "короткий срок поставки": ("delivery", "high"),
+    "национальный режим/страна происхождения": ("national_regime", "high"),
+    "реестр российской продукции": ("national_regime", "high"),
+    "лицензия/СРО": ("legal", "high"),
+}
 
 
 def analyze_tender_texts(texts: list[str]) -> TenderAnalysisResult:
@@ -52,12 +69,14 @@ def analyze_tender_texts(texts: list[str]) -> TenderAnalysisResult:
     risks: list[str] = []
     red_flags: list[str] = []
     matches: dict[str, list[str]] = {}
+    checklist: list[dict[str, str]] = []
 
     for bucket, label, needles in RULES:
         found = [needle for needle in needles if needle in lower_text]
         if not found:
             continue
         matches[label] = found
+        _append_checklist_item(checklist, label, _evidence_for_needles(text, found))
         if bucket == "requirements":
             _append_unique(requirements, label)
         elif bucket == "risks":
@@ -75,6 +94,7 @@ def analyze_tender_texts(texts: list[str]) -> TenderAnalysisResult:
         status="needs_review",
         confidence=confidence,
         matches=matches,
+        checklist=checklist,
     )
 
 
@@ -102,3 +122,35 @@ def _clean_text(value: str) -> str:
 def _append_unique(values: list[str], value: str) -> None:
     if value not in values:
         values.append(value)
+
+
+def _append_checklist_item(values: list[dict[str, str]], label: str, evidence: str) -> None:
+    if any(item["label"] == label for item in values):
+        return
+    category, severity = RULE_METADATA.get(label, ("general", "medium"))
+    values.append(
+        {
+            "label": label,
+            "category": category,
+            "severity": severity,
+            "evidence": evidence,
+        }
+    )
+
+
+def _evidence_for_needles(text: str, needles: list[str]) -> str:
+    lower_needles = [needle.casefold() for needle in needles]
+    for sentence in _sentences(text):
+        normalized = sentence.casefold()
+        if any(needle in normalized for needle in lower_needles):
+            return _trim(sentence, 260)
+    return ""
+
+
+def _sentences(text: str) -> list[str]:
+    return [part.strip() for part in re.split(r"(?<=[.!?])\s+", text) if part.strip()]
+
+
+def _trim(value: str, limit: int) -> str:
+    cleaned = _clean_text(value)
+    return cleaned if len(cleaned) <= limit else f"{cleaned[:limit].rstrip()}..."

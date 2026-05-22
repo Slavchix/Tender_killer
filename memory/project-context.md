@@ -512,3 +512,14 @@ Date: 2026-05-21.
 - Added `src/tender_killer/api_handlers.py` so GET/POST route dispatch lives outside `web_api.py`; `web_api.py` now reads request bodies and serializes responses, while the handler module chooses the service.
 - Cleanup before product work: removed ignored pytest/cache/build artifacts from the workspace, removed old `web_api.py` service re-export imports, and added a regression test that keeps `web_api.py` as a thin HTTP adapter.
 - Latest full verification in this slice: `177 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Product analysis checkpoint: actionable TZ checklist
+
+Date: 2026-05-21.
+
+- Started the product layer before economics by improving rule-based TZ analysis.
+- `analyze_tender_texts(...)` still returns backward-compatible `requirements`, `risks`, and `red_flags`, but now also returns `checklist`.
+- Each checklist row has `label`, `category`, `severity`, and `evidence`, so later economics/margin work can ask concrete questions like: which documents are required, what delivery risk exists, whether national regime applies, and what proof fragment triggered the flag.
+- `get_tender_payload(...)` lifts the checklist from `tender_analysis.raw_payload_json` into `analysis.checklist`.
+- Word reports now include a `Проверочный список` section under `Выжимка ТЗ`.
+- Full verification after this slice: `178 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
