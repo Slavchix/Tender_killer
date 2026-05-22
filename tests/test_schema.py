@@ -25,6 +25,7 @@ def test_initialize_schema_creates_core_tables_and_columns():
         "tender_documents",
         "tender_analysis",
         "product_profiles",
+        "tender_price_snapshots",
         "app_state",
     }.issubset(tables)
     assert {"classifier_code", "classifier_type"}.issubset(_columns(connection, "tender_items"))
@@ -32,6 +33,25 @@ def test_initialize_schema_creates_core_tables_and_columns():
     assert {"search_phrases_json", "evidence_json", "raw_payload_json"}.issubset(
         _columns(connection, "product_profiles")
     )
+
+
+def test_schema_creates_tender_price_snapshots_table(tmp_path):
+    database_path = tmp_path / "db.sqlite"
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        initialize_schema(connection)
+        columns = _columns(connection, "tender_price_snapshots")
+
+    assert {
+        "id",
+        "source",
+        "external_id",
+        "price_kind",
+        "price",
+        "currency",
+        "observed_at",
+        "raw_payload_json",
+    }.issubset(columns)
 
 
 def test_initialize_schema_migrates_legacy_minimal_tables():

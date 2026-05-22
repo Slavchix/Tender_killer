@@ -82,6 +82,7 @@ class TenderStore:
                 """,
                 payload,
             )
+            self._record_price_snapshot(connection, tender, "nmc", tender.price)
             self._replace_items(connection, tender)
             self._replace_documents(connection, tender)
             connection.execute(
@@ -273,6 +274,44 @@ class TenderStore:
         connection = sqlite3.connect(self.database_path)
         connection.row_factory = sqlite3.Row
         return connection
+
+    def _record_price_snapshot(
+        self,
+        connection: sqlite3.Connection,
+        tender: Tender,
+        price_kind: str,
+        price: float | None,
+    ) -> None:
+        if price is None:
+            return
+        latest = connection.execute(
+            """
+            SELECT price
+            FROM tender_price_snapshots
+            WHERE source = ? AND external_id = ? AND price_kind = ?
+            ORDER BY observed_at DESC, id DESC
+            LIMIT 1
+            """,
+            (tender.source, tender.external_id, price_kind),
+        ).fetchone()
+        if latest is not None and float(latest["price"]) == float(price):
+            return
+        connection.execute(
+            """
+            INSERT INTO tender_price_snapshots (
+                source, external_id, price_kind, price, currency, raw_payload_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                tender.source,
+                tender.external_id,
+                price_kind,
+                float(price),
+                tender.currency or "RUB",
+                json.dumps(tender.raw_payload, ensure_ascii=False),
+            ),
+        )
 
     def _serialize(self, tender: Tender) -> dict[str, Any]:
         return {

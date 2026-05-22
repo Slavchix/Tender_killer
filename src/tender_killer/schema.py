@@ -5,6 +5,7 @@ import sqlite3
 
 def initialize_schema(connection: sqlite3.Connection) -> None:
     ensure_tenders_table(connection)
+    ensure_price_snapshots_table(connection)
     ensure_notifications_table(connection)
     ensure_items_table(connection)
     ensure_workflow_table(connection)
@@ -49,6 +50,31 @@ def ensure_tenders_table(connection: sqlite3.Connection) -> None:
         """
     )
     ensure_tender_normalized_columns(connection)
+
+
+def ensure_price_snapshots_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tender_price_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            price_kind TEXT NOT NULL,
+            price REAL NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'RUB',
+            observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            raw_payload_json TEXT NOT NULL DEFAULT '{}',
+            FOREIGN KEY (source, external_id) REFERENCES tenders(source, external_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_tender_price_snapshots_lookup
+        ON tender_price_snapshots(source, external_id, price_kind, observed_at)
+        """
+    )
 
 
 def ensure_notifications_table(connection: sqlite3.Connection) -> None:
