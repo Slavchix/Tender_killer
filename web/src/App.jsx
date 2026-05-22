@@ -842,6 +842,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
           requirements: [],
           risks: [],
           red_flags: ['ошибка анализа'],
+          checklist: [],
           status: 'needs_review',
           confidence: 0,
         })
@@ -1057,6 +1058,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
                   <span>Уверенность: {formatConfidence(analysis.confidence)}</span>
                 </div>
                 <p>{analysis.summary}</p>
+                <AnalysisChecklist items={analysis.checklist} />
                 <AnalysisList title="Требования" items={analysis.requirements} empty="Явные требования пока не найдены" />
                 <AnalysisList title="Риски" items={analysis.risks} empty="Явные риски пока не найдены" />
                 <AnalysisList title="Красные флаги" items={analysis.red_flags} empty="Критичные признаки пока не найдены" danger />
@@ -1244,6 +1246,36 @@ function AnalysisList({ title, items = [], empty, danger = false }) {
   )
 }
 
+function AnalysisChecklist({ items = [] }) {
+  const normalizedItems = (Array.isArray(items) ? items : [])
+    .filter((item) => item && typeof item === 'object' && item.label)
+
+  if (!normalizedItems.length) return null
+
+  return (
+    <div className="analysis-checklist">
+      <div className="analysis-checklist-header">
+        <span>Проверочный список</span>
+        <strong>{normalizedItems.length}</strong>
+      </div>
+      <div className="analysis-checklist-list">
+        {normalizedItems.map((item, index) => (
+          <article className={`analysis-checklist-row severity-${item.severity || 'medium'}`} key={`${item.label}-${index}`}>
+            <div className="analysis-checklist-main">
+              <strong>{item.label}</strong>
+              <div className="analysis-checklist-tags">
+                <span>{analysisCategoryLabel(item.category)}</span>
+                <span>{analysisSeverityLabel(item.severity)}</span>
+              </div>
+            </div>
+            {item.evidence && <p>{item.evidence}</p>}
+          </article>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function normalizeListItems(items = []) {
   return (Array.isArray(items) ? items : [items])
     .map((item) => {
@@ -1253,6 +1285,29 @@ function normalizeListItems(items = []) {
       return JSON.stringify(item)
     })
     .filter(Boolean)
+}
+
+function analysisCategoryLabel(category) {
+  const labels = {
+    acceptance: 'приемка',
+    contract: 'контракт',
+    delivery: 'доставка',
+    documents: 'документы',
+    financial: 'финансы',
+    legal: 'право',
+    national_regime: 'нацрежим',
+    standards: 'стандарты',
+  }
+  return labels[category] || category || 'общее'
+}
+
+function analysisSeverityLabel(severity) {
+  const labels = {
+    high: 'важно',
+    medium: 'проверить',
+    low: 'низкий риск',
+  }
+  return labels[severity] || severity || 'проверить'
 }
 
 function shouldAutoRefreshDetails(tender) {

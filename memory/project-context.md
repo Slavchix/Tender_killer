@@ -523,3 +523,12 @@ Date: 2026-05-21.
 - `get_tender_payload(...)` lifts the checklist from `tender_analysis.raw_payload_json` into `analysis.checklist`.
 - Word reports now include a `Проверочный список` section under `Выжимка ТЗ`.
 - Full verification after this slice: `178 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Product UI checkpoint: TZ checklist in analysis tab
+
+Date: 2026-05-22.
+
+- After pushing the backend/report checklist slice, the React tender details panel now renders `analysis.checklist` in the `Анализ` tab.
+- The UI keeps the existing summary/requirements/risks/red-flags blocks, and adds a compact `Проверочный список` with category, importance, and evidence text.
+- This makes the supplier-side checks visible in the main site flow instead of hiding them only inside the Word report.
+- Full verification after this slice: `179 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.

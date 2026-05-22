@@ -1053,6 +1053,80 @@ textarea:focus {
   color: #f0c1a7;
 }
 
+.analysis-checklist {
+  display: grid;
+  gap: 8px;
+}
+
+.analysis-checklist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #9bb2aa;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.analysis-checklist-header strong {
+  min-width: 24px;
+  padding: 2px 7px;
+  color: #0d160f;
+  text-align: center;
+  background: #8bdc7a;
+  border-radius: 999px;
+}
+
+.analysis-checklist-list {
+  display: grid;
+  gap: 7px;
+}
+
+.analysis-checklist-row {
+  display: grid;
+  gap: 6px;
+  padding: 9px 10px;
+  background: #18231f;
+  border: 1px solid #33443d;
+  border-left: 3px solid #8bdc7a;
+  border-radius: 7px;
+}
+
+.analysis-checklist-row.severity-high {
+  border-left-color: #f0c1a7;
+}
+
+.analysis-checklist-row p {
+  color: #c8d8d2;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.analysis-checklist-main {
+  display: grid;
+  gap: 6px;
+}
+
+.analysis-checklist-main strong {
+  color: #eef8f2;
+  font-size: 13px;
+}
+
+.analysis-checklist-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.analysis-checklist-tags span {
+  padding: 3px 7px;
+  color: #b8cbc4;
+  font-size: 11px;
+  font-weight: 800;
+  background: #24322d;
+  border: 1px solid #3a4a43;
+  border-radius: 999px;
+}
+
 .workflow-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

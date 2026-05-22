@@ -31,3 +31,15 @@ def test_tender_cockpit_exposes_page_size_selector():
     assert "На странице" in source
     assert "Закупок на странице" in source
     assert find_mojibake(source, APP_SOURCE) == []
+
+
+def test_tender_analysis_renders_actionable_checklist():
+    source = APP_SOURCE.read_text(encoding="utf-8")
+
+    assert "<AnalysisChecklist items={analysis.checklist} />" in source
+    assert "function AnalysisChecklist" in source
+    assert "Проверочный список" in source
+    assert "analysis-checklist" in source
+    assert "analysisCategoryLabel" in source
+    assert "analysisSeverityLabel" in source
+    assert find_mojibake(source, APP_SOURCE) == []
