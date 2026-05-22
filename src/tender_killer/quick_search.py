@@ -15,16 +15,35 @@ ACTIVE_STATUSES = ("прием предложений", "прием заявок
 CONSTRUCTION_MATERIAL_KEYWORDS = (
     "стройматериал",
     "материал",
+    "отделочн",
     "смесь",
     "шпатлев",
     "штукатур",
     "цемент",
+    "бетон",
     "крепеж",
     "саморез",
     "краск",
     "лак",
     "эмаль",
-    "инструмент",
+    "лакокрас",
+    "пиломатериал",
+    "гипсокартон",
+    "грунтовк",
+    "герметик",
+    "клей",
+)
+CONSTRUCTION_MATERIAL_EXCLUDE_KEYWORDS = (
+    "услуг",
+    "работ",
+    "контрол",
+    "дорог",
+    "автомобил",
+    "информацион",
+    "медицин",
+    "картридж",
+    "оргтехник",
+    "аптеч",
 )
 
 
@@ -50,10 +69,11 @@ def parse_quick_search_text(text: str) -> QuickSearchDraft:
     working = _remove_regions(working)
 
     keyword_text = _keywords_from_text(working) or original_text
-    keywords = _expand_quick_keywords(keyword_text)
+    keywords = expand_quick_search_keywords(keyword_text)
+    exclude_keywords = expand_quick_search_exclude_keywords(keyword_text)
     profile = FilterProfile(
         keywords=keywords,
-        exclude_keywords=(),
+        exclude_keywords=exclude_keywords,
         regions=regions,
         sources=("moscow", "mosreg"),
         laws=laws,
@@ -91,10 +111,14 @@ def save_quick_search_profile(store: FilterProfileStore, draft: QuickSearchDraft
 def normalize_quick_search_profile(profile: FilterProfile) -> FilterProfile:
     if len(profile.keywords) != 1:
         return profile
-    keywords = _expand_quick_keywords(profile.keywords[0])
+    keywords = expand_quick_search_keywords(profile.keywords[0])
+    exclude_keywords = _merge_keywords(
+        profile.exclude_keywords,
+        expand_quick_search_exclude_keywords(profile.keywords[0]),
+    )
     if keywords == profile.keywords:
-        return profile
-    return replace(profile, keywords=keywords)
+        return replace(profile, exclude_keywords=exclude_keywords) if exclude_keywords != profile.exclude_keywords else profile
+    return replace(profile, keywords=keywords, exclude_keywords=exclude_keywords)
 
 
 def format_quick_search_confirmation(profile: NamedFilterProfile, draft: QuickSearchDraft) -> str:
@@ -230,11 +254,26 @@ def _keywords_from_text(text: str) -> str:
     return " ".join(cleaned).strip()
 
 
-def _expand_quick_keywords(text: str) -> tuple[str, ...]:
+def expand_quick_search_keywords(text: str) -> tuple[str, ...]:
     normalized = text.lower().replace("ё", "е")
     if "стройматериал" in normalized or ("строительн" in normalized and "материал" in normalized):
         return CONSTRUCTION_MATERIAL_KEYWORDS
     return (text,)
+
+
+def expand_quick_search_exclude_keywords(text: str) -> tuple[str, ...]:
+    normalized = text.lower().replace("ё", "е")
+    if "стройматериал" in normalized or ("строительн" in normalized and "материал" in normalized):
+        return CONSTRUCTION_MATERIAL_EXCLUDE_KEYWORDS
+    return ()
+
+
+def _merge_keywords(left: tuple[str, ...], right: tuple[str, ...]) -> tuple[str, ...]:
+    values: list[str] = []
+    for keyword in (*left, *right):
+        if keyword not in values:
+            values.append(keyword)
+    return tuple(values)
 
 
 def _format_list(values: tuple[str, ...]) -> str:

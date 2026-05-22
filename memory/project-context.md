@@ -664,3 +664,15 @@ Date: 2026-05-22.
 - Manual notification payloads now return explicit `reason`, `missing`, and `message` fields for missing Telegram settings or send failure.
 - The React tender card now displays the backend message, so the user sees which setting is missing instead of a silent/no-op feeling.
 - Full verification after this slice: `216 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Quick search and document extraction checkpoint
+
+Date: 2026-05-22.
+
+- Root cause of Telegram quick search returning `Релевантных: 0` for `строительные материалы`: the phrase was treated as one exact keyword both in the bot quick profile and in the site search collection.
+- `quick_search.py` now expands `строительные материалы` / `стройматериалы` into construction-material terms (`стройматериал`, `материал`, `смесь`, `цемент`, `краск`, `крепеж`, etc.) and adds stop words for obvious non-material matches (`услуг`, `работ`, `информацион`, `медицин`, `картридж`, etc.).
+- Site `/api/search` and list `q` filtering reuse the same expansion. List filtering searches visible tender fields instead of raw JSON, so broad terms do not match hidden payload noise.
+- Added local `.env` support in `Settings.from_env`; `.env` is ignored by Git. This lets the API site and bot share `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` without retyping PowerShell env vars each run.
+- Document extraction now distinguishes unsupported files from empty text. RAR archives and true legacy binary `.doc` files are marked `unsupported`; simple `.doc` text/HTML/RTF-like files can be extracted heuristically.
+- Updated the local ignored `filters.json` quick-entry profile and re-extracted text statuses for `mosreg_market/3673016`; SQLite now shows unsupported `.doc`/`.rar` clearly instead of `empty`.
+- Full verification after this slice: `228 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.

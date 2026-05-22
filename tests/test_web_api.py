@@ -945,6 +945,18 @@ def test_build_search_collection_uses_site_filters_for_manual_search():
     assert profile.max_price == 200000.0
 
 
+def test_build_search_collection_expands_construction_material_query():
+    collection = build_search_collection({"filters": {"q": "строительные материалы", "status": "active"}})
+
+    profile = collection.active_profiles()[0].profile
+
+    assert "стройматериал" in profile.keywords
+    assert "материал" in profile.keywords
+    assert "краск" in profile.keywords
+    assert "услуг" in profile.exclude_keywords
+    assert "работ" in profile.exclude_keywords
+
+
 def test_build_search_collection_supports_multiselect_site_filters():
     collection = build_search_collection(
         {

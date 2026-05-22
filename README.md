@@ -169,6 +169,14 @@ $env:TENDER_KILLER_AUTO_SEARCH_MINUTES="30"
 .\.venv\Scripts\python.exe -m tender_killer.bot
 ```
 
+Те же переменные можно хранить в локальном `.env` в корне проекта. Файл игнорируется Git, чтобы токен бота не попал в репозиторий:
+
+```text
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+TENDER_KILLER_FILTERS=filters.json
+```
+
 Для авто-поиска в фоне добавьте `TELEGRAM_CHAT_ID`. Без него ручной `/search` работает, но фоновой рассылке некуда писать.
 
 Команды:

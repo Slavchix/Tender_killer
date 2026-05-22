@@ -12,16 +12,36 @@ from tender_killer.quick_search import (
 EXPECTED_CONSTRUCTION_MATERIAL_KEYWORDS = (
     "стройматериал",
     "материал",
+    "отделочн",
     "смесь",
     "шпатлев",
     "штукатур",
     "цемент",
+    "бетон",
     "крепеж",
     "саморез",
     "краск",
     "лак",
     "эмаль",
-    "инструмент",
+    "лакокрас",
+    "пиломатериал",
+    "гипсокартон",
+    "грунтовк",
+    "герметик",
+    "клей",
+)
+
+EXPECTED_CONSTRUCTION_MATERIAL_EXCLUDES = (
+    "услуг",
+    "работ",
+    "контрол",
+    "дорог",
+    "автомобил",
+    "информацион",
+    "медицин",
+    "картридж",
+    "оргтехник",
+    "аптеч",
 )
 
 
@@ -31,6 +51,7 @@ def test_parse_quick_search_text_extracts_region_law_price_and_keywords():
     assert draft.original_text == "строительные материалы в Москве и Московской области до 2 млн 44-ФЗ"
     assert draft.title == "строительные материалы"
     assert draft.profile.keywords == EXPECTED_CONSTRUCTION_MATERIAL_KEYWORDS
+    assert draft.profile.exclude_keywords == EXPECTED_CONSTRUCTION_MATERIAL_EXCLUDES
     assert draft.profile.regions == ("Москва", "Московская область")
     assert draft.profile.laws == ("44-ФЗ",)
     assert draft.profile.max_price == 2_000_000
@@ -54,6 +75,7 @@ def test_parse_quick_search_text_expands_stroymaterialy_alias():
 
     assert draft.title == "стройматериалы"
     assert draft.profile.keywords == EXPECTED_CONSTRUCTION_MATERIAL_KEYWORDS
+    assert draft.profile.exclude_keywords == EXPECTED_CONSTRUCTION_MATERIAL_EXCLUDES
     assert draft.profile.regions == ("Москва",)
 
 
@@ -63,6 +85,7 @@ def test_normalize_quick_search_profile_expands_saved_legacy_construction_phrase
     normalized = quick_search.normalize_quick_search_profile(legacy_profile)
 
     assert normalized.keywords == EXPECTED_CONSTRUCTION_MATERIAL_KEYWORDS
+    assert normalized.exclude_keywords == EXPECTED_CONSTRUCTION_MATERIAL_EXCLUDES
     assert normalized.regions == ("Москва",)
 
 
@@ -94,7 +117,7 @@ def test_format_quick_search_confirmation_shows_parsed_profile(tmp_path):
 
     assert "Быстрый вход сохранен" in text
     assert "Запрос: строительные материалы Москва МО до 2 млн 44-ФЗ" in text
-    assert "Ключевые слова: стройматериал, материал, смесь" in text
+    assert "Ключевые слова: стройматериал, материал, отделочн" in text
     assert "Регионы: Москва, Московская область" in text
     assert "Цена: любая - 2 000 000" in text
     assert "Запустить быстрый поиск" in text

@@ -13,6 +13,21 @@ def test_settings_reads_filter_profile_path(monkeypatch):
     assert settings.bot_auto_search_minutes == 0
 
 
+def test_settings_reads_local_dotenv_when_environment_missing(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    (tmp_path / ".env").write_text(
+        "TELEGRAM_BOT_TOKEN=token-from-dotenv\nTELEGRAM_CHAT_ID=777\n",
+        encoding="utf-8",
+    )
+
+    settings = Settings.from_env()
+
+    assert settings.telegram_bot_token == "token-from-dotenv"
+    assert settings.telegram_chat_id == "777"
+
+
 def test_settings_has_no_filter_profile_by_default(monkeypatch):
     monkeypatch.delenv("TENDER_KILLER_FILTERS", raising=False)
 

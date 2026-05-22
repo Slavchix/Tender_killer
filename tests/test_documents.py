@@ -79,6 +79,36 @@ def test_docx_extractor_reads_document_text(tmp_path):
     assert "Office paper whiteness 146 CIE" in result.text
 
 
+def test_legacy_doc_extractor_reads_cp1251_text(tmp_path):
+    path = tmp_path / "spec.doc"
+    path.write_bytes("Срок поставки 10 календарных дней".encode("cp1251"))
+
+    result = DocumentTextExtractor().extract(path)
+
+    assert result.status == "ok"
+    assert "Срок поставки 10 календарных дней" in result.text
+
+
+def test_binary_doc_extractor_reports_unsupported_status(tmp_path):
+    path = tmp_path / "binary.doc"
+    path.write_bytes(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 128)
+
+    result = DocumentTextExtractor().extract(path)
+
+    assert result.status == "unsupported"
+    assert "binary .doc" in result.warnings[0]
+
+
+def test_unsupported_rar_extractor_reports_unsupported_status(tmp_path):
+    path = tmp_path / "attachments.rar"
+    path.write_bytes(b"Rar!\x1a\x07\x00")
+
+    result = DocumentTextExtractor().extract(path)
+
+    assert result.status == "unsupported"
+    assert "RAR" in result.warnings[0]
+
+
 def test_xlsx_extractor_reads_shared_strings(tmp_path):
     path = tmp_path / "positions.xlsx"
     path.write_bytes(_xlsx_bytes("Paper A4", "80 g/m2"))

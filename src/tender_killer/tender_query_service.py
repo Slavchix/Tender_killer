@@ -9,6 +9,8 @@ from typing import Any
 
 from tender_killer.filter_store import FilterProfileCollection, NamedFilterProfile
 from tender_killer.filters import FilterProfile
+from tender_killer.quick_search import expand_quick_search_exclude_keywords
+from tender_killer.quick_search import expand_quick_search_keywords
 from tender_killer.schema import ensure_analysis_table
 from tender_killer.schema import ensure_documents_table
 from tender_killer.schema import ensure_items_table
@@ -94,8 +96,10 @@ def build_search_collection(payload: dict[str, Any] | None) -> FilterProfileColl
     only_active = not status or _is_active_status_query(status)
     statuses = () if only_active else _multi_value_tuple(status)
     keywords = _keywords_from_query(str(data.get("q") or ""))
+    exclude_keywords = _exclude_keywords_from_query(str(data.get("q") or ""))
     profile = FilterProfile(
         keywords=keywords or FilterProfile.DEFAULT_KEYWORDS,
+        exclude_keywords=exclude_keywords,
         regions=_region_values(data.get("region")),
         sources=normalize_sources(_multi_value_tuple(data.get("source"))),
         laws=_multi_value_tuple(data.get("law")),
@@ -195,12 +199,41 @@ def _build_filters(query: dict[str, str]) -> tuple[list[str], list[Any]]:
         filters.append("tenders.price <= ?")
         params.append(max_price)
     if search := query.get("q"):
+        search_terms = _keywords_from_query(search)
+        exclude_terms = _exclude_keywords_from_query(search)
         filters.append(
-            "(LOWER(tenders.title) LIKE ? OR LOWER(COALESCE(tenders.customer, '')) LIKE ? "
-            "OR LOWER(COALESCE(tenders.raw_payload_json, '')) LIKE ?)"
+            "("
+            + " OR ".join(
+                [
+                    "LOWER(tenders.title) LIKE ?",
+                    "LOWER(COALESCE(tenders.customer, '')) LIKE ?",
+                    "LOWER(COALESCE(tenders.category, '')) LIKE ?",
+                    "LOWER(COALESCE(tenders.delivery_place, '')) LIKE ?",
+                ]
+                * len(search_terms)
+            )
+            + ")"
         )
-        needle = f"%{search.lower()}%"
-        params.extend([needle, needle, needle])
+        for term in search_terms:
+            needle = f"%{term.lower()}%"
+            params.extend([needle, needle, needle, needle])
+        if exclude_terms:
+            filters.append(
+                "NOT ("
+                + " OR ".join(
+                    [
+                        "LOWER(tenders.title) LIKE ?",
+                        "LOWER(COALESCE(tenders.customer, '')) LIKE ?",
+                        "LOWER(COALESCE(tenders.category, '')) LIKE ?",
+                        "LOWER(COALESCE(tenders.delivery_place, '')) LIKE ?",
+                    ]
+                    * len(exclude_terms)
+                )
+                + ")"
+            )
+            for term in exclude_terms:
+                needle = f"%{term.lower()}%"
+                params.extend([needle, needle, needle, needle])
     if workflow_status := query.get("workflow_status"):
         filters.append("COALESCE(workflow.workflow_status, 'new') = ?")
         params.append(workflow_status)
@@ -209,7 +242,26 @@ def _build_filters(query: dict[str, str]) -> tuple[list[str], list[Any]]:
 
 def _keywords_from_query(value: str) -> tuple[str, ...]:
     parts = re.split(r"[,;\n]+", value)
-    return tuple(part.strip() for part in parts if part.strip())
+    keywords: list[str] = []
+    for part in (part.strip() for part in parts):
+        if not part:
+            continue
+        for keyword in expand_quick_search_keywords(part):
+            if keyword not in keywords:
+                keywords.append(keyword)
+    return tuple(keywords)
+
+
+def _exclude_keywords_from_query(value: str) -> tuple[str, ...]:
+    parts = re.split(r"[,;\n]+", value)
+    keywords: list[str] = []
+    for part in (part.strip() for part in parts):
+        if not part:
+            continue
+        for keyword in expand_quick_search_exclude_keywords(part):
+            if keyword not in keywords:
+                keywords.append(keyword)
+    return tuple(keywords)
 
 
 def _multi_value_tuple(value: Any) -> tuple[str, ...]:

@@ -73,6 +73,8 @@ class DocumentTextExtractor:
         cleaned = _clean_text(text)
         if cleaned:
             return ExtractedDocument(document_path, cleaned, "ok", tuple(warnings))
+        if _is_unsupported_document(warnings):
+            return ExtractedDocument(document_path, "", "unsupported", tuple(warnings))
         return ExtractedDocument(
             document_path,
             "",
@@ -88,17 +90,25 @@ class DocumentTextExtractor:
     def _extract_bytes(self, data: bytes, suffix: str, name: str) -> tuple[str, list[str]]:
         if suffix == ".docx":
             return _extract_docx(data), []
+        if suffix == ".doc":
+            if data.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
+                return "", ["Legacy binary .doc text extraction is not supported yet; convert to .docx or PDF."]
+            return _extract_legacy_doc(data), [
+                "Legacy .doc text was extracted heuristically; verify the source document."
+            ]
         if suffix == ".xlsx":
             return _extract_xlsx(data), []
         if suffix == ".zip":
             return _extract_zip(data, self), []
         if suffix == ".pdf":
             return _extract_pdf(data), []
+        if suffix == ".rar":
+            return "", [f"RAR archive text extraction is not supported yet for {name}; file was downloaded."]
         if suffix in {".txt", ".csv", ".xml", ".json"}:
             return _decode_text(data), []
         if suffix in {".html", ".htm"}:
             return _strip_html(_decode_text(data)), []
-        return "", (f"Unsupported document type for {name}",)
+        return "", [f"Unsupported document type for {name}"]
 
 
 class TenderDocumentProcessor:
@@ -192,6 +202,18 @@ def _extract_docx(data: bytes) -> str:
     with ZipFile(BytesIO(data)) as archive:
         document_xml = archive.read("word/document.xml")
     return _text_from_xml(document_xml)
+
+
+def _extract_legacy_doc(data: bytes) -> str:
+    if data.startswith(b"PK"):
+        return _extract_docx(data)
+
+    text = _decode_text(data.replace(b"\x00", b" "))
+    if "<html" in text[:1000].lower():
+        return _strip_html(text)
+    if "{\\rtf" in text[:1000].lower():
+        return _strip_rtf(text)
+    return _printable_text(text)
 
 
 def _extract_xlsx(data: bytes) -> str:
@@ -310,9 +332,26 @@ def _strip_html(text: str) -> str:
     return html.unescape(text)
 
 
+def _strip_rtf(text: str) -> str:
+    text = re.sub(r"\\'[0-9a-fA-F]{2}", " ", text)
+    text = re.sub(r"\\[a-zA-Z]+-?\d* ?", " ", text)
+    text = re.sub(r"[{}]", " ", text)
+    return _printable_text(text)
+
+
+def _printable_text(text: str) -> str:
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]+", " ", text)
+    chunks = re.findall(r"[0-9A-Za-zА-Яа-яЁё№«».,;:!?%()\"'/\\\- ]{4,}", text)
+    return "\n".join(chunk.strip() for chunk in chunks if chunk.strip())
+
+
 def _clean_text(text: str) -> str:
     lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.splitlines()]
     return "\n".join(line for line in lines if line)
+
+
+def _is_unsupported_document(warnings: list[str]) -> bool:
+    return any("Unsupported document type" in warning or "not supported yet" in warning for warning in warnings)
 
 
 def _local_name(tag: str) -> str:
