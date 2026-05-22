@@ -132,6 +132,92 @@ def test_tender_workbench_has_collapsible_filters_and_wider_list():
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
+def test_tender_details_v2_keeps_actions_and_document_statuses_scannable():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    detail_actions_rule = _css_rule(styles_source, ".detail-actions")
+    detail_tabs_rule = _css_rule(styles_source, ".detail-tabs")
+
+    assert "details-title-row" in app_source
+    assert "details-action-group primary-actions" in app_source
+    assert "details-action-group secondary-actions" in app_source
+    assert "documentStatusLabel" in app_source
+    assert "document-status ${document.text_status || 'pending'}" in app_source
+    assert "download-status ${document.local_path ? 'downloaded' : 'missing'}" in app_source
+    assert "grid-template-columns: repeat(4" not in detail_actions_rule
+    assert ("flex-wrap: wrap" in detail_actions_rule or "auto-fit" in detail_actions_rule)
+    assert "flex-wrap: wrap" in detail_tabs_rule
+    assert "overflow-x: auto" not in detail_tabs_rule
+    assert ".document-status.unsupported" in styles_source
+    assert ".document-status.ok" in styles_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_tender_detail_tabs_have_scannable_work_areas():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "function TenderOverviewTab" in app_source
+    assert "function ProductTabSummary" in app_source
+    assert "function DocumentStatusSummary" in app_source
+    assert "function documentStatusCounts" in app_source
+    assert "<TenderOverviewTab tender={tender} raw={raw} />" in app_source
+    assert "<ProductTabSummary" in app_source
+    assert "<DocumentStatusSummary" in app_source
+    assert "tab-lead" in app_source
+    assert "overview-brief-grid" in app_source
+    assert "document-status-summary" in app_source
+    assert "product-tab-summary" in app_source
+    assert ".tab-lead" in styles_source
+    assert ".overview-brief-grid" in styles_source
+    assert ".document-status-summary" in styles_source
+    assert ".product-tab-summary" in styles_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_decision_tabs_are_extracted_to_consistent_work_panels():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "function AnalysisTabPanel" in app_source
+    assert "function EconomicsTabPanel" in app_source
+    assert "function WorkflowTabPanel" in app_source
+    assert "<AnalysisTabPanel" in app_source
+    assert "<EconomicsTabPanel economics={economics} />" in app_source
+    assert "<WorkflowTabPanel" in app_source
+    assert "analysis-tab-summary" in app_source
+    assert "economics-tab-summary" in app_source
+    assert "workflow-status-summary" in app_source
+    assert "workflow-note-panel" in app_source
+    assert ".analysis-tab-summary," in styles_source
+    assert ".economics-tab-summary," in styles_source
+    assert ".workflow-status-summary" in styles_source
+    assert ".workflow-note-panel" in styles_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_tender_detail_visual_density_has_stable_grids_and_no_negative_offsets():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    tab_lead_rule = _css_rule(styles_source, ".tab-lead")
+    document_row_rule = _css_rule(styles_source, ".document-row")
+    compact_button_rule = _css_rule(styles_source, ".secondary-button.compact")
+
+    assert "tab-summary-grid" in app_source
+    assert "summary-label" in app_source
+    assert ".tab-summary-grid" in styles_source
+    assert ".summary-label" in styles_source
+    assert "grid-template-columns: minmax(0, 1fr) auto" not in tab_lead_rule
+    assert "grid-template-columns: minmax(0, 1fr) minmax(132px, auto)" in document_row_rule
+    assert "margin-top: -" not in compact_button_rule
+    assert "grid-template-columns: 42px minmax(150px, 1fr) minmax(76px, 0.45fr) 92px" not in styles_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_tender_workflow_tabs_wrap_without_horizontal_scrollbar():
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
     workflow_tabs_rule = _css_rule(styles_source, ".workflow-tabs")

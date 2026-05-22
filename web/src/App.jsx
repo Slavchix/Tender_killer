@@ -1139,43 +1139,51 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   return (
     <div className="details">
       <div className="details-header">
-        <div className="panel-title"><Building2 size={18} /> Карточка</div>
+        <div className="details-title-row">
+          <div className="panel-title"><Building2 size={18} /> Карточка</div>
+          <span className={`workflow-chip ${tender.workflow_status || 'new'}`}>
+            {workflowLabels[tender.workflow_status] || 'Новая'}
+          </span>
+        </div>
         <h2>{tender.title}</h2>
         <div className="detail-pills">
           <span>{sourceLabels[tender.source] || tender.source}</span>
           <span>{formatMoney(tender.price)}</span>
           <span>{formatDate(tender.deadline_at)}</span>
-          <span>{workflowLabels[tender.workflow_status] || 'Новая'}</span>
         </div>
       </div>
 
       <TenderDecisionSummary tender={tender} economics={economics} />
 
-      <div className="detail-actions">
-        <a className="detail-action primary" href={tender.url} target="_blank" rel="noreferrer">
-          Источник <ExternalLink size={15} />
-        </a>
-        <button disabled={refreshingDetails} onClick={refreshDetails} type="button">
-          {refreshingDetails ? 'Обновляю' : 'Обновить'}
-        </button>
-        <button disabled={downloading} onClick={downloadDocuments} type="button">
-          {downloading ? 'Качаю' : 'Документы'}
-        </button>
-        <button disabled={extracting} onClick={extractDocumentText} type="button">
-          {extracting ? 'Читаю' : 'Текст'}
-        </button>
-        <button disabled={analyzing} onClick={analyzeTender} type="button">
-          {analyzing ? 'Анализ' : 'Анализ'}
-        </button>
-        <a
-          className="detail-action"
-          href={`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/report.docx`}
-        >
-          Word
-        </a>
-        <button disabled={sending} onClick={sendToTelegram} type="button">
-          {sending ? 'Отправка' : 'TG'}
-        </button>
+      <div className="detail-actions" aria-label="Действия с закупкой">
+        <div className="details-action-group primary-actions">
+          <a className="detail-action primary" href={tender.url} target="_blank" rel="noreferrer">
+            <ExternalLink size={15} /> Источник
+          </a>
+          <button disabled={refreshingDetails} onClick={() => refreshDetails()} type="button">
+            <RefreshCcw size={15} /> {refreshingDetails ? 'Обновляю' : 'Обновить'}
+          </button>
+        </div>
+        <div className="details-action-group secondary-actions">
+          <button disabled={downloading} onClick={downloadDocuments} type="button">
+            <FileText size={15} /> {downloading ? 'Качаю' : 'Документы'}
+          </button>
+          <button disabled={extracting} onClick={extractDocumentText} type="button">
+            {extracting ? 'Читаю' : 'Текст'}
+          </button>
+          <button disabled={analyzing} onClick={analyzeTender} type="button">
+            {analyzing ? 'Анализ' : 'Анализ'}
+          </button>
+          <a
+            className="detail-action"
+            href={`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/report.docx`}
+          >
+            Word
+          </a>
+          <button disabled={sending} onClick={sendToTelegram} type="button">
+            <Bell size={15} /> {sending ? 'Отправка' : 'TG'}
+          </button>
+        </div>
       </div>
 
       {statusMessages.length > 0 && (
@@ -1199,16 +1207,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
 
       <div className="detail-tab-panel">
         {activeTab === 'overview' && (
-          <section className="detail-section active">
-            <div className="detail-grid">
-              <Info label="Номер" value={tender.external_id} />
-              <Info label="Статус площадки" value={tender.status || 'не указан'} />
-              <Info label="Регион" value={tender.region || 'не указан'} />
-              <Info label="Закон" value={raw.federalLawName || raw.SourcePlatformName || 'не найден'} />
-              <Info label="Заказчик" value={tender.customer || 'не указан'} />
-              <Info label="Категория" value={tender.category || raw.CategoryName || 'не найдена'} />
-            </div>
-          </section>
+          <TenderOverviewTab tender={tender} raw={raw} />
         )}
 
         {activeTab === 'products' && (
@@ -1219,7 +1218,11 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
                 {profilesLoading ? 'Обновление...' : 'Обновить профили'}
               </button>
             </div>
-            <ProfileSummary summary={productProfileSummary} total={productProfiles.length} />
+            <ProductTabSummary
+              summary={productProfileSummary}
+              total={productProfiles.length}
+              itemsCount={(tender.items || []).length}
+            />
             {productProfiles.length ? (
               <div className="profile-layout">
                 <div className="profile-list" role="listbox" aria-label="Товарные профили">
@@ -1255,7 +1258,16 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
 
         {activeTab === 'documents' && (
           <section className="detail-section active">
-            <h3>Документы</h3>
+            <div className="section-heading-row">
+              <h3>Документы</h3>
+            </div>
+            <DocumentStatusSummary
+              documents={documentRecords}
+              downloading={downloading}
+              extracting={extracting}
+              onDownload={downloadDocuments}
+              onExtract={extractDocumentText}
+            />
             {documentRecords.length ? (
               <div className="document-table">
                 {documentRecords.map((document) => (
@@ -1273,8 +1285,14 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
                       )}
                       {document.text_error && <p className="document-error">{document.text_error}</p>}
                     </div>
-                    <strong>{document.local_path ? 'скачан' : 'не скачан'}</strong>
-                    <em>{document.text_status || 'pending'}</em>
+                    <div className="document-row-status">
+                      <strong className={`download-status ${document.local_path ? 'downloaded' : 'missing'}`}>
+                        {document.local_path ? 'скачан' : 'не скачан'}
+                      </strong>
+                      <em className={`document-status ${document.text_status || 'pending'}`}>
+                        {documentStatusLabel(document.text_status)}
+                      </em>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1285,79 +1303,208 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         )}
 
         {activeTab === 'analysis' && (
-          <section className="detail-section active analysis-section">
-            <div className="section-heading-row">
-              <h3>Выжимка ТЗ</h3>
-              <button className="secondary-button compact" disabled={analyzing} onClick={analyzeTender} type="button">
-                {analyzing ? 'Анализ...' : 'Проанализировать'}
-              </button>
-            </div>
-            {analysis ? (
-              <div className="analysis-card">
-                <div className="analysis-status-row">
-                  <strong>{analysisStatusLabel(analysis.status)}</strong>
-                  <span>Уверенность: {formatConfidence(analysis.confidence)}</span>
-                </div>
-                <p>{analysis.summary}</p>
-                <AnalysisChecklist items={analysis.checklist} />
-                <AnalysisList title="Требования" items={analysis.requirements} empty="Явные требования пока не найдены" />
-                <AnalysisList title="Риски" items={analysis.risks} empty="Явные риски пока не найдены" />
-                <AnalysisList title="Красные флаги" items={analysis.red_flags} empty="Критичные признаки пока не найдены" danger />
-              </div>
-            ) : (
-              <p>Сначала извлеки текст документов, затем запусти анализ ТЗ.</p>
-            )}
-          </section>
+          <AnalysisTabPanel analysis={analysis} analyzing={analyzing} onAnalyze={analyzeTender} />
         )}
 
         {activeTab === 'economics' && (
-          <section className="detail-section active economics-section">
-            <div className="section-heading-row">
-              <h3>Экономика</h3>
-            </div>
-            <EconomicsSummary economics={economics} />
-          </section>
+          <EconomicsTabPanel economics={economics} />
         )}
 
         {activeTab === 'workflow' && (
-          <section className="detail-section active">
-            <h3>Рабочий статус</h3>
-            <div className="workflow-actions">
-              {Object.entries(workflowLabels).map(([status, label]) => (
-                <button
-                  className={status === (tender.workflow_status || 'new') ? 'active' : ''}
-                  disabled={saving}
-                  key={status}
-                  onClick={() => saveWorkflow(status)}
-                  type="button"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <label className="note-editor">
-              Заметка
-              <textarea
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                placeholder="Например: проверить доставку, сертификаты, маржу."
-              />
-            </label>
-            <button className="secondary-button" disabled={saving} onClick={() => saveWorkflow()} type="button">
-              {saving ? 'Сохранение...' : 'Сохранить заметку'}
-            </button>
-            <details className="debug-details">
-              <summary>Сырые признаки</summary>
-              <div className="raw-grid">
-                <Info label="Закон" value={raw.federalLawName || raw.SourcePlatformName || 'не найден'} />
-                <Info label="ОКПД2" value={tender.okpd2 || raw.Koz2Value || 'не найден'} />
-                <Info label="Категория" value={tender.category || raw.CategoryName || 'не найдена'} />
-              </div>
-            </details>
-          </section>
+          <WorkflowTabPanel
+            tender={tender}
+            raw={raw}
+            note={note}
+            saving={saving}
+            onNoteChange={setNote}
+            onSaveWorkflow={saveWorkflow}
+          />
         )}
       </div>
     </div>
+  )
+}
+
+function TenderOverviewTab({ tender, raw }) {
+  const law = tender.law || raw.federalLawName || raw.SourcePlatformName || 'не найден'
+  const category = tender.category || raw.CategoryName || 'не найдена'
+
+  return (
+    <section className="detail-section active overview-tab">
+      <div className="tab-lead">
+        <div>
+          <span>Паспорт закупки</span>
+          <strong>{tender.external_id}</strong>
+          <p>{tender.customer || 'заказчик не указан'}</p>
+        </div>
+        <div className="tab-lead-facts">
+          <span>{tender.region || 'регион не указан'}</span>
+          <span>{law}</span>
+        </div>
+      </div>
+      <div className="overview-brief-grid">
+        <Info label="Площадка" value={sourceLabels[tender.source] || tender.source} />
+        <Info label="Статус площадки" value={tender.status || 'не указан'} />
+        <Info label="Категория" value={category} />
+        <Info label="ОКПД2" value={tender.okpd2 || raw.Koz2Value || 'не найден'} />
+      </div>
+    </section>
+  )
+}
+
+function ProductTabSummary({ summary, total, itemsCount }) {
+  const data = summary || {}
+  const positionTotal = data.total ?? total ?? itemsCount ?? 0
+  const ready = data.ready ?? 0
+  const needsReview = data.needs_review ?? 0
+  const matched = data.matched ?? 0
+
+  return (
+    <div className="product-tab-summary tab-summary-grid" aria-label="Сводка товарных профилей">
+      <SummaryMetric value={positionTotal} label="позиций" />
+      <SummaryMetric value={ready} label="готовы" />
+      <SummaryMetric value={needsReview} label="проверить" />
+      <SummaryMetric value={matched} label="найдены" />
+    </div>
+  )
+}
+
+function DocumentStatusSummary({ documents, downloading, extracting, onDownload, onExtract }) {
+  const counts = documentStatusCounts(documents)
+
+  return (
+    <div className="document-status-summary" aria-label="Сводка документов">
+      <div className="document-status-metrics tab-summary-grid">
+        <SummaryMetric value={counts.total} label="всего" />
+        <SummaryMetric value={counts.downloaded} label="скачано" />
+        <SummaryMetric value={counts.ok} label="текст" />
+        <SummaryMetric value={counts.attention} label="проверить" />
+      </div>
+      <div className="document-status-actions">
+        <button className="secondary-button compact" disabled={downloading} onClick={onDownload} type="button">
+          {downloading ? 'Качаю...' : 'Скачать'}
+        </button>
+        <button className="secondary-button compact" disabled={extracting || !counts.downloaded} onClick={onExtract} type="button">
+          {extracting ? 'Читаю...' : 'Извлечь текст'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AnalysisTabPanel({ analysis, analyzing, onAnalyze }) {
+  const requirementsCount = analysis?.requirements?.length || 0
+  const risksCount = (analysis?.risks?.length || 0) + (analysis?.red_flags?.length || 0)
+  const checklistCount = analysis?.checklist?.length || 0
+
+  return (
+    <section className="detail-section active analysis-section">
+      <div className="section-heading-row">
+        <h3>Выжимка ТЗ</h3>
+        <button className="secondary-button compact" disabled={analyzing} onClick={onAnalyze} type="button">
+          {analyzing ? 'Анализ...' : 'Проанализировать'}
+        </button>
+      </div>
+      <div className="analysis-tab-summary tab-summary-grid" aria-label="Сводка анализа ТЗ">
+        <SummaryMetric value={analysis ? analysisStatusLabel(analysis.status) : 'нет анализа'} label="статус" />
+        <SummaryMetric value={analysis ? formatConfidence(analysis.confidence) : 'нет'} label="уверенность" />
+        <SummaryMetric value={requirementsCount} label="требований" />
+        <SummaryMetric value={risksCount} label="рисков" />
+        <SummaryMetric value={checklistCount} label="пунктов" />
+      </div>
+      {analysis ? (
+        <div className="analysis-card">
+          <p>{analysis.summary}</p>
+          <AnalysisChecklist items={analysis.checklist} />
+          <AnalysisList title="Требования" items={analysis.requirements} empty="Явные требования пока не найдены" />
+          <AnalysisList title="Риски" items={analysis.risks} empty="Явные риски пока не найдены" />
+          <AnalysisList title="Красные флаги" items={analysis.red_flags} empty="Критичные признаки пока не найдены" danger />
+        </div>
+      ) : (
+        <p className="muted-text">Сначала извлеки текст документов, затем запусти анализ ТЗ.</p>
+      )}
+    </section>
+  )
+}
+
+function EconomicsTabPanel({ economics }) {
+  const missingInputs = economics?.missing_cost_inputs?.length || 0
+
+  return (
+    <section className="detail-section active economics-section">
+      <div className="section-heading-row">
+        <h3>Экономика</h3>
+      </div>
+      <div className="economics-tab-summary tab-summary-grid" aria-label="Сводка экономики">
+        <SummaryMetric value={economics ? economicsStatusLabel(economics.status) : 'не рассчитана'} label="статус" />
+        <SummaryMetric value={formatMoney(economics?.revenue)} label="НМЦК" />
+        <SummaryMetric value={formatMoney(economics?.estimated_total_cost)} label="затраты" />
+        <SummaryMetric value={economics ? formatPercent(economics.margin_percent) : 'нет'} label="маржа" />
+        <SummaryMetric value={missingInputs} label="цен добавить" />
+      </div>
+      <EconomicsSummary economics={economics} />
+    </section>
+  )
+}
+
+function WorkflowTabPanel({ tender, raw, note, saving, onNoteChange, onSaveWorkflow }) {
+  const currentStatus = tender.workflow_status || 'new'
+  const noteState = note?.trim() ? 'есть' : 'нет'
+
+  return (
+    <section className="detail-section active workflow-section">
+      <div className="section-heading-row">
+        <h3>Рабочий статус</h3>
+      </div>
+      <div className="workflow-status-summary tab-summary-grid" aria-label="Сводка рабочего статуса">
+        <SummaryMetric value={workflowLabels[currentStatus] || 'Новая'} label="текущий статус" />
+        <SummaryMetric value={noteState} label="заметка" />
+        <SummaryMetric value={formatDate(tender.deadline_at)} label="срок" />
+      </div>
+      <div className="workflow-actions">
+        {Object.entries(workflowLabels).map(([status, label]) => (
+          <button
+            className={status === currentStatus ? 'active' : ''}
+            disabled={saving}
+            key={status}
+            onClick={() => onSaveWorkflow(status)}
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="workflow-note-panel">
+        <label className="note-editor">
+          Заметка
+          <textarea
+            value={note}
+            onChange={(event) => onNoteChange(event.target.value)}
+            placeholder="Например: проверить доставку, сертификаты, маржу."
+          />
+        </label>
+        <button className="secondary-button" disabled={saving} onClick={() => onSaveWorkflow()} type="button">
+          {saving ? 'Сохранение...' : 'Сохранить заметку'}
+        </button>
+      </div>
+      <details className="debug-details">
+        <summary>Сырые признаки</summary>
+        <div className="raw-grid">
+          <Info label="Закон" value={raw.federalLawName || raw.SourcePlatformName || 'не найден'} />
+          <Info label="ОКПД2" value={tender.okpd2 || raw.Koz2Value || 'не найден'} />
+          <Info label="Категория" value={tender.category || raw.CategoryName || 'не найдена'} />
+        </div>
+      </details>
+    </section>
+  )
+}
+
+function SummaryMetric({ value, label }) {
+  return (
+    <span>
+      <strong>{value}</strong>
+      <em className="summary-label">{label}</em>
+    </span>
   )
 }
 
@@ -2038,6 +2185,28 @@ function documentLabel(url) {
   } catch {
     return url
   }
+}
+
+function documentStatusLabel(status) {
+  return {
+    pending: 'ожидает',
+    downloaded: 'скачан, текст не извлечен',
+    ok: 'текст извлечен',
+    empty: 'текст не найден',
+    unsupported: 'формат не поддержан',
+    missing_file: 'файл не найден',
+  }[status] || status || 'ожидает'
+}
+
+function documentStatusCounts(documents) {
+  return (documents || []).reduce((counts, document) => {
+    const status = document.text_status || 'pending'
+    counts.total += 1
+    if (document.local_path) counts.downloaded += 1
+    if (status === 'ok') counts.ok += 1
+    if (status !== 'ok') counts.attention += 1
+    return counts
+  }, { total: 0, downloaded: 0, ok: 0, attention: 0 })
 }
 
 function documentTextPreview(value) {
