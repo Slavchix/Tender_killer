@@ -43,3 +43,13 @@ def test_tender_analysis_renders_actionable_checklist():
     assert "analysisCategoryLabel" in source
     assert "analysisSeverityLabel" in source
     assert find_mojibake(source, APP_SOURCE) == []
+
+
+def test_product_profile_renders_fulfillment_requirements():
+    source = APP_SOURCE.read_text(encoding="utf-8")
+
+    assert "profile.fulfillment_requirements" in source
+    assert "formatFulfillmentRequirements" in source
+    assert "fulfillmentRequirementTypeLabel" in source
+    assert "Поставка и исполнение" in source
+    assert find_mojibake(source, APP_SOURCE) == []

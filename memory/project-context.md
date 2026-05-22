@@ -532,3 +532,13 @@ Date: 2026-05-22.
 - The UI keeps the existing summary/requirements/risks/red-flags blocks, and adds a compact `Проверочный список` with category, importance, and evidence text.
 - This makes the supplier-side checks visible in the main site flow instead of hiding them only inside the Word report.
 - Full verification after this slice: `179 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Product profile checkpoint: fulfillment requirements for economics
+
+Date: 2026-05-22.
+
+- Product profiles now include `fulfillment_requirements`: structured rows with `type`, `source`, and `value`.
+- Rule-based extraction currently recognizes delivery timing, packaging, warranty, and acceptance/EIS sentences from extracted TZ documents.
+- SQLite persists the new field through `fulfillment_requirements_json`, including migration for existing `product_profiles` tables.
+- The product tab renders these rows under `Поставка и исполнение`, so the future economics workflow can see non-price obligations next to item characteristics.
+- Full verification after this slice: `181 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.

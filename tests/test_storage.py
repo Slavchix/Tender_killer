@@ -200,6 +200,7 @@ def test_store_upserts_product_profiles_without_duplicates_and_deserializes_json
         product_name="Paper A4",
         classifiers=[{"type": "okpd2", "code": "17.12.14", "source": "item"}],
         required_characteristics=["80 gsm"],
+        fulfillment_requirements=[{"type": "delivery", "source": "TZ.docx", "value": "Срок поставки 5 дней"}],
         evidence=[{"field": "product_name", "value": "Paper A4"}],
         raw_payload={"row": 1},
     )
@@ -208,6 +209,7 @@ def test_store_upserts_product_profiles_without_duplicates_and_deserializes_json
         product_name="Paper A4 premium",
         classifiers=[{"type": "okpd2", "code": "17.12.14", "source": "updated"}],
         required_characteristics=["90 gsm"],
+        fulfillment_requirements=[{"type": "warranty", "source": "TZ.docx", "value": "Гарантия 12 месяцев"}],
         evidence=[{"field": "product_name", "value": "Paper A4 premium"}],
         raw_payload={"row": 2},
     )
@@ -222,6 +224,7 @@ def test_store_upserts_product_profiles_without_duplicates_and_deserializes_json
     assert profiles[0]["product_name"] == "Paper A4 premium"
     assert profiles[0]["classifiers"] == [{"type": "okpd2", "code": "17.12.14", "source": "updated"}]
     assert profiles[0]["required_characteristics"] == ["90 gsm"]
+    assert profiles[0]["fulfillment_requirements"] == [{"type": "warranty", "source": "TZ.docx", "value": "Гарантия 12 месяцев"}]
     assert profiles[0]["evidence"] == [{"field": "product_name", "value": "Paper A4 premium"}]
     assert profiles[0]["raw_payload"] == {"row": 2}
 
@@ -323,6 +326,7 @@ def test_store_migrates_existing_minimal_product_profiles_table(tmp_path):
     profiles = store.get_product_profiles("moscow", "abc")
     assert profiles[0]["product_name"] == "Paper"
     assert profiles[0]["classifiers"] == []
+    assert profiles[0]["fulfillment_requirements"] == []
     assert profiles[0]["raw_payload"] == {}
 
 
@@ -332,6 +336,7 @@ def _product_profile(
     product_name: str,
     classifiers=None,
     required_characteristics=None,
+    fulfillment_requirements=None,
     evidence=None,
     raw_payload=None,
     okpd2="17.12.14",
@@ -357,6 +362,7 @@ def _product_profile(
         required_characteristics=required_characteristics or [],
         standards=["GOST 1"],
         cert_documents=["certificate"],
+        fulfillment_requirements=fulfillment_requirements or [],
         brand_model=[],
         origin_country_requirements=["country required"],
         search_phrases=[product_name],

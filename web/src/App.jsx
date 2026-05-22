@@ -1168,6 +1168,7 @@ function ProductProfileDetail({ profile }) {
         <AnalysisList title="Характеристики из карточки и ТЗ" items={profile.required_characteristics || []} empty="Характеристики пока не найдены" />
         <AnalysisList title="Стандарты" items={profile.standards || []} empty="ГОСТ/ТУ пока не найдены" />
         <AnalysisList title="Сертификаты и документы" items={profile.cert_documents || []} empty="Сертификаты/декларации пока не найдены" />
+        <AnalysisList title="Поставка и исполнение" items={formatFulfillmentRequirements(profile.fulfillment_requirements || [])} empty="Требования к поставке и исполнению пока не найдены" />
         <AnalysisList title="Страна происхождения" items={profile.origin_country_requirements || []} empty="Требования по стране пока не найдены" />
       </section>
 
@@ -1285,6 +1286,26 @@ function normalizeListItems(items = []) {
       return JSON.stringify(item)
     })
     .filter(Boolean)
+}
+
+function formatFulfillmentRequirements(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .filter((item) => item && typeof item === 'object' && item.value)
+    .map((item) => {
+      const typeLabel = fulfillmentRequirementTypeLabel(item.type)
+      const source = item.source ? ` · ${item.source}` : ''
+      return `${typeLabel}: ${item.value}${source}`
+    })
+}
+
+function fulfillmentRequirementTypeLabel(type) {
+  const labels = {
+    acceptance: 'приемка',
+    delivery: 'доставка',
+    packaging: 'упаковка',
+    warranty: 'гарантия',
+  }
+  return labels[type] || type || 'исполнение'
 }
 
 function analysisCategoryLabel(category) {

@@ -51,6 +51,7 @@ class ProductProfile:
     required_characteristics: list[Any] = field(default_factory=list)
     standards: list[Any] = field(default_factory=list)
     cert_documents: list[Any] = field(default_factory=list)
+    fulfillment_requirements: list[Any] = field(default_factory=list)
     brand_model: list[Any] = field(default_factory=list)
     origin_country_requirements: list[Any] = field(default_factory=list)
     search_phrases: list[str] = field(default_factory=list)

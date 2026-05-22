@@ -130,6 +130,7 @@ def test_build_product_profiles_returns_persistent_shape_for_extinguisher_with_k
         "required_characteristics",
         "standards",
         "cert_documents",
+        "fulfillment_requirements",
         "brand_model",
         "origin_country_requirements",
         "search_phrases",
@@ -162,6 +163,7 @@ def test_build_product_profiles_returns_persistent_shape_for_extinguisher_with_k
     assert "сертификат соответствия" in profile["cert_documents"]
     assert "декларация соответствия" in profile["cert_documents"]
     assert "СГР" in profile["cert_documents"]
+    assert profile["fulfillment_requirements"] == []
     assert "страна происхождения" in profile["origin_country_requirements"]
     assert "российский товар" in profile["origin_country_requirements"]
     assert profile["brand_model"] == []
@@ -337,3 +339,51 @@ def test_build_product_profiles_extracts_national_regime_and_registry_requiremen
     assert "национальный режим / ПП 1875" in profile["origin_country_requirements"]
     assert "страна происхождения товара" in profile["origin_country_requirements"]
     assert "реестр российской промышленной продукции" in profile["origin_country_requirements"]
+
+
+def test_build_product_profiles_extracts_fulfillment_requirements_for_economics():
+    tender = {
+        "source": "mosreg_market",
+        "external_id": "paper-fulfillment",
+        "title": "Поставка бумаги офисной",
+        "items": [{"name": "Бумага офисная А4", "details": "Бумага офисная белая", "quantity": 50, "unit": "пачка"}],
+        "document_records": [
+            {
+                "name": "Техническое задание.docx",
+                "text_content": (
+                    "Срок поставки товара: в течение 5 календарных дней с даты заключения контракта. "
+                    "Товар поставляется в заводской упаковке без повреждений. "
+                    "Гарантийный срок на товар не менее 12 месяцев. "
+                    "Приемка товара осуществляется через ЕИС."
+                ),
+            }
+        ],
+    }
+
+    profile = build_product_profiles(tender)[0]
+
+    assert {
+        "type": "delivery",
+        "source": "Техническое задание.docx",
+        "value": "Срок поставки товара: в течение 5 календарных дней с даты заключения контракта.",
+    } in profile["fulfillment_requirements"]
+    assert {
+        "type": "packaging",
+        "source": "Техническое задание.docx",
+        "value": "Товар поставляется в заводской упаковке без повреждений.",
+    } in profile["fulfillment_requirements"]
+    assert {
+        "type": "warranty",
+        "source": "Техническое задание.docx",
+        "value": "Гарантийный срок на товар не менее 12 месяцев.",
+    } in profile["fulfillment_requirements"]
+    assert {
+        "type": "acceptance",
+        "source": "Техническое задание.docx",
+        "value": "Приемка товара осуществляется через ЕИС.",
+    } in profile["fulfillment_requirements"]
+    assert {
+        "field": "fulfillment_requirement",
+        "source": "Техническое задание.docx",
+        "value": "Гарантийный срок на товар не менее 12 месяцев.",
+    } in profile["evidence"]

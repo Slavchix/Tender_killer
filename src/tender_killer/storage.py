@@ -205,18 +205,18 @@ class TenderStore:
                     normalized_name, details, category, quantity, unit, unit_price,
                     total_price, okpd2, classifier_code, classifier_type, classifiers_json,
                     required_characteristics_json, standards_json, cert_documents_json,
-                    brand_model_json, origin_country_requirements_json, search_phrases_json,
-                    stop_words_json, evidence_json, profile_status, confidence, source,
-                    raw_payload_json
+                    fulfillment_requirements_json, brand_model_json, origin_country_requirements_json,
+                    search_phrases_json, stop_words_json, evidence_json, profile_status,
+                    confidence, source, raw_payload_json
                 )
                 VALUES (
                     :tender_source, :tender_external_id, :position_index, :product_name,
                     :normalized_name, :details, :category, :quantity, :unit, :unit_price,
                     :total_price, :okpd2, :classifier_code, :classifier_type, :classifiers_json,
                     :required_characteristics_json, :standards_json, :cert_documents_json,
-                    :brand_model_json, :origin_country_requirements_json, :search_phrases_json,
-                    :stop_words_json, :evidence_json, :profile_status, :confidence, :source,
-                    :raw_payload_json
+                    :fulfillment_requirements_json, :brand_model_json, :origin_country_requirements_json,
+                    :search_phrases_json, :stop_words_json, :evidence_json, :profile_status,
+                    :confidence, :source, :raw_payload_json
                 )
                 ON CONFLICT(tender_source, tender_external_id, position_index) DO UPDATE SET
                     product_name = excluded.product_name,
@@ -234,6 +234,7 @@ class TenderStore:
                     required_characteristics_json = excluded.required_characteristics_json,
                     standards_json = excluded.standards_json,
                     cert_documents_json = excluded.cert_documents_json,
+                    fulfillment_requirements_json = excluded.fulfillment_requirements_json,
                     brand_model_json = excluded.brand_model_json,
                     origin_country_requirements_json = excluded.origin_country_requirements_json,
                     search_phrases_json = excluded.search_phrases_json,
@@ -257,9 +258,9 @@ class TenderStore:
                     normalized_name, details, category, quantity, unit, unit_price,
                     total_price, okpd2, classifier_code, classifier_type, classifiers_json,
                     required_characteristics_json, standards_json, cert_documents_json,
-                    brand_model_json, origin_country_requirements_json, search_phrases_json,
-                    stop_words_json, evidence_json, profile_status, confidence, source,
-                    raw_payload_json
+                    fulfillment_requirements_json, brand_model_json, origin_country_requirements_json,
+                    search_phrases_json, stop_words_json, evidence_json, profile_status,
+                    confidence, source, raw_payload_json
                 FROM product_profiles
                 WHERE tender_source = ? AND tender_external_id = ?
                 ORDER BY position_index
@@ -417,6 +418,7 @@ _PRODUCT_PROFILE_JSON_FIELDS = (
     "required_characteristics",
     "standards",
     "cert_documents",
+    "fulfillment_requirements",
     "brand_model",
     "origin_country_requirements",
     "search_phrases",

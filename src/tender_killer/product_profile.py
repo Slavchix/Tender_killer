@@ -14,6 +14,7 @@ def build_product_profiles(tender: dict[str, Any]) -> list[dict[str, Any]]:
     standards = _standards(text)
     cert_documents = _cert_documents(text)
     origin_country_requirements = _origin_country_requirements(text)
+    fulfillment_requirements = _fulfillment_requirements(documents, text)
     profiles: list[dict[str, Any]] = []
 
     if items:
@@ -47,10 +48,12 @@ def build_product_profiles(tender: dict[str, Any]) -> list[dict[str, Any]]:
                     evidence=[
                         *_item_evidence(product_name, classifier_code, classifier_source, details),
                         *_document_evidence(document_snippets),
+                        *_fulfillment_evidence(fulfillment_requirements),
                     ],
                     required_characteristics=_characteristics(details, text, document_snippets),
                     standards=standards,
                     cert_documents=cert_documents,
+                    fulfillment_requirements=fulfillment_requirements,
                     origin_country_requirements=origin_country_requirements,
                     source="item",
                     profile_status="ready",
@@ -83,10 +86,15 @@ def build_product_profiles(tender: dict[str, Any]) -> list[dict[str, Any]]:
             classifier_code=classifier_code,
             classifier_type=classifier_type,
             classifiers=_classifiers(classifier_code, classifier_type, classifier_code, "tender_card"),
-            evidence=[*_fallback_evidence(product_name, classifier_code), *_document_evidence(document_snippets)],
+            evidence=[
+                *_fallback_evidence(product_name, classifier_code),
+                *_document_evidence(document_snippets),
+                *_fulfillment_evidence(fulfillment_requirements),
+            ],
             required_characteristics=_characteristics("", text, document_snippets),
             standards=standards,
             cert_documents=cert_documents,
+            fulfillment_requirements=fulfillment_requirements,
             origin_country_requirements=origin_country_requirements,
             source="card",
             profile_status="needs_review",
@@ -115,6 +123,7 @@ def _profile(
     required_characteristics: list[str],
     standards: list[str],
     cert_documents: list[str],
+    fulfillment_requirements: list[dict[str, str]],
     origin_country_requirements: list[str],
     source: str,
     profile_status: str,
@@ -139,6 +148,7 @@ def _profile(
         "required_characteristics": required_characteristics,
         "standards": standards,
         "cert_documents": cert_documents,
+        "fulfillment_requirements": fulfillment_requirements,
         "brand_model": [],
         "origin_country_requirements": origin_country_requirements,
         "search_phrases": _search_phrases(product_name, details, okpd2, classifier_code),
@@ -313,6 +323,13 @@ def _document_evidence(snippets: list[dict[str, str]]) -> list[dict[str, str]]:
     ]
 
 
+def _fulfillment_evidence(requirements: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        {"field": "fulfillment_requirement", "source": requirement["source"], "value": requirement["value"]}
+        for requirement in requirements
+    ]
+
+
 def _document_records(tender: dict[str, Any]) -> list[dict[str, str]]:
     records: list[dict[str, str]] = []
     for index, document in enumerate(tender.get("document_records") or [], start=1):
@@ -358,6 +375,52 @@ def _looks_like_requirement(value: str) -> bool:
         "реестр российской",
     )
     return any(marker in value for marker in markers)
+
+
+def _fulfillment_requirements(documents: list[dict[str, str]], text: str) -> list[dict[str, str]]:
+    values: list[dict[str, str]] = []
+    if documents:
+        for document in documents:
+            values.extend(_fulfillment_requirements_from_text(document["text"], document["name"]))
+    else:
+        values.extend(_fulfillment_requirements_from_text(text, "analysis"))
+    return _unique_requirement_entries(values)
+
+
+def _fulfillment_requirements_from_text(text: str, source: str) -> list[dict[str, str]]:
+    values: list[dict[str, str]] = []
+    for sentence in _sentences(text):
+        requirement_type = _fulfillment_requirement_type(sentence.casefold())
+        if requirement_type is None:
+            continue
+        value = _trim(_clean(sentence) or "", 260)
+        if value:
+            values.append({"type": requirement_type, "source": source, "value": value})
+    return values
+
+
+def _fulfillment_requirement_type(value: str) -> str | None:
+    if "срок постав" in value or ("постав" in value and ("дней" in value or "календарн" in value or "рабоч" in value)):
+        return "delivery"
+    if "упаков" in value or "тар" in value:
+        return "packaging"
+    if "гарант" in value:
+        return "warranty"
+    if "приемк" in value or "приёмк" in value or "еис" in value:
+        return "acceptance"
+    return None
+
+
+def _unique_requirement_entries(values: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[tuple[str, str, str]] = set()
+    result: list[dict[str, str]] = []
+    for value in values:
+        key = (value["type"], value["source"], value["value"])
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(value)
+    return result
 
 
 def _unique_snippets(values: list[dict[str, str]]) -> list[dict[str, str]]:
