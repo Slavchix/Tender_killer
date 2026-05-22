@@ -615,3 +615,11 @@ Date: 2026-05-22.
 - Dashboard V1 is framed as an operational start screen: metrics, source state, workflow queue, `Требует внимания`, and `Последние закупки`.
 - The attention panel uses existing local state: API error, source errors, new tenders, and interesting tenders. No new backend endpoint is needed for this slice.
 - Frontend contract after this slice: `13 passed`; JSX syntax parsed successfully through Babel parser in the Node REPL.
+
+## Frontend UX checkpoint: aligned dashboard grid
+
+Date: 2026-05-22.
+
+- Fixed the first visual pass of the dashboard: metrics now occupy the same full-width content container as the rest of the page instead of floating in the middle.
+- Dashboard rows now share the same two-column grid, and cards stretch to the row height. This removes the accidental uneven gaps between source status, queue, attention, and recent tender blocks.
+- Added a frontend contract that keeps the dashboard on a full-width aligned grid.

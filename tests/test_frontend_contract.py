@@ -199,3 +199,21 @@ def test_dashboard_surfaces_attention_and_recent_tenders():
     assert ".dashboard-tender-list" in styles_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_dashboard_layout_uses_aligned_full_width_grid():
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    shell_width_rule = _css_rule(styles_source, ".topbar,")
+    dashboard_view_rule = _css_rule(styles_source, ".dashboard-view {")
+    metrics_rule = _css_rule(styles_source, ".dashboard-view .metrics")
+    dashboard_grid_rule = _css_rule(styles_source, ".dashboard-grid")
+    dashboard_secondary_rule = _css_rule(styles_source, ".dashboard-secondary-grid")
+    dashboard_children_rule = _css_rule(styles_source, ".dashboard-grid > *,")
+
+    assert "width: 100%" in shell_width_rule
+    assert "align-items: stretch" in dashboard_view_rule
+    assert "margin-bottom: 0" in metrics_rule
+    assert "minmax(360px, 0.9fr) minmax(0, 1.1fr)" in dashboard_grid_rule
+    assert "minmax(360px, 0.9fr) minmax(0, 1.1fr)" in dashboard_secondary_rule
+    assert "height: 100%" in dashboard_children_rule
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []

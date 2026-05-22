@@ -46,6 +46,7 @@ Recent architecture cleanup:
 - Tender filters are collapsible in the workbench, letting the tender list expand while preserving quick access to filter controls.
 - The site now has a global shell with left navigation for `Дашборд`, `Закупки`, and `SQLite`; the dashboard shows metrics, source state, and workflow queue counts.
 - The left navigation can collapse into an icon rail, and the dashboard now also surfaces attention items plus recent tender previews.
+- Dashboard cards share one aligned full-width grid, so metrics, source status, queue, attention items, and recent tenders read as one organized workspace.
 - The tender list has a page-size selector for 10/25/50/100 rows while keeping 25 as the default.
 - Local dev startup is guarded by `tender_killer.dev_health`, which checks both `/api/health` and `/api/sources/status` before the frontend starts.
 - Runtime/UI text encoding is guarded by `tender_killer.encoding_guard`; `dev_smoke` reuses it to catch Cyrillic mojibake regressions.
@@ -56,7 +57,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `200 passed`.
+Latest verified result before this handoff: `201 passed`.
 
 Good next steps:
 

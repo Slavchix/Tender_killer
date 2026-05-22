@@ -162,8 +162,8 @@ textarea {
 .topbar,
 .metrics,
 .source-status-panel,
-.workspace,
-.dashboard-view {
+.workspace {
+  width: 100%;
   max-width: 1680px;
   margin: 0 auto;
 }
@@ -287,30 +287,47 @@ h1 {
 
 .dashboard-view {
   display: grid;
+  align-items: stretch;
   gap: 14px;
+  width: 100%;
+  max-width: 1680px;
+  margin: 0 auto;
+}
+
+.dashboard-view .metrics {
+  margin-bottom: 0;
 }
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr);
+  grid-template-columns: minmax(360px, 0.9fr) minmax(0, 1.1fr);
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .dashboard-secondary-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(360px, 0.9fr) minmax(0, 1.1fr);
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
+}
+
+.dashboard-grid > *,
+.dashboard-secondary-grid > * {
+  min-width: 0;
+  height: 100%;
 }
 
 .dashboard-grid .source-status-panel {
   max-width: none;
   margin: 0;
+  min-height: 262px;
 }
 
 .dashboard-panel {
-  min-height: 214px;
+  display: grid;
+  align-content: start;
+  min-height: 262px;
   padding: 16px;
   background: #17211e;
   border: 1px solid #2c3a35;
