@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from tender_killer.models import Tender
+from tender_killer.price_tracking import latest_price_change
 from tender_killer.storage import TenderStore
 
 
@@ -37,3 +38,28 @@ def test_store_records_price_snapshot_only_when_nmc_changes(tmp_path):
         ("nmc", 100_000),
         ("nmc", 95_000),
     ]
+
+
+def test_latest_price_change_reports_decrease(tmp_path):
+    store = TenderStore(tmp_path / "db.sqlite")
+    store.initialize()
+    tender = Tender(
+        source="mosreg_market",
+        external_id="price-2",
+        url="https://example.test/price-2",
+        title="Поставка топлива",
+        price=100_000,
+    )
+    store.upsert_tender(tender)
+    store.upsert_tender(replace(tender, price=93_500))
+
+    change = latest_price_change(store.database_path, "mosreg_market", "price-2", "nmc")
+
+    assert change == {
+        "price_kind": "nmc",
+        "direction": "decreased",
+        "previous_price": 100_000.0,
+        "current_price": 93_500.0,
+        "delta": -6_500.0,
+        "delta_percent": -6.5,
+    }

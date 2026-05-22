@@ -109,3 +109,25 @@ def test_get_tender_payload_includes_economics_summary_from_product_profiles(tmp
     assert detail["economics"]["supplier_cost"] == 65000.0
     assert detail["economics"]["risk_reserve"] == 1500.0
     assert detail["economics"]["gross_margin"] == 33500.0
+
+
+def test_get_tender_payload_includes_latest_price_change(tmp_path):
+    from dataclasses import replace
+
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    tender = Tender(
+        source="mosreg_market",
+        external_id="price-change",
+        url="https://example.test/price-change",
+        title="Поставка топлива",
+        price=100000.0,
+    )
+    store.upsert_tender(tender)
+    store.upsert_tender(replace(tender, price=95000.0))
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "price-change")
+
+    assert detail["price_change"]["direction"] == "decreased"
+    assert detail["price_change"]["previous_price"] == 100000.0
+    assert detail["price_change"]["current_price"] == 95000.0
