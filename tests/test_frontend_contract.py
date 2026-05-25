@@ -9,6 +9,7 @@ APP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "App.jsx"
 STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css"
 API_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "api.js"
 CONSTANTS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "constants.js"
+DASHBOARD_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "Dashboard.jsx"
 FORMATTERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "formatters.js"
 
 
@@ -83,6 +84,25 @@ def test_frontend_uses_dedicated_constants_module():
     assert "const initialFilters" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(constants_source, CONSTANTS_SOURCE) == []
+
+
+def test_frontend_uses_dedicated_dashboard_module():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    dashboard_source = (
+        DASHBOARD_SOURCE.read_text(encoding="utf-8")
+        if DASHBOARD_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './Dashboard'" in app_source
+    assert "export function DashboardView" in dashboard_source
+    assert "function DashboardAttentionPanel" in dashboard_source
+    assert "function DashboardTenderPreview" in dashboard_source
+    assert "function SourceStatusPanel" in dashboard_source
+    assert "function DashboardView" not in app_source
+    assert "function DashboardAttentionPanel" not in app_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(dashboard_source, DASHBOARD_SOURCE) == []
 
 
 def test_tender_cockpit_exposes_page_size_selector():
@@ -441,6 +461,7 @@ def test_tender_workflow_tabs_wrap_without_horizontal_scrollbar():
 def test_global_shell_exposes_dashboard_and_side_navigation():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     constants_source = CONSTANTS_SOURCE.read_text(encoding="utf-8")
+    dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "export const viewLabels = {" in constants_source
@@ -451,7 +472,7 @@ def test_global_shell_exposes_dashboard_and_side_navigation():
     assert "app-sidebar" in app_source
     assert "className=\"side-nav\"" in app_source
     assert "setView(item.id)" in app_source
-    assert "function DashboardView" in app_source
+    assert "export function DashboardView" in dashboard_source
     assert "<DashboardView" in app_source
     assert "view === 'dashboard'" in app_source
     assert ".app-frame" in styles_source
@@ -482,16 +503,17 @@ def test_sidebar_can_collapse_without_losing_navigation():
 
 def test_dashboard_surfaces_attention_and_recent_tenders():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
+    dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
-    assert "function DashboardAttentionPanel" in app_source
-    assert "function DashboardTenderPreview" in app_source
-    assert "<DashboardAttentionPanel" in app_source
-    assert "<DashboardTenderPreview" in app_source
-    assert "Требует внимания" in app_source
-    assert "Последние закупки" in app_source
-    assert "dashboard-attention-list" in app_source
-    assert "dashboard-tender-list" in app_source
+    assert "function DashboardAttentionPanel" in dashboard_source
+    assert "function DashboardTenderPreview" in dashboard_source
+    assert "<DashboardAttentionPanel" in dashboard_source
+    assert "<DashboardTenderPreview" in dashboard_source
+    assert "Требует внимания" in dashboard_source
+    assert "Последние закупки" in dashboard_source
+    assert "dashboard-attention-list" in dashboard_source
+    assert "dashboard-tender-list" in dashboard_source
     assert ".dashboard-secondary-grid" in styles_source
     assert ".dashboard-attention-list" in styles_source
     assert ".dashboard-tender-list" in styles_source
