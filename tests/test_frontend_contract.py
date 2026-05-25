@@ -8,6 +8,7 @@ from tender_killer.encoding_guard import find_mojibake
 APP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "App.jsx"
 STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css"
 API_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "api.js"
+CONSTANTS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "constants.js"
 FORMATTERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "formatters.js"
 
 
@@ -19,9 +20,10 @@ def _css_rule(source: str, selector: str) -> str:
 
 def test_tender_cockpit_exposes_normalized_metadata_filters():
     source = APP_SOURCE.read_text(encoding="utf-8")
+    constants_source = CONSTANTS_SOURCE.read_text(encoding="utf-8")
 
     for key in ("source_family", "procedure_type", "customer_inn"):
-        assert f"{key}: ''" in source
+        assert f"{key}: ''" in constants_source
         assert f"updateFilter('{key}'" in source
 
     assert "procedureTypeOptions" in source
@@ -60,6 +62,27 @@ def test_frontend_uses_dedicated_formatters_module():
     assert "function documentStatusCounts" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(formatter_source, FORMATTERS_SOURCE) == []
+
+
+def test_frontend_uses_dedicated_constants_module():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    constants_source = (
+        CONSTANTS_SOURCE.read_text(encoding="utf-8")
+        if CONSTANTS_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './constants'" in app_source
+    assert "export const sourceLabels" in constants_source
+    assert "export const workflowLabels" in constants_source
+    assert "export const viewLabels" in constants_source
+    assert "export const navItems" in constants_source
+    assert "export const initialFilters" in constants_source
+    assert "export const initialTenderPage" in constants_source
+    assert "const sourceLabels" not in app_source
+    assert "const initialFilters" not in app_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(constants_source, CONSTANTS_SOURCE) == []
 
 
 def test_tender_cockpit_exposes_page_size_selector():
@@ -240,8 +263,9 @@ def test_economics_tab_owns_product_costs_and_suppliers():
 
 def test_product_detail_keeps_passport_and_requirements_only():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
+    constants_source = CONSTANTS_SOURCE.read_text(encoding="utf-8")
 
-    assert "const productDetailModes = [" in app_source
+    assert "export const productDetailModes = [" in constants_source
     assert "{ id: 'pricing'" not in app_source
     assert "{ id: 'suppliers'" not in app_source
     assert "activeProfileMode === 'pricing'" not in app_source
@@ -251,13 +275,14 @@ def test_product_detail_keeps_passport_and_requirements_only():
 
 def test_tender_workbench_v1_reduces_detail_panel_overload():
     source = APP_SOURCE.read_text(encoding="utf-8")
+    constants_source = CONSTANTS_SOURCE.read_text(encoding="utf-8")
 
     assert "workspace workbench-layout" in source
     assert "function TenderDecisionSummary" in source
     assert "<TenderDecisionSummary tender={tender} economics={economics} />" in source
     assert "decision-summary-grid" in source
     assert "product-detail-tabs" in source
-    assert "const productDetailModes" in source
+    assert "export const productDetailModes" in constants_source
     assert "Паспорт" in source
     assert "ТЗ" in source
     assert "economics-workbench" in source
@@ -415,12 +440,13 @@ def test_tender_workflow_tabs_wrap_without_horizontal_scrollbar():
 
 def test_global_shell_exposes_dashboard_and_side_navigation():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
+    constants_source = CONSTANTS_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
-    assert "const viewLabels = {" in app_source
-    assert "dashboard: 'Дашборд'" in app_source
-    assert "tenders: 'Закупки'" in app_source
-    assert "const navItems = [" in app_source
+    assert "export const viewLabels = {" in constants_source
+    assert "dashboard: 'Дашборд'" in constants_source
+    assert "tenders: 'Закупки'" in constants_source
+    assert "export const navItems = [" in constants_source
     assert "app-frame" in app_source
     assert "app-sidebar" in app_source
     assert "className=\"side-nav\"" in app_source

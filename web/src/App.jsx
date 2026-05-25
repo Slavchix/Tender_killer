@@ -70,104 +70,23 @@ import {
   documentRecordsForTender,
 } from './formatters'
 import './styles.css'
-
-const sourceLabels = {
-  moscow_supplier_portal: 'Москва',
-  mosreg_market: 'МО',
-}
-
-const workflowLabels = {
-  new: 'Новая',
-  opened: 'Открыта',
-  interesting: 'Интересно',
-  in_progress: 'В работу',
-  skipped: 'Пропустить',
-  archive: 'Архив',
-}
-
-const viewLabels = {
-  dashboard: 'Дашборд',
-  tenders: 'Закупки',
-  database: 'SQLite',
-}
-
-const navItems = [
-  { id: 'dashboard', label: viewLabels.dashboard, caption: 'Сводка', icon: Building2 },
-  { id: 'tenders', label: viewLabels.tenders, caption: 'Работа', icon: FileText },
-  { id: 'database', label: viewLabels.database, caption: 'Данные', icon: Database },
-]
-
-const sourceOptions = [
-  { value: 'moscow_supplier_portal', label: 'Москва' },
-  { value: 'mosreg_market', label: 'МО' },
-]
-
-const lawOptions = [
-  { value: '', label: 'Все' },
-  { value: '44-ФЗ', label: '44-ФЗ' },
-  { value: '223-ФЗ', label: '223-ФЗ' },
-]
-
-const statusOptions = [
-  { value: 'active', label: 'Активные' },
-  { value: '', label: 'Все' },
-  { value: 'Прием', label: 'Прием заявок' },
-  { value: 'Заверш', label: 'Завершенные' },
-]
-
-const quickRegionOptions = [
-  { value: 'Москва', label: 'Москва' },
-  { value: 'Московская область', label: 'МО' },
-  { value: 'Москва + МО', label: 'Москва + МО' },
-]
-
-const sourceFamilyOptions = [
-  { value: '', label: 'Все' },
-  { value: 'moscow', label: 'Москва' },
-  { value: 'mosreg', label: 'МО' },
-]
-
-const procedureTypeOptions = [
-  { value: '', label: 'Все' },
-  { value: 'electronic_shop', label: 'Эл-магазин' },
-  { value: 'quotation_session', label: 'Котировка' },
-  { value: 'supplier_portal', label: 'Портал' },
-  { value: 'need', label: 'Потребность' },
-  { value: 'tender', label: 'Тендер' },
-]
-
-const initialFilters = {
-  q: '',
-  source: '',
-  law: '',
-  region: '',
-  status: 'active',
-  source_family: '',
-  procedure_type: '',
-  customer_inn: '',
-  workflow_status: '',
-  okpd2: '',
-  min_price: '',
-  max_price: '',
-}
-
-const defaultTenderPageLimit = 25
-const tenderPageLimitOptions = [10, 25, 50, 100]
-
-const productDetailModes = [
-  { id: 'overview', label: 'Паспорт' },
-  { id: 'requirements', label: 'ТЗ' },
-]
-
-const initialTenderPage = {
-  total: 0,
-  limit: defaultTenderPageLimit,
-  offset: 0,
-  has_previous: false,
-  previous_offset: null,
-  has_next: false,
-  next_offset: null,
-}
+import {
+  sourceLabels,
+  workflowLabels,
+  viewLabels,
+  navItems,
+  sourceOptions,
+  lawOptions,
+  statusOptions,
+  quickRegionOptions,
+  sourceFamilyOptions,
+  procedureTypeOptions,
+  initialFilters,
+  defaultTenderPageLimit,
+  tenderPageLimitOptions,
+  productDetailModes,
+  initialTenderPage,
+} from './constants'
 
 function App() {
   const [filters, setFilters] = useState(initialFilters)
