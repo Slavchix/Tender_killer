@@ -10,6 +10,7 @@ STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.cs
 API_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "api.js"
 CONSTANTS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "constants.js"
 DASHBOARD_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "Dashboard.jsx"
+DATABASE_VIEW_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "DatabaseView.jsx"
 FORMATTERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "formatters.js"
 
 
@@ -103,6 +104,24 @@ def test_frontend_uses_dedicated_dashboard_module():
     assert "function DashboardAttentionPanel" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(dashboard_source, DASHBOARD_SOURCE) == []
+
+
+def test_frontend_uses_dedicated_database_view_module():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    database_view_source = (
+        DATABASE_VIEW_SOURCE.read_text(encoding="utf-8")
+        if DATABASE_VIEW_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './DatabaseView'" in app_source
+    assert "export function DatabaseView" in database_view_source
+    assert "fetchDatabaseTables" in database_view_source
+    assert "fetchDatabaseTable" in database_view_source
+    assert "formatDbCell" in database_view_source
+    assert "function DatabaseView" not in app_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(database_view_source, DATABASE_VIEW_SOURCE) == []
 
 
 def test_tender_cockpit_exposes_page_size_selector():
