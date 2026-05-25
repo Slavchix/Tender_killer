@@ -924,6 +924,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const [profilesLoading, setProfilesLoading] = useState(false)
   const [savingEconomicsPosition, setSavingEconomicsPosition] = useState(null)
   const [savingSupplierOptionPosition, setSavingSupplierOptionPosition] = useState(null)
+  const [autoEstimatingPosition, setAutoEstimatingPosition] = useState(null)
 
   useEffect(() => {
     setActiveTab('overview')
@@ -940,6 +941,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     setSelectedProfileIndex(0)
     setSavingEconomicsPosition(null)
     setSavingSupplierOptionPosition(null)
+    setAutoEstimatingPosition(null)
   }, [tender.source, tender.external_id, tender.workflow_note, tender.analysis, tender.product_profiles, tender.product_profile_summary, tender.economics])
 
   useEffect(() => {
@@ -1147,6 +1149,29 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       .finally(() => setSavingSupplierOptionPosition(null))
   }
 
+  function runProfileAutoEconomics(profile) {
+    if (!profile?.position_index) return null
+    setAutoEstimatingPosition(profile.position_index)
+    setDetailStatus('')
+    return fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/economics/auto-estimate`, {
+      method: 'POST',
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось рассчитать экономику автоматически')))
+      .then((nextTender) => {
+        onTenderRefresh(nextTender)
+        setProductProfiles(nextTender.product_profiles || [])
+        setProductProfileSummary(nextTender.product_profile_summary || null)
+        setEconomics(nextTender.economics || null)
+        setDetailStatus('Авторасчет обновлен')
+        return nextTender
+      })
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setAutoEstimatingPosition(null))
+  }
+
   const statusMessages = [detailStatus, notifyStatus, downloadStatus, extractStatus].filter(Boolean)
   const tabs = [
     { id: 'overview', label: 'Обзор' },
@@ -1334,8 +1359,10 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
             onEconomicsSave={saveProfileEconomics}
             onSupplierOptionSave={saveSupplierOption}
             onSupplierOptionSelect={selectSupplierOption}
+            onAutoEconomicsRun={runProfileAutoEconomics}
             savingEconomicsPosition={savingEconomicsPosition}
             savingSupplierOptionPosition={savingSupplierOptionPosition}
+            autoEstimatingPosition={autoEstimatingPosition}
           />
         )}
 
@@ -1465,8 +1492,10 @@ function EconomicsTabPanel({
   onEconomicsSave,
   onSupplierOptionSave,
   onSupplierOptionSelect,
+  onAutoEconomicsRun,
   savingEconomicsPosition = null,
   savingSupplierOptionPosition = null,
+  autoEstimatingPosition = null,
 }) {
   const missingInputs = economics?.missing_cost_inputs?.length || 0
   const displayedRevenue = economics?.revenue ?? tender?.price
@@ -1475,6 +1504,7 @@ function EconomicsTabPanel({
   const selectedPosition = selectedEconomicsProfile?.position_index
   const savingEconomics = savingEconomicsPosition === selectedPosition
   const savingSupplierOption = savingSupplierOptionPosition === selectedPosition
+  const autoEstimating = autoEstimatingPosition === selectedPosition
 
   return (
     <section className="detail-section active economics-section">
@@ -1525,6 +1555,11 @@ function EconomicsTabPanel({
                 <span>Позиция #{selectedEconomicsProfile.position_index || selectedEconomicsProfileIndex + 1}</span>
                 <strong>{selectedEconomicsProfile.product_name || 'Без названия'}</strong>
               </div>
+              <ProductAutoEconomicsPanel
+                profile={selectedEconomicsProfile}
+                onRun={onAutoEconomicsRun}
+                saving={autoEstimating}
+              />
               <ProductEconomicsForm profile={selectedEconomicsProfile} onSave={onEconomicsSave} saving={savingEconomics} />
               <ProductSupplierOptionsForm
                 profile={selectedEconomicsProfile}
@@ -1891,6 +1926,50 @@ function economicsFormValues(economics = {}) {
     documents_cost: economics.documents_cost ?? '',
     other_costs: economics.other_costs ?? '',
   }
+}
+
+function ProductAutoEconomicsPanel({ profile, onRun, saving = false }) {
+  const estimate = profile?.raw_payload?.economics_auto || null
+  const costDrivers = Array.isArray(estimate?.cost_drivers) ? estimate.cost_drivers : []
+  const needsReview = Array.isArray(estimate?.needs_review) ? estimate.needs_review : []
+
+  return (
+    <section className="auto-economics-panel">
+      <div className="profile-block-heading">
+        <h5>Авторасчет</h5>
+        <button className="secondary-button compact" disabled={saving || !onRun} onClick={() => onRun?.(profile)} type="button">
+          {saving ? 'Расчет...' : 'Рассчитать'}
+        </button>
+      </div>
+      {estimate ? (
+        <>
+          <div className="auto-economics-metrics">
+            <Info label="Итого" value={formatMoney(estimate.estimated_total_cost)} />
+            <Info label="Скрытые расходы" value={formatMoney(estimate.hidden_costs_total)} />
+            <Info label="Резерв" value={formatMoney(estimate.risk_reserve)} />
+            <Info label="НДС" value={taxModeLabel(estimate.tax_mode, estimate.vat_rate_percent)} />
+            <Info label="Уверенность" value={formatConfidence(estimate.confidence)} />
+          </div>
+          {estimate.manual_inputs_present && (
+            <p className="auto-economics-note">Ручная экономика уже заполнена, авторасчет сохранен как черновик.</p>
+          )}
+          <AnalysisList
+            title="Факторы расходов"
+            items={costDrivers.map(formatCostDriver)}
+            empty="Скрытые расходы пока не найдены"
+          />
+          <AnalysisList
+            title="Проверить вручную"
+            items={needsReview}
+            empty="Критичных проверок пока нет"
+            danger={needsReview.length > 0}
+          />
+        </>
+      ) : (
+        <p className="muted-text">Черновик авторасчета пока не построен.</p>
+      )}
+    </section>
+  )
 }
 
 function ProductSupplierOptionsForm({ profile, onSave, onSelect, saving = false }) {
@@ -2297,6 +2376,39 @@ function supplierStatusLabel(value) {
     suitable: 'подходит',
     rejected: 'не подходит',
   }[value] || value || 'кандидат'
+}
+
+function taxModeLabel(mode, vatRate) {
+  const labels = {
+    no_vat: 'без НДС',
+    unknown: 'проверить',
+    vat_excluded: 'НДС сверху',
+    vat_included: 'НДС включен',
+  }
+  const label = labels[mode] || mode || 'проверить'
+  return vatRate === null || vatRate === undefined ? label : `${label} · ${formatPercent(vatRate)}`
+}
+
+function formatCostDriver(driver) {
+  if (!driver || typeof driver !== 'object') return ''
+  const label = costDriverLabel(driver.type)
+  return `${label}: ${formatMoney(driver.amount)} · ${formatPercent(driver.rate_percent)}`
+}
+
+function costDriverLabel(type) {
+  return {
+    acceptance: 'приемка',
+    certificates: 'сертификаты',
+    contract_security: 'обеспечение',
+    delivery: 'доставка',
+    national_regime: 'нацрежим',
+    packaging: 'упаковка',
+    payment_delay: 'отсрочка оплаты',
+    penalties: 'штрафы',
+    short_deadline: 'короткий срок',
+    unloading: 'разгрузка',
+    warranty: 'гарантия',
+  }[type] || type || 'расход'
 }
 
 function formatPercent(value) {

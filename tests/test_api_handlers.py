@@ -86,6 +86,39 @@ def test_handle_post_request_routes_product_profile_economics_update(tmp_path) -
     assert response.payload["economics"]["supplier_cost"] == 65000.0
 
 
+def test_handle_post_request_routes_product_profile_auto_economics(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+                raw_payload={
+                    "selected_supplier_option_index": 0,
+                    "supplier_options": [{"name": "Paper shop", "unit_price": 900.0, "status": "selected"}],
+                },
+            )
+        ],
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/product-profiles/1/economics/auto-estimate",
+        {},
+    )
+
+    profile = response.payload["product_profiles"][0]
+    assert response.status == 200
+    assert profile["raw_payload"]["economics_auto"]["estimated_unit_cost"] == 900.0
+    assert profile["raw_payload"]["economics_auto"]["base_source"] == "selected_supplier"
+
+
 def test_handle_post_request_routes_product_profile_supplier_option_create(tmp_path) -> None:
     store = _store_with_tender(tmp_path)
     store.upsert_product_profiles(

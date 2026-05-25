@@ -105,6 +105,22 @@ def test_product_profile_renders_supplier_option_form():
     assert find_mojibake(source, APP_SOURCE) == []
 
 
+def test_economics_tab_renders_auto_estimate_panel():
+    source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "runProfileAutoEconomics" in source
+    assert "ProductAutoEconomicsPanel" in source
+    assert "economics/auto-estimate" in source
+    assert "economics_auto" in source
+    assert "Авторасчет" in source
+    assert "Рассчитать" in source
+    assert "Уверенность" in source
+    assert ".auto-economics-panel" in styles_source
+    assert find_mojibake(source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_economics_tab_owns_product_costs_and_suppliers():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")

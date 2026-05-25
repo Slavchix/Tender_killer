@@ -7,6 +7,7 @@ from typing import Any
 
 from tender_killer.analysis_service import analyze_tender_payload
 from tender_killer.api_routes import parse_database_table_path
+from tender_killer.api_routes import parse_product_profile_auto_economics_path
 from tender_killer.api_routes import parse_product_profile_economics_path
 from tender_killer.api_routes import parse_product_profile_supplier_option_select_path
 from tender_killer.api_routes import parse_product_profile_supplier_options_path
@@ -17,6 +18,7 @@ from tender_killer.database_view_service import list_database_tables_payload
 from tender_killer.document_service import download_tender_documents_payload
 from tender_killer.document_service import extract_tender_document_text_payload
 from tender_killer.economics_service import update_profile_economics as update_profile_economics_inputs
+from tender_killer.economics_service import update_profile_auto_economics as update_profile_auto_economics_inputs
 from tender_killer.notification_service import send_tender_notification_payload
 from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
@@ -67,6 +69,23 @@ def update_product_profile_economics(
     data: dict[str, Any],
 ) -> dict[str, Any]:
     update_profile_economics_inputs(database_path, source, external_id, position_index, data)
+    return get_tender_payload(database_path, source, external_id)
+
+
+def update_product_profile_auto_economics(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+) -> dict[str, Any]:
+    detail = get_tender_payload(database_path, source, external_id)
+    update_profile_auto_economics_inputs(
+        database_path,
+        source,
+        external_id,
+        position_index,
+        detail.get("document_records") or [],
+    )
     return get_tender_payload(database_path, source, external_id)
 
 
@@ -187,6 +206,18 @@ def handle_post_request(
                 route.external_id,
                 route.position_index,
                 body,
+            )
+        )
+    if path.startswith("/api/tenders/") and path.endswith("/auto-estimate"):
+        route = parse_product_profile_auto_economics_path(path)
+        if route is None:
+            return ApiResponse({"error": "invalid product profile auto economics path"}, status=400)
+        return ApiResponse(
+            update_product_profile_auto_economics(
+                database_path,
+                route.source,
+                route.external_id,
+                route.position_index,
             )
         )
     if path.startswith("/api/tenders/") and path.endswith("/supplier-options"):
