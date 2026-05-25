@@ -120,3 +120,66 @@ def test_build_economics_summary_applies_position_assumptions():
     assert item["target_price"] == 16305.88
     assert summary["supplier_cost"] == 13860.0
     assert summary["break_even_price"] == 13860.0
+
+
+def test_build_economics_summary_returns_bid_scenarios():
+    summary = build_economics_summary(
+        {
+            "price": 20000.0,
+            "product_profiles": [
+                {
+                    "product_name": "Fuel",
+                    "quantity": 10,
+                    "raw_payload": {
+                        "economics": {"unit_cost": 1000, "logistics_cost": 1000},
+                        "economics_assumptions": {
+                            "vat_mode": "vat_excluded",
+                            "vat_rate_percent": 20,
+                            "risk_reserve_percent": 5,
+                            "target_margin_percent": 20,
+                        },
+                    },
+                }
+            ],
+        }
+    )
+
+    assert summary["target_margin_percent"] == 20.0
+    assert summary["target_bid_price"] == 17325.0
+    assert summary["bid_scenarios"] == [
+        {
+            "id": "break_even",
+            "label": "Безубыток",
+            "price": 13860.0,
+            "margin_amount": 0.0,
+            "margin_percent": 0.0,
+        },
+        {
+            "id": "minimum_margin",
+            "label": "Минимум",
+            "price": 14903.23,
+            "margin_amount": 1043.23,
+            "margin_percent": 7.0,
+        },
+        {
+            "id": "target",
+            "label": "Цель",
+            "price": 17325.0,
+            "margin_amount": 3465.0,
+            "margin_percent": 20.0,
+        },
+        {
+            "id": "interesting",
+            "label": "Интересно",
+            "price": 16305.88,
+            "margin_amount": 2445.88,
+            "margin_percent": 15.0,
+        },
+        {
+            "id": "current_nmc",
+            "label": "НМЦК",
+            "price": 20000.0,
+            "margin_amount": 6140.0,
+            "margin_percent": 30.7,
+        },
+    ]

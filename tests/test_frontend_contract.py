@@ -144,6 +144,19 @@ def test_economics_tab_renders_assumptions_form():
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
+def test_economics_tab_renders_bid_scenarios():
+    source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "BidScenarioStrip" in source
+    assert "economics.bid_scenarios" in source
+    assert "Сценарии цены" in source
+    assert "bid-scenario-grid" in source
+    assert ".bid-scenario-grid" in styles_source
+    assert find_mojibake(source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_economics_tab_owns_product_costs_and_suppliers():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")

@@ -44,10 +44,13 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
             "break_even_price": None,
             "minimum_margin_price": None,
             "interesting_price": None,
+            "target_bid_price": None,
+            "target_margin_percent": None,
             "gross_margin": None,
             "margin_percent": None,
             "missing_cost_inputs": missing_cost_inputs,
             "risk_types": risk_types,
+            "bid_scenarios": [],
             "items": items,
         }
 
@@ -63,10 +66,13 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
             "break_even_price": None,
             "minimum_margin_price": None,
             "interesting_price": None,
+            "target_bid_price": None,
+            "target_margin_percent": None,
             "gross_margin": None,
             "margin_percent": None,
             "missing_cost_inputs": missing_cost_inputs or ["товарные позиции"],
             "risk_types": risk_types,
+            "bid_scenarios": [],
             "items": items,
         }
 
@@ -75,6 +81,17 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
     break_even_price = estimated_total_cost
     minimum_margin_price = _price_for_margin(estimated_total_cost, LOW_MARGIN_PERCENT)
     interesting_price = _price_for_margin(estimated_total_cost, INTERESTING_MARGIN_PERCENT)
+    target_margin_percent = _target_margin_percent(items)
+    target_bid_price = _price_for_margin(estimated_total_cost, target_margin_percent)
+    bid_scenarios = _bid_scenarios(
+        revenue,
+        estimated_total_cost,
+        break_even_price,
+        minimum_margin_price,
+        interesting_price,
+        target_bid_price,
+        target_margin_percent,
+    )
     gross_margin = _round_money(revenue - estimated_total_cost)
     margin_percent = _round_percent((gross_margin / revenue) * 100) if revenue else None
     status = _status_for_margin(margin_percent)
@@ -89,10 +106,13 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         "break_even_price": break_even_price,
         "minimum_margin_price": minimum_margin_price,
         "interesting_price": interesting_price,
+        "target_bid_price": target_bid_price,
+        "target_margin_percent": target_margin_percent,
         "gross_margin": gross_margin,
         "margin_percent": margin_percent,
         "missing_cost_inputs": [],
         "risk_types": risk_types,
+        "bid_scenarios": bid_scenarios,
         "items": items,
     }
 
@@ -184,6 +204,59 @@ def _position_risk_reserve(base_cost: float | None, vat_cost: float, risk_reserv
     if base_cost is None:
         return 0.0
     return _round_money((base_cost + vat_cost) * risk_reserve_percent / 100)
+
+
+def _target_margin_percent(items: list[dict[str, Any]]) -> float:
+    margins = [
+        item["target_margin_percent"]
+        for item in items
+        if _number(item.get("target_margin_percent")) is not None
+    ]
+    if not margins:
+        return INTERESTING_MARGIN_PERCENT
+    return _round_percent(max(margins))
+
+
+def _bid_scenarios(
+    revenue: float,
+    estimated_total_cost: float,
+    break_even_price: float,
+    minimum_margin_price: float,
+    interesting_price: float,
+    target_bid_price: float,
+    target_margin_percent: float,
+) -> list[dict[str, Any]]:
+    scenarios = [
+        ("break_even", "Безубыток", break_even_price, 0.0),
+        ("minimum_margin", "Минимум", minimum_margin_price, LOW_MARGIN_PERCENT),
+        ("target", "Цель", target_bid_price, target_margin_percent),
+        ("interesting", "Интересно", interesting_price, INTERESTING_MARGIN_PERCENT),
+        ("current_nmc", "НМЦК", _round_money(revenue), _margin_percent(revenue, estimated_total_cost)),
+    ]
+    return [
+        _bid_scenario(scenario_id, label, price, margin_percent, estimated_total_cost)
+        for scenario_id, label, price, margin_percent in scenarios
+    ]
+
+
+def _bid_scenario(
+    scenario_id: str,
+    label: str,
+    price: float,
+    margin_percent: float,
+    estimated_total_cost: float,
+) -> dict[str, Any]:
+    return {
+        "id": scenario_id,
+        "label": label,
+        "price": _round_money(price),
+        "margin_amount": _round_money(price - estimated_total_cost),
+        "margin_percent": _round_percent(margin_percent),
+    }
+
+
+def _margin_percent(price: float, cost: float) -> float:
+    return _round_percent(((price - cost) / price) * 100) if price else 0.0
 
 
 def _risk_types(profiles: list[dict[str, Any]]) -> list[str]:

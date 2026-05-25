@@ -1727,6 +1727,47 @@ textarea:focus {
   gap: 8px;
 }
 
+.bid-scenario-strip {
+  display: grid;
+  gap: 8px;
+}
+
+.bid-scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 8px;
+}
+
+.bid-scenario {
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  background: #18231f;
+  border: 1px solid #33443d;
+  border-radius: 7px;
+}
+
+.bid-scenario span {
+  color: #a9c0b8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.bid-scenario strong {
+  color: #f3fbf5;
+  font-size: 14px;
+}
+
+.bid-scenario em {
+  color: #b8cbc4;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.bid-scenario.target {
+  border-color: #6edc61;
+}
+
 .economics-warning {
   display: grid;
   gap: 4px;

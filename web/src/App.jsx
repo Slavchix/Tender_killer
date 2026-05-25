@@ -1770,6 +1770,7 @@ function EconomicsSummary({ economics, tender }) {
   const missingInputs = economics.missing_cost_inputs || []
   const riskTypes = economics.risk_types || []
   const items = economics.items || []
+  const bidScenarios = economics.bid_scenarios || []
 
   return (
     <div className="economics-card">
@@ -1778,6 +1779,7 @@ function EconomicsSummary({ economics, tender }) {
         <span>Маржа: {formatPercent(economics.margin_percent)}</span>
       </div>
       {economics.recommendation && <p>{economics.recommendation}</p>}
+      <BidScenarioStrip scenarios={bidScenarios} />
       <div className="economics-grid">
         <Info label="НМЦК" value={formatMoney(economics.revenue)} />
         <Info label="Себестоимость" value={formatMoney(economics.supplier_cost)} />
@@ -1807,6 +1809,27 @@ function EconomicsSummary({ economics, tender }) {
         </div>
       )}
     </div>
+  )
+}
+
+function BidScenarioStrip({ scenarios = [] }) {
+  if (!scenarios.length) return null
+
+  return (
+    <section className="bid-scenario-strip" aria-label="Сценарии цены участия">
+      <div className="profile-block-heading">
+        <h5>Сценарии цены</h5>
+      </div>
+      <div className="bid-scenario-grid">
+        {scenarios.map((scenario) => (
+          <div className={`bid-scenario ${scenario.id || ''}`} key={scenario.id || scenario.label}>
+            <span>{scenario.label}</span>
+            <strong>{formatMoney(scenario.price)}</strong>
+            <em>{formatMoney(scenario.margin_amount)} · {formatPercent(scenario.margin_percent)}</em>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 
