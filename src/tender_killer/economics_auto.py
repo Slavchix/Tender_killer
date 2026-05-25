@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from tender_killer.supplier_price_service import best_supplier_price
+
 
 DRIVER_RATES = {
     "delivery": 1.5,
@@ -62,18 +64,15 @@ def build_auto_economics_estimate(
 
 
 def _base_unit_cost(profile: dict[str, Any], raw_payload: dict[str, Any], quantity: float) -> tuple[float | None, str, list[dict[str, str]]]:
-    supplier_options = [item for item in raw_payload.get("supplier_options") or [] if isinstance(item, dict)]
-    selected_index = _integer(raw_payload.get("selected_supplier_option_index"))
-    if selected_index is not None and 0 <= selected_index < len(supplier_options):
-        selected = supplier_options[selected_index]
-        unit_price = _number(selected.get("unit_price"))
-        if unit_price is not None:
-            return unit_price, "selected_supplier", [
-                {
-                    "source": "selected_supplier",
-                    "value": str(selected.get("name") or selected.get("url") or "selected supplier"),
-                }
-            ]
+    supplier_price = best_supplier_price(profile)
+    if supplier_price is not None:
+        base_source = "selected_supplier" if supplier_price["selection"] == "manual_selected" else "best_supplier_option"
+        return supplier_price["unit_price"], base_source, [
+            {
+                "source": base_source,
+                "value": str(supplier_price.get("supplier_name") or supplier_price.get("supplier_url") or "supplier option"),
+            }
+        ]
 
     unit_price = _number(profile.get("unit_price"))
     if unit_price is not None:
@@ -211,13 +210,6 @@ def _number(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if number >= 0 else None
-
-
-def _integer(value: Any) -> int | None:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _round_money(value: float) -> float:

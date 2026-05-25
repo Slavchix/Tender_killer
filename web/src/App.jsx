@@ -925,6 +925,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const [savingEconomicsPosition, setSavingEconomicsPosition] = useState(null)
   const [savingAssumptionsPosition, setSavingAssumptionsPosition] = useState(null)
   const [savingSupplierOptionPosition, setSavingSupplierOptionPosition] = useState(null)
+  const [autoSelectingSupplierPosition, setAutoSelectingSupplierPosition] = useState(null)
   const [autoEstimatingPosition, setAutoEstimatingPosition] = useState(null)
   const [acceptingAutoEconomicsPosition, setAcceptingAutoEconomicsPosition] = useState(null)
 
@@ -944,6 +945,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     setSavingEconomicsPosition(null)
     setSavingAssumptionsPosition(null)
     setSavingSupplierOptionPosition(null)
+    setAutoSelectingSupplierPosition(null)
     setAutoEstimatingPosition(null)
     setAcceptingAutoEconomicsPosition(null)
   }, [tender.source, tender.external_id, tender.workflow_note, tender.analysis, tender.product_profiles, tender.product_profile_summary, tender.economics])
@@ -1176,6 +1178,29 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         throw err
       })
       .finally(() => setSavingSupplierOptionPosition(null))
+  }
+
+  function autoSelectSupplierOption(profile) {
+    if (!profile?.position_index) return null
+    setAutoSelectingSupplierPosition(profile.position_index)
+    setDetailStatus('')
+    return fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/supplier-options/best/select`, {
+      method: 'POST',
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось выбрать лучшего поставщика')))
+      .then((nextTender) => {
+        onTenderRefresh(nextTender)
+        setProductProfiles(nextTender.product_profiles || [])
+        setProductProfileSummary(nextTender.product_profile_summary || null)
+        setEconomics(nextTender.economics || null)
+        setDetailStatus('Лучший поставщик взят в расчет')
+        return nextTender
+      })
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setAutoSelectingSupplierPosition(null))
   }
 
   function runProfileAutoEconomics(profile) {
@@ -1412,11 +1437,13 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
             onEconomicsAssumptionsSave={saveProfileEconomicsAssumptions}
             onSupplierOptionSave={saveSupplierOption}
             onSupplierOptionSelect={selectSupplierOption}
+            onSupplierOptionAutoSelect={autoSelectSupplierOption}
             onAutoEconomicsRun={runProfileAutoEconomics}
             onAutoEconomicsAccept={acceptProfileAutoEconomics}
             savingEconomicsPosition={savingEconomicsPosition}
             savingAssumptionsPosition={savingAssumptionsPosition}
             savingSupplierOptionPosition={savingSupplierOptionPosition}
+            autoSelectingSupplierPosition={autoSelectingSupplierPosition}
             autoEstimatingPosition={autoEstimatingPosition}
             acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
           />
@@ -1549,11 +1576,13 @@ function EconomicsTabPanel({
   onEconomicsAssumptionsSave,
   onSupplierOptionSave,
   onSupplierOptionSelect,
+  onSupplierOptionAutoSelect,
   onAutoEconomicsRun,
   onAutoEconomicsAccept,
   savingEconomicsPosition = null,
   savingAssumptionsPosition = null,
   savingSupplierOptionPosition = null,
+  autoSelectingSupplierPosition = null,
   autoEstimatingPosition = null,
   acceptingAutoEconomicsPosition = null,
 }) {
@@ -1565,6 +1594,7 @@ function EconomicsTabPanel({
   const savingEconomics = savingEconomicsPosition === selectedPosition
   const savingAssumptions = savingAssumptionsPosition === selectedPosition
   const savingSupplierOption = savingSupplierOptionPosition === selectedPosition
+  const autoSelectingSupplier = autoSelectingSupplierPosition === selectedPosition
   const autoEstimating = autoEstimatingPosition === selectedPosition
   const acceptingAutoEconomics = acceptingAutoEconomicsPosition === selectedPosition
 
@@ -1635,7 +1665,9 @@ function EconomicsTabPanel({
                 profile={selectedEconomicsProfile}
                 onSave={onSupplierOptionSave}
                 onSelect={onSupplierOptionSelect}
+                onAutoSelect={onSupplierOptionAutoSelect}
                 saving={savingSupplierOption}
+                autoSelecting={autoSelectingSupplier}
               />
             </>
           ) : (
@@ -1962,6 +1994,7 @@ function ProductProfileDetail({ profile }) {
 
 function ProductEconomicsForm({ profile, onSave, saving = false }) {
   const economics = profile?.raw_payload?.economics || {}
+  const priceSource = profile?.raw_payload?.economics_price_source || null
   const [values, setValues] = useState(() => economicsFormValues(economics))
 
   useEffect(() => {
@@ -1986,6 +2019,7 @@ function ProductEconomicsForm({ profile, onSave, saving = false }) {
           {saving ? 'Сохраняю...' : 'Сохранить'}
         </button>
       </div>
+      <EconomicsPriceSource source={priceSource} />
       <div className="economics-input-grid">
         <label>
           <span>За единицу</span>
@@ -2029,6 +2063,20 @@ function ProductEconomicsForm({ profile, onSave, saving = false }) {
         </label>
       </div>
     </form>
+  )
+}
+
+function EconomicsPriceSource({ source }) {
+  if (!source) return null
+  const supplier = source.supplier_name || source.supplier_url || 'поставщик'
+  const mode = source.selection === 'manual_selected' ? 'выбран вручную' : 'выбран автоматически'
+
+  return (
+    <div className={`price-source-note ${source.confidence || 'needs_review'}`}>
+      <span>Источник цены</span>
+      <strong>{supplier} · {formatMoney(source.unit_price)}</strong>
+      <em>{mode} · {supplierConfidenceLabel(source.confidence)}</em>
+    </div>
   )
 }
 
@@ -2177,7 +2225,7 @@ function ProductAutoEconomicsPanel({ profile, onRun, onAccept, saving = false, a
   )
 }
 
-function ProductSupplierOptionsForm({ profile, onSave, onSelect, saving = false }) {
+function ProductSupplierOptionsForm({ profile, onSave, onSelect, onAutoSelect, saving = false, autoSelecting = false }) {
   const supplierOptions = Array.isArray(profile?.raw_payload?.supplier_options)
     ? profile.raw_payload.supplier_options
     : []
@@ -2207,9 +2255,19 @@ function ProductSupplierOptionsForm({ profile, onSave, onSelect, saving = false 
       <form className="supplier-input-form" onSubmit={submitSupplierOption}>
         <div className="profile-block-heading">
           <h5>Поставщики</h5>
-          <button className="secondary-button compact" disabled={saving || !onSave || !hasSupplierOptionInput(values)} type="submit">
-            {saving ? 'Сохраняю...' : 'Добавить'}
-          </button>
+          <div className="profile-block-actions">
+            <button
+              className="secondary-button compact"
+              disabled={autoSelecting || !onAutoSelect || !supplierOptions.length}
+              onClick={() => onAutoSelect?.(profile)}
+              type="button"
+            >
+              {autoSelecting ? 'Выбираю...' : 'Лучший в расчет'}
+            </button>
+            <button className="secondary-button compact" disabled={saving || !onSave || !hasSupplierOptionInput(values)} type="submit">
+              {saving ? 'Сохраняю...' : 'Добавить'}
+            </button>
+          </div>
         </div>
         <div className="supplier-input-grid">
           <label>
@@ -2581,6 +2639,15 @@ function supplierStatusLabel(value) {
     suitable: 'подходит',
     rejected: 'не подходит',
   }[value] || value || 'кандидат'
+}
+
+function supplierConfidenceLabel(value) {
+  return {
+    confirmed: 'подтверждено',
+    high: 'высокая уверенность',
+    medium: 'требует проверки',
+    needs_review: 'требует проверки',
+  }[value] || 'требует проверки'
 }
 
 function taxModeLabel(mode, vatRate) {

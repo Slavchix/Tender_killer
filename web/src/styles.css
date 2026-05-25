@@ -2232,6 +2232,13 @@ textarea:focus {
   justify-content: space-between;
 }
 
+.profile-block-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .profile-block h5 {
   margin: 0;
   color: #f2f7f3;
@@ -2279,6 +2286,42 @@ textarea:focus {
   color: #f0d7a7;
   font-size: 12px;
   line-height: 1.35;
+}
+
+.price-source-note {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  background: #18231f;
+  border: 1px solid #33443d;
+  border-radius: 7px;
+}
+
+.price-source-note span {
+  color: #a9c0b8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.price-source-note strong {
+  color: #f3fbf5;
+  font-size: 13px;
+}
+
+.price-source-note em {
+  color: #b8cbc4;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.price-source-note.confirmed,
+.price-source-note.high {
+  border-color: #6edc61;
+}
+
+.price-source-note.medium,
+.price-source-note.needs_review {
+  border-color: #f0d36a;
 }
 
 .economics-input-grid {

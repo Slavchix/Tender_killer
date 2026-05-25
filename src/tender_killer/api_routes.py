@@ -175,6 +175,27 @@ def parse_product_profile_supplier_option_select_path(path: str) -> ProductProfi
     )
 
 
+def parse_product_profile_supplier_option_best_select_path(path: str) -> ProductProfileSupplierOptionsPath | None:
+    parts = path.split("/")
+    if len(parts) != 10 or parts[:3] != ["", "api", "tenders"]:
+        return None
+    if parts[5] != "product-profiles" or parts[7] != "supplier-options" or parts[8] != "best" or parts[9] != "select":
+        return None
+    if not parts[3] or not parts[4]:
+        return None
+    try:
+        position_index = int(parts[6])
+    except ValueError:
+        return None
+    if position_index <= 0:
+        return None
+    return ProductProfileSupplierOptionsPath(
+        source=unquote(parts[3]),
+        external_id=unquote(parts[4]),
+        position_index=position_index,
+    )
+
+
 def parse_database_table_path(path: str) -> str | None:
     parts = path.split("/")
     if len(parts) != 5 or parts[:4] != ["", "api", "db", "tables"] or not parts[4]:

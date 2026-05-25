@@ -43,6 +43,27 @@ def test_build_auto_economics_estimate_uses_selected_supplier_and_cost_drivers()
     assert {driver["type"] for driver in estimate["cost_drivers"]} >= {"delivery", "warranty", "certificates", "short_deadline"}
 
 
+def test_build_auto_economics_estimate_uses_best_supplier_when_none_selected():
+    profile = {
+        "product_name": "Office paper",
+        "quantity": 10,
+        "unit": "pack",
+        "raw_payload": {
+            "supplier_options": [
+                {"name": "Expensive paper", "unit_price": 1200.0, "status": "candidate", "availability": "in_stock"},
+                {"name": "Rejected cheap", "unit_price": 500.0, "status": "rejected", "availability": "in_stock"},
+                {"name": "Best paper", "unit_price": 900.0, "status": "suitable", "availability": "on_request"},
+            ],
+        },
+    }
+
+    estimate = build_auto_economics_estimate(profile, [])
+
+    assert estimate["base_source"] == "best_supplier_option"
+    assert estimate["estimated_unit_cost"] == 900.0
+    assert estimate["evidence"][0] == {"source": "best_supplier_option", "value": "Best paper"}
+
+
 def test_update_profile_auto_economics_persists_draft_without_overwriting_manual_inputs(tmp_path):
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()

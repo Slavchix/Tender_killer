@@ -93,12 +93,19 @@ def test_product_profile_renders_supplier_option_form():
     assert "function ProductSupplierOptionsForm" in source
     assert "onSupplierOptionSave" in source
     assert "selectSupplierOption" in source
+    assert "autoSelectSupplierOption" in source
     assert "onSupplierOptionSelect" in source
+    assert "onSupplierOptionAutoSelect" in source
     assert "product-profiles/${profile.position_index}/supplier-options" in source
     assert "supplier-options/${optionIndex}/select" in source
+    assert "supplier-options/best/select" in source
     assert "supplier_options" in source
+    assert "economics_price_source" in source
+    assert "EconomicsPriceSource" in source
     assert "unit_price" in source
     assert "availability" in source
+    assert "Лучший в расчет" in source
+    assert "Источник цены" in source
     assert "В расчет" in source
     assert "selected: 'в расчете'" in source
     assert "Поставщики" in source
