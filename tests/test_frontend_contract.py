@@ -12,6 +12,7 @@ CONSTANTS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "consta
 DASHBOARD_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "Dashboard.jsx"
 DATABASE_VIEW_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "DatabaseView.jsx"
 FORMATTERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "formatters.js"
+PAGINATION_BAR_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "PaginationBar.jsx"
 
 
 def _css_rule(source: str, selector: str) -> str:
@@ -124,8 +125,26 @@ def test_frontend_uses_dedicated_database_view_module():
     assert find_mojibake(database_view_source, DATABASE_VIEW_SOURCE) == []
 
 
+def test_frontend_uses_dedicated_pagination_bar_module():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    pagination_source = (
+        PAGINATION_BAR_SOURCE.read_text(encoding="utf-8")
+        if PAGINATION_BAR_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './PaginationBar'" in app_source
+    assert "export function PaginationBar" in pagination_source
+    assert "page-size-control" in pagination_source
+    assert "onPageLimitChange" in pagination_source
+    assert "function PaginationBar" not in app_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(pagination_source, PAGINATION_BAR_SOURCE) == []
+
+
 def test_tender_cockpit_exposes_page_size_selector():
     source = APP_SOURCE.read_text(encoding="utf-8")
+    pagination_source = PAGINATION_BAR_SOURCE.read_text(encoding="utf-8")
 
     assert "tenderPageLimitOptions" in source
     assert "const [pageLimit, setPageLimit]" in source
@@ -133,8 +152,8 @@ def test_tender_cockpit_exposes_page_size_selector():
     assert "function changePageLimit" in source
     assert "setPageOffset(0)" in source
     assert "onPageLimitChange={changePageLimit}" in source
-    assert "На странице" in source
-    assert "Закупок на странице" in source
+    assert "На странице" in pagination_source
+    assert "Закупок на странице" in pagination_source
     assert find_mojibake(source, APP_SOURCE) == []
 
 
