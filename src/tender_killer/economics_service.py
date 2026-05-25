@@ -9,6 +9,7 @@ from tender_killer.storage import TenderStore
 
 ECONOMICS_INPUT_FIELDS = ("unit_cost", "total_cost", "logistics_cost", "documents_cost", "other_costs")
 VAT_MODES = {"unknown", "vat_included", "vat_excluded", "no_vat"}
+DEFAULT_TARGET_MARGIN_PERCENT = 15.0
 
 
 def update_profile_economics(
@@ -90,6 +91,10 @@ def update_profile_auto_economics(
     estimate = build_auto_economics_estimate(target, document_records or [])
     raw_payload = dict(target.get("raw_payload") or {})
     raw_payload["economics_auto"] = estimate
+    raw_payload["economics_assumptions"] = _merge_auto_assumptions(
+        raw_payload.get("economics_assumptions"),
+        _assumptions_from_auto_estimate(estimate),
+    )
     target["raw_payload"] = raw_payload
 
     store.upsert_product_profiles(source, external_id, profiles)
@@ -187,6 +192,30 @@ def _assumptions_inputs(data: dict[str, Any]) -> dict[str, Any]:
         if number is not None:
             assumptions[field] = number
     return assumptions
+
+
+def _assumptions_from_auto_estimate(estimate: dict[str, Any]) -> dict[str, Any]:
+    assumptions: dict[str, Any] = {
+        "vat_mode": _vat_mode(estimate.get("tax_mode")),
+        "target_margin_percent": DEFAULT_TARGET_MARGIN_PERCENT,
+    }
+    vat_rate_percent = _percent(estimate.get("vat_rate_percent"))
+    if vat_rate_percent is not None:
+        assumptions["vat_rate_percent"] = vat_rate_percent
+    base_total_cost = _number(estimate.get("base_total_cost")) or 0.0
+    risk_reserve = _number(estimate.get("risk_reserve")) or 0.0
+    assumptions["risk_reserve_percent"] = _round_money((risk_reserve / base_total_cost) * 100) if base_total_cost else 0.0
+    return assumptions
+
+
+def _merge_auto_assumptions(current: Any, inferred: dict[str, Any]) -> dict[str, Any]:
+    current_payload = dict(current) if isinstance(current, dict) else {}
+    if current_payload:
+        merged = {**inferred, **current_payload}
+        if "vat_mode" in current_payload and "vat_rate_percent" not in current_payload:
+            merged.pop("vat_rate_percent", None)
+        return merged
+    return inferred
 
 
 def _vat_mode(value: Any) -> str:

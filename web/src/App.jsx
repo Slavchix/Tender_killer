@@ -2114,6 +2114,7 @@ function ProductAutoEconomicsPanel({ profile, onRun, onAccept, saving = false, a
           {estimate.manual_inputs_present && (
             <p className="auto-economics-note">Ручная экономика уже заполнена, авторасчет сохранен как черновик.</p>
           )}
+          <p className="auto-economics-note">Авторасчет заполнит пустые допущения по НДС, резерву и марже.</p>
           <AnalysisList
             title="Факторы расходов"
             items={costDrivers.map(formatCostDriver)}

@@ -152,6 +152,7 @@ def test_handle_post_request_routes_product_profile_auto_economics(tmp_path) -> 
     assert response.status == 200
     assert profile["raw_payload"]["economics_auto"]["estimated_unit_cost"] == 900.0
     assert profile["raw_payload"]["economics_auto"]["base_source"] == "selected_supplier"
+    assert profile["raw_payload"]["economics_assumptions"]["target_margin_percent"] == 15.0
 
 
 def test_handle_post_request_routes_product_profile_auto_economics_accept(tmp_path) -> None:

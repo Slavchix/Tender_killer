@@ -92,6 +92,107 @@ def test_update_profile_auto_economics_persists_draft_without_overwriting_manual
     assert detail["economics"]["supplier_cost"] == 10000.0
 
 
+def test_update_profile_auto_economics_prefills_empty_assumptions_from_estimate(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="auto-economics-assumptions",
+            url="https://market.mosreg.ru/Trade/ViewTrade/auto-economics-assumptions",
+            title="Paper tender",
+            price=100000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "auto-economics-assumptions",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="auto-economics-assumptions",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+                raw_payload={
+                    "selected_supplier_option_index": 0,
+                    "supplier_options": [{"name": "Best paper", "unit_price": 900.0, "status": "selected"}],
+                },
+            )
+        ],
+    )
+
+    update_profile_auto_economics(
+        store.database_path,
+        "mosreg_market",
+        "auto-economics-assumptions",
+        1,
+        [{"name": "TZ.docx", "text_content": "Цена указана без учета НДС. Требуется проверка документов."}],
+    )
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "auto-economics-assumptions")
+    raw_payload = detail["product_profiles"][0]["raw_payload"]
+    assert raw_payload["economics_assumptions"] == {
+        "vat_mode": "vat_excluded",
+        "vat_rate_percent": 20.0,
+        "risk_reserve_percent": 1.0,
+        "target_margin_percent": 15.0,
+    }
+
+
+def test_update_profile_auto_economics_keeps_manual_assumptions(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="auto-economics-manual-assumptions",
+            url="https://market.mosreg.ru/Trade/ViewTrade/auto-economics-manual-assumptions",
+            title="Paper tender",
+            price=100000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "auto-economics-manual-assumptions",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="auto-economics-manual-assumptions",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+                raw_payload={
+                    "economics_assumptions": {
+                        "vat_mode": "no_vat",
+                        "risk_reserve_percent": 3.0,
+                        "target_margin_percent": 25.0,
+                    },
+                    "selected_supplier_option_index": 0,
+                    "supplier_options": [{"name": "Best paper", "unit_price": 900.0, "status": "selected"}],
+                },
+            )
+        ],
+    )
+
+    update_profile_auto_economics(
+        store.database_path,
+        "mosreg_market",
+        "auto-economics-manual-assumptions",
+        1,
+        [{"name": "TZ.docx", "text_content": "Цена указана без учета НДС."}],
+    )
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "auto-economics-manual-assumptions")
+    assert detail["product_profiles"][0]["raw_payload"]["economics_assumptions"] == {
+        "vat_mode": "no_vat",
+        "risk_reserve_percent": 3.0,
+        "target_margin_percent": 25.0,
+    }
+
+
 def test_accept_profile_auto_economics_moves_draft_to_working_economics(tmp_path):
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()

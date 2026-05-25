@@ -118,6 +118,7 @@ def test_economics_tab_renders_auto_estimate_panel():
     assert "Авторасчет" in source
     assert "Рассчитать" in source
     assert "Принять в расчет" in source
+    assert "заполнит пустые допущения" in source
     assert "Уверенность" in source
     assert ".auto-economics-panel" in styles_source
     assert find_mojibake(source, APP_SOURCE) == []
