@@ -1768,6 +1768,52 @@ textarea:focus {
   border-color: #6edc61;
 }
 
+.participation-decision {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  background: #18231f;
+  border: 1px solid #33443d;
+  border-radius: 7px;
+}
+
+.participation-decision div {
+  display: grid;
+  gap: 3px;
+}
+
+.participation-decision span {
+  color: #a9c0b8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.participation-decision strong {
+  color: #f3fbf5;
+  font-size: 14px;
+}
+
+.participation-decision p {
+  grid-column: 1 / -1;
+  color: #b8cbc4;
+  font-size: 12px;
+}
+
+.participation-decision.can_bid {
+  border-color: #6edc61;
+}
+
+.participation-decision.guarded_bid {
+  border-color: #f0d36a;
+}
+
+.participation-decision.low_margin,
+.participation-decision.do_not_bid {
+  border-color: #d97c58;
+}
+
 .economics-warning {
   display: grid;
   gap: 4px;

@@ -146,6 +146,12 @@ def test_build_economics_summary_returns_bid_scenarios():
 
     assert summary["target_margin_percent"] == 20.0
     assert summary["target_bid_price"] == 17325.0
+    assert summary["participation_decision"] == {
+        "status": "can_bid",
+        "label": "Можно заходить",
+        "limit_price": 17325.0,
+        "recommendation": "НМЦК выше целевой цены. Можно участвовать, если поставщик и условия подтверждены.",
+    }
     assert summary["bid_scenarios"] == [
         {
             "id": "break_even",
@@ -183,3 +189,79 @@ def test_build_economics_summary_returns_bid_scenarios():
             "margin_percent": 30.7,
         },
     ]
+
+
+def test_build_economics_summary_returns_guarded_participation_decision():
+    summary = build_economics_summary(
+        {
+            "price": 16000.0,
+            "product_profiles": [
+                {
+                    "product_name": "Fuel",
+                    "quantity": 10,
+                    "raw_payload": {
+                        "economics": {"unit_cost": 1000, "logistics_cost": 1000},
+                        "economics_assumptions": {
+                            "vat_mode": "vat_excluded",
+                            "vat_rate_percent": 20,
+                            "risk_reserve_percent": 5,
+                            "target_margin_percent": 20,
+                        },
+                    },
+                }
+            ],
+        }
+    )
+
+    assert summary["participation_decision"] == {
+        "status": "guarded_bid",
+        "label": "Только с лимитом",
+        "limit_price": 14903.23,
+        "recommendation": "НМЦК ниже целевой цены. Участвовать только если не снижаться ниже минимальной цены.",
+    }
+
+
+def test_build_economics_summary_returns_low_margin_decision():
+    summary = build_economics_summary(
+        {
+            "price": 14500.0,
+            "product_profiles": [
+                {
+                    "product_name": "Fuel",
+                    "quantity": 10,
+                    "raw_payload": {
+                        "economics": {"unit_cost": 1000, "logistics_cost": 1000},
+                        "economics_assumptions": {
+                            "vat_mode": "vat_excluded",
+                            "vat_rate_percent": 20,
+                            "risk_reserve_percent": 5,
+                            "target_margin_percent": 20,
+                        },
+                    },
+                }
+            ],
+        }
+    )
+
+    assert summary["participation_decision"] == {
+        "status": "low_margin",
+        "label": "Низкая маржа",
+        "limit_price": 13860.0,
+        "recommendation": "НМЦК покрывает себестоимость, но не дает минимальную маржу. Участвовать рискованно.",
+    }
+
+
+def test_build_economics_summary_returns_missing_costs_decision():
+    summary = build_economics_summary(
+        {
+            "price": 50000.0,
+            "product_profiles": [{"product_name": "Fuel", "quantity": 10}],
+        }
+    )
+
+    assert summary["participation_decision"] == {
+        "status": "needs_costs",
+        "label": "Не хватает цен",
+        "limit_price": None,
+        "recommendation": "Добавьте себестоимость по позициям, чтобы принять решение по участию.",
+    }

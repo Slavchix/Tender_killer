@@ -51,6 +51,12 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
             "missing_cost_inputs": missing_cost_inputs,
             "risk_types": risk_types,
             "bid_scenarios": [],
+            "participation_decision": {
+                "status": "needs_price",
+                "label": "Нужна НМЦК",
+                "limit_price": None,
+                "recommendation": "Нужна НМЦК или цена закупки, чтобы принять решение по участию.",
+            },
             "items": items,
         }
 
@@ -73,6 +79,12 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
             "missing_cost_inputs": missing_cost_inputs or ["товарные позиции"],
             "risk_types": risk_types,
             "bid_scenarios": [],
+            "participation_decision": {
+                "status": "needs_costs",
+                "label": "Не хватает цен",
+                "limit_price": None,
+                "recommendation": "Добавьте себестоимость по позициям, чтобы принять решение по участию.",
+            },
             "items": items,
         }
 
@@ -113,6 +125,12 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         "missing_cost_inputs": [],
         "risk_types": risk_types,
         "bid_scenarios": bid_scenarios,
+        "participation_decision": _participation_decision(
+            revenue,
+            break_even_price,
+            minimum_margin_price,
+            target_bid_price,
+        ),
         "items": items,
     }
 
@@ -237,6 +255,41 @@ def _bid_scenarios(
         _bid_scenario(scenario_id, label, price, margin_percent, estimated_total_cost)
         for scenario_id, label, price, margin_percent in scenarios
     ]
+
+
+def _participation_decision(
+    revenue: float,
+    break_even_price: float,
+    minimum_margin_price: float,
+    target_bid_price: float,
+) -> dict[str, Any]:
+    if revenue >= target_bid_price:
+        return {
+            "status": "can_bid",
+            "label": "Можно заходить",
+            "limit_price": target_bid_price,
+            "recommendation": "НМЦК выше целевой цены. Можно участвовать, если поставщик и условия подтверждены.",
+        }
+    if revenue >= minimum_margin_price:
+        return {
+            "status": "guarded_bid",
+            "label": "Только с лимитом",
+            "limit_price": minimum_margin_price,
+            "recommendation": "НМЦК ниже целевой цены. Участвовать только если не снижаться ниже минимальной цены.",
+        }
+    if revenue >= break_even_price:
+        return {
+            "status": "low_margin",
+            "label": "Низкая маржа",
+            "limit_price": break_even_price,
+            "recommendation": "НМЦК покрывает себестоимость, но не дает минимальную маржу. Участвовать рискованно.",
+        }
+    return {
+        "status": "do_not_bid",
+        "label": "Не заходить",
+        "limit_price": break_even_price,
+        "recommendation": "НМЦК ниже безубытка. Участие приведет к убытку без пересмотра себестоимости.",
+    }
 
 
 def _bid_scenario(

@@ -157,6 +157,20 @@ def test_economics_tab_renders_bid_scenarios():
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
+def test_economics_tab_renders_participation_decision():
+    source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "ParticipationDecisionCard" in source
+    assert "economics.participation_decision" in source
+    assert "Решение по участию" in source
+    assert "Лимит" in source
+    assert "participation-decision" in source
+    assert ".participation-decision" in styles_source
+    assert find_mojibake(source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_economics_tab_owns_product_costs_and_suppliers():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")

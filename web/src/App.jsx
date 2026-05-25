@@ -1771,6 +1771,7 @@ function EconomicsSummary({ economics, tender }) {
   const riskTypes = economics.risk_types || []
   const items = economics.items || []
   const bidScenarios = economics.bid_scenarios || []
+  const participationDecision = economics.participation_decision || null
 
   return (
     <div className="economics-card">
@@ -1779,6 +1780,7 @@ function EconomicsSummary({ economics, tender }) {
         <span>Маржа: {formatPercent(economics.margin_percent)}</span>
       </div>
       {economics.recommendation && <p>{economics.recommendation}</p>}
+      <ParticipationDecisionCard decision={participationDecision} />
       <BidScenarioStrip scenarios={bidScenarios} />
       <div className="economics-grid">
         <Info label="НМЦК" value={formatMoney(economics.revenue)} />
@@ -1809,6 +1811,24 @@ function EconomicsSummary({ economics, tender }) {
         </div>
       )}
     </div>
+  )
+}
+
+function ParticipationDecisionCard({ decision }) {
+  if (!decision) return null
+
+  return (
+    <section className={`participation-decision ${decision.status || ''}`} aria-label="Решение по участию">
+      <div>
+        <span>Решение по участию</span>
+        <strong>{decision.label || 'проверить'}</strong>
+      </div>
+      <div>
+        <span>Лимит</span>
+        <strong>{formatMoney(decision.limit_price)}</strong>
+      </div>
+      {decision.recommendation && <p>{decision.recommendation}</p>}
+    </section>
   )
 }
 
