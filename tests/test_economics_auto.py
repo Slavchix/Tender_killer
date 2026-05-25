@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from tender_killer.economics_auto import build_auto_economics_estimate
+from tender_killer.economics_service import accept_profile_auto_economics
 from tender_killer.economics_service import update_profile_auto_economics
 from tender_killer.models import ProductProfile
 from tender_killer.models import Tender
@@ -89,3 +90,63 @@ def test_update_profile_auto_economics_persists_draft_without_overwriting_manual
     assert raw_payload["economics_auto"]["estimated_unit_cost"] == 900.0
     assert raw_payload["economics_auto"]["manual_inputs_present"] is True
     assert detail["economics"]["supplier_cost"] == 10000.0
+
+
+def test_accept_profile_auto_economics_moves_draft_to_working_economics(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="accept-auto-economics",
+            url="https://market.mosreg.ru/Trade/ViewTrade/accept-auto-economics",
+            title="Paper tender",
+            price=50000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "accept-auto-economics",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="accept-auto-economics",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+                raw_payload={
+                    "economics_auto": {
+                        "estimated_unit_cost": 900.0,
+                        "hidden_costs_total": 450.0,
+                        "risk_reserve": 100.0,
+                        "cost_drivers": [
+                            {"type": "delivery", "amount": 135.0},
+                            {"type": "unloading", "amount": 45.0},
+                            {"type": "certificates", "amount": 90.0},
+                            {"type": "warranty", "amount": 180.0},
+                        ],
+                    }
+                },
+            )
+        ],
+    )
+
+    payload = accept_profile_auto_economics(store.database_path, "mosreg_market", "accept-auto-economics", 1)
+
+    assert payload["ok"] is True
+    detail = get_tender_payload(store.database_path, "mosreg_market", "accept-auto-economics")
+    profile = detail["product_profiles"][0]
+    assert profile["profile_status"] == "priced"
+    assert profile["raw_payload"]["economics"] == {
+        "unit_cost": 900.0,
+        "logistics_cost": 180.0,
+        "documents_cost": 90.0,
+        "other_costs": 280.0,
+    }
+    assert profile["raw_payload"]["economics_auto"]["estimated_unit_cost"] == 900.0
+    assert profile["raw_payload"]["economics_acceptance"] == {
+        "source": "auto_estimate",
+        "accepted": True,
+    }
+    assert detail["economics"]["supplier_cost"] == 9550.0

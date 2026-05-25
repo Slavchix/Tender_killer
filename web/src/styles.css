@@ -2169,6 +2169,17 @@ textarea:focus {
   border-radius: 7px;
 }
 
+.auto-economics-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.profile-block-heading .auto-economics-actions .secondary-button.compact {
+  min-width: 126px;
+}
+
 .auto-economics-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

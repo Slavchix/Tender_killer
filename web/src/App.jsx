@@ -925,6 +925,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const [savingEconomicsPosition, setSavingEconomicsPosition] = useState(null)
   const [savingSupplierOptionPosition, setSavingSupplierOptionPosition] = useState(null)
   const [autoEstimatingPosition, setAutoEstimatingPosition] = useState(null)
+  const [acceptingAutoEconomicsPosition, setAcceptingAutoEconomicsPosition] = useState(null)
 
   useEffect(() => {
     setActiveTab('overview')
@@ -942,6 +943,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     setSavingEconomicsPosition(null)
     setSavingSupplierOptionPosition(null)
     setAutoEstimatingPosition(null)
+    setAcceptingAutoEconomicsPosition(null)
   }, [tender.source, tender.external_id, tender.workflow_note, tender.analysis, tender.product_profiles, tender.product_profile_summary, tender.economics])
 
   useEffect(() => {
@@ -1172,6 +1174,29 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       .finally(() => setAutoEstimatingPosition(null))
   }
 
+  function acceptProfileAutoEconomics(profile) {
+    if (!profile?.position_index) return null
+    setAcceptingAutoEconomicsPosition(profile.position_index)
+    setDetailStatus('')
+    return fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/economics/auto-estimate/accept`, {
+      method: 'POST',
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось принять авторасчет в экономику')))
+      .then((nextTender) => {
+        onTenderRefresh(nextTender)
+        setProductProfiles(nextTender.product_profiles || [])
+        setProductProfileSummary(nextTender.product_profile_summary || null)
+        setEconomics(nextTender.economics || null)
+        setDetailStatus('Авторасчет принят в экономику')
+        return nextTender
+      })
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setAcceptingAutoEconomicsPosition(null))
+  }
+
   const statusMessages = [detailStatus, notifyStatus, downloadStatus, extractStatus].filter(Boolean)
   const tabs = [
     { id: 'overview', label: 'Обзор' },
@@ -1360,9 +1385,11 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
             onSupplierOptionSave={saveSupplierOption}
             onSupplierOptionSelect={selectSupplierOption}
             onAutoEconomicsRun={runProfileAutoEconomics}
+            onAutoEconomicsAccept={acceptProfileAutoEconomics}
             savingEconomicsPosition={savingEconomicsPosition}
             savingSupplierOptionPosition={savingSupplierOptionPosition}
             autoEstimatingPosition={autoEstimatingPosition}
+            acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
           />
         )}
 
@@ -1493,9 +1520,11 @@ function EconomicsTabPanel({
   onSupplierOptionSave,
   onSupplierOptionSelect,
   onAutoEconomicsRun,
+  onAutoEconomicsAccept,
   savingEconomicsPosition = null,
   savingSupplierOptionPosition = null,
   autoEstimatingPosition = null,
+  acceptingAutoEconomicsPosition = null,
 }) {
   const missingInputs = economics?.missing_cost_inputs?.length || 0
   const displayedRevenue = economics?.revenue ?? tender?.price
@@ -1505,6 +1534,7 @@ function EconomicsTabPanel({
   const savingEconomics = savingEconomicsPosition === selectedPosition
   const savingSupplierOption = savingSupplierOptionPosition === selectedPosition
   const autoEstimating = autoEstimatingPosition === selectedPosition
+  const acceptingAutoEconomics = acceptingAutoEconomicsPosition === selectedPosition
 
   return (
     <section className="detail-section active economics-section">
@@ -1558,7 +1588,9 @@ function EconomicsTabPanel({
               <ProductAutoEconomicsPanel
                 profile={selectedEconomicsProfile}
                 onRun={onAutoEconomicsRun}
+                onAccept={onAutoEconomicsAccept}
                 saving={autoEstimating}
+                accepting={acceptingAutoEconomics}
               />
               <ProductEconomicsForm profile={selectedEconomicsProfile} onSave={onEconomicsSave} saving={savingEconomics} />
               <ProductSupplierOptionsForm
@@ -1928,7 +1960,7 @@ function economicsFormValues(economics = {}) {
   }
 }
 
-function ProductAutoEconomicsPanel({ profile, onRun, saving = false }) {
+function ProductAutoEconomicsPanel({ profile, onRun, onAccept, saving = false, accepting = false }) {
   const estimate = profile?.raw_payload?.economics_auto || null
   const costDrivers = Array.isArray(estimate?.cost_drivers) ? estimate.cost_drivers : []
   const needsReview = Array.isArray(estimate?.needs_review) ? estimate.needs_review : []
@@ -1937,9 +1969,14 @@ function ProductAutoEconomicsPanel({ profile, onRun, saving = false }) {
     <section className="auto-economics-panel">
       <div className="profile-block-heading">
         <h5>Авторасчет</h5>
-        <button className="secondary-button compact" disabled={saving || !onRun} onClick={() => onRun?.(profile)} type="button">
-          {saving ? 'Расчет...' : 'Рассчитать'}
-        </button>
+        <div className="auto-economics-actions">
+          <button className="secondary-button compact" disabled={saving || !onRun} onClick={() => onRun?.(profile)} type="button">
+            {saving ? 'Расчет...' : 'Рассчитать'}
+          </button>
+          <button className="secondary-button compact" disabled={accepting || !estimate || !onAccept} onClick={() => onAccept?.(profile)} type="button">
+            {accepting ? 'Применяю...' : 'Принять в расчет'}
+          </button>
+        </div>
       </div>
       {estimate ? (
         <>

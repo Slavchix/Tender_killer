@@ -7,6 +7,7 @@ from typing import Any
 
 from tender_killer.analysis_service import analyze_tender_payload
 from tender_killer.api_routes import parse_database_table_path
+from tender_killer.api_routes import parse_product_profile_auto_economics_accept_path
 from tender_killer.api_routes import parse_product_profile_auto_economics_path
 from tender_killer.api_routes import parse_product_profile_economics_path
 from tender_killer.api_routes import parse_product_profile_supplier_option_select_path
@@ -17,6 +18,7 @@ from tender_killer.database_view_service import get_database_table_payload
 from tender_killer.database_view_service import list_database_tables_payload
 from tender_killer.document_service import download_tender_documents_payload
 from tender_killer.document_service import extract_tender_document_text_payload
+from tender_killer.economics_service import accept_profile_auto_economics as accept_profile_auto_economics_inputs
 from tender_killer.economics_service import update_profile_economics as update_profile_economics_inputs
 from tender_killer.economics_service import update_profile_auto_economics as update_profile_auto_economics_inputs
 from tender_killer.notification_service import send_tender_notification_payload
@@ -86,6 +88,16 @@ def update_product_profile_auto_economics(
         position_index,
         detail.get("document_records") or [],
     )
+    return get_tender_payload(database_path, source, external_id)
+
+
+def accept_product_profile_auto_economics(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+) -> dict[str, Any]:
+    accept_profile_auto_economics_inputs(database_path, source, external_id, position_index)
     return get_tender_payload(database_path, source, external_id)
 
 
@@ -214,6 +226,18 @@ def handle_post_request(
             return ApiResponse({"error": "invalid product profile auto economics path"}, status=400)
         return ApiResponse(
             update_product_profile_auto_economics(
+                database_path,
+                route.source,
+                route.external_id,
+                route.position_index,
+            )
+        )
+    if path.startswith("/api/tenders/") and path.endswith("/auto-estimate/accept"):
+        route = parse_product_profile_auto_economics_accept_path(path)
+        if route is None:
+            return ApiResponse({"error": "invalid product profile auto economics accept path"}, status=400)
+        return ApiResponse(
+            accept_product_profile_auto_economics(
                 database_path,
                 route.source,
                 route.external_id,

@@ -110,11 +110,14 @@ def test_economics_tab_renders_auto_estimate_panel():
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "runProfileAutoEconomics" in source
+    assert "acceptProfileAutoEconomics" in source
     assert "ProductAutoEconomicsPanel" in source
     assert "economics/auto-estimate" in source
+    assert "economics/auto-estimate/accept" in source
     assert "economics_auto" in source
     assert "Авторасчет" in source
     assert "Рассчитать" in source
+    assert "Принять в расчет" in source
     assert "Уверенность" in source
     assert ".auto-economics-panel" in styles_source
     assert find_mojibake(source, APP_SOURCE) == []
