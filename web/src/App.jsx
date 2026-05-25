@@ -15,6 +15,28 @@ import {
   Scale,
   Search,
 } from 'lucide-react'
+import {
+  acceptProfileAutoEconomics as acceptProfileAutoEconomicsRequest,
+  addProfileSupplierOption,
+  autoSelectProfileSupplierOption,
+  downloadTenderDocuments,
+  extractTenderDocumentText,
+  fetchDatabaseTable,
+  fetchDatabaseTables,
+  fetchSourceStatus,
+  fetchTenderDetail,
+  fetchTenderPage,
+  rebuildTenderProductProfiles,
+  refreshTenderDetails,
+  runProfileAutoEconomics as runProfileAutoEconomicsRequest,
+  runSearch as runSearchRequest,
+  runTenderAnalysis,
+  saveProfileEconomics as saveProfileEconomicsRequest,
+  saveProfileEconomicsAssumptions as saveProfileEconomicsAssumptionsRequest,
+  saveTenderWorkflow,
+  selectProfileSupplierOption,
+  sendTenderNotification,
+} from './api'
 import './styles.css'
 
 const sourceLabels = {
@@ -147,8 +169,7 @@ function App() {
       setDetails(null)
       return
     }
-    fetch(`/api/tenders/${encodeURIComponent(selected.source)}/${encodeURIComponent(selected.external_id)}`)
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Карточка не найдена')))
+    fetchTenderDetail(selected.source, selected.external_id)
       .then(setDetails)
       .catch((err) => setError(err.message))
   }, [selected])
@@ -166,8 +187,7 @@ function App() {
     })
     params.set('limit', String(pageLimit))
     params.set('offset', String(Math.max(0, Number(nextOffset) || 0)))
-    return fetch(`/api/tenders?${params.toString()}`)
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('API не отвечает')))
+    return fetchTenderPage(params)
       .then((payload) => {
         setTenders(payload.items || [])
         setTenderPage({
@@ -193,8 +213,7 @@ function App() {
 
   function loadSourceStatus() {
     setSourceStatusError('')
-    return fetch('/api/sources/status')
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('API не отвечает')))
+    return fetchSourceStatus()
       .then((payload) => setSourceStatus(payload.sources || []))
       .catch((err) => setSourceStatusError(err.message))
   }
@@ -312,12 +331,7 @@ function App() {
     setSelected(null)
     setPageOffset(0)
     setAppliedFilters(nextFilters)
-    fetch('/api/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filters: nextFilters }),
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось запустить поиск')))
+    runSearchRequest({ filters: nextFilters })
       .then((payload) => {
         const stats = payload.stats || {}
         setSearchSummary(
@@ -821,8 +835,7 @@ function DatabaseView() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/db/tables')
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось открыть SQLite')))
+    fetchDatabaseTables()
       .then((payload) => {
         const nextTables = payload.tables || []
         setTables(nextTables)
@@ -837,8 +850,7 @@ function DatabaseView() {
     if (query.trim()) params.set('q', query.trim())
     setLoading(true)
     setError('')
-    fetch(`/api/db/tables/${encodeURIComponent(selectedTable)}?${params.toString()}`)
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось прочитать таблицу')))
+    fetchDatabaseTable(selectedTable, params)
       .then(setTableData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
@@ -959,15 +971,10 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
 
   function saveWorkflow(workflowStatus = tender.workflow_status || 'new', workflowNote = note) {
     setSaving(true)
-    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/workflow`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        workflow_status: workflowStatus,
-        workflow_note: workflowNote,
-      }),
+    saveTenderWorkflow(tender, {
+      workflow_status: workflowStatus,
+      workflow_note: workflowNote,
     })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось сохранить статус')))
       .then(onWorkflowUpdate)
       .finally(() => setSaving(false))
   }
@@ -975,10 +982,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   function sendToTelegram() {
     setSending(true)
     setNotifyStatus('')
-    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/notify`, {
-      method: 'POST',
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось отправить в Telegram')))
+    sendTenderNotification(tender)
       .then((payload) => setNotifyStatus(payload.message || (payload.sent ? 'Отправлено в Telegram' : 'Telegram не настроен')))
       .catch((err) => setNotifyStatus(err.message))
       .finally(() => setSending(false))
@@ -987,10 +991,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   function downloadDocuments() {
     setDownloading(true)
     setDownloadStatus('')
-    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/documents/download`, {
-      method: 'POST',
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось скачать документы')))
+    downloadTenderDocuments(tender)
       .then((payload) => {
         setDocumentRecords(payload.document_records || [])
         const firstError = payload.failed?.[0]?.error
@@ -1005,10 +1006,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   function extractDocumentText() {
     setExtracting(true)
     setExtractStatus('')
-    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/documents/extract-text`, {
-      method: 'POST',
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось извлечь текст документов')))
+    extractTenderDocumentText(tender)
       .then((payload) => {
         setDocumentRecords(payload.document_records || [])
         const firstError = payload.failed?.[0]?.error
@@ -1022,10 +1020,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
 
   function analyzeTender() {
     setAnalyzing(true)
-    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/analysis/run`, {
-      method: 'POST',
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось проанализировать ТЗ')))
+    runTenderAnalysis(tender)
       .then((payload) => setAnalysis(payload.analysis || null))
       .catch((err) => {
         setAnalysis({
@@ -1044,10 +1039,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   function refreshDetails(options = {}) {
     setRefreshingDetails(true)
     setDetailStatus(options.automatic ? 'Автоматически добираю позиции и классификаторы...' : '')
-    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/details/refresh`, {
-      method: 'POST',
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось обновить детали')))
+    refreshTenderDetails(tender)
       .then((payload) => {
         const nextTender = payload.tender || tender
         onTenderRefresh(nextTender)
@@ -1070,10 +1062,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
 
   function rebuildProductProfiles() {
     setProfilesLoading(true)
-    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/rebuild`, {
-      method: 'POST',
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось обновить товарные профили')))
+    rebuildTenderProductProfiles(tender)
       .then((payload) => {
         setProductProfiles(payload.product_profiles || [])
         setProductProfileSummary(payload.summary || null)
@@ -1090,12 +1079,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     if (!profile?.position_index) return
     setSavingEconomicsPosition(profile.position_index)
     setDetailStatus('')
-    fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/economics`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(economicsInputs),
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось сохранить экономику')))
+    saveProfileEconomicsRequest(tender, profile, economicsInputs)
       .then((nextTender) => {
         onTenderRefresh(nextTender)
         setProductProfiles(nextTender.product_profiles || [])
@@ -1111,12 +1095,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     if (!profile?.position_index) return null
     setSavingAssumptionsPosition(profile.position_index)
     setDetailStatus('')
-    return fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/economics/assumptions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(assumptionsInputs),
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось сохранить допущения экономики')))
+    return saveProfileEconomicsAssumptionsRequest(tender, profile, assumptionsInputs)
       .then((nextTender) => {
         onTenderRefresh(nextTender)
         setProductProfiles(nextTender.product_profiles || [])
@@ -1136,12 +1115,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     if (!profile?.position_index) return null
     setSavingSupplierOptionPosition(profile.position_index)
     setDetailStatus('')
-    return fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/supplier-options`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(supplierOption),
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось сохранить поставщика')))
+    return addProfileSupplierOption(tender, profile, supplierOption)
       .then((nextTender) => {
         onTenderRefresh(nextTender)
         setProductProfiles(nextTender.product_profiles || [])
@@ -1161,10 +1135,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     if (!profile?.position_index) return null
     setSavingSupplierOptionPosition(profile.position_index)
     setDetailStatus('')
-    return fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/supplier-options/${optionIndex}/select`, {
-      method: 'POST',
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось взять поставщика в расчет')))
+    return selectProfileSupplierOption(tender, profile, optionIndex)
       .then((nextTender) => {
         onTenderRefresh(nextTender)
         setProductProfiles(nextTender.product_profiles || [])
@@ -1184,10 +1155,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     if (!profile?.position_index) return null
     setAutoSelectingSupplierPosition(profile.position_index)
     setDetailStatus('')
-    return fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/supplier-options/best/select`, {
-      method: 'POST',
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось выбрать лучшего поставщика')))
+    return autoSelectProfileSupplierOption(tender, profile)
       .then((nextTender) => {
         onTenderRefresh(nextTender)
         setProductProfiles(nextTender.product_profiles || [])
@@ -1207,10 +1175,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     if (!profile?.position_index) return null
     setAutoEstimatingPosition(profile.position_index)
     setDetailStatus('')
-    return fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/economics/auto-estimate`, {
-      method: 'POST',
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось рассчитать экономику автоматически')))
+    return runProfileAutoEconomicsRequest(tender, profile)
       .then((nextTender) => {
         onTenderRefresh(nextTender)
         setProductProfiles(nextTender.product_profiles || [])
@@ -1230,10 +1195,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     if (!profile?.position_index) return null
     setAcceptingAutoEconomicsPosition(profile.position_index)
     setDetailStatus('')
-    return fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/economics/auto-estimate/accept`, {
-      method: 'POST',
-    })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось принять авторасчет в экономику')))
+    return acceptProfileAutoEconomicsRequest(tender, profile)
       .then((nextTender) => {
         onTenderRefresh(nextTender)
         setProductProfiles(nextTender.product_profiles || [])

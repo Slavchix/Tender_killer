@@ -7,6 +7,7 @@ from tender_killer.encoding_guard import find_mojibake
 
 APP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "App.jsx"
 STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css"
+API_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "api.js"
 
 
 def _css_rule(source: str, selector: str) -> str:
@@ -24,6 +25,21 @@ def test_tender_cockpit_exposes_normalized_metadata_filters():
 
     assert "procedureTypeOptions" in source
     assert "sourceFamilyOptions" in source
+
+
+def test_frontend_uses_dedicated_api_client():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    api_source = API_SOURCE.read_text(encoding="utf-8") if API_SOURCE.exists() else ""
+
+    assert "from './api'" in app_source
+    assert "function apiJson" in api_source
+    assert "export function fetchTenderDetail" in api_source
+    assert "export function saveProfileEconomics" in api_source
+    assert "export function autoSelectProfileSupplierOption" in api_source
+    assert "fetch(" not in app_source
+    assert "fetch(" in api_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(api_source, API_SOURCE) == []
 
 
 def test_tender_cockpit_exposes_page_size_selector():
@@ -75,10 +91,12 @@ def test_tender_details_render_economics_summary():
 
 def test_product_profile_renders_economics_input_form():
     source = APP_SOURCE.read_text(encoding="utf-8")
+    api_source = API_SOURCE.read_text(encoding="utf-8")
 
     assert "function ProductEconomicsForm" in source
     assert "onEconomicsSave" in source
-    assert "product-profiles/${profile.position_index}/economics" in source
+    assert "product-profiles/${profile.position_index}" in api_source
+    assert "${productProfilePath(tender, profile)}/economics" in api_source
     assert "unit_cost" in source
     assert "logistics_cost" in source
     assert "documents_cost" in source
@@ -89,6 +107,7 @@ def test_product_profile_renders_economics_input_form():
 
 def test_product_profile_renders_supplier_option_form():
     source = APP_SOURCE.read_text(encoding="utf-8")
+    api_source = API_SOURCE.read_text(encoding="utf-8")
 
     assert "function ProductSupplierOptionsForm" in source
     assert "onSupplierOptionSave" in source
@@ -96,9 +115,10 @@ def test_product_profile_renders_supplier_option_form():
     assert "autoSelectSupplierOption" in source
     assert "onSupplierOptionSelect" in source
     assert "onSupplierOptionAutoSelect" in source
-    assert "product-profiles/${profile.position_index}/supplier-options" in source
-    assert "supplier-options/${optionIndex}/select" in source
-    assert "supplier-options/best/select" in source
+    assert "product-profiles/${profile.position_index}" in api_source
+    assert "${productProfilePath(tender, profile)}/supplier-options" in api_source
+    assert "${productProfilePath(tender, profile)}/supplier-options/${optionIndex}/select" in api_source
+    assert "supplier-options/best/select" in api_source
     assert "supplier_options" in source
     assert "economics_price_source" in source
     assert "EconomicsPriceSource" in source
@@ -114,13 +134,14 @@ def test_product_profile_renders_supplier_option_form():
 
 def test_economics_tab_renders_auto_estimate_panel():
     source = APP_SOURCE.read_text(encoding="utf-8")
+    api_source = API_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "runProfileAutoEconomics" in source
     assert "acceptProfileAutoEconomics" in source
     assert "ProductAutoEconomicsPanel" in source
-    assert "economics/auto-estimate" in source
-    assert "economics/auto-estimate/accept" in source
+    assert "economics/auto-estimate" in api_source
+    assert "economics/auto-estimate/accept" in api_source
     assert "economics_auto" in source
     assert "Авторасчет" in source
     assert "Рассчитать" in source
@@ -134,11 +155,12 @@ def test_economics_tab_renders_auto_estimate_panel():
 
 def test_economics_tab_renders_assumptions_form():
     source = APP_SOURCE.read_text(encoding="utf-8")
+    api_source = API_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "saveProfileEconomicsAssumptions" in source
     assert "ProductEconomicsAssumptionsForm" in source
-    assert "economics/assumptions" in source
+    assert "economics/assumptions" in api_source
     assert "economics_assumptions" in source
     assert "vat_mode" in source
     assert "risk_reserve_percent" in source
