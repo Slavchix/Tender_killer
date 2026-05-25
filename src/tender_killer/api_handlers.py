@@ -9,6 +9,7 @@ from tender_killer.analysis_service import analyze_tender_payload
 from tender_killer.api_routes import parse_database_table_path
 from tender_killer.api_routes import parse_product_profile_auto_economics_accept_path
 from tender_killer.api_routes import parse_product_profile_auto_economics_path
+from tender_killer.api_routes import parse_product_profile_economics_assumptions_path
 from tender_killer.api_routes import parse_product_profile_economics_path
 from tender_killer.api_routes import parse_product_profile_supplier_option_select_path
 from tender_killer.api_routes import parse_product_profile_supplier_options_path
@@ -20,6 +21,7 @@ from tender_killer.document_service import download_tender_documents_payload
 from tender_killer.document_service import extract_tender_document_text_payload
 from tender_killer.economics_service import accept_profile_auto_economics as accept_profile_auto_economics_inputs
 from tender_killer.economics_service import update_profile_economics as update_profile_economics_inputs
+from tender_killer.economics_service import update_profile_economics_assumptions as update_profile_economics_assumptions_inputs
 from tender_killer.economics_service import update_profile_auto_economics as update_profile_auto_economics_inputs
 from tender_killer.notification_service import send_tender_notification_payload
 from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
@@ -71,6 +73,17 @@ def update_product_profile_economics(
     data: dict[str, Any],
 ) -> dict[str, Any]:
     update_profile_economics_inputs(database_path, source, external_id, position_index, data)
+    return get_tender_payload(database_path, source, external_id)
+
+
+def update_product_profile_economics_assumptions(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    update_profile_economics_assumptions_inputs(database_path, source, external_id, position_index, data)
     return get_tender_payload(database_path, source, external_id)
 
 
@@ -213,6 +226,19 @@ def handle_post_request(
             return ApiResponse({"error": "invalid product profile economics path"}, status=400)
         return ApiResponse(
             update_product_profile_economics(
+                database_path,
+                route.source,
+                route.external_id,
+                route.position_index,
+                body,
+            )
+        )
+    if path.startswith("/api/tenders/") and path.endswith("/economics/assumptions"):
+        route = parse_product_profile_economics_assumptions_path(path)
+        if route is None:
+            return ApiResponse({"error": "invalid product profile economics assumptions path"}, status=400)
+        return ApiResponse(
+            update_product_profile_economics_assumptions(
                 database_path,
                 route.source,
                 route.external_id,

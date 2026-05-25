@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from tender_killer.economics_service import update_profile_economics
+from tender_killer.economics_service import update_profile_economics_assumptions
 from tender_killer.models import ProductProfile
 from tender_killer.models import Tender
 from tender_killer.storage import TenderStore
@@ -54,3 +55,61 @@ def test_update_profile_economics_persists_manual_cost_inputs_and_recalculates(t
     }
     assert detail["economics"]["supplier_cost"] == 67000.0
     assert detail["economics"]["missing_cost_inputs"] == []
+
+
+def test_update_profile_economics_assumptions_persists_and_recalculates(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="economics-assumptions",
+            url="https://market.mosreg.ru/Trade/ViewTrade/economics-assumptions",
+            title="Fuel tender",
+            price=20000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "economics-assumptions",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="economics-assumptions",
+                position_index=1,
+                product_name="Fuel",
+                quantity=10,
+                unit="l",
+                raw_payload={
+                    "economics": {"unit_cost": 1000.0, "logistics_cost": 1000.0},
+                    "note": "keep me",
+                },
+            )
+        ],
+    )
+
+    payload = update_profile_economics_assumptions(
+        store.database_path,
+        "mosreg_market",
+        "economics-assumptions",
+        1,
+        {
+            "vat_mode": "vat_excluded",
+            "vat_rate_percent": "20",
+            "risk_reserve_percent": "5",
+            "target_margin_percent": "15",
+        },
+    )
+
+    assert payload["ok"] is True
+    detail = get_tender_payload(store.database_path, "mosreg_market", "economics-assumptions")
+    profile = detail["product_profiles"][0]
+    assert profile["raw_payload"]["note"] == "keep me"
+    assert profile["raw_payload"]["economics_assumptions"] == {
+        "vat_mode": "vat_excluded",
+        "vat_rate_percent": 20.0,
+        "risk_reserve_percent": 5.0,
+        "target_margin_percent": 15.0,
+    }
+    assert detail["economics"]["items"][0]["target_price"] == 16305.88
+    assert detail["economics"]["supplier_cost"] == 13860.0

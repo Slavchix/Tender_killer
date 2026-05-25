@@ -8,6 +8,7 @@ from tender_killer.storage import TenderStore
 
 
 ECONOMICS_INPUT_FIELDS = ("unit_cost", "total_cost", "logistics_cost", "documents_cost", "other_costs")
+VAT_MODES = {"unknown", "vat_included", "vat_excluded", "no_vat"}
 
 
 def update_profile_economics(
@@ -40,6 +41,29 @@ def update_profile_economics(
 
     store.upsert_product_profiles(source, external_id, profiles)
     return {"ok": True}
+
+
+def update_profile_economics_assumptions(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    store = TenderStore(database_path)
+    store.initialize()
+    profiles = store.get_product_profiles(source, external_id)
+    if not profiles:
+        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+
+    target = _find_profile(profiles, position_index)
+    assumptions = _assumptions_inputs(data)
+    raw_payload = dict(target.get("raw_payload") or {})
+    raw_payload["economics_assumptions"] = assumptions
+    target["raw_payload"] = raw_payload
+
+    store.upsert_product_profiles(source, external_id, profiles)
+    return {"ok": True, "economics_assumptions": assumptions}
 
 
 def update_profile_auto_economics(
@@ -154,6 +178,27 @@ def _economics_inputs(data: dict[str, Any]) -> dict[str, float]:
         if number is not None:
             values[field] = number
     return values
+
+
+def _assumptions_inputs(data: dict[str, Any]) -> dict[str, Any]:
+    assumptions: dict[str, Any] = {"vat_mode": _vat_mode(data.get("vat_mode"))}
+    for field in ("vat_rate_percent", "risk_reserve_percent", "target_margin_percent"):
+        number = _percent(data.get(field))
+        if number is not None:
+            assumptions[field] = number
+    return assumptions
+
+
+def _vat_mode(value: Any) -> str:
+    text = str(value or "unknown").strip()
+    return text if text in VAT_MODES else "unknown"
+
+
+def _percent(value: Any) -> float | None:
+    number = _number(value)
+    if number is None:
+        return None
+    return _round_money(min(100.0, number))
 
 
 def _number(value: Any) -> float | None:

@@ -2,6 +2,7 @@ from tender_killer.api_routes import (
     parse_database_table_path,
     parse_product_profile_auto_economics_accept_path,
     parse_product_profile_auto_economics_path,
+    parse_product_profile_economics_assumptions_path,
     parse_product_profile_economics_path,
     parse_product_profile_supplier_option_select_path,
     parse_product_profile_supplier_options_path,
@@ -42,6 +43,24 @@ def test_parse_product_profile_economics_path_decodes_position_route() -> None:
 
     assert parse_product_profile_economics_path("/api/tenders/mosreg_market/3668200/product-profiles/zero/economics") is None
     assert parse_product_profile_economics_path("/api/tenders/mosreg_market/3668200/product-profiles/0/economics") is None
+
+
+def test_parse_product_profile_economics_assumptions_path_decodes_position_route() -> None:
+    route = parse_product_profile_economics_assumptions_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/12/economics/assumptions"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 12
+
+    assert parse_product_profile_economics_assumptions_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/economics/assumptions"
+    ) is None
+    assert parse_product_profile_economics_assumptions_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/economics/assumptions"
+    ) is None
 
 
 def test_parse_product_profile_auto_economics_path_decodes_position_route() -> None:

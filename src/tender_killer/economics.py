@@ -26,7 +26,7 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         if item["total_cost"] is None:
             missing_cost_inputs.append(item["product_name"])
             continue
-        supplier_cost += item["total_cost"] + item["extra_costs"]
+        supplier_cost += item["estimated_total_cost"]
 
     risk_types = _risk_types(profiles)
     risk_reserve_rate_percent = _risk_reserve_rate_percent(risk_types)
@@ -99,6 +99,7 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
 
 def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
     economics = _economics_payload(profile)
+    assumptions = _assumptions_payload(profile)
     quantity = _number(profile.get("quantity")) or 1.0
     unit_cost = _first_number(economics, ("unit_cost", "unit_cost_rub", "supplier_unit_price", "supplier_unit_price_rub"))
     total_cost = _first_number(economics, ("total_cost", "total_cost_rub", "supplier_total_price", "supplier_total_price_rub"))
@@ -108,6 +109,25 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
         _first_number(economics, (key,)) or 0.0
         for key in ("logistics_cost", "documents_cost", "other_costs")
     )
+    vat_mode = _vat_mode(assumptions.get("vat_mode"))
+    vat_rate_percent = _percent(assumptions.get("vat_rate_percent"))
+    if vat_mode == "no_vat":
+        vat_rate_percent = 0.0
+    risk_reserve_percent = _percent(assumptions.get("risk_reserve_percent")) or 0.0
+    target_margin_percent = _percent(assumptions.get("target_margin_percent"))
+    base_cost = total_cost + extra_costs if total_cost is not None else None
+    vat_cost = _vat_cost(base_cost, vat_mode, vat_rate_percent)
+    position_risk_reserve = _position_risk_reserve(base_cost, vat_cost, risk_reserve_percent)
+    estimated_total_cost = (
+        _round_money(base_cost + vat_cost + position_risk_reserve)
+        if base_cost is not None
+        else None
+    )
+    target_price = (
+        _price_for_margin(estimated_total_cost, target_margin_percent)
+        if estimated_total_cost is not None and target_margin_percent is not None and target_margin_percent < 100
+        else None
+    )
     return {
         "product_name": str(profile.get("product_name") or "товарная позиция"),
         "quantity": quantity,
@@ -115,6 +135,14 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
         "unit_cost": _round_money(unit_cost) if unit_cost is not None else None,
         "total_cost": _round_money(total_cost) if total_cost is not None else None,
         "extra_costs": _round_money(extra_costs),
+        "vat_mode": vat_mode,
+        "vat_rate_percent": _round_percent(vat_rate_percent) if vat_rate_percent is not None else None,
+        "vat_cost": vat_cost,
+        "risk_reserve_percent": _round_percent(risk_reserve_percent),
+        "position_risk_reserve": position_risk_reserve,
+        "estimated_total_cost": estimated_total_cost,
+        "target_margin_percent": _round_percent(target_margin_percent) if target_margin_percent is not None else None,
+        "target_price": target_price,
     }
 
 
@@ -123,6 +151,39 @@ def _economics_payload(profile: dict[str, Any]) -> dict[str, Any]:
     if isinstance(raw_payload, dict) and isinstance(raw_payload.get("economics"), dict):
         return raw_payload["economics"]
     return {}
+
+
+def _assumptions_payload(profile: dict[str, Any]) -> dict[str, Any]:
+    raw_payload = profile.get("raw_payload")
+    if isinstance(raw_payload, dict) and isinstance(raw_payload.get("economics_assumptions"), dict):
+        return raw_payload["economics_assumptions"]
+    return {}
+
+
+def _vat_mode(value: Any) -> str:
+    text = str(value or "unknown").strip()
+    if text in {"vat_included", "vat_excluded", "no_vat", "unknown"}:
+        return text
+    return "unknown"
+
+
+def _percent(value: Any) -> float | None:
+    number = _number(value)
+    if number is None:
+        return None
+    return min(100.0, number)
+
+
+def _vat_cost(base_cost: float | None, vat_mode: str, vat_rate_percent: float | None) -> float:
+    if base_cost is None or vat_mode != "vat_excluded":
+        return 0.0
+    return _round_money(base_cost * (vat_rate_percent or 0.0) / 100)
+
+
+def _position_risk_reserve(base_cost: float | None, vat_cost: float, risk_reserve_percent: float) -> float:
+    if base_cost is None:
+        return 0.0
+    return _round_money((base_cost + vat_cost) * risk_reserve_percent / 100)
 
 
 def _risk_types(profiles: list[dict[str, Any]]) -> list[str]:

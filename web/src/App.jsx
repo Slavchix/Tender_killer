@@ -923,6 +923,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const [selectedProfileIndex, setSelectedProfileIndex] = useState(0)
   const [profilesLoading, setProfilesLoading] = useState(false)
   const [savingEconomicsPosition, setSavingEconomicsPosition] = useState(null)
+  const [savingAssumptionsPosition, setSavingAssumptionsPosition] = useState(null)
   const [savingSupplierOptionPosition, setSavingSupplierOptionPosition] = useState(null)
   const [autoEstimatingPosition, setAutoEstimatingPosition] = useState(null)
   const [acceptingAutoEconomicsPosition, setAcceptingAutoEconomicsPosition] = useState(null)
@@ -941,6 +942,7 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     setEconomics(tender.economics || null)
     setSelectedProfileIndex(0)
     setSavingEconomicsPosition(null)
+    setSavingAssumptionsPosition(null)
     setSavingSupplierOptionPosition(null)
     setAutoEstimatingPosition(null)
     setAcceptingAutoEconomicsPosition(null)
@@ -1101,6 +1103,31 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       })
       .catch((err) => setDetailStatus(err.message))
       .finally(() => setSavingEconomicsPosition(null))
+  }
+
+  function saveProfileEconomicsAssumptions(profile, assumptionsInputs) {
+    if (!profile?.position_index) return null
+    setSavingAssumptionsPosition(profile.position_index)
+    setDetailStatus('')
+    return fetch(`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/product-profiles/${profile.position_index}/economics/assumptions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(assumptionsInputs),
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Не удалось сохранить допущения экономики')))
+      .then((nextTender) => {
+        onTenderRefresh(nextTender)
+        setProductProfiles(nextTender.product_profiles || [])
+        setProductProfileSummary(nextTender.product_profile_summary || null)
+        setEconomics(nextTender.economics || null)
+        setDetailStatus('Допущения экономики обновлены')
+        return nextTender
+      })
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setSavingAssumptionsPosition(null))
   }
 
   function saveSupplierOption(profile, supplierOption) {
@@ -1382,11 +1409,13 @@ function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
             selectedEconomicsProfileIndex={selectedProfileIndex}
             onSelectedEconomicsProfileChange={setSelectedProfileIndex}
             onEconomicsSave={saveProfileEconomics}
+            onEconomicsAssumptionsSave={saveProfileEconomicsAssumptions}
             onSupplierOptionSave={saveSupplierOption}
             onSupplierOptionSelect={selectSupplierOption}
             onAutoEconomicsRun={runProfileAutoEconomics}
             onAutoEconomicsAccept={acceptProfileAutoEconomics}
             savingEconomicsPosition={savingEconomicsPosition}
+            savingAssumptionsPosition={savingAssumptionsPosition}
             savingSupplierOptionPosition={savingSupplierOptionPosition}
             autoEstimatingPosition={autoEstimatingPosition}
             acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
@@ -1517,11 +1546,13 @@ function EconomicsTabPanel({
   selectedEconomicsProfileIndex = 0,
   onSelectedEconomicsProfileChange,
   onEconomicsSave,
+  onEconomicsAssumptionsSave,
   onSupplierOptionSave,
   onSupplierOptionSelect,
   onAutoEconomicsRun,
   onAutoEconomicsAccept,
   savingEconomicsPosition = null,
+  savingAssumptionsPosition = null,
   savingSupplierOptionPosition = null,
   autoEstimatingPosition = null,
   acceptingAutoEconomicsPosition = null,
@@ -1532,6 +1563,7 @@ function EconomicsTabPanel({
   const selectedEconomicsProfile = profiles[selectedEconomicsProfileIndex] || profiles[0] || null
   const selectedPosition = selectedEconomicsProfile?.position_index
   const savingEconomics = savingEconomicsPosition === selectedPosition
+  const savingAssumptions = savingAssumptionsPosition === selectedPosition
   const savingSupplierOption = savingSupplierOptionPosition === selectedPosition
   const autoEstimating = autoEstimatingPosition === selectedPosition
   const acceptingAutoEconomics = acceptingAutoEconomicsPosition === selectedPosition
@@ -1593,6 +1625,12 @@ function EconomicsTabPanel({
                 accepting={acceptingAutoEconomics}
               />
               <ProductEconomicsForm profile={selectedEconomicsProfile} onSave={onEconomicsSave} saving={savingEconomics} />
+              <ProductEconomicsAssumptionsForm
+                item={economics?.items?.[selectedEconomicsProfileIndex]}
+                profile={selectedEconomicsProfile}
+                onSave={onEconomicsAssumptionsSave}
+                saving={savingAssumptions}
+              />
               <ProductSupplierOptionsForm
                 profile={selectedEconomicsProfile}
                 onSave={onSupplierOptionSave}
@@ -1951,12 +1989,98 @@ function ProductEconomicsForm({ profile, onSave, saving = false }) {
   )
 }
 
+function ProductEconomicsAssumptionsForm({ profile, item, onSave, saving = false }) {
+  const assumptions = profile?.raw_payload?.economics_assumptions || {}
+  const [values, setValues] = useState(() => economicsAssumptionsFormValues(assumptions))
+
+  useEffect(() => {
+    setValues(economicsAssumptionsFormValues(assumptions))
+  }, [profile?.position_index, profile?.raw_payload])
+
+  function updateField(name, value) {
+    setValues((current) => ({ ...current, [name]: value }))
+  }
+
+  function submitAssumptions(event) {
+    event.preventDefault()
+    if (!onSave) return
+    onSave(profile, values)
+  }
+
+  return (
+    <form className="economics-assumptions-form" onSubmit={submitAssumptions}>
+      <div className="profile-block-heading">
+        <h5>Допущения</h5>
+        <button className="secondary-button compact" disabled={saving || !onSave} type="submit">
+          {saving ? 'Сохраняю...' : 'Сохранить'}
+        </button>
+      </div>
+      <div className="economics-input-grid">
+        <label>
+          <span>НДС</span>
+          <select name="vat_mode" onChange={(event) => updateField('vat_mode', event.target.value)} value={values.vat_mode}>
+            <option value="unknown">проверить</option>
+            <option value="vat_included">включен</option>
+            <option value="vat_excluded">сверху</option>
+            <option value="no_vat">без НДС</option>
+          </select>
+        </label>
+        <label>
+          <span>Ставка НДС, %</span>
+          <input
+            inputMode="decimal"
+            name="vat_rate_percent"
+            onChange={(event) => updateField('vat_rate_percent', event.target.value)}
+            placeholder="20"
+            value={values.vat_rate_percent}
+          />
+        </label>
+        <label>
+          <span>Резерв, %</span>
+          <input
+            inputMode="decimal"
+            name="risk_reserve_percent"
+            onChange={(event) => updateField('risk_reserve_percent', event.target.value)}
+            placeholder="0"
+            value={values.risk_reserve_percent}
+          />
+        </label>
+        <label>
+          <span>Целевая маржа, %</span>
+          <input
+            inputMode="decimal"
+            name="target_margin_percent"
+            onChange={(event) => updateField('target_margin_percent', event.target.value)}
+            placeholder="15"
+            value={values.target_margin_percent}
+          />
+        </label>
+      </div>
+      <div className="assumptions-preview">
+        <Info label="НДС сверху" value={formatMoney(item?.vat_cost)} />
+        <Info label="Резерв позиции" value={formatMoney(item?.position_risk_reserve)} />
+        <Info label="Итого позиция" value={formatMoney(item?.estimated_total_cost)} />
+        <Info label="Целевая цена" value={formatMoney(item?.target_price)} />
+      </div>
+    </form>
+  )
+}
+
 function economicsFormValues(economics = {}) {
   return {
     unit_cost: economics.unit_cost ?? '',
     logistics_cost: economics.logistics_cost ?? '',
     documents_cost: economics.documents_cost ?? '',
     other_costs: economics.other_costs ?? '',
+  }
+}
+
+function economicsAssumptionsFormValues(assumptions = {}) {
+  return {
+    vat_mode: assumptions.vat_mode || 'unknown',
+    vat_rate_percent: assumptions.vat_rate_percent ?? '',
+    risk_reserve_percent: assumptions.risk_reserve_percent ?? '',
+    target_margin_percent: assumptions.target_margin_percent ?? '',
   }
 }
 

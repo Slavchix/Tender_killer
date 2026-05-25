@@ -124,6 +124,25 @@ def test_economics_tab_renders_auto_estimate_panel():
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
+def test_economics_tab_renders_assumptions_form():
+    source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "saveProfileEconomicsAssumptions" in source
+    assert "ProductEconomicsAssumptionsForm" in source
+    assert "economics/assumptions" in source
+    assert "economics_assumptions" in source
+    assert "vat_mode" in source
+    assert "risk_reserve_percent" in source
+    assert "target_margin_percent" in source
+    assert "Допущения" in source
+    assert "НДС" in source
+    assert "Целевая маржа" in source
+    assert ".economics-assumptions-form" in styles_source
+    assert find_mojibake(source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_economics_tab_owns_product_costs_and_suppliers():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
