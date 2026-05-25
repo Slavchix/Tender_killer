@@ -8,6 +8,7 @@ from tender_killer.encoding_guard import find_mojibake
 APP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "App.jsx"
 STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css"
 API_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "api.js"
+FORMATTERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "formatters.js"
 
 
 def _css_rule(source: str, selector: str) -> str:
@@ -42,6 +43,25 @@ def test_frontend_uses_dedicated_api_client():
     assert find_mojibake(api_source, API_SOURCE) == []
 
 
+def test_frontend_uses_dedicated_formatters_module():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    formatter_source = (
+        FORMATTERS_SOURCE.read_text(encoding="utf-8")
+        if FORMATTERS_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './formatters'" in app_source
+    assert "export function formatMoney" in formatter_source
+    assert "export function formatDateTime" in formatter_source
+    assert "export function documentRecordsForTender" in formatter_source
+    assert "export function economicsStatusLabel" in formatter_source
+    assert "function formatMoney" not in app_source
+    assert "function documentStatusCounts" not in app_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(formatter_source, FORMATTERS_SOURCE) == []
+
+
 def test_tender_cockpit_exposes_page_size_selector():
     source = APP_SOURCE.read_text(encoding="utf-8")
 
@@ -70,10 +90,11 @@ def test_tender_analysis_renders_actionable_checklist():
 
 def test_product_profile_renders_fulfillment_requirements():
     source = APP_SOURCE.read_text(encoding="utf-8")
+    formatter_source = FORMATTERS_SOURCE.read_text(encoding="utf-8")
 
     assert "profile.fulfillment_requirements" in source
     assert "formatFulfillmentRequirements" in source
-    assert "fulfillmentRequirementTypeLabel" in source
+    assert "fulfillmentRequirementTypeLabel" in formatter_source
     assert "Поставка и исполнение" in source
     assert find_mojibake(source, APP_SOURCE) == []
 
@@ -108,6 +129,7 @@ def test_product_profile_renders_economics_input_form():
 def test_product_profile_renders_supplier_option_form():
     source = APP_SOURCE.read_text(encoding="utf-8")
     api_source = API_SOURCE.read_text(encoding="utf-8")
+    formatter_source = FORMATTERS_SOURCE.read_text(encoding="utf-8")
 
     assert "function ProductSupplierOptionsForm" in source
     assert "onSupplierOptionSave" in source
@@ -127,7 +149,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "Лучший в расчет" in source
     assert "Источник цены" in source
     assert "В расчет" in source
-    assert "selected: 'в расчете'" in source
+    assert "selected: 'в расчете'" in formatter_source
     assert "Поставщики" in source
     assert find_mojibake(source, APP_SOURCE) == []
 
@@ -282,12 +304,13 @@ def test_tender_details_v2_keeps_actions_and_document_statuses_scannable():
 
 def test_tender_detail_tabs_have_scannable_work_areas():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
+    formatter_source = FORMATTERS_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "function TenderOverviewTab" in app_source
     assert "function ProductTabSummary" in app_source
     assert "function DocumentStatusSummary" in app_source
-    assert "function documentStatusCounts" in app_source
+    assert "export function documentStatusCounts" in formatter_source
     assert "<TenderOverviewTab tender={tender} raw={raw} />" in app_source
     assert "<ProductTabSummary" in app_source
     assert "<DocumentStatusSummary" in app_source

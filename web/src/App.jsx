@@ -37,6 +37,38 @@ import {
   selectProfileSupplierOption,
   sendTenderNotification,
 } from './api'
+import {
+  normalizeListItems,
+  formatFulfillmentRequirements,
+  analysisCategoryLabel,
+  analysisSeverityLabel,
+  shouldAutoRefreshDetails,
+  formatMoney,
+  formatSignedMoney,
+  formatSignedPercent,
+  formatPriceChangeDirection,
+  formatAmount,
+  formatQuantity,
+  profileStatusLabel,
+  formatConfidence,
+  analysisStatusLabel,
+  economicsStatusLabel,
+  tenderDecisionNextStep,
+  supplierAvailabilityLabel,
+  supplierStatusLabel,
+  supplierConfidenceLabel,
+  taxModeLabel,
+  formatCostDriver,
+  formatPercent,
+  formatDateTime,
+  formatDate,
+  formatDbCell,
+  documentLabel,
+  documentStatusLabel,
+  documentStatusCounts,
+  documentTextPreview,
+  documentRecordsForTender,
+} from './formatters'
 import './styles.css'
 
 const sourceLabels = {
@@ -2431,301 +2463,6 @@ function AnalysisChecklist({ items = [] }) {
       </div>
     </div>
   )
-}
-
-function normalizeListItems(items = []) {
-  return (Array.isArray(items) ? items : [items])
-    .map((item) => {
-      if (item === null || item === undefined || item === '') return ''
-      if (typeof item === 'string') return item
-      if (typeof item === 'number') return String(item)
-      return JSON.stringify(item)
-    })
-    .filter(Boolean)
-}
-
-function formatFulfillmentRequirements(items = []) {
-  return (Array.isArray(items) ? items : [])
-    .filter((item) => item && typeof item === 'object' && item.value)
-    .map((item) => {
-      const typeLabel = fulfillmentRequirementTypeLabel(item.type)
-      const source = item.source ? ` · ${item.source}` : ''
-      return `${typeLabel}: ${item.value}${source}`
-    })
-}
-
-function fulfillmentRequirementTypeLabel(type) {
-  const labels = {
-    acceptance: 'приемка',
-    delivery: 'доставка',
-    packaging: 'упаковка',
-    warranty: 'гарантия',
-  }
-  return labels[type] || type || 'исполнение'
-}
-
-function analysisCategoryLabel(category) {
-  const labels = {
-    acceptance: 'приемка',
-    contract: 'контракт',
-    delivery: 'доставка',
-    documents: 'документы',
-    financial: 'финансы',
-    legal: 'право',
-    national_regime: 'нацрежим',
-    standards: 'стандарты',
-  }
-  return labels[category] || category || 'общее'
-}
-
-function analysisSeverityLabel(severity) {
-  const labels = {
-    high: 'важно',
-    medium: 'проверить',
-    low: 'низкий риск',
-  }
-  return labels[severity] || severity || 'проверить'
-}
-
-function shouldAutoRefreshDetails(tender) {
-  if (!tender?.source || !tender?.external_id) return false
-  if (Array.isArray(tender.items) && tender.items.length > 0) return false
-  return ['mosreg_market', 'moscow_supplier_portal'].includes(tender.source)
-}
-
-function formatMoney(value) {
-  const number = Number(value)
-  if (!Number.isFinite(number)) return 'не указана'
-  return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(number)
-}
-
-function formatSignedMoney(value) {
-  const number = Number(value)
-  if (!Number.isFinite(number)) return 'не указана'
-  const sign = number > 0 ? '+' : ''
-  return `${sign}${formatMoney(number)}`
-}
-
-function formatSignedPercent(value) {
-  const number = Number(value)
-  if (!Number.isFinite(number)) return 'не указано'
-  const sign = number > 0 ? '+' : ''
-  return `${sign}${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(number)}%`
-}
-
-function formatPriceChangeDirection(change) {
-  const direction = change?.direction || 'changed'
-  if (change?.price_kind === 'current_offer') {
-    if (direction === 'decreased') return 'участник снизил цену'
-    if (direction === 'increased') return 'участник повысил цену'
-    return 'цена участника изменилась'
-  }
-  if (direction === 'decreased') return 'НМЦК снизилась'
-  if (direction === 'increased') return 'НМЦК выросла'
-  return 'НМЦК изменилась'
-}
-
-function formatAmount(quantity, unit) {
-  const number = Number(quantity)
-  const amount = Number.isFinite(number)
-    ? new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 4 }).format(number)
-    : 'не указано'
-  return unit ? `${amount} ${unit}` : amount
-}
-
-function formatQuantity(quantity, unit) {
-  return formatAmount(quantity, unit)
-}
-
-function profileStatusLabel(status) {
-  return {
-    draft: 'Черновик',
-    needs_review: 'Проверить',
-    ready: 'Готов',
-    searching: 'Поиск',
-    matched: 'Найдено',
-    priced: 'Расчет',
-    rejected: 'Отклонено',
-  }[status] || 'Черновик'
-}
-
-function formatConfidence(value) {
-  const number = Number(value)
-  if (!Number.isFinite(number)) return 'не указана'
-  return `${Math.round(number * 100)}%`
-}
-
-function analysisStatusLabel(status) {
-  return {
-    needs_review: 'Нужна проверка',
-    interesting: 'Интересно',
-    skipped: 'Пропустить',
-  }[status] || status || 'Нужна проверка'
-}
-
-function economicsStatusLabel(status) {
-  return {
-    interesting: 'Интересно',
-    manual_review: 'Проверить',
-    low_margin: 'Низкая маржа',
-    needs_costs: 'Нужны цены',
-    needs_price: 'Нужна НМЦК',
-  }[status] || status || 'Проверить'
-}
-
-function tenderDecisionNextStep(tender, economics) {
-  if (!economics) return 'обновить детали и цены'
-  if (economics.status === 'needs_costs') return 'добавить себестоимость'
-  if (economics.status === 'needs_price') return 'проверить НМЦК'
-  if (economics.status === 'low_margin') return 'оценить отказ'
-  if ((tender.product_profiles || []).some((profile) => !profile.raw_payload?.supplier_options?.length)) {
-    return 'добавить поставщиков'
-  }
-  if (economics.status === 'interesting') return 'вести в работу'
-  return 'проверить риски'
-}
-
-function supplierAvailabilityLabel(value) {
-  return {
-    unknown: 'наличие неясно',
-    in_stock: 'в наличии',
-    on_request: 'под заказ',
-    not_available: 'нет',
-  }[value] || value || 'наличие неясно'
-}
-
-function supplierStatusLabel(value) {
-  return {
-    candidate: 'кандидат',
-    selected: 'в расчете',
-    suitable: 'подходит',
-    rejected: 'не подходит',
-  }[value] || value || 'кандидат'
-}
-
-function supplierConfidenceLabel(value) {
-  return {
-    confirmed: 'подтверждено',
-    high: 'высокая уверенность',
-    medium: 'требует проверки',
-    needs_review: 'требует проверки',
-  }[value] || 'требует проверки'
-}
-
-function taxModeLabel(mode, vatRate) {
-  const labels = {
-    no_vat: 'без НДС',
-    unknown: 'проверить',
-    vat_excluded: 'НДС сверху',
-    vat_included: 'НДС включен',
-  }
-  const label = labels[mode] || mode || 'проверить'
-  return vatRate === null || vatRate === undefined ? label : `${label} · ${formatPercent(vatRate)}`
-}
-
-function formatCostDriver(driver) {
-  if (!driver || typeof driver !== 'object') return ''
-  const label = costDriverLabel(driver.type)
-  return `${label}: ${formatMoney(driver.amount)} · ${formatPercent(driver.rate_percent)}`
-}
-
-function costDriverLabel(type) {
-  return {
-    acceptance: 'приемка',
-    certificates: 'сертификаты',
-    contract_security: 'обеспечение',
-    delivery: 'доставка',
-    national_regime: 'нацрежим',
-    packaging: 'упаковка',
-    payment_delay: 'отсрочка оплаты',
-    penalties: 'штрафы',
-    short_deadline: 'короткий срок',
-    unloading: 'разгрузка',
-    warranty: 'гарантия',
-  }[type] || type || 'расход'
-}
-
-function formatPercent(value) {
-  const number = Number(value)
-  if (!Number.isFinite(number)) return 'не указано'
-  return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(number)}%`
-}
-
-function formatDateTime(value) {
-  if (!value) return 'нет'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
-}
-
-function formatDate(value) {
-  if (!value) return 'не указан'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date)
-}
-
-function formatDbCell(value) {
-  if (value === null || value === undefined || value === '') return '—'
-  if (typeof value === 'number') return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 4 }).format(value)
-  const text = typeof value === 'string' ? value : JSON.stringify(value)
-  return text.length > 180 ? `${text.slice(0, 180)}...` : text
-}
-
-function documentLabel(url) {
-  try {
-    const parsed = new URL(url)
-    const queryName = parsed.searchParams.get('fileName') || parsed.searchParams.get('name')
-    if (queryName) return queryName
-    const fileName = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() || '')
-    return fileName && fileName.includes('.') ? fileName : url
-  } catch {
-    return url
-  }
-}
-
-function documentStatusLabel(status) {
-  return {
-    pending: 'ожидает',
-    downloaded: 'скачан, текст не извлечен',
-    ok: 'текст извлечен',
-    empty: 'текст не найден',
-    unsupported: 'формат не поддержан',
-    missing_file: 'файл не найден',
-  }[status] || status || 'ожидает'
-}
-
-function documentStatusCounts(documents) {
-  return (documents || []).reduce((counts, document) => {
-    const status = document.text_status || 'pending'
-    counts.total += 1
-    if (document.local_path) counts.downloaded += 1
-    if (status === 'ok') counts.ok += 1
-    if (status !== 'ok') counts.attention += 1
-    return counts
-  }, { total: 0, downloaded: 0, ok: 0, attention: 0 })
-}
-
-function documentTextPreview(value) {
-  const text = String(value || '').replace(/\s+/g, ' ').trim()
-  return text.length > 420 ? `${text.slice(0, 420)}...` : text
-}
-
-function documentRecordsForTender(tender) {
-  if (tender.document_records?.length) return tender.document_records
-  return (tender.documents || []).map((url, index) => ({
-    document_index: index + 1,
-    name: documentLabel(url),
-    document_type: '',
-    url,
-    local_path: '',
-    text_status: 'pending',
-  }))
 }
 
 function safeJson(value) {
