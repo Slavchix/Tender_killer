@@ -11,6 +11,7 @@ API_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "api.js"
 CONSTANTS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "constants.js"
 DASHBOARD_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "Dashboard.jsx"
 DATABASE_VIEW_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "DatabaseView.jsx"
+FILTERS_PANEL_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "FiltersPanel.jsx"
 FORMATTERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "formatters.js"
 PAGINATION_BAR_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "PaginationBar.jsx"
 
@@ -24,13 +25,14 @@ def _css_rule(source: str, selector: str) -> str:
 def test_tender_cockpit_exposes_normalized_metadata_filters():
     source = APP_SOURCE.read_text(encoding="utf-8")
     constants_source = CONSTANTS_SOURCE.read_text(encoding="utf-8")
+    filters_source = FILTERS_PANEL_SOURCE.read_text(encoding="utf-8")
 
     for key in ("source_family", "procedure_type", "customer_inn"):
         assert f"{key}: ''" in constants_source
-        assert f"updateFilter('{key}'" in source
+        assert f"onUpdateFilter('{key}'" in filters_source
 
-    assert "procedureTypeOptions" in source
-    assert "sourceFamilyOptions" in source
+    assert "procedureTypeOptions" in filters_source
+    assert "sourceFamilyOptions" in filters_source
 
 
 def test_frontend_uses_dedicated_api_client():
@@ -140,6 +142,25 @@ def test_frontend_uses_dedicated_pagination_bar_module():
     assert "function PaginationBar" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(pagination_source, PAGINATION_BAR_SOURCE) == []
+
+
+def test_frontend_uses_dedicated_filters_panel_module():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    filters_source = (
+        FILTERS_PANEL_SOURCE.read_text(encoding="utf-8")
+        if FILTERS_PANEL_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './FiltersPanel'" in app_source
+    assert "export function FiltersPanel" in filters_source
+    assert "filters-panel" in filters_source
+    assert "sourceOptions.map" in filters_source
+    assert "procedureTypeOptions.map" in filters_source
+    assert "onToggleMultiFilter('source'" in filters_source
+    assert "function FiltersPanel" not in app_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(filters_source, FILTERS_PANEL_SOURCE) == []
 
 
 def test_tender_cockpit_exposes_page_size_selector():
@@ -349,13 +370,14 @@ def test_tender_workbench_v1_reduces_detail_panel_overload():
 
 def test_tender_workbench_has_collapsible_filters_and_wider_list():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
+    filters_source = FILTERS_PANEL_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "const [filtersCollapsed, setFiltersCollapsed]" in app_source
     assert "filtersCollapsed ? 'workspace workbench-layout filters-collapsed' : 'workspace workbench-layout'" in app_source
-    assert "filter-collapse-button" in app_source
-    assert "Свернуть фильтры" in app_source
-    assert "Развернуть фильтры" in app_source
+    assert "filter-collapse-button" in filters_source
+    assert "Свернуть фильтры" in filters_source
+    assert "Развернуть фильтры" in filters_source
     assert ".workbench-layout.filters-collapsed" in styles_source
     assert "minmax(560px, 1.1fr)" in styles_source
     assert ".filters-panel.collapsed" in styles_source

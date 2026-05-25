@@ -8,11 +8,9 @@ import {
   CircleDollarSign,
   ExternalLink,
   FileText,
-  Filter,
   PlayCircle,
   RefreshCcw,
   Scale,
-  Search,
 } from 'lucide-react'
 import {
   acceptProfileAutoEconomics as acceptProfileAutoEconomicsRequest,
@@ -67,16 +65,13 @@ import {
 import { DashboardView } from './Dashboard'
 import { DatabaseView } from './DatabaseView'
 import { PaginationBar } from './PaginationBar'
+import { FiltersPanel } from './FiltersPanel'
 import './styles.css'
 import {
   sourceLabels,
   workflowLabels,
   viewLabels,
   navItems,
-  sourceOptions,
-  lawOptions,
-  statusOptions,
-  quickRegionOptions,
   sourceFamilyOptions,
   procedureTypeOptions,
   initialFilters,
@@ -196,10 +191,6 @@ function App() {
         : [...values, value]
       return { ...current, [name]: nextValues.join(',') }
     })
-  }
-
-  function isSelected(name, value) {
-    return splitFilterValues(filters[name]).includes(value)
   }
 
   function applyFilters(event) {
@@ -371,150 +362,16 @@ function App() {
 
           {view === 'tenders' && (
       <section className={filtersCollapsed ? 'workspace workbench-layout filters-collapsed' : 'workspace workbench-layout'}>
-        <aside className={filtersCollapsed ? 'filters-panel collapsed' : 'filters-panel'}>
-          <div className="filters-header">
-            <div className="panel-title"><Filter size={18} /> <span className="filters-title-text">Фильтры</span></div>
-            <button
-              aria-expanded={!filtersCollapsed}
-              className="icon-button small filter-collapse-button"
-              onClick={() => setFiltersCollapsed((current) => !current)}
-              title={filtersCollapsed ? 'Развернуть фильтры' : 'Свернуть фильтры'}
-              type="button"
-            >
-              {filtersCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-            </button>
-          </div>
-          {!filtersCollapsed && (
-            <>
-              <form onSubmit={applyFilters}>
-            <label>
-              Поиск
-              <div className="input-with-icon">
-                <Search size={16} />
-                <input value={filters.q} onChange={(event) => updateFilter('q', event.target.value)} placeholder="бумага, кабель, бетон" />
-              </div>
-            </label>
-            <div className="filter-group">
-              Площадка
-              <div className="check-grid">
-                {sourceOptions.map((option) => (
-                  <button
-                    className={isSelected('source', option.value) || !filters.source ? 'selected' : ''}
-                    key={option.value}
-                    onClick={() => toggleMultiFilter('source', option.value)}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="filter-group">
-              Закон
-              <div className="segmented-control">
-                {lawOptions.map((option) => (
-                  <button
-                    className={filters.law === option.value ? 'selected' : ''}
-                    key={option.label}
-                    onClick={() => updateFilter('law', option.value)}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="filter-group">
-              Регион
-              <div className="segmented-control wrap">
-                {quickRegionOptions.map((option) => (
-                  <button
-                    className={filters.region === option.value ? 'selected' : ''}
-                    key={option.value}
-                    onClick={() => updateFilter('region', option.value)}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <input value={filters.region} onChange={(event) => updateFilter('region', event.target.value)} placeholder="Москва, Московская область" />
-            </div>
-            <div className="filter-group">
-              Статус
-              <div className="segmented-control wrap">
-                {statusOptions.map((option) => (
-                  <button
-                    className={filters.status === option.value ? 'selected' : ''}
-                    key={option.label}
-                    onClick={() => updateFilter('status', option.value)}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <label>
-              ОКПД2
-              <input value={filters.okpd2} onChange={(event) => updateFilter('okpd2', event.target.value)} placeholder="17.12, 22.23, 27" />
-            </label>
-            <div className="filter-group">
-              Тип источника
-              <div className="segmented-control">
-                {sourceFamilyOptions.map((option) => (
-                  <button
-                    className={filters.source_family === option.value ? 'selected' : ''}
-                    key={option.label}
-                    onClick={() => updateFilter('source_family', option.value)}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="filter-group">
-              Тип процедуры
-              <div className="segmented-control wrap procedure-control">
-                {procedureTypeOptions.map((option) => (
-                  <button
-                    className={filters.procedure_type === option.value ? 'selected' : ''}
-                    key={option.label}
-                    onClick={() => updateFilter('procedure_type', option.value)}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <label>
-              ИНН заказчика
-              <input value={filters.customer_inn} onChange={(event) => updateFilter('customer_inn', event.target.value)} inputMode="numeric" placeholder="7708044657" />
-            </label>
-            <div className="split">
-              <label>
-                Мин. цена
-                <input value={filters.min_price} onChange={(event) => updateFilter('min_price', event.target.value)} inputMode="numeric" placeholder="0" />
-              </label>
-              <label>
-                Макс. цена
-                <input value={filters.max_price} onChange={(event) => updateFilter('max_price', event.target.value)} inputMode="numeric" placeholder="500000" />
-              </label>
-            </div>
-            <button className="primary-button" type="submit">Применить</button>
-            <button className="secondary-button compact" onClick={clearFilters} type="button">Очистить</button>
-              </form>
-              <div className="applied-filters">
-                <span>Применено сейчас</span>
-                <div>
-                  {activeFilterChips.map((chip) => <strong key={chip}>{chip}</strong>)}
-                </div>
-              </div>
-            </>
-          )}
-        </aside>
+        <FiltersPanel
+          activeFilterChips={activeFilterChips}
+          filters={filters}
+          filtersCollapsed={filtersCollapsed}
+          onApplyFilters={applyFilters}
+          onClearFilters={clearFilters}
+          onToggleCollapsed={() => setFiltersCollapsed((current) => !current)}
+          onToggleMultiFilter={toggleMultiFilter}
+          onUpdateFilter={updateFilter}
+        />
 
         <section className="tender-list">
           <div className="list-header">
