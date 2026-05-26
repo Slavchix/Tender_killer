@@ -28,6 +28,7 @@ TENDER_LIST_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "Tend
 USE_TENDER_DOCUMENT_ANALYSIS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderDocumentAnalysis.js"
 USE_TENDER_PRODUCT_PROFILES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderProductProfiles.js"
 USE_TENDER_WORKFLOW_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderWorkflow.js"
+USE_TENDER_NOTIFICATION_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderNotification.js"
 
 
 def _css_rule(source: str, selector: str) -> str:
@@ -227,6 +228,7 @@ def test_frontend_uses_dedicated_tender_details_module():
     assert "from './useTenderDocumentAnalysis'" in tender_details_source
     assert "from './useTenderProductProfiles'" in tender_details_source
     assert "from './useTenderWorkflow'" in tender_details_source
+    assert "from './useTenderNotification'" in tender_details_source
     assert "details-panel" in app_source
     assert "<TenderDetails tender={details}" in app_source
     assert "function TenderDetails" not in app_source
@@ -509,6 +511,25 @@ def test_tender_details_uses_workflow_hook():
     assert "const [saving" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_WORKFLOW_SOURCE) == []
+
+
+def test_tender_details_uses_notification_hook():
+    tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    hook_source = (
+        USE_TENDER_NOTIFICATION_SOURCE.read_text(encoding="utf-8")
+        if USE_TENDER_NOTIFICATION_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './useTenderNotification'" in tender_details_source
+    assert "useTenderNotification(tender)" in tender_details_source
+    assert "export function useTenderNotification" in hook_source
+    assert "sendTenderNotification" in hook_source
+    assert "function sendToTelegram" not in tender_details_source
+    assert "const [sending" not in tender_details_source
+    assert "const [notifyStatus" not in tender_details_source
+    assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(hook_source, USE_TENDER_NOTIFICATION_SOURCE) == []
 
 
 def test_tender_cockpit_exposes_page_size_selector():
@@ -1018,7 +1039,7 @@ def test_dashboard_layout_uses_aligned_full_width_grid():
 
 
 def test_tender_notify_uses_backend_message_for_configuration_errors():
-    app_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    notification_source = USE_TENDER_NOTIFICATION_SOURCE.read_text(encoding="utf-8")
 
-    assert "payload.message || (payload.sent ? 'Отправлено в Telegram' : 'Telegram не настроен')" in app_source
-    assert find_mojibake(app_source, TENDER_DETAILS_SOURCE) == []
+    assert "payload.message || (payload.sent ? 'Отправлено в Telegram' : 'Telegram не настроен')" in notification_source
+    assert find_mojibake(notification_source, USE_TENDER_NOTIFICATION_SOURCE) == []

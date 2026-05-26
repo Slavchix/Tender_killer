@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Building2 } from 'lucide-react'
-import {
-  refreshTenderDetails,
-  sendTenderNotification,
-} from './api'
+import { refreshTenderDetails } from './api'
 import {
   shouldAutoRefreshDetails,
   formatMoney,
@@ -19,6 +16,7 @@ import { TenderAnalysisTab } from './TenderAnalysisTab'
 import { TenderEconomicsTab } from './TenderEconomicsTab'
 import { WorkflowTabPanel } from './TenderWorkflowTab'
 import { useTenderDocumentAnalysis } from './useTenderDocumentAnalysis'
+import { useTenderNotification } from './useTenderNotification'
 import { useTenderProductProfiles } from './useTenderProductProfiles'
 import { useTenderWorkflow } from './useTenderWorkflow'
 
@@ -26,11 +24,10 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const raw = safeJson(tender.raw_payload_json)
   const autoRefreshKey = useRef('')
   const [activeTab, setActiveTab] = useState('overview')
-  const [sending, setSending] = useState(false)
   const [refreshingDetails, setRefreshingDetails] = useState(false)
-  const [notifyStatus, setNotifyStatus] = useState('')
   const [detailStatus, setDetailStatus] = useState('')
   const { note, setNote, saving, saveWorkflow } = useTenderWorkflow(tender, onWorkflowUpdate)
+  const { sending, notifyStatus, setNotifyStatus, sendToTelegram } = useTenderNotification(tender)
   const {
     productProfiles,
     productProfileSummary,
@@ -81,16 +78,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     autoRefreshKey.current = key
     refreshDetails({ automatic: true })
   }, [tender.source, tender.external_id, tender.items?.length])
-
-  function sendToTelegram() {
-    setSending(true)
-    setNotifyStatus('')
-    sendTenderNotification(tender)
-      .then((payload) => setNotifyStatus(payload.message || (payload.sent ? 'Отправлено в Telegram' : 'Telegram не настроен')))
-      .catch((err) => setNotifyStatus(err.message))
-      .finally(() => setSending(false))
-  }
-
 
   function refreshDetails(options = {}) {
     setRefreshingDetails(true)
