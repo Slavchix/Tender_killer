@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Building2 } from 'lucide-react'
 import {
   refreshTenderDetails,
-  saveTenderWorkflow,
   sendTenderNotification,
 } from './api'
 import {
@@ -21,17 +20,17 @@ import { TenderEconomicsTab } from './TenderEconomicsTab'
 import { WorkflowTabPanel } from './TenderWorkflowTab'
 import { useTenderDocumentAnalysis } from './useTenderDocumentAnalysis'
 import { useTenderProductProfiles } from './useTenderProductProfiles'
+import { useTenderWorkflow } from './useTenderWorkflow'
 
 export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const raw = safeJson(tender.raw_payload_json)
   const autoRefreshKey = useRef('')
   const [activeTab, setActiveTab] = useState('overview')
-  const [note, setNote] = useState(tender.workflow_note || '')
-  const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState(false)
   const [refreshingDetails, setRefreshingDetails] = useState(false)
   const [notifyStatus, setNotifyStatus] = useState('')
   const [detailStatus, setDetailStatus] = useState('')
+  const { note, setNote, saving, saveWorkflow } = useTenderWorkflow(tender, onWorkflowUpdate)
   const {
     productProfiles,
     productProfileSummary,
@@ -72,7 +71,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
 
   useEffect(() => {
     setActiveTab('overview')
-    setNote(tender.workflow_note || '')
     setNotifyStatus('')
     setDetailStatus('')
   }, [tender.source, tender.external_id, tender.workflow_note, tender.analysis, tender.product_profiles, tender.product_profile_summary, tender.economics])
@@ -83,16 +81,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     autoRefreshKey.current = key
     refreshDetails({ automatic: true })
   }, [tender.source, tender.external_id, tender.items?.length])
-
-  function saveWorkflow(workflowStatus = tender.workflow_status || 'new', workflowNote = note) {
-    setSaving(true)
-    saveTenderWorkflow(tender, {
-      workflow_status: workflowStatus,
-      workflow_note: workflowNote,
-    })
-      .then(onWorkflowUpdate)
-      .finally(() => setSaving(false))
-  }
 
   function sendToTelegram() {
     setSending(true)
