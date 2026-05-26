@@ -16,6 +16,7 @@ FORMATTERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "forma
 PAGINATION_BAR_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "PaginationBar.jsx"
 TENDER_DETAILS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetails.jsx"
 TENDER_DETAILS_SHARED_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsShared.jsx"
+TENDER_DOCUMENTS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDocumentsTab.jsx"
 TENDER_OVERVIEW_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderOverviewTab.jsx"
 TENDER_LIST_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderList.jsx"
 
@@ -234,6 +235,26 @@ def test_frontend_uses_dedicated_tender_overview_tab_module():
     assert "function TenderOverviewTab" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(overview_source, TENDER_OVERVIEW_TAB_SOURCE) == []
+
+
+def test_frontend_uses_dedicated_tender_documents_tab_module():
+    tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    documents_source = (
+        TENDER_DOCUMENTS_TAB_SOURCE.read_text(encoding="utf-8")
+        if TENDER_DOCUMENTS_TAB_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './TenderDocumentsTab'" in tender_details_source
+    assert "export function TenderDocumentsTab" in documents_source
+    assert "function DocumentStatusSummary" in documents_source
+    assert "document-table" in documents_source
+    assert "document-status ${document.text_status || 'pending'}" in documents_source
+    assert "<TenderDocumentsTab" in tender_details_source
+    assert "function DocumentStatusSummary" not in tender_details_source
+    assert "document-table" not in tender_details_source
+    assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(documents_source, TENDER_DOCUMENTS_TAB_SOURCE) == []
 
 
 def test_tender_cockpit_exposes_page_size_selector():
@@ -464,6 +485,7 @@ def test_tender_workbench_has_collapsible_filters_and_wider_list():
 
 def test_tender_details_v2_keeps_actions_and_document_statuses_scannable():
     app_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    documents_source = TENDER_DOCUMENTS_TAB_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
     detail_actions_rule = _css_rule(styles_source, ".detail-actions")
     detail_tabs_rule = _css_rule(styles_source, ".detail-tabs")
@@ -471,9 +493,9 @@ def test_tender_details_v2_keeps_actions_and_document_statuses_scannable():
     assert "details-title-row" in app_source
     assert "details-action-group primary-actions" in app_source
     assert "details-action-group secondary-actions" in app_source
-    assert "documentStatusLabel" in app_source
-    assert "document-status ${document.text_status || 'pending'}" in app_source
-    assert "download-status ${document.local_path ? 'downloaded' : 'missing'}" in app_source
+    assert "documentStatusLabel" in documents_source
+    assert "document-status ${document.text_status || 'pending'}" in documents_source
+    assert "download-status ${document.local_path ? 'downloaded' : 'missing'}" in documents_source
     assert "grid-template-columns: repeat(4" not in detail_actions_rule
     assert ("flex-wrap: wrap" in detail_actions_rule or "auto-fit" in detail_actions_rule)
     assert "flex-wrap: wrap" in detail_tabs_rule
@@ -481,25 +503,27 @@ def test_tender_details_v2_keeps_actions_and_document_statuses_scannable():
     assert ".document-status.unsupported" in styles_source
     assert ".document-status.ok" in styles_source
     assert find_mojibake(app_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(documents_source, TENDER_DOCUMENTS_TAB_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
 def test_tender_detail_tabs_have_scannable_work_areas():
     app_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     overview_source = TENDER_OVERVIEW_TAB_SOURCE.read_text(encoding="utf-8")
+    documents_source = TENDER_DOCUMENTS_TAB_SOURCE.read_text(encoding="utf-8")
     formatter_source = FORMATTERS_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "export function TenderOverviewTab" in overview_source
     assert "function ProductTabSummary" in app_source
-    assert "function DocumentStatusSummary" in app_source
+    assert "function DocumentStatusSummary" in documents_source
     assert "export function documentStatusCounts" in formatter_source
     assert "<TenderOverviewTab tender={tender} raw={raw} />" in app_source
     assert "<ProductTabSummary" in app_source
-    assert "<DocumentStatusSummary" in app_source
+    assert "<TenderDocumentsTab" in app_source
     assert "tab-lead" in overview_source
     assert "overview-brief-grid" in overview_source
-    assert "document-status-summary" in app_source
+    assert "document-status-summary" in documents_source
     assert "product-tab-summary" in app_source
     assert ".tab-lead" in styles_source
     assert ".overview-brief-grid" in styles_source
@@ -507,6 +531,7 @@ def test_tender_detail_tabs_have_scannable_work_areas():
     assert ".product-tab-summary" in styles_source
     assert find_mojibake(app_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(overview_source, TENDER_OVERVIEW_TAB_SOURCE) == []
+    assert find_mojibake(documents_source, TENDER_DOCUMENTS_TAB_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
