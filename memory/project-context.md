@@ -712,12 +712,13 @@ Date: 2026-05-26.
 - `TenderEconomicsTab.jsx` owns the economics workbench: NMC summary, cost inputs, supplier candidates, selected supplier price source, assumptions, auto-estimate run/accept controls, bid thresholds, and participation decision UI.
 - Supplier search preparation now lives in `src/tender_killer/supplier_search_service.py`. It builds deterministic per-position supplier search queries from normalized product names, search phrases, and classifiers; `POST /api/tenders/{source}/{external_id}/product-profiles/{position}/supplier-search/prepare` persists those queries under `raw_payload.supplier_search`. The economics tab renders the prepared queries with manual Google/Yandex quick links, without running network search or changing economics.
 - Manual supplier candidates now preserve the prepared search query that led to them through `source_query` and `source_kind` fields in `raw_payload.supplier_options`, so review evidence stays attached to candidate prices before selection.
+- Supplier discovery review now lives in `src/tender_killer/supplier_discovery_service.py`. Discovered candidates can be staged under `raw_payload.supplier_discovery.candidates` and imported into `supplier_options`; import marks the discovery candidate as `imported` but does not select the supplier or update economics.
 - `web/src/TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
-- Latest local targeted verification after supplier source-query wiring: `75 passed` for supplier option/search services, API handlers, and frontend contracts.
-- Latest full verification after supplier source-query wiring: `304 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
-- JSX syntax was checked through Babel parser in the Node REPL after wiring `source_query` into the supplier form.
-- Local commit before documentation update: `1f95e4f Track supplier discovery source query`.
+- Latest local targeted verification after supplier discovery review queue: `93 passed` for supplier discovery/option/search services, API routes/handlers, and frontend contracts.
+- Latest full verification after supplier discovery review queue: `311 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- JSX syntax was checked through Babel parser in the Node REPL after wiring discovery preview/import into the economics tab.
+- Local commit before documentation update: `62307c5 Add supplier discovery review queue`.
 - Next planned steps:
-  1. Add the first public price discovery adapter that proposes supplier candidates from prepared queries but does not select or price them automatically.
-  2. Add a review queue/preview for discovered candidates before importing them into `supplier_options`.
+  1. Add the first public price discovery adapter that proposes supplier candidates from prepared queries into the review queue, without selecting or pricing them automatically.
+  2. Add provider-specific normalization and confidence fields for discovered candidates.
   3. Keep Telegram as notifications/quick entry, not the main workbench.
