@@ -292,6 +292,119 @@ def test_provider_catalog_collector_extracts_vseinstrumenti_visible_offer_withou
     assert result["candidates"][0]["provider"] == "vseinstrumenti"
 
 
+def test_provider_catalog_collector_extracts_komus_visible_offer_without_schema_org() -> None:
+    pages = {
+        "https://www.komus.ru/search/?text=office+paper+a4": """
+            <html>
+              <body>
+                <a href="/katalog/posuda-i-tekstil/bumaga-dlya-vypechki/pergament-komus/p/1050505/">
+                  Paper Komus 500 sheets
+                </a>
+              </body>
+            </html>
+        """,
+        "https://www.komus.ru/katalog/posuda-i-tekstil/bumaga-dlya-vypechki/pergament-komus/p/1050505/": """
+            <html>
+              <body>
+                <h1>Paper Komus 500 sheets</h1>
+                <p>Доставка завтра</p>
+                <p>2,76 ₽ /шт.</p>
+                <p>138 ₽ от 1 уп.</p>
+              </body>
+            </html>
+        """,
+    }
+    calls: list[str] = []
+    collector = price_discovery.ProviderCatalogCollector(
+        "komus",
+        fetch_text=lambda url: calls.append(url) or pages.get(url, "<html></html>"),
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "office paper a4",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "Komus",
+                    "url": "https://www.komus.ru/search/?text=office+paper+a4",
+                    "provider": "komus",
+                    "link_kind": "catalog_search",
+                    "preset_id": "komus_office_supplies",
+                }
+            ],
+        }
+    )
+
+    assert calls == [
+        "https://www.komus.ru/search/?text=office+paper+a4",
+        "https://www.komus.ru/katalog/posuda-i-tekstil/bumaga-dlya-vypechki/pergament-komus/p/1050505/",
+    ]
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"][0]["name"] == "Paper Komus 500 sheets"
+    assert result["candidates"][0]["unit_price"] == 2.76
+    assert result["candidates"][0]["currency"] == "RUB"
+    assert result["candidates"][0]["availability"] == "in_stock"
+    assert result["candidates"][0]["provider"] == "komus"
+
+
+def test_provider_catalog_collector_extracts_petrovich_visible_offer_without_schema_org() -> None:
+    pages = {
+        "https://petrovich.ru/search/?q=cement+mix": """
+            <html>
+              <body>
+                <a href="/product/101902/">Cement waterproofing 15 kg</a>
+              </body>
+            </html>
+        """,
+        "https://petrovich.ru/product/101902/": """
+            <html>
+              <body>
+                <h1>Cement waterproofing 15 kg</h1>
+                <p>Цена за штуку</p>
+                <p>По карте</p>
+                <p>2\u202f258 ₽</p>
+                <p>2\u202f337 ₽</p>
+                <p>В корзину</p>
+                <p>Доступно сегодня</p>
+              </body>
+            </html>
+        """,
+    }
+    calls: list[str] = []
+    collector = price_discovery.ProviderCatalogCollector(
+        "petrovich",
+        fetch_text=lambda url: calls.append(url) or pages.get(url, "<html></html>"),
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "cement mix",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "Petrovich",
+                    "url": "https://petrovich.ru/search/?q=cement+mix",
+                    "provider": "petrovich",
+                    "link_kind": "catalog_search",
+                    "preset_id": "petrovich_building_materials",
+                }
+            ],
+        }
+    )
+
+    assert calls == [
+        "https://petrovich.ru/search/?q=cement+mix",
+        "https://petrovich.ru/product/101902/",
+    ]
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"][0]["name"] == "Cement waterproofing 15 kg"
+    assert result["candidates"][0]["unit_price"] == 2258.0
+    assert result["candidates"][0]["currency"] == "RUB"
+    assert result["candidates"][0]["availability"] == "in_stock"
+    assert result["candidates"][0]["provider"] == "petrovich"
+
+
 def test_schema_org_product_collector_leaves_builtin_catalog_links_to_provider_collectors() -> None:
     calls: list[str] = []
     collector = SchemaOrgProductCollector(fetch_text=lambda url: calls.append(url) or "<html></html>")

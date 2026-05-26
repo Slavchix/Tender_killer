@@ -50,7 +50,7 @@ Recent architecture cleanup:
 - Manual supplier candidates can keep the prepared search query that led to them (`source_query` / `source_kind`), preserving review evidence before any price is selected for economics.
 - The site can run a schema.org public supplier discovery pass from prepared quick links: search-engine links are ignored, public catalog pages can lead to same-site product pages, public product pages are parsed for Product/Offer JSON-LD, and candidates stay review-only until imported.
 - Public supplier discovery now tries built-in catalog collectors for `officemag`, `komus`, `petrovich`, and `vseinstrumenti` before the generic schema.org fallback. Built-in catalog links get provider-specific diagnostics and candidates, while manual/unknown catalog links still use the generic public schema.org path.
-- Built-in catalog collectors can fall back to visible product-page text for OfficeMag and Vseinstrumenti when schema.org offers are missing, extracting the product heading, visible ruble price, and availability without treating category pages as supplier candidates.
+- Built-in catalog collectors can fall back to visible product-page text for OfficeMag, Komus, Petrovich, and Vseinstrumenti when schema.org offers are missing, extracting the product heading, visible ruble price, and availability without treating category pages as supplier candidates.
 - The API exposes public supplier catalog health at `/api/supplier-catalogs/health`: by default it reports configured providers without network access, and `?live=1` records per-provider HTTP diagnostics for real public catalog search pages.
 - Public supplier discovery now normalizes unit price, currency, VAT mode, delivery note, availability, provider confidence, and collector diagnostics under `raw_payload.supplier_discovery`.
 - The economics supplier block surfaces configured supplier catalog health next to preset controls, so the operator can see which built-in catalogs are wired before running discovery.
@@ -80,7 +80,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after visible catalog fallback: `337 passed`.
+Latest verified result after visible catalog fallback: `339 passed`.
 
 Good next steps:
 

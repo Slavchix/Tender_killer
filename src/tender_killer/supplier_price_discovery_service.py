@@ -25,6 +25,7 @@ BUILT_IN_CATALOG_PROVIDER_SET = {provider.casefold() for provider in BUILT_IN_CA
 SEARCH_ENGINE_HOSTS = ("google.", "yandex.")
 FetchText = Callable[[str], str]
 VISIBLE_PRICE_RE = re.compile(r"(?<!\d)(\d[\d\s\u00a0\u202f]*(?:[,.]\d{1,2})?)\s*(?:₽|руб\.?)", re.IGNORECASE)
+NUMBER_SPACE_RE = re.compile(r"[\s\u00a0\u202f]+")
 
 
 class SchemaOrgProductCollector:
@@ -496,6 +497,10 @@ def _is_provider_product_detail_url(provider: str, url: str) -> bool:
     provider_key = provider.casefold()
     if provider_key == "officemag":
         return "/catalog/goods/" in path
+    if provider_key == "komus":
+        return "/p/" in path
+    if provider_key == "petrovich":
+        return path.startswith("/product/")
     if provider_key == "vseinstrumenti":
         return "/product/" in path
     return False
@@ -695,7 +700,7 @@ def _number(value: Any) -> float | None:
     if value in (None, ""):
         return None
     try:
-        number = float(str(value).replace(" ", "").replace(",", "."))
+        number = float(NUMBER_SPACE_RE.sub("", str(value)).replace(",", "."))
     except (TypeError, ValueError):
         return None
     return number if number >= 0 else None
