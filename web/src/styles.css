@@ -2426,6 +2426,40 @@ textarea:focus {
   gap: 7px;
 }
 
+.supplier-search-preview {
+  display: grid;
+  gap: 7px;
+  padding: 8px 9px;
+  color: #b7ccc4;
+  background: #17211e;
+  border: 1px solid #304039;
+  border-radius: 6px;
+}
+
+.supplier-search-preview span {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.supplier-search-preview div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.supplier-search-preview code {
+  max-width: 100%;
+  padding: 4px 6px;
+  color: #d8eadf;
+  background: #1e2a24;
+  border: 1px solid #3f5149;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
 .supplier-option-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

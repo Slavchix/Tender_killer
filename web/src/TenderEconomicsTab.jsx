@@ -26,11 +26,13 @@ export function TenderEconomicsTab({
   onSupplierOptionSave,
   onSupplierOptionSelect,
   onSupplierOptionAutoSelect,
+  onSupplierSearchPrepare,
   onAutoEconomicsRun,
   onAutoEconomicsAccept,
   savingEconomicsPosition = null,
   savingAssumptionsPosition = null,
   savingSupplierOptionPosition = null,
+  preparingSupplierSearchPosition = null,
   autoSelectingSupplierPosition = null,
   autoEstimatingPosition = null,
   acceptingAutoEconomicsPosition = null,
@@ -43,6 +45,7 @@ export function TenderEconomicsTab({
   const savingEconomics = savingEconomicsPosition === selectedPosition
   const savingAssumptions = savingAssumptionsPosition === selectedPosition
   const savingSupplierOption = savingSupplierOptionPosition === selectedPosition
+  const preparingSupplierSearch = preparingSupplierSearchPosition === selectedPosition
   const autoSelectingSupplier = autoSelectingSupplierPosition === selectedPosition
   const autoEstimating = autoEstimatingPosition === selectedPosition
   const acceptingAutoEconomics = acceptingAutoEconomicsPosition === selectedPosition
@@ -115,7 +118,9 @@ export function TenderEconomicsTab({
                 onSave={onSupplierOptionSave}
                 onSelect={onSupplierOptionSelect}
                 onAutoSelect={onSupplierOptionAutoSelect}
+                onSearchPrepare={onSupplierSearchPrepare}
                 saving={savingSupplierOption}
+                preparingSearch={preparingSupplierSearch}
                 autoSelecting={autoSelectingSupplier}
               />
             </>
@@ -456,10 +461,20 @@ function ProductAutoEconomicsPanel({ profile, onRun, onAccept, saving = false, a
   )
 }
 
-function ProductSupplierOptionsForm({ profile, onSave, onSelect, onAutoSelect, saving = false, autoSelecting = false }) {
+function ProductSupplierOptionsForm({
+  profile,
+  onSave,
+  onSelect,
+  onAutoSelect,
+  onSearchPrepare,
+  saving = false,
+  preparingSearch = false,
+  autoSelecting = false,
+}) {
   const supplierOptions = Array.isArray(profile?.raw_payload?.supplier_options)
     ? profile.raw_payload.supplier_options
     : []
+  const supplierSearch = profile?.raw_payload?.supplier_search || null
   const [values, setValues] = useState(() => supplierOptionFormValues())
 
   useEffect(() => {
@@ -487,6 +502,14 @@ function ProductSupplierOptionsForm({ profile, onSave, onSelect, onAutoSelect, s
         <div className="profile-block-heading">
           <h5>Поставщики</h5>
           <div className="profile-block-actions">
+            <button
+              className="secondary-button compact"
+              disabled={preparingSearch || !onSearchPrepare}
+              onClick={() => onSearchPrepare?.(profile)}
+              type="button"
+            >
+              {preparingSearch ? 'Готовлю...' : 'Подготовить поиск'}
+            </button>
             <button
               className="secondary-button compact"
               disabled={autoSelecting || !onAutoSelect || !supplierOptions.length}
@@ -566,6 +589,8 @@ function ProductSupplierOptionsForm({ profile, onSave, onSelect, onAutoSelect, s
         </label>
       </form>
 
+      <SupplierSearchPreview search={supplierSearch} />
+
       {supplierOptions.length ? (
         <div className="supplier-options-list">
           {supplierOptions.map((option, index) => (
@@ -598,6 +623,22 @@ function ProductSupplierOptionsForm({ profile, onSave, onSelect, onAutoSelect, s
         <p className="muted-text">Кандидаты поставщиков пока не добавлены.</p>
       )}
     </section>
+  )
+}
+
+function SupplierSearchPreview({ search }) {
+  const queries = Array.isArray(search?.queries) ? search.queries : []
+  if (!queries.length) return null
+
+  return (
+    <div className="supplier-search-preview">
+      <span>Запросы для поиска</span>
+      <div>
+        {queries.map((item) => (
+          <code key={`${item.kind}-${item.priority}-${item.query}`}>{item.query}</code>
+        ))}
+      </div>
+    </div>
   )
 }
 

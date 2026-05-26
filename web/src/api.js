@@ -137,6 +137,13 @@ export function autoSelectProfileSupplierOption(tender, profile) {
   })
 }
 
+export function prepareProfileSupplierSearch(tender, profile) {
+  return apiJson(`${productProfilePath(tender, profile)}/supplier-search/prepare`, {
+    method: 'POST',
+    errorMessage: 'Не удалось подготовить поиск поставщиков',
+  })
+}
+
 export function runProfileAutoEconomics(tender, profile) {
   return apiJson(`${productProfilePath(tender, profile)}/economics/auto-estimate`, {
     method: 'POST',

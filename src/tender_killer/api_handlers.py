@@ -14,6 +14,7 @@ from tender_killer.api_routes import parse_product_profile_economics_path
 from tender_killer.api_routes import parse_product_profile_supplier_option_best_select_path
 from tender_killer.api_routes import parse_product_profile_supplier_option_select_path
 from tender_killer.api_routes import parse_product_profile_supplier_options_path
+from tender_killer.api_routes import parse_product_profile_supplier_search_prepare_path
 from tender_killer.api_routes import parse_tender_path
 from tender_killer.config import Settings
 from tender_killer.database_view_service import get_database_table_payload
@@ -32,6 +33,7 @@ from tender_killer.source_run_service import list_source_runs_payload
 from tender_killer.supplier_option_service import apply_best_profile_supplier_option
 from tender_killer.supplier_option_service import add_profile_supplier_option
 from tender_killer.supplier_option_service import select_profile_supplier_option
+from tender_killer.supplier_search_service import prepare_profile_supplier_search
 from tender_killer.tender_detail_service import get_tender_payload
 from tender_killer.tender_detail_service import refresh_tender_detail_payload
 from tender_killer.workflow_service import save_tender_workflow
@@ -145,6 +147,16 @@ def select_best_product_profile_supplier_option(
     position_index: int,
 ) -> dict[str, Any]:
     apply_best_profile_supplier_option(database_path, source, external_id, position_index)
+    return get_tender_payload(database_path, source, external_id)
+
+
+def prepare_product_profile_supplier_search(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+) -> dict[str, Any]:
+    prepare_profile_supplier_search(database_path, source, external_id, position_index)
     return get_tender_payload(database_path, source, external_id)
 
 
@@ -318,6 +330,18 @@ def handle_post_request(
                 route.external_id,
                 route.position_index,
                 route.option_index,
+            )
+        )
+    if path.startswith("/api/tenders/") and path.endswith("/supplier-search/prepare"):
+        route = parse_product_profile_supplier_search_prepare_path(path)
+        if route is None:
+            return ApiResponse({"error": "invalid product profile supplier search prepare path"}, status=400)
+        return ApiResponse(
+            prepare_product_profile_supplier_search(
+                database_path,
+                route.source,
+                route.external_id,
+                route.position_index,
             )
         )
     if path.startswith("/api/tenders/") and path.endswith("/product-profiles/rebuild"):

@@ -240,6 +240,45 @@ def test_handle_post_request_routes_product_profile_supplier_option_create(tmp_p
     ]
 
 
+def test_handle_post_request_routes_product_profile_supplier_search_prepare(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+                normalized_name="office paper a4",
+                search_phrases=["office paper"],
+                okpd2="17.12.14.110",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/product-profiles/1/supplier-search/prepare",
+        {},
+    )
+
+    profile = response.payload["product_profiles"][0]
+    assert response.status == 200
+    assert profile["profile_status"] == "searching"
+    assert profile["raw_payload"]["supplier_search"] == {
+        "status": "ready",
+        "queries": [
+            {"query": "office paper a4", "kind": "normalized_name", "priority": 1},
+            {"query": "office paper", "kind": "search_phrase", "priority": 2},
+            {"query": "17.12.14.110 office paper a4", "kind": "classifier", "priority": 3},
+        ],
+    }
+
+
 def test_handle_post_request_routes_product_profile_supplier_option_select(tmp_path) -> None:
     store = _store_with_tender(tmp_path)
     store.upsert_product_profiles(
