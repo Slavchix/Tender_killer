@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Building2 } from 'lucide-react'
-import {
-  formatMoney,
-  formatDate,
-} from './formatters'
-import { sourceLabels, workflowLabels } from './constants'
 import { TenderDetailActions } from './TenderDetailActions'
+import { TenderDetailsHeader } from './TenderDetailsHeader'
 import { PriceChangeBanner, TenderDecisionSummary } from './TenderDecisionSummary'
 import { TenderOverviewTab } from './TenderOverviewTab'
 import { TenderProductsTab } from './TenderProductsTab'
@@ -90,20 +85,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
 
   return (
     <div className="details">
-      <div className="details-header">
-        <div className="details-title-row">
-          <div className="panel-title"><Building2 size={18} /> Карточка</div>
-          <span className={`workflow-chip ${tender.workflow_status || 'new'}`}>
-            {workflowLabels[tender.workflow_status] || 'Новая'}
-          </span>
-        </div>
-        <h2>{tender.title}</h2>
-        <div className="detail-pills">
-          <span>{sourceLabels[tender.source] || tender.source}</span>
-          <span>{formatMoney(tender.price)}</span>
-          <span>{formatDate(tender.deadline_at)}</span>
-        </div>
-      </div>
+      <TenderDetailsHeader tender={tender} />
 
       <TenderDecisionSummary tender={tender} economics={economics} />
       <PriceChangeBanner change={tender.price_change} />

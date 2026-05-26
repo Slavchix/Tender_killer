@@ -17,6 +17,7 @@ PAGINATION_BAR_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "P
 TENDER_DETAILS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetails.jsx"
 TENDER_DETAILS_SHARED_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsShared.jsx"
 TENDER_DETAIL_ACTIONS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailActions.jsx"
+TENDER_DETAILS_HEADER_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsHeader.jsx"
 TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
 TENDER_DECISION_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDecisionSummary.jsx"
 TENDER_DOCUMENTS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDocumentsTab.jsx"
@@ -73,13 +74,18 @@ def test_frontend_uses_dedicated_formatters_module():
         if TENDER_DETAILS_SOURCE.exists()
         else ""
     )
+    header_source = (
+        TENDER_DETAILS_HEADER_SOURCE.read_text(encoding="utf-8")
+        if TENDER_DETAILS_HEADER_SOURCE.exists()
+        else ""
+    )
     formatter_source = (
         FORMATTERS_SOURCE.read_text(encoding="utf-8")
         if FORMATTERS_SOURCE.exists()
         else ""
     )
 
-    assert "from './formatters'" in tender_details_source
+    assert "from './formatters'" in header_source
     assert "export function formatMoney" in formatter_source
     assert "export function formatDateTime" in formatter_source
     assert "export function documentRecordsForTender" in formatter_source
@@ -88,6 +94,7 @@ def test_frontend_uses_dedicated_formatters_module():
     assert "function documentStatusCounts" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(header_source, TENDER_DETAILS_HEADER_SOURCE) == []
     assert find_mojibake(formatter_source, FORMATTERS_SOURCE) == []
 
 
@@ -222,6 +229,7 @@ def test_frontend_uses_dedicated_tender_details_module():
     assert "from './TenderDetails'" in app_source
     assert "export function TenderDetails" in tender_details_source
     assert "from './TenderDetailActions'" in tender_details_source
+    assert "from './TenderDetailsHeader'" in tender_details_source
     assert "from './TenderDecisionSummary'" in tender_details_source
     assert "from './TenderEconomicsTab'" in tender_details_source
     assert "from './TenderProductsTab'" in tender_details_source
@@ -415,6 +423,33 @@ def test_frontend_uses_dedicated_tender_detail_actions_module():
     assert "className=\"detail-action\"" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(actions_source, TENDER_DETAIL_ACTIONS_SOURCE) == []
+
+
+def test_tender_details_uses_dedicated_header_module():
+    tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    header_source = (
+        TENDER_DETAILS_HEADER_SOURCE.read_text(encoding="utf-8")
+        if TENDER_DETAILS_HEADER_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './TenderDetailsHeader'" in tender_details_source
+    assert "export function TenderDetailsHeader" in header_source
+    assert "Building2" in header_source
+    assert "formatMoney" in header_source
+    assert "formatDate" in header_source
+    assert "sourceLabels" in header_source
+    assert "workflowLabels" in header_source
+    assert "details-header" in header_source
+    assert "<TenderDetailsHeader tender={tender} />" in tender_details_source
+    assert "details-header" not in tender_details_source
+    assert "Building2" not in tender_details_source
+    assert "formatMoney" not in tender_details_source
+    assert "formatDate" not in tender_details_source
+    assert "sourceLabels" not in tender_details_source
+    assert "workflowLabels" not in tender_details_source
+    assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(header_source, TENDER_DETAILS_HEADER_SOURCE) == []
 
 
 def test_tender_details_uses_document_analysis_hook():
@@ -813,6 +848,7 @@ def test_tender_workbench_has_collapsible_filters_and_wider_list():
 
 def test_tender_details_v2_keeps_actions_and_document_statuses_scannable():
     app_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    header_source = TENDER_DETAILS_HEADER_SOURCE.read_text(encoding="utf-8")
     actions_source = (
         TENDER_DETAIL_ACTIONS_SOURCE.read_text(encoding="utf-8")
         if TENDER_DETAIL_ACTIONS_SOURCE.exists()
@@ -823,7 +859,7 @@ def test_tender_details_v2_keeps_actions_and_document_statuses_scannable():
     detail_actions_rule = _css_rule(styles_source, ".detail-actions")
     detail_tabs_rule = _css_rule(styles_source, ".detail-tabs")
 
-    assert "details-title-row" in app_source
+    assert "details-title-row" in header_source
     assert "<TenderDetailActions" in app_source
     assert "details-action-group primary-actions" in actions_source
     assert "details-action-group secondary-actions" in actions_source
@@ -837,6 +873,7 @@ def test_tender_details_v2_keeps_actions_and_document_statuses_scannable():
     assert ".document-status.unsupported" in styles_source
     assert ".document-status.ok" in styles_source
     assert find_mojibake(app_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(header_source, TENDER_DETAILS_HEADER_SOURCE) == []
     assert find_mojibake(actions_source, TENDER_DETAIL_ACTIONS_SOURCE) == []
     assert find_mojibake(documents_source, TENDER_DOCUMENTS_TAB_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
