@@ -710,13 +710,13 @@ Date: 2026-05-26.
 - `TenderDocumentsTab.jsx` owns document summary, download/extract buttons, document rows, text preview, and document status labels.
 - `TenderAnalysisTab.jsx` owns the TZ analysis panel and checklist. It also exports `AnalysisList`, which is reused by product/economics views.
 - `TenderEconomicsTab.jsx` owns the economics workbench: NMC summary, cost inputs, supplier candidates, selected supplier price source, assumptions, auto-estimate run/accept controls, bid thresholds, and participation decision UI.
-- Supplier search preparation now lives in `src/tender_killer/supplier_search_service.py`. It builds deterministic per-position supplier search queries from normalized product names, search phrases, and classifiers; `POST /api/tenders/{source}/{external_id}/product-profiles/{position}/supplier-search/prepare` persists those queries under `raw_payload.supplier_search` and the economics tab renders them without running network search or changing economics.
+- Supplier search preparation now lives in `src/tender_killer/supplier_search_service.py`. It builds deterministic per-position supplier search queries from normalized product names, search phrases, and classifiers; `POST /api/tenders/{source}/{external_id}/product-profiles/{position}/supplier-search/prepare` persists those queries under `raw_payload.supplier_search`. The economics tab renders the prepared queries with manual Google/Yandex quick links, without running network search or changing economics.
 - `web/src/TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
-- Latest local targeted verification after supplier search preparation: `80 passed` for supplier search service, API routes/handlers, and frontend contracts.
-- Latest full verification after supplier search preparation: `303 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
-- JSX syntax was checked through Babel parser in the Node REPL after wiring supplier search preparation into the economics tab.
-- Local commit before documentation update: `15105e9 Prepare supplier search queries`.
+- Latest local targeted verification after supplier search quick links: `81 passed` for supplier search service, API routes/handlers, and frontend contracts.
+- Latest full verification after supplier search quick links: `304 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- JSX syntax was checked through Babel parser in the Node REPL after rendering quick links in the economics tab.
+- Local commit before documentation update: `3c25248 Add supplier search quick links`.
 - Next planned steps:
-  1. Use prepared supplier search queries as the input to the first public price discovery adapter or manual quick-link workflow.
-  2. Add a safe import path from discovered public supplier candidates into existing `supplier_options`, preserving manual review before prices affect economics.
+  1. Add a safe import path from manually discovered public supplier candidates into existing `supplier_options`, preserving manual review before prices affect economics.
+  2. After manual import works, consider a first public price discovery adapter that proposes candidates but does not select or price them automatically.
   3. Keep Telegram as notifications/quick entry, not the main workbench.
