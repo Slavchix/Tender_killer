@@ -2,7 +2,7 @@
 
 ## Current Handoff Snapshot
 
-Date: 2026-05-22.
+Date: 2026-05-26.
 
 Current branch: `codex/moscow-mo-parser`.
 
@@ -54,6 +54,10 @@ Recent architecture cleanup:
 - Search runs now return readable statistics: new/existing relevant matches plus breakdowns by law, region, and source for Telegram summaries and `/api/search/run`.
 - Local dev startup is guarded by `tender_killer.dev_health`, which checks both `/api/health` and `/api/sources/status` before the frontend starts.
 - Runtime/UI text encoding is guarded by `tender_killer.encoding_guard`; `dev_smoke` reuses it to catch Cyrillic mojibake regressions.
+- Active tender lists now hide expired purchases by normalized active status plus `deadline_at >= datetime('now')`, so completed/old cards do not dominate the workbench.
+- The React frontend is being decomposed out of the former oversized `App.jsx` / `TenderDetails.jsx` surface. Current extracted modules include `api.js`, `constants.js`, `formatters.js`, `Dashboard.jsx`, `DatabaseView.jsx`, `FiltersPanel.jsx`, `TenderList.jsx`, `PaginationBar.jsx`, `TenderDetailsShared.jsx`, `TenderOverviewTab.jsx`, `TenderDocumentsTab.jsx`, `TenderAnalysisTab.jsx`, and `TenderEconomicsTab.jsx`.
+- `TenderDetails.jsx` is now closer to a coordinator: it owns selected tender state and actions, while overview, documents, analysis, and economics render in dedicated modules.
+- The economics tab owns product cost entry, supplier candidates, assumptions, auto-estimate preview/accept, bid thresholds, and participation decision UI.
 
 Current verification command:
 
@@ -61,12 +65,13 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `216 passed`.
+Latest verified result before this handoff: `285 passed`.
 
 Good next steps:
 
-1. Let the user verify the new dashboard/sidebar, collapsing navigation rail, wrapped workflow tabs, collapsible filters, supplier candidates, and economics inputs in the local UI.
-2. Continue the competitor-inspired Telegram slice after user verification: add richer safe actions, such as workflow status changes from Telegram or a direct local-site card link.
+1. Continue frontend decomposition by extracting `WorkflowTabPanel` from `web/src/TenderDetails.jsx`.
+2. After workflow extraction, inspect the remaining `TenderDetails.jsx` weight and decide whether `ProductTabSummary` / product profile detail should become their own module.
+3. Then return to the economics roadmap: improve supplier/product search automation while keeping Telegram as notifications/quick entry, not the main workbench.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.
 

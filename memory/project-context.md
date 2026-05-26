@@ -676,3 +676,38 @@ Date: 2026-05-22.
 - Document extraction now distinguishes unsupported files from empty text. RAR archives and true legacy binary `.doc` files are marked `unsupported`; simple `.doc` text/HTML/RTF-like files can be extracted heuristically.
 - Updated the local ignored `filters.json` quick-entry profile and re-extracted text statuses for `mosreg_market/3673016`; SQLite now shows unsupported `.doc`/`.rar` clearly instead of `empty`.
 - Full verification after this slice: `228 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Frontend architecture checkpoint: tender detail decomposition
+
+Date: 2026-05-26.
+
+- The current branch is `codex/moscow-mo-parser`.
+- The project direction remains: website is the main workbench; Telegram is notifications and quick entry only; SQLite is the local source of truth; no legal actions such as application submission, signing, or user-login automation.
+- Active tender filtering now excludes expired deadlines in `src/tender_killer/tender_query_service.py`: active lists require normalized active status and `(deadline_at IS NULL OR datetime(deadline_at) >= datetime('now'))`.
+- The frontend has been split into focused modules instead of concentrating everything in `App.jsx` and `TenderDetails.jsx`.
+- Extracted frontend modules now include:
+  - `web/src/api.js`;
+  - `web/src/constants.js`;
+  - `web/src/formatters.js`;
+  - `web/src/Dashboard.jsx`;
+  - `web/src/DatabaseView.jsx`;
+  - `web/src/FiltersPanel.jsx`;
+  - `web/src/TenderList.jsx`;
+  - `web/src/PaginationBar.jsx`;
+  - `web/src/TenderDetailsShared.jsx`;
+  - `web/src/TenderOverviewTab.jsx`;
+  - `web/src/TenderDocumentsTab.jsx`;
+  - `web/src/TenderAnalysisTab.jsx`;
+  - `web/src/TenderEconomicsTab.jsx`.
+- `TenderDocumentsTab.jsx` owns document summary, download/extract buttons, document rows, text preview, and document status labels.
+- `TenderAnalysisTab.jsx` owns the TZ analysis panel and checklist. It also exports `AnalysisList`, which is reused by product/economics views.
+- `TenderEconomicsTab.jsx` owns the economics workbench: NMC summary, cost inputs, supplier candidates, selected supplier price source, assumptions, auto-estimate run/accept controls, bid thresholds, and participation decision UI.
+- `web/src/TenderDetails.jsx` now coordinates selected tender state/actions and still contains workflow plus product profile detail pieces. The next decomposition target is `WorkflowTabPanel`.
+- Latest local frontend contract after economics extraction: `41 passed`.
+- Latest full verification after economics extraction: `285 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-economics-escalated`.
+- JSX syntax was checked through Babel parser in the Node REPL after extracting the economics tab.
+- Local commit before documentation update: `92a477b Extract tender economics tab`.
+- Next planned steps:
+  1. Extract `WorkflowTabPanel` from `web/src/TenderDetails.jsx` into a dedicated module with contract tests.
+  2. Re-check remaining `TenderDetails.jsx`; likely next candidates are product tab/profile detail and possibly decision/price banner helpers.
+  3. After frontend decomposition, return to the economics roadmap: improve automatic supplier/product search and price discovery without making Telegram the main UI.
