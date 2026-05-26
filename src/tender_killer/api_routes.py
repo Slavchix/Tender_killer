@@ -32,6 +32,14 @@ class ProductProfileSupplierOptionSelectPath:
     option_index: int
 
 
+@dataclass(frozen=True)
+class ProductProfileSupplierDiscoveryCandidatePath:
+    source: str
+    external_id: str
+    position_index: int
+    candidate_index: int
+
+
 def parse_tender_path(path: str, suffix: str = "") -> TenderPath | None:
     parts = path.split("/")
     suffix_parts = [part for part in suffix.split("/") if part]
@@ -170,6 +178,57 @@ def parse_product_profile_supplier_search_prepare_path(path: str) -> ProductProf
         source=unquote(parts[3]),
         external_id=unquote(parts[4]),
         position_index=position_index,
+    )
+
+
+def parse_product_profile_supplier_discovery_candidates_path(path: str) -> ProductProfileSupplierOptionsPath | None:
+    parts = path.split("/")
+    if len(parts) != 9 or parts[:3] != ["", "api", "tenders"]:
+        return None
+    if parts[5] != "product-profiles" or parts[7] != "supplier-discovery" or parts[8] != "candidates":
+        return None
+    if not parts[3] or not parts[4]:
+        return None
+    try:
+        position_index = int(parts[6])
+    except ValueError:
+        return None
+    if position_index <= 0:
+        return None
+    return ProductProfileSupplierOptionsPath(
+        source=unquote(parts[3]),
+        external_id=unquote(parts[4]),
+        position_index=position_index,
+    )
+
+
+def parse_product_profile_supplier_discovery_candidate_import_path(
+    path: str,
+) -> ProductProfileSupplierDiscoveryCandidatePath | None:
+    parts = path.split("/")
+    if len(parts) != 11 or parts[:3] != ["", "api", "tenders"]:
+        return None
+    if (
+        parts[5] != "product-profiles"
+        or parts[7] != "supplier-discovery"
+        or parts[8] != "candidates"
+        or parts[10] != "import"
+    ):
+        return None
+    if not parts[3] or not parts[4]:
+        return None
+    try:
+        position_index = int(parts[6])
+        candidate_index = int(parts[9])
+    except ValueError:
+        return None
+    if position_index <= 0 or candidate_index < 0:
+        return None
+    return ProductProfileSupplierDiscoveryCandidatePath(
+        source=unquote(parts[3]),
+        external_id=unquote(parts[4]),
+        position_index=position_index,
+        candidate_index=candidate_index,
     )
 
 

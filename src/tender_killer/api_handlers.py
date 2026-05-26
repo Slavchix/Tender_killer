@@ -13,6 +13,8 @@ from tender_killer.api_routes import parse_product_profile_economics_assumptions
 from tender_killer.api_routes import parse_product_profile_economics_path
 from tender_killer.api_routes import parse_product_profile_supplier_option_best_select_path
 from tender_killer.api_routes import parse_product_profile_supplier_option_select_path
+from tender_killer.api_routes import parse_product_profile_supplier_discovery_candidate_import_path
+from tender_killer.api_routes import parse_product_profile_supplier_discovery_candidates_path
 from tender_killer.api_routes import parse_product_profile_supplier_options_path
 from tender_killer.api_routes import parse_product_profile_supplier_search_prepare_path
 from tender_killer.api_routes import parse_tender_path
@@ -30,6 +32,8 @@ from tender_killer.product_profile_service import rebuild_product_profiles as re
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
 from tender_killer.search_service import run_search_payload
 from tender_killer.source_run_service import list_source_runs_payload
+from tender_killer.supplier_discovery_service import import_profile_supplier_candidate
+from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
 from tender_killer.supplier_option_service import apply_best_profile_supplier_option
 from tender_killer.supplier_option_service import add_profile_supplier_option
 from tender_killer.supplier_option_service import select_profile_supplier_option
@@ -157,6 +161,29 @@ def prepare_product_profile_supplier_search(
     position_index: int,
 ) -> dict[str, Any]:
     prepare_profile_supplier_search(database_path, source, external_id, position_index)
+    return get_tender_payload(database_path, source, external_id)
+
+
+def stage_product_profile_supplier_candidates(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    candidates = data.get("candidates") if isinstance(data.get("candidates"), list) else []
+    stage_profile_supplier_candidates(database_path, source, external_id, position_index, candidates)
+    return get_tender_payload(database_path, source, external_id)
+
+
+def import_product_profile_supplier_candidate(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+    candidate_index: int,
+) -> dict[str, Any]:
+    import_profile_supplier_candidate(database_path, source, external_id, position_index, candidate_index)
     return get_tender_payload(database_path, source, external_id)
 
 
@@ -342,6 +369,32 @@ def handle_post_request(
                 route.source,
                 route.external_id,
                 route.position_index,
+            )
+        )
+    if path.startswith("/api/tenders/") and path.endswith("/supplier-discovery/candidates"):
+        route = parse_product_profile_supplier_discovery_candidates_path(path)
+        if route is None:
+            return ApiResponse({"error": "invalid product profile supplier discovery candidates path"}, status=400)
+        return ApiResponse(
+            stage_product_profile_supplier_candidates(
+                database_path,
+                route.source,
+                route.external_id,
+                route.position_index,
+                body,
+            )
+        )
+    if path.startswith("/api/tenders/") and path.endswith("/import"):
+        route = parse_product_profile_supplier_discovery_candidate_import_path(path)
+        if route is None:
+            return ApiResponse({"error": "invalid product profile supplier discovery candidate import path"}, status=400)
+        return ApiResponse(
+            import_product_profile_supplier_candidate(
+                database_path,
+                route.source,
+                route.external_id,
+                route.position_index,
+                route.candidate_index,
             )
         )
     if path.startswith("/api/tenders/") and path.endswith("/product-profiles/rebuild"):

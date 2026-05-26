@@ -137,6 +137,13 @@ export function autoSelectProfileSupplierOption(tender, profile) {
   })
 }
 
+export function importProfileSupplierDiscoveryCandidate(tender, profile, candidateIndex) {
+  return apiJson(`${productProfilePath(tender, profile)}/supplier-discovery/candidates/${candidateIndex}/import`, {
+    method: 'POST',
+    errorMessage: 'Не удалось добавить найденного поставщика',
+  })
+}
+
 export function prepareProfileSupplierSearch(tender, profile) {
   return apiJson(`${productProfilePath(tender, profile)}/supplier-search/prepare`, {
     method: 'POST',

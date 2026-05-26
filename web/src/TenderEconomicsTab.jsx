@@ -26,12 +26,14 @@ export function TenderEconomicsTab({
   onSupplierOptionSave,
   onSupplierOptionSelect,
   onSupplierOptionAutoSelect,
+  onSupplierDiscoveryImport,
   onSupplierSearchPrepare,
   onAutoEconomicsRun,
   onAutoEconomicsAccept,
   savingEconomicsPosition = null,
   savingAssumptionsPosition = null,
   savingSupplierOptionPosition = null,
+  importingSupplierCandidatePosition = null,
   preparingSupplierSearchPosition = null,
   autoSelectingSupplierPosition = null,
   autoEstimatingPosition = null,
@@ -45,6 +47,7 @@ export function TenderEconomicsTab({
   const savingEconomics = savingEconomicsPosition === selectedPosition
   const savingAssumptions = savingAssumptionsPosition === selectedPosition
   const savingSupplierOption = savingSupplierOptionPosition === selectedPosition
+  const importingSupplierCandidate = importingSupplierCandidatePosition === selectedPosition
   const preparingSupplierSearch = preparingSupplierSearchPosition === selectedPosition
   const autoSelectingSupplier = autoSelectingSupplierPosition === selectedPosition
   const autoEstimating = autoEstimatingPosition === selectedPosition
@@ -118,8 +121,10 @@ export function TenderEconomicsTab({
                 onSave={onSupplierOptionSave}
                 onSelect={onSupplierOptionSelect}
                 onAutoSelect={onSupplierOptionAutoSelect}
+                onDiscoveryImport={onSupplierDiscoveryImport}
                 onSearchPrepare={onSupplierSearchPrepare}
                 saving={savingSupplierOption}
+                importingDiscovery={importingSupplierCandidate}
                 preparingSearch={preparingSupplierSearch}
                 autoSelecting={autoSelectingSupplier}
               />
@@ -466,8 +471,10 @@ function ProductSupplierOptionsForm({
   onSave,
   onSelect,
   onAutoSelect,
+  onDiscoveryImport,
   onSearchPrepare,
   saving = false,
+  importingDiscovery = false,
   preparingSearch = false,
   autoSelecting = false,
 }) {
@@ -475,6 +482,7 @@ function ProductSupplierOptionsForm({
     ? profile.raw_payload.supplier_options
     : []
   const supplierSearch = profile?.raw_payload?.supplier_search || null
+  const supplierDiscovery = profile?.raw_payload?.supplier_discovery || null
   const supplierSearchQueries = Array.isArray(supplierSearch?.queries) ? supplierSearch.queries : []
   const [values, setValues] = useState(() => supplierOptionFormValues())
 
@@ -606,6 +614,11 @@ function ProductSupplierOptionsForm({
       </form>
 
       <SupplierSearchPreview search={supplierSearch} />
+      <SupplierDiscoveryPreview
+        discovery={supplierDiscovery}
+        importing={importingDiscovery}
+        onImport={(candidateIndex) => onDiscoveryImport?.(profile, candidateIndex)}
+      />
 
       {supplierOptions.length ? (
         <div className="supplier-options-list">
@@ -640,6 +653,41 @@ function ProductSupplierOptionsForm({
         <p className="muted-text">Кандидаты поставщиков пока не добавлены.</p>
       )}
     </section>
+  )
+}
+
+function SupplierDiscoveryPreview({ discovery, importing = false, onImport }) {
+  const candidates = Array.isArray(discovery?.candidates) ? discovery.candidates : []
+  if (!candidates.length) return null
+
+  return (
+    <div className="supplier-discovery-preview">
+      <span>Найденные кандидаты</span>
+      {candidates.map((candidate, index) => {
+        const imported = candidate.review_status === 'imported'
+        return (
+          <div className={imported ? 'supplier-discovery-row imported' : 'supplier-discovery-row'} key={`${candidate.url || candidate.name || 'candidate'}-${index}`}>
+            <div>
+              {candidate.url ? (
+                <a href={candidate.url} target="_blank" rel="noreferrer">{candidate.name || candidate.url}</a>
+              ) : (
+                <strong>{candidate.name || 'Поставщик'}</strong>
+              )}
+              {candidate.source_query && <p>Запрос: {candidate.source_query}</p>}
+            </div>
+            <span>{formatMoney(candidate.unit_price)}</span>
+            <button
+              className="secondary-button compact"
+              disabled={importing || imported || !onImport}
+              onClick={() => onImport?.(index)}
+              type="button"
+            >
+              {imported ? 'Добавлен' : 'Добавить'}
+            </button>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 

@@ -3,6 +3,7 @@ import {
   acceptProfileAutoEconomics as acceptProfileAutoEconomicsRequest,
   addProfileSupplierOption,
   autoSelectProfileSupplierOption,
+  importProfileSupplierDiscoveryCandidate,
   prepareProfileSupplierSearch as prepareProfileSupplierSearchRequest,
   rebuildTenderProductProfiles,
   runProfileAutoEconomics as runProfileAutoEconomicsRequest,
@@ -20,6 +21,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
   const [savingEconomicsPosition, setSavingEconomicsPosition] = useState(null)
   const [savingAssumptionsPosition, setSavingAssumptionsPosition] = useState(null)
   const [savingSupplierOptionPosition, setSavingSupplierOptionPosition] = useState(null)
+  const [importingSupplierCandidatePosition, setImportingSupplierCandidatePosition] = useState(null)
   const [preparingSupplierSearchPosition, setPreparingSupplierSearchPosition] = useState(null)
   const [autoSelectingSupplierPosition, setAutoSelectingSupplierPosition] = useState(null)
   const [autoEstimatingPosition, setAutoEstimatingPosition] = useState(null)
@@ -30,6 +32,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     setSavingEconomicsPosition(null)
     setSavingAssumptionsPosition(null)
     setSavingSupplierOptionPosition(null)
+    setImportingSupplierCandidatePosition(null)
     setPreparingSupplierSearchPosition(null)
     setAutoSelectingSupplierPosition(null)
     setAutoEstimatingPosition(null)
@@ -127,6 +130,19 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .finally(() => setAutoSelectingSupplierPosition(null))
   }
 
+  function importSupplierDiscoveryCandidate(profile, candidateIndex) {
+    if (!profile?.position_index) return null
+    setImportingSupplierCandidatePosition(profile.position_index)
+    setDetailStatus('')
+    return importProfileSupplierDiscoveryCandidate(tender, profile, candidateIndex)
+      .then((nextTender) => updateFromNextTender(nextTender, 'Найденный поставщик добавлен'))
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setImportingSupplierCandidatePosition(null))
+  }
+
   function prepareSupplierSearch(profile) {
     if (!profile?.position_index) return null
     setPreparingSupplierSearchPosition(profile.position_index)
@@ -176,6 +192,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     savingEconomicsPosition,
     savingAssumptionsPosition,
     savingSupplierOptionPosition,
+    importingSupplierCandidatePosition,
     preparingSupplierSearchPosition,
     autoSelectingSupplierPosition,
     autoEstimatingPosition,
@@ -187,6 +204,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     saveSupplierOption,
     selectSupplierOption,
     autoSelectSupplierOption,
+    importSupplierDiscoveryCandidate,
     prepareSupplierSearch,
     runProfileAutoEconomics,
     acceptProfileAutoEconomics,

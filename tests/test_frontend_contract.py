@@ -772,25 +772,34 @@ def test_product_profile_renders_supplier_option_form():
     assert "autoSelectSupplierOption" in details_source
     assert "prepareSupplierSearch" in details_source
     assert "prepareProfileSupplierSearch" in hook_source
+    assert "importSupplierDiscoveryCandidate" in details_source
+    assert "importProfileSupplierDiscoveryCandidate" in hook_source
     assert "onSupplierOptionSelect" in source
     assert "onSupplierOptionAutoSelect" in source
     assert "onSupplierSearchPrepare" in source
+    assert "onSupplierDiscoveryImport" in source
     assert "preparingSupplierSearchPosition" in details_source
+    assert "importingSupplierCandidatePosition" in details_source
     assert "preparingSupplierSearchPosition" in tabs_source
+    assert "importingSupplierCandidatePosition" in tabs_source
     assert "product-profiles/${profile.position_index}" in api_source
     assert "${productProfilePath(tender, profile)}/supplier-options" in api_source
     assert "${productProfilePath(tender, profile)}/supplier-options/${optionIndex}/select" in api_source
     assert "supplier-options/best/select" in api_source
     assert "supplier-search/prepare" in api_source
+    assert "supplier-discovery/candidates/${candidateIndex}/import" in api_source
     assert "supplier_options" in source
     assert "supplier_search" in source
+    assert "supplier_discovery" in source
     assert "SupplierSearchPreview" in source
+    assert "SupplierDiscoveryPreview" in source
     assert "quick_links" in source
     assert "supplier-search-links" in source
     assert "href={link.url}" in source
     assert "source_query" in source
     assert "source_kind" in source
     assert "supplierOptionPayload" in source
+    assert "review_status" in source
     assert "economics_price_source" in source
     assert "EconomicsPriceSource" in source
     assert "unit_price" in source
@@ -802,6 +811,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "Поставщики" in source
     assert ".supplier-search-preview" in styles_source
     assert ".supplier-search-links" in styles_source
+    assert ".supplier-discovery-preview" in styles_source
     assert find_mojibake(details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []

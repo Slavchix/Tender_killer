@@ -307,6 +307,99 @@ def test_handle_post_request_routes_product_profile_supplier_search_prepare(tmp_
     }
 
 
+def test_handle_post_request_routes_product_profile_supplier_discovery_candidates(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/product-profiles/1/supplier-discovery/candidates",
+        {
+            "candidates": [
+                {
+                    "name": "Paper shop",
+                    "url": "https://example.com/paper",
+                    "unit_price": "900",
+                    "source_query": "office paper a4",
+                    "source_kind": "normalized_name",
+                }
+            ]
+        },
+    )
+
+    profile = response.payload["product_profiles"][0]
+    assert response.status == 200
+    assert profile["profile_status"] == "matched"
+    assert profile["raw_payload"]["supplier_discovery"]["status"] == "pending_review"
+    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["review_status"] == "pending"
+
+
+def test_handle_post_request_routes_product_profile_supplier_discovery_candidate_import(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+                quantity=10,
+                unit="pack",
+                raw_payload={
+                    "supplier_discovery": {
+                        "status": "pending_review",
+                        "candidates": [
+                            {
+                                "name": "Paper shop",
+                                "url": "https://example.com/paper",
+                                "unit_price": 900.0,
+                                "source_query": "office paper a4",
+                                "source_kind": "normalized_name",
+                                "review_status": "pending",
+                            }
+                        ],
+                    }
+                },
+            )
+        ],
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/product-profiles/1/supplier-discovery/candidates/0/import",
+        {},
+    )
+
+    profile = response.payload["product_profiles"][0]
+    assert response.status == 200
+    assert profile["raw_payload"]["supplier_options"] == [
+        {
+            "name": "Paper shop",
+            "url": "https://example.com/paper",
+            "unit_price": 900.0,
+            "source_query": "office paper a4",
+            "source_kind": "normalized_name",
+        }
+    ]
+    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["review_status"] == "imported"
+    assert "economics" not in profile["raw_payload"]
+
+
 def test_handle_post_request_routes_product_profile_supplier_option_select(tmp_path) -> None:
     store = _store_with_tender(tmp_path)
     store.upsert_product_profiles(
