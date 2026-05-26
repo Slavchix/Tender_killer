@@ -25,6 +25,7 @@ TENDER_OVERVIEW_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src"
 TENDER_PRODUCTS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderProductsTab.jsx"
 TENDER_WORKFLOW_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderWorkflowTab.jsx"
 TENDER_LIST_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderList.jsx"
+USE_TENDER_DOCUMENT_ANALYSIS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderDocumentAnalysis.js"
 
 
 def _css_rule(source: str, selector: str) -> str:
@@ -221,6 +222,7 @@ def test_frontend_uses_dedicated_tender_details_module():
     assert "from './TenderEconomicsTab'" in tender_details_source
     assert "from './TenderProductsTab'" in tender_details_source
     assert "from './TenderWorkflowTab'" in tender_details_source
+    assert "from './useTenderDocumentAnalysis'" in tender_details_source
     assert "details-panel" in app_source
     assert "<TenderDetails tender={details}" in app_source
     assert "function TenderDetails" not in app_source
@@ -405,6 +407,33 @@ def test_frontend_uses_dedicated_tender_detail_actions_module():
     assert "className=\"detail-action\"" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(actions_source, TENDER_DETAIL_ACTIONS_SOURCE) == []
+
+
+def test_tender_details_uses_document_analysis_hook():
+    tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    hook_source = (
+        USE_TENDER_DOCUMENT_ANALYSIS_SOURCE.read_text(encoding="utf-8")
+        if USE_TENDER_DOCUMENT_ANALYSIS_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './useTenderDocumentAnalysis'" in tender_details_source
+    assert "useTenderDocumentAnalysis(tender)" in tender_details_source
+    assert "export function useTenderDocumentAnalysis" in hook_source
+    assert "downloadTenderDocuments" in hook_source
+    assert "extractTenderDocumentText" in hook_source
+    assert "runTenderAnalysis" in hook_source
+    assert "documentRecordsForTender" in hook_source
+    assert "function downloadDocuments" not in tender_details_source
+    assert "function extractDocumentText" not in tender_details_source
+    assert "function analyzeTender" not in tender_details_source
+    assert "const [documentRecords" not in tender_details_source
+    assert "const [analysis" not in tender_details_source
+    assert "const [downloading" not in tender_details_source
+    assert "const [extracting" not in tender_details_source
+    assert "const [analyzing" not in tender_details_source
+    assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(hook_source, USE_TENDER_DOCUMENT_ANALYSIS_SOURCE) == []
 
 
 def test_tender_cockpit_exposes_page_size_selector():

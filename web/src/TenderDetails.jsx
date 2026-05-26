@@ -4,12 +4,9 @@ import {
   acceptProfileAutoEconomics as acceptProfileAutoEconomicsRequest,
   addProfileSupplierOption,
   autoSelectProfileSupplierOption,
-  downloadTenderDocuments,
-  extractTenderDocumentText,
   rebuildTenderProductProfiles,
   refreshTenderDetails,
   runProfileAutoEconomics as runProfileAutoEconomicsRequest,
-  runTenderAnalysis,
   saveProfileEconomics as saveProfileEconomicsRequest,
   saveProfileEconomicsAssumptions as saveProfileEconomicsAssumptionsRequest,
   saveTenderWorkflow,
@@ -20,7 +17,6 @@ import {
   shouldAutoRefreshDetails,
   formatMoney,
   formatDate,
-  documentRecordsForTender,
 } from './formatters'
 import { sourceLabels, workflowLabels } from './constants'
 import { TenderDetailActions } from './TenderDetailActions'
@@ -31,6 +27,7 @@ import { TenderDocumentsTab } from './TenderDocumentsTab'
 import { TenderAnalysisTab } from './TenderAnalysisTab'
 import { TenderEconomicsTab } from './TenderEconomicsTab'
 import { WorkflowTabPanel } from './TenderWorkflowTab'
+import { useTenderDocumentAnalysis } from './useTenderDocumentAnalysis'
 
 export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const raw = safeJson(tender.raw_payload_json)
@@ -39,16 +36,9 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const [note, setNote] = useState(tender.workflow_note || '')
   const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState(false)
-  const [downloading, setDownloading] = useState(false)
-  const [extracting, setExtracting] = useState(false)
-  const [analyzing, setAnalyzing] = useState(false)
   const [refreshingDetails, setRefreshingDetails] = useState(false)
   const [notifyStatus, setNotifyStatus] = useState('')
-  const [downloadStatus, setDownloadStatus] = useState('')
-  const [extractStatus, setExtractStatus] = useState('')
   const [detailStatus, setDetailStatus] = useState('')
-  const [documentRecords, setDocumentRecords] = useState(documentRecordsForTender(tender))
-  const [analysis, setAnalysis] = useState(tender.analysis || null)
   const [productProfiles, setProductProfiles] = useState(tender.product_profiles || [])
   const [productProfileSummary, setProductProfileSummary] = useState(tender.product_profile_summary || null)
   const [economics, setEconomics] = useState(tender.economics || null)
@@ -60,16 +50,26 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const [autoSelectingSupplierPosition, setAutoSelectingSupplierPosition] = useState(null)
   const [autoEstimatingPosition, setAutoEstimatingPosition] = useState(null)
   const [acceptingAutoEconomicsPosition, setAcceptingAutoEconomicsPosition] = useState(null)
+  const {
+    documentRecords,
+    setDocumentRecords,
+    analysis,
+    setAnalysis,
+    downloading,
+    extracting,
+    analyzing,
+    downloadStatus,
+    extractStatus,
+    downloadDocuments,
+    extractDocumentText,
+    analyzeTender,
+  } = useTenderDocumentAnalysis(tender)
 
   useEffect(() => {
     setActiveTab('overview')
     setNote(tender.workflow_note || '')
     setNotifyStatus('')
-    setDownloadStatus('')
-    setExtractStatus('')
     setDetailStatus('')
-    setDocumentRecords(documentRecordsForTender(tender))
-    setAnalysis(tender.analysis || null)
     setProductProfiles(tender.product_profiles || [])
     setProductProfileSummary(tender.product_profile_summary || null)
     setEconomics(tender.economics || null)
@@ -108,53 +108,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       .finally(() => setSending(false))
   }
 
-  function downloadDocuments() {
-    setDownloading(true)
-    setDownloadStatus('')
-    downloadTenderDocuments(tender)
-      .then((payload) => {
-        setDocumentRecords(payload.document_records || [])
-        const firstError = payload.failed?.[0]?.error
-        setDownloadStatus(
-          `Скачано: ${payload.downloaded || 0}${payload.failed?.length ? `, ошибок: ${payload.failed.length}${firstError ? `: ${firstError}` : ''}` : ''}`
-        )
-      })
-      .catch((err) => setDownloadStatus(err.message))
-      .finally(() => setDownloading(false))
-  }
-
-  function extractDocumentText() {
-    setExtracting(true)
-    setExtractStatus('')
-    extractTenderDocumentText(tender)
-      .then((payload) => {
-        setDocumentRecords(payload.document_records || [])
-        const firstError = payload.failed?.[0]?.error
-        setExtractStatus(
-          `Извлечено: ${payload.extracted || 0}${payload.failed?.length ? `, ошибок: ${payload.failed.length}${firstError ? `: ${firstError}` : ''}` : ''}`
-        )
-      })
-      .catch((err) => setExtractStatus(err.message))
-      .finally(() => setExtracting(false))
-  }
-
-  function analyzeTender() {
-    setAnalyzing(true)
-    runTenderAnalysis(tender)
-      .then((payload) => setAnalysis(payload.analysis || null))
-      .catch((err) => {
-        setAnalysis({
-          summary: err.message,
-          requirements: [],
-          risks: [],
-          red_flags: ['ошибка анализа'],
-          checklist: [],
-          status: 'needs_review',
-          confidence: 0,
-        })
-      })
-      .finally(() => setAnalyzing(false))
-  }
 
   function refreshDetails(options = {}) {
     setRefreshingDetails(true)
