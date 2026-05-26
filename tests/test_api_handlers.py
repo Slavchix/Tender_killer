@@ -248,6 +248,28 @@ def test_handle_post_request_routes_product_profile_supplier_option_create(tmp_p
 
 def test_handle_post_request_routes_product_profile_supplier_search_prepare(tmp_path) -> None:
     store = _store_with_tender(tmp_path)
+
+    def office_links(query: str) -> list[dict[str, str]]:
+        encoded = query.replace(" ", "+")
+        return [
+            {"label": "Google", "url": f"https://www.google.com/search?q={encoded}"},
+            {"label": "Yandex", "url": f"https://yandex.ru/search/?text={encoded}"},
+            {
+                "label": "OfficeMag",
+                "url": f"https://www.officemag.ru/search/?q={encoded}",
+                "provider": "officemag",
+                "link_kind": "catalog_search",
+                "preset_id": "officemag_office_supplies",
+            },
+            {
+                "label": "Komus",
+                "url": f"https://www.komus.ru/search/?text={encoded}",
+                "provider": "komus",
+                "link_kind": "catalog_search",
+                "preset_id": "komus_office_supplies",
+            },
+        ]
+
     store.upsert_product_profiles(
         "mosreg_market",
         "3668200",
@@ -282,28 +304,19 @@ def test_handle_post_request_routes_product_profile_supplier_search_prepare(tmp_
                 "query": "office paper a4",
                 "kind": "normalized_name",
                 "priority": 1,
-                "quick_links": [
-                    {"label": "Google", "url": "https://www.google.com/search?q=office+paper+a4"},
-                    {"label": "Yandex", "url": "https://yandex.ru/search/?text=office+paper+a4"},
-                ],
+                "quick_links": office_links("office paper a4"),
             },
             {
                 "query": "office paper",
                 "kind": "search_phrase",
                 "priority": 2,
-                "quick_links": [
-                    {"label": "Google", "url": "https://www.google.com/search?q=office+paper"},
-                    {"label": "Yandex", "url": "https://yandex.ru/search/?text=office+paper"},
-                ],
+                "quick_links": office_links("office paper"),
             },
             {
                 "query": "17.12.14.110 office paper a4",
                 "kind": "classifier",
                 "priority": 3,
-                "quick_links": [
-                    {"label": "Google", "url": "https://www.google.com/search?q=17.12.14.110+office+paper+a4"},
-                    {"label": "Yandex", "url": "https://yandex.ru/search/?text=17.12.14.110+office+paper+a4"},
-                ],
+                "quick_links": office_links("17.12.14.110 office paper a4"),
             },
         ],
     }

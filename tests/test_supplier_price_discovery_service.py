@@ -225,6 +225,7 @@ def test_prepared_catalog_link_feeds_schema_org_product_discovery(tmp_path) -> N
                 product_name="Office paper A4",
                 normalized_name="office paper a4",
                 raw_payload={
+                    "supplier_catalog_preset_ids": [],
                     "supplier_catalogs": [
                         {
                             "label": "Supplier catalog",

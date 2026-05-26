@@ -6,6 +6,7 @@ from urllib.parse import quote_plus
 from urllib.parse import urlparse
 
 from tender_killer.storage import TenderStore
+from tender_killer.supplier_catalog_presets import supplier_catalog_presets_for_profile
 
 
 LOCKED_PROFILE_STATUSES = {"matched", "priced", "rejected"}
@@ -117,13 +118,17 @@ def _append_query(
 def _supplier_catalogs(profile: dict[str, Any]) -> list[dict[str, str]]:
     raw_payload = profile.get("raw_payload") if isinstance(profile.get("raw_payload"), dict) else {}
     catalogs = raw_payload.get("supplier_catalogs")
-    if not isinstance(catalogs, list):
-        return []
-    return [
+    manual_catalogs = [] if not isinstance(catalogs, list) else [
         catalog
         for item in catalogs
         if isinstance(item, dict) and (catalog := _supplier_catalog(item)) is not None
     ]
+    preset_catalogs = [
+        catalog
+        for item in supplier_catalog_presets_for_profile(profile)
+        if (catalog := _supplier_catalog(item)) is not None
+    ]
+    return _unique_supplier_catalogs([*manual_catalogs, *preset_catalogs])
 
 
 def _supplier_catalog(item: dict[str, Any]) -> dict[str, str] | None:
@@ -132,7 +137,22 @@ def _supplier_catalog(item: dict[str, Any]) -> dict[str, str] | None:
         return None
     label = _text(item.get("label")) or _text(item.get("provider")) or "Supplier catalog"
     provider = _text(item.get("provider")) or label
-    return {"label": label, "provider": provider, "url_template": template}
+    catalog = {"label": label, "provider": provider, "url_template": template}
+    if preset_id := _text(item.get("preset_id")):
+        catalog["preset_id"] = preset_id
+    return catalog
+
+
+def _unique_supplier_catalogs(catalogs: list[dict[str, str]]) -> list[dict[str, str]]:
+    unique: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for catalog in catalogs:
+        key = (catalog["provider"].casefold(), catalog["url_template"].casefold())
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(catalog)
+    return unique
 
 
 def _supplier_catalog_link(catalog: dict[str, str], encoded_query: str) -> dict[str, str] | None:
@@ -142,12 +162,15 @@ def _supplier_catalog_link(catalog: dict[str, str], encoded_query: str) -> dict[
         return None
     if not _is_http_url(url):
         return None
-    return {
+    link = {
         "label": catalog["label"],
         "url": url,
         "provider": catalog["provider"],
         "link_kind": "catalog_search",
     }
+    if preset_id := catalog.get("preset_id"):
+        link["preset_id"] = preset_id
+    return link
 
 
 def _is_http_url(url: str) -> bool:
