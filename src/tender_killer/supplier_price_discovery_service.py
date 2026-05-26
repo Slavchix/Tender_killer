@@ -6,6 +6,7 @@ from typing import Any
 from typing import Callable
 from urllib.parse import unquote
 from urllib.parse import urlparse
+from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup
@@ -51,6 +52,29 @@ class SchemaOrgProductCollector:
             page_candidates = _schema_org_candidates(html, url, query_text, source_kind)
             diagnostics["candidates_found"] += len(page_candidates)
             candidates.extend(page_candidates)
+            fetched_urls = {url.casefold()}
+            candidate_urls = {
+                candidate_url.casefold()
+                for candidate in page_candidates
+                if (candidate_url := _text(candidate.get("url")))
+            }
+            for product_url in _schema_product_page_urls(html, url):
+                product_url_key = product_url.casefold()
+                if product_url_key in fetched_urls or product_url_key in candidate_urls:
+                    continue
+                if not _is_public_product_page_url(product_url) or not _is_same_public_site(url, product_url):
+                    diagnostics["links_skipped"] += 1
+                    continue
+                try:
+                    product_html = self.fetch_text(product_url)
+                except httpx.HTTPError as exc:
+                    diagnostics["errors"].append(str(exc))
+                    continue
+                fetched_urls.add(product_url_key)
+                diagnostics["pages_fetched"] += 1
+                product_candidates = _schema_org_candidates(product_html, product_url, query_text, source_kind)
+                diagnostics["candidates_found"] += len(product_candidates)
+                candidates.extend(product_candidates)
         return {"candidates": candidates, "diagnostics": diagnostics}
 
 
@@ -208,9 +232,8 @@ def _walk_schema(value: Any) -> list[Any]:
         return items
     if isinstance(value, dict):
         items.append(value)
-        graph = value.get("@graph")
-        if graph is not None:
-            items.extend(_walk_schema(graph))
+        for nested in value.values():
+            items.extend(_walk_schema(nested))
     return items
 
 
@@ -282,6 +305,33 @@ def _schema_delivery_note(offer: dict[str, Any]) -> str | None:
     return None
 
 
+def _schema_product_page_urls(html: str, source_url: str) -> list[str]:
+    urls: list[str] = []
+    seen: set[str] = set()
+    soup = BeautifulSoup(html, "html.parser")
+    for script in soup.find_all("script", {"type": "application/ld+json"}):
+        data = _json(script.string or script.get_text())
+        for product in _schema_products(data):
+            if product_url := _text(product.get("url")):
+                _append_unique_url(urls, seen, urljoin(source_url, product_url))
+        for item in _walk_schema(data):
+            if isinstance(item, dict) and _schema_type_matches(item.get("@type"), "ListItem"):
+                item_value = item.get("item")
+                if isinstance(item_value, str):
+                    _append_unique_url(urls, seen, urljoin(source_url, item_value))
+                if item_url := _text(item.get("url")):
+                    _append_unique_url(urls, seen, urljoin(source_url, item_url))
+    return urls
+
+
+def _append_unique_url(urls: list[str], seen: set[str], url: str) -> None:
+    key = url.casefold()
+    if key in seen:
+        return
+    seen.add(key)
+    urls.append(url)
+
+
 def _schema_availability(value: Any) -> str:
     availability = str(value or "").casefold()
     if "instock" in availability:
@@ -314,6 +364,14 @@ def _is_public_product_page_url(url: str) -> bool:
         return False
     host = parsed.netloc.casefold()
     return not any(marker in host for marker in SEARCH_ENGINE_HOSTS)
+
+
+def _is_same_public_site(source_url: str, target_url: str) -> bool:
+    source = urlparse(source_url)
+    target = urlparse(target_url)
+    if source.scheme == "data" or target.scheme == "data":
+        return True
+    return source.netloc.casefold() == target.netloc.casefold()
 
 
 def _existing_candidate_keys(raw_payload: dict[str, Any]) -> set[tuple[str, str]]:

@@ -5,6 +5,7 @@ import pytest
 from tender_killer.models import ProductProfile
 from tender_killer.models import Tender
 from tender_killer.storage import TenderStore
+from tender_killer.supplier_search_service import prepare_profile_supplier_search
 from tender_killer.supplier_price_discovery_service import SchemaOrgProductCollector
 from tender_killer.supplier_price_discovery_service import run_profile_supplier_price_discovery
 from tender_killer.tender_detail_service import get_tender_payload
@@ -200,6 +201,116 @@ def test_run_profile_supplier_price_discovery_stages_schema_org_product_candidat
     assert profile["raw_payload"]["supplier_discovery"] == payload["supplier_discovery"]
     assert "supplier_options" not in profile["raw_payload"]
     assert "economics" not in profile["raw_payload"]
+
+
+def test_prepared_catalog_link_feeds_schema_org_product_discovery(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-discovery-catalog",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-discovery-catalog",
+            title="Paper tender",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-discovery-catalog",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-catalog",
+                position_index=1,
+                product_name="Office paper A4",
+                normalized_name="office paper a4",
+                raw_payload={
+                    "supplier_catalogs": [
+                        {
+                            "label": "Supplier catalog",
+                            "provider": "supplier_example",
+                            "url_template": "https://supplier.example/search?q={query}",
+                        }
+                    ]
+                },
+            )
+        ],
+    )
+    prepare_profile_supplier_search(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-discovery-catalog",
+        1,
+    )
+    pages = {
+        "https://supplier.example/search?q=office+paper+a4": """
+            <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "ItemList",
+              "itemListElement": [
+                {
+                  "@type": "ListItem",
+                  "item": {
+                    "@type": "Product",
+                    "name": "Office paper A4 80 gsm",
+                    "url": "https://supplier.example/catalog/paper-a4"
+                  }
+                }
+              ]
+            }
+            </script>
+        """,
+        "https://supplier.example/catalog/paper-a4": """
+            <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "Office paper A4 80 gsm",
+              "url": "https://supplier.example/catalog/paper-a4",
+              "offers": {
+                "@type": "Offer",
+                "price": "925",
+                "priceCurrency": "RUB",
+                "availability": "https://schema.org/InStock"
+              }
+            }
+            </script>
+        """,
+    }
+    calls: list[str] = []
+
+    payload = run_profile_supplier_price_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-discovery-catalog",
+        1,
+        collectors=[
+            SchemaOrgProductCollector(
+                fetch_text=lambda url: calls.append(url) or pages.get(url, "<html></html>")
+            )
+        ],
+    )
+
+    assert calls == [
+        "https://supplier.example/search?q=office+paper+a4",
+        "https://supplier.example/catalog/paper-a4",
+    ]
+    assert payload["supplier_discovery"]["collector_diagnostics"] == [
+        {
+            "provider": "schema_org_product",
+            "queries_seen": 1,
+            "links_seen": 3,
+            "links_skipped": 2,
+            "pages_fetched": 2,
+            "candidates_found": 1,
+            "errors": [],
+        }
+    ]
+    assert payload["supplier_discovery"]["candidates"][0]["url"] == "https://supplier.example/catalog/paper-a4"
+    assert payload["supplier_discovery"]["candidates"][0]["unit_price"] == 925.0
+    assert payload["supplier_discovery"]["candidates"][0]["currency"] == "RUB"
+    assert payload["supplier_discovery"]["candidates"][0]["confidence"] == "high"
 
 
 def test_run_profile_supplier_price_discovery_skips_existing_candidates(tmp_path) -> None:

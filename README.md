@@ -45,9 +45,9 @@ Recent architecture cleanup:
 - Draft economics now calculates revenue, manual supplier cost, risk reserve, estimated total cost, gross margin, margin percent, and missing cost inputs.
 - The site can save per-position supplier economics inputs (unit cost, logistics, documents, other costs) and immediately refresh the tender economics summary from SQLite.
 - The site can save manual supplier candidates per product position: supplier name, URL, unit price, availability, status, and note.
-- The site can prepare supplier search queries per product position and save them in SQLite under `raw_payload.supplier_search`; prepared queries include manual Google/Yandex quick links, still without network scraping or automatic economics changes.
+- The site can prepare supplier search queries per product position and save them in SQLite under `raw_payload.supplier_search`; prepared queries include manual Google/Yandex quick links and optional public catalog provider links from `raw_payload.supplier_catalogs`, still without network scraping or automatic economics changes.
 - Manual supplier candidates can keep the prepared search query that led to them (`source_query` / `source_kind`), preserving review evidence before any price is selected for economics.
-- The site can run a schema.org public supplier discovery pass from prepared quick links: search-engine links are ignored, public product pages are parsed for Product/Offer JSON-LD, and candidates stay review-only until imported.
+- The site can run a schema.org public supplier discovery pass from prepared quick links: search-engine links are ignored, public catalog pages can lead to same-site product pages, public product pages are parsed for Product/Offer JSON-LD, and candidates stay review-only until imported.
 - Public supplier discovery now normalizes unit price, currency, VAT mode, delivery note, availability, provider confidence, and collector diagnostics under `raw_payload.supplier_discovery`.
 - API errors from supplier discovery are surfaced in the React client, so no-new-candidates and missing-prepared-query messages are visible to the user.
 - Supplier discovery candidates can now be staged into `raw_payload.supplier_discovery.candidates` with normalized provider/confidence metadata and reviewed/imported into `supplier_options`; import does not select a supplier or update economics.
@@ -72,12 +72,12 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `318 passed`.
+Latest verified result before this handoff: `320 passed`.
 
 Good next steps:
 
-1. Feed real provider/product-page links into prepared supplier search or add provider-specific catalog connectors, so discovery no longer depends on manually supplied product-page quick links.
-2. Surface supplier discovery collector diagnostics in the economics UI.
+1. Surface supplier discovery collector diagnostics in the economics UI.
+2. Add concrete provider catalog presets/import paths for the suppliers worth tracking first.
 3. Keep Telegram as notifications/quick entry, not the main workbench.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.

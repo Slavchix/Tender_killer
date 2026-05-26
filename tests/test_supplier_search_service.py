@@ -75,6 +75,34 @@ def test_build_supplier_search_links_encodes_query_for_manual_search() -> None:
     ]
 
 
+def test_build_supplier_search_queries_includes_catalog_provider_links_from_payload() -> None:
+    queries = build_supplier_search_queries(
+        {
+            "normalized_name": "office paper a4",
+            "raw_payload": {
+                "supplier_catalogs": [
+                    {
+                        "label": "Supplier catalog",
+                        "provider": "supplier_example",
+                        "url_template": "https://supplier.example/search?q={query}",
+                    }
+                ]
+            },
+        }
+    )
+
+    assert queries[0]["quick_links"] == [
+        {"label": "Google", "url": "https://www.google.com/search?q=office+paper+a4"},
+        {"label": "Yandex", "url": "https://yandex.ru/search/?text=office+paper+a4"},
+        {
+            "label": "Supplier catalog",
+            "url": "https://supplier.example/search?q=office+paper+a4",
+            "provider": "supplier_example",
+            "link_kind": "catalog_search",
+        },
+    ]
+
+
 def test_prepare_profile_supplier_search_persists_queries_and_preserves_options(tmp_path) -> None:
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()
