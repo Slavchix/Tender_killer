@@ -57,6 +57,7 @@ Recent architecture cleanup:
 - The economics supplier block has an explicit manual live health check button; normal page load stays network-free, and live external catalog checks run only after the operator asks for them.
 - The economics tab shows supplier discovery collector diagnostics next to staged candidates, including seen links, skipped links, fetched pages, candidates found, and fetch errors.
 - API errors from supplier discovery are surfaced in the React client, so no-new-candidates and missing-prepared-query messages are visible to the user.
+- Supplier discovery run errors for missing prepared queries or no new candidates now return JSON `400` responses from the API handler instead of bubbling up as server errors.
 - Supplier discovery candidates can now be staged into `raw_payload.supplier_discovery.candidates` with normalized provider/confidence metadata and reviewed/imported into `supplier_options`; import does not select a supplier or update economics.
 - Tender Workbench v1 makes the selected tender area wider, adds a compact decision summary, and splits product details into `Паспорт`, `Цены`, `Поставщики`, and `ТЗ` sub-tabs.
 - Tender filters are collapsible in the workbench, letting the tender list expand while preserving quick access to filter controls.
@@ -80,7 +81,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after visible catalog fallback: `339 passed`.
+Latest verified result after supplier discovery API error handling: `341 passed`.
 
 Good next steps:
 

@@ -440,14 +440,17 @@ def handle_post_request(
         route = parse_product_profile_supplier_discovery_run_path(path)
         if route is None:
             return ApiResponse({"error": "invalid product profile supplier discovery run path"}, status=400)
-        return ApiResponse(
-            run_product_profile_supplier_discovery(
-                database_path,
-                route.source,
-                route.external_id,
-                route.position_index,
+        try:
+            return ApiResponse(
+                run_product_profile_supplier_discovery(
+                    database_path,
+                    route.source,
+                    route.external_id,
+                    route.position_index,
+                )
             )
-        )
+        except ValueError as exc:
+            return ApiResponse({"error": str(exc)}, status=400)
     if path.startswith("/api/tenders/") and path.endswith("/import"):
         route = parse_product_profile_supplier_discovery_candidate_import_path(path)
         if route is None:

@@ -724,12 +724,14 @@ Date: 2026-05-26.
 - The supplier catalog health block now has an explicit manual live check button. Normal page load still calls the network-free health endpoint, while the button calls `/api/supplier-catalogs/health?live=1` and refreshes the same panel with live HTTP diagnostics.
 - `TenderEconomicsTab.jsx` renders collector diagnostics in the supplier discovery preview next to staged candidates, so operator review can see provider, seen/skipped links, fetched pages, candidates found, and errors.
 - `web/src/api.js` now surfaces backend JSON `error` messages, so supplier discovery can show no-new-candidates and missing-prepared-query responses instead of only generic client text.
+- The API handler now converts supplier discovery run `ValueError`s for missing prepared queries and no new candidates into JSON `400` responses, so the React client receives the real service message instead of an unhandled server error.
 - `tender_killer.dev_health` now requires `/api/health` capabilities for `supplier_search_prepare`, `supplier_catalog_presets`, and `supplier_catalog_health`, and also checks `/api/supplier-catalogs/health`, so stale backend processes on port 8000 are rejected before Vite proxies newer supplier UI actions to them.
 - The API dispatcher has a regression test for `/api/tenders?status=active&limit=25&offset=0`, covering the tender list route that powers the main workbench.
 - `web/src/TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
 - Latest local targeted verification after live supplier catalog health UI: `55 passed` for `tests/test_frontend_contract.py`.
 - Latest provider discovery verification: `13 passed` for `tests/test_supplier_price_discovery_service.py`.
-- Full verification after this slice: `339 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- Latest API handler verification: `20 passed` for `tests/test_api_handlers.py`.
+- Full verification after this slice: `341 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
 - JSX syntax was checked through Babel parser in the Node REPL after wiring supplier catalog health through `api.js`, `useTenderProductProfiles.js`, `TenderDetails.jsx`, `TenderDetailsTabs.jsx`, and `TenderEconomicsTab.jsx`.
 - Next planned steps:
   1. Validate real catalog pages and add narrow provider parsing rules where schema.org/anchor discovery is not enough.

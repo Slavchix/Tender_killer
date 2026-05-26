@@ -501,6 +501,72 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_run(tmp_p
     assert "economics" not in profile["raw_payload"]
 
 
+def test_handle_post_request_reports_supplier_discovery_missing_prepared_queries(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+            )
+        ],
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/product-profiles/1/supplier-discovery/run",
+        {},
+    )
+
+    assert response.status == 400
+    assert response.payload == {"error": "Сначала подготовь поиск поставщиков."}
+
+
+def test_handle_post_request_reports_supplier_discovery_no_new_candidates(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    empty_page = quote("<html><h1>No offer here</h1></html>", safe="")
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+                raw_payload={
+                    "supplier_search": {
+                        "status": "ready",
+                        "queries": [
+                            {
+                                "query": "office paper a4",
+                                "kind": "normalized_name",
+                                "priority": 1,
+                                "quick_links": [
+                                    {"label": "Supplier page", "url": f"data:text/html,{empty_page}"},
+                                ],
+                            }
+                        ],
+                    }
+                },
+            )
+        ],
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/product-profiles/1/supplier-discovery/run",
+        {},
+    )
+
+    assert response.status == 400
+    assert response.payload == {"error": "Новых кандидатов поставщиков не найдено."}
+
+
 def test_handle_post_request_routes_product_profile_supplier_discovery_candidate_import(tmp_path) -> None:
     store = _store_with_tender(tmp_path)
     store.upsert_product_profiles(
