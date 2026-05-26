@@ -47,6 +47,8 @@ import {
   documentRecordsForTender,
 } from './formatters'
 import { productDetailModes, sourceLabels, workflowLabels } from './constants'
+import { Info, SummaryMetric } from './TenderDetailsShared'
+import { TenderOverviewTab } from './TenderOverviewTab'
 
 export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const raw = safeJson(tender.raw_payload_json)
@@ -562,33 +564,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   )
 }
 
-function TenderOverviewTab({ tender, raw }) {
-  const law = tender.law || raw.federalLawName || raw.SourcePlatformName || 'не найден'
-  const category = tender.category || raw.CategoryName || 'не найдена'
-
-  return (
-    <section className="detail-section active overview-tab">
-      <div className="tab-lead">
-        <div>
-          <span>Паспорт закупки</span>
-          <strong>{tender.external_id}</strong>
-          <p>{tender.customer || 'заказчик не указан'}</p>
-        </div>
-        <div className="tab-lead-facts">
-          <span>{tender.region || 'регион не указан'}</span>
-          <span>{law}</span>
-        </div>
-      </div>
-      <div className="overview-brief-grid">
-        <Info label="Площадка" value={sourceLabels[tender.source] || tender.source} />
-        <Info label="Статус площадки" value={tender.status || 'не указан'} />
-        <Info label="Категория" value={category} />
-        <Info label="ОКПД2" value={tender.okpd2 || raw.Koz2Value || 'не найден'} />
-      </div>
-    </section>
-  )
-}
-
 function ProductTabSummary({ summary, total, itemsCount }) {
   const data = summary || {}
   const positionTotal = data.total ?? total ?? itemsCount ?? 0
@@ -826,15 +801,6 @@ function WorkflowTabPanel({ tender, raw, note, saving, onNoteChange, onSaveWorkf
         </div>
       </details>
     </section>
-  )
-}
-
-function SummaryMetric({ value, label }) {
-  return (
-    <span>
-      <strong>{value}</strong>
-      <em className="summary-label">{label}</em>
-    </span>
   )
 }
 
@@ -1509,15 +1475,6 @@ function TenderItems({ items }) {
         ))}
       </div>
     </details>
-  )
-}
-
-function Info({ label, value }) {
-  return (
-    <div className="info">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
   )
 }
 
