@@ -28,6 +28,7 @@ export function TenderEconomicsTab({
   onSupplierOptionAutoSelect,
   onSupplierDiscoveryImport,
   onSupplierSearchPrepare,
+  onSupplierDiscoveryRun,
   onAutoEconomicsRun,
   onAutoEconomicsAccept,
   savingEconomicsPosition = null,
@@ -35,6 +36,7 @@ export function TenderEconomicsTab({
   savingSupplierOptionPosition = null,
   importingSupplierCandidatePosition = null,
   preparingSupplierSearchPosition = null,
+  discoveringSupplierPosition = null,
   autoSelectingSupplierPosition = null,
   autoEstimatingPosition = null,
   acceptingAutoEconomicsPosition = null,
@@ -49,6 +51,7 @@ export function TenderEconomicsTab({
   const savingSupplierOption = savingSupplierOptionPosition === selectedPosition
   const importingSupplierCandidate = importingSupplierCandidatePosition === selectedPosition
   const preparingSupplierSearch = preparingSupplierSearchPosition === selectedPosition
+  const discoveringDiscovery = discoveringSupplierPosition === selectedPosition
   const autoSelectingSupplier = autoSelectingSupplierPosition === selectedPosition
   const autoEstimating = autoEstimatingPosition === selectedPosition
   const acceptingAutoEconomics = acceptingAutoEconomicsPosition === selectedPosition
@@ -123,9 +126,11 @@ export function TenderEconomicsTab({
                 onAutoSelect={onSupplierOptionAutoSelect}
                 onDiscoveryImport={onSupplierDiscoveryImport}
                 onSearchPrepare={onSupplierSearchPrepare}
+                onDiscoveryRun={onSupplierDiscoveryRun}
                 saving={savingSupplierOption}
                 importingDiscovery={importingSupplierCandidate}
                 preparingSearch={preparingSupplierSearch}
+                discoveringDiscovery={discoveringDiscovery}
                 autoSelecting={autoSelectingSupplier}
               />
             </>
@@ -473,9 +478,11 @@ function ProductSupplierOptionsForm({
   onAutoSelect,
   onDiscoveryImport,
   onSearchPrepare,
+  onDiscoveryRun,
   saving = false,
   importingDiscovery = false,
   preparingSearch = false,
+  discoveringDiscovery = false,
   autoSelecting = false,
 }) {
   const supplierOptions = Array.isArray(profile?.raw_payload?.supplier_options)
@@ -518,6 +525,14 @@ function ProductSupplierOptionsForm({
               type="button"
             >
               {preparingSearch ? 'Готовлю...' : 'Подготовить поиск'}
+            </button>
+            <button
+              className="secondary-button compact"
+              disabled={discoveringDiscovery || !onDiscoveryRun || !supplierSearchQueries.length}
+              onClick={() => onDiscoveryRun?.(profile)}
+              type="button"
+            >
+              {discoveringDiscovery ? 'Ищу...' : 'Найти кандидатов'}
             </button>
             <button
               className="secondary-button compact"

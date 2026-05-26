@@ -151,6 +151,13 @@ export function prepareProfileSupplierSearch(tender, profile) {
   })
 }
 
+export function runProfileSupplierDiscovery(tender, profile) {
+  return apiJson(`${productProfilePath(tender, profile)}/supplier-discovery/run`, {
+    method: 'POST',
+    errorMessage: 'Не удалось найти кандидатов поставщиков',
+  })
+}
+
 export function runProfileAutoEconomics(tender, profile) {
   return apiJson(`${productProfilePath(tender, profile)}/economics/auto-estimate`, {
     method: 'POST',

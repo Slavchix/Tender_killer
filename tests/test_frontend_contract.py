@@ -772,21 +772,27 @@ def test_product_profile_renders_supplier_option_form():
     assert "autoSelectSupplierOption" in details_source
     assert "prepareSupplierSearch" in details_source
     assert "prepareProfileSupplierSearch" in hook_source
+    assert "runSupplierDiscovery" in details_source
+    assert "runProfileSupplierDiscovery" in hook_source
     assert "importSupplierDiscoveryCandidate" in details_source
     assert "importProfileSupplierDiscoveryCandidate" in hook_source
     assert "onSupplierOptionSelect" in source
     assert "onSupplierOptionAutoSelect" in source
     assert "onSupplierSearchPrepare" in source
+    assert "onSupplierDiscoveryRun" in source
     assert "onSupplierDiscoveryImport" in source
     assert "preparingSupplierSearchPosition" in details_source
+    assert "discoveringSupplierPosition" in details_source
     assert "importingSupplierCandidatePosition" in details_source
     assert "preparingSupplierSearchPosition" in tabs_source
+    assert "discoveringSupplierPosition" in tabs_source
     assert "importingSupplierCandidatePosition" in tabs_source
     assert "product-profiles/${profile.position_index}" in api_source
     assert "${productProfilePath(tender, profile)}/supplier-options" in api_source
     assert "${productProfilePath(tender, profile)}/supplier-options/${optionIndex}/select" in api_source
     assert "supplier-options/best/select" in api_source
     assert "supplier-search/prepare" in api_source
+    assert "supplier-discovery/run" in api_source
     assert "supplier-discovery/candidates/${candidateIndex}/import" in api_source
     assert "supplier_options" in source
     assert "supplier_search" in source
@@ -799,6 +805,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "quick_links" in source
     assert "supplier-search-links" in source
     assert "href={link.url}" in source
+    assert "discoveringDiscovery" in source
     assert "source_query" in source
     assert "source_kind" in source
     assert "supplierOptionPayload" in source

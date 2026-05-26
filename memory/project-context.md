@@ -714,11 +714,11 @@ Date: 2026-05-26.
 - Manual supplier candidates now preserve the prepared search query that led to them through `source_query` and `source_kind` fields in `raw_payload.supplier_options`, so review evidence stays attached to candidate prices before selection.
 - Supplier discovery review now lives in `src/tender_killer/supplier_discovery_service.py`. Discovered candidates can be staged under `raw_payload.supplier_discovery.candidates` and imported into `supplier_options`; import marks the discovery candidate as `imported` but does not select the supplier or update economics.
 - Supplier discovery candidates now normalize `provider`, derive `confidence` and `confidence_reasons` from price/link/source-query evidence, and preserve provider/confidence when imported into `supplier_options`.
+- First public supplier discovery run now lives in `src/tender_killer/supplier_price_discovery_service.py`. `POST /api/tenders/{source}/{external_id}/product-profiles/{position}/supplier-discovery/run` converts prepared quick links into review-only `public_search` candidates; it is idempotent by provider/link and does not select suppliers or update economics.
 - `web/src/TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
-- Latest local targeted verification after supplier discovery provider/confidence metadata: `93 passed` for supplier discovery/option/search services, API routes/handlers, and frontend contracts.
-- Latest full verification after supplier discovery provider/confidence metadata: `311 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
-- JSX syntax was checked through Babel parser in the Node REPL after updating the discovery preview in the economics tab.
+- Latest local targeted verification after public supplier discovery run: `93 passed` for supplier discovery/search/price-discovery services, API routes/handlers, and frontend contracts.
+- JSX syntax was checked through Babel parser in the Node REPL after wiring the discovery run action into the economics tab.
 - Next planned steps:
-  1. Add the first public price discovery adapter that proposes supplier candidates from prepared queries into the review queue, without selecting or pricing them automatically.
+  1. Replace the review-only public search link adapter with a provider-specific collector that can extract real public price rows safely.
   2. Add provider-specific collector diagnostics once real discovery providers start staging candidates.
   3. Keep Telegram as notifications/quick entry, not the main workbench.

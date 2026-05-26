@@ -7,6 +7,7 @@ import {
   prepareProfileSupplierSearch as prepareProfileSupplierSearchRequest,
   rebuildTenderProductProfiles,
   runProfileAutoEconomics as runProfileAutoEconomicsRequest,
+  runProfileSupplierDiscovery as runProfileSupplierDiscoveryRequest,
   saveProfileEconomics as saveProfileEconomicsRequest,
   saveProfileEconomicsAssumptions as saveProfileEconomicsAssumptionsRequest,
   selectProfileSupplierOption,
@@ -23,6 +24,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
   const [savingSupplierOptionPosition, setSavingSupplierOptionPosition] = useState(null)
   const [importingSupplierCandidatePosition, setImportingSupplierCandidatePosition] = useState(null)
   const [preparingSupplierSearchPosition, setPreparingSupplierSearchPosition] = useState(null)
+  const [discoveringSupplierPosition, setDiscoveringSupplierPosition] = useState(null)
   const [autoSelectingSupplierPosition, setAutoSelectingSupplierPosition] = useState(null)
   const [autoEstimatingPosition, setAutoEstimatingPosition] = useState(null)
   const [acceptingAutoEconomicsPosition, setAcceptingAutoEconomicsPosition] = useState(null)
@@ -34,6 +36,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     setSavingSupplierOptionPosition(null)
     setImportingSupplierCandidatePosition(null)
     setPreparingSupplierSearchPosition(null)
+    setDiscoveringSupplierPosition(null)
     setAutoSelectingSupplierPosition(null)
     setAutoEstimatingPosition(null)
     setAcceptingAutoEconomicsPosition(null)
@@ -156,6 +159,19 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .finally(() => setPreparingSupplierSearchPosition(null))
   }
 
+  function runSupplierDiscovery(profile) {
+    if (!profile?.position_index) return null
+    setDiscoveringSupplierPosition(profile.position_index)
+    setDetailStatus('')
+    return runProfileSupplierDiscoveryRequest(tender, profile)
+      .then((nextTender) => updateFromNextTender(nextTender, 'Кандидаты поставщиков найдены'))
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setDiscoveringSupplierPosition(null))
+  }
+
   function runProfileAutoEconomics(profile) {
     if (!profile?.position_index) return null
     setAutoEstimatingPosition(profile.position_index)
@@ -194,6 +210,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     savingSupplierOptionPosition,
     importingSupplierCandidatePosition,
     preparingSupplierSearchPosition,
+    discoveringSupplierPosition,
     autoSelectingSupplierPosition,
     autoEstimatingPosition,
     acceptingAutoEconomicsPosition,
@@ -206,6 +223,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     autoSelectSupplierOption,
     importSupplierDiscoveryCandidate,
     prepareSupplierSearch,
+    runSupplierDiscovery,
     runProfileAutoEconomics,
     acceptProfileAutoEconomics,
   }

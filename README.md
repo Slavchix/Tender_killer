@@ -47,6 +47,7 @@ Recent architecture cleanup:
 - The site can save manual supplier candidates per product position: supplier name, URL, unit price, availability, status, and note.
 - The site can prepare supplier search queries per product position and save them in SQLite under `raw_payload.supplier_search`; prepared queries include manual Google/Yandex quick links, still without network scraping or automatic economics changes.
 - Manual supplier candidates can keep the prepared search query that led to them (`source_query` / `source_kind`), preserving review evidence before any price is selected for economics.
+- The site can run the first public supplier discovery pass from prepared quick links: candidates are staged for review only and are not selected or priced automatically.
 - Supplier discovery candidates can now be staged into `raw_payload.supplier_discovery.candidates` with normalized provider/confidence metadata and reviewed/imported into `supplier_options`; import does not select a supplier or update economics.
 - Tender Workbench v1 makes the selected tender area wider, adds a compact decision summary, and splits product details into `Паспорт`, `Цены`, `Поставщики`, and `ТЗ` sub-tabs.
 - Tender filters are collapsible in the workbench, letting the tender list expand while preserving quick access to filter controls.
@@ -73,7 +74,7 @@ Latest verified result before this handoff: `311 passed`.
 
 Good next steps:
 
-1. Add the first public price discovery adapter that proposes supplier candidates from prepared queries into the review queue, without selecting or pricing them automatically.
+1. Replace the review-only public search link adapter with a provider-specific collector that can extract real public price rows safely.
 2. Add provider-specific collector diagnostics once real discovery providers start staging candidates.
 3. Keep Telegram as notifications/quick entry, not the main workbench.
 

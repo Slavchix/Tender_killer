@@ -53,6 +53,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     savingSupplierOptionPosition,
     importingSupplierCandidatePosition,
     preparingSupplierSearchPosition,
+    discoveringSupplierPosition,
     autoSelectingSupplierPosition,
     autoEstimatingPosition,
     acceptingAutoEconomicsPosition,
@@ -65,6 +66,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     autoSelectSupplierOption,
     importSupplierDiscoveryCandidate,
     prepareSupplierSearch,
+    runSupplierDiscovery,
     runProfileAutoEconomics,
     acceptProfileAutoEconomics,
   } = useTenderProductProfiles(tender, onTenderRefresh, setDetailStatus)
@@ -127,6 +129,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         onSupplierOptionAutoSelect={autoSelectSupplierOption}
         onSupplierDiscoveryImport={importSupplierDiscoveryCandidate}
         onSupplierSearchPrepare={prepareSupplierSearch}
+        onSupplierDiscoveryRun={runSupplierDiscovery}
         onAutoEconomicsRun={runProfileAutoEconomics}
         onAutoEconomicsAccept={acceptProfileAutoEconomics}
         savingEconomicsPosition={savingEconomicsPosition}
@@ -134,6 +137,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         savingSupplierOptionPosition={savingSupplierOptionPosition}
         importingSupplierCandidatePosition={importingSupplierCandidatePosition}
         preparingSupplierSearchPosition={preparingSupplierSearchPosition}
+        discoveringSupplierPosition={discoveringSupplierPosition}
         autoSelectingSupplierPosition={autoSelectingSupplierPosition}
         autoEstimatingPosition={autoEstimatingPosition}
         acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}

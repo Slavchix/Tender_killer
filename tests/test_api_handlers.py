@@ -350,6 +350,54 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_candidate
     assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["confidence"] == "high"
 
 
+def test_handle_post_request_routes_product_profile_supplier_discovery_run(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+                quantity=10,
+                unit="pack",
+                raw_payload={
+                    "supplier_search": {
+                        "status": "ready",
+                        "queries": [
+                            {
+                                "query": "office paper a4",
+                                "kind": "normalized_name",
+                                "priority": 1,
+                                "quick_links": [
+                                    {"label": "Google", "url": "https://www.google.com/search?q=office+paper+a4"},
+                                ],
+                            }
+                        ],
+                    }
+                },
+            )
+        ],
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/product-profiles/1/supplier-discovery/run",
+        {},
+    )
+
+    profile = response.payload["product_profiles"][0]
+    assert response.status == 200
+    assert profile["profile_status"] == "matched"
+    assert profile["raw_payload"]["supplier_discovery"]["status"] == "pending_review"
+    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["provider"] == "public_search"
+    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["confidence"] == "needs_review"
+    assert "supplier_options" not in profile["raw_payload"]
+    assert "economics" not in profile["raw_payload"]
+
+
 def test_handle_post_request_routes_product_profile_supplier_discovery_candidate_import(tmp_path) -> None:
     store = _store_with_tender(tmp_path)
     store.upsert_product_profiles(

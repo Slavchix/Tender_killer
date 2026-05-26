@@ -32,6 +32,7 @@ export function TenderDetailsTabs({
   onSupplierOptionAutoSelect,
   onSupplierDiscoveryImport,
   onSupplierSearchPrepare,
+  onSupplierDiscoveryRun,
   onAutoEconomicsRun,
   onAutoEconomicsAccept,
   savingEconomicsPosition,
@@ -39,6 +40,7 @@ export function TenderDetailsTabs({
   savingSupplierOptionPosition,
   importingSupplierCandidatePosition,
   preparingSupplierSearchPosition,
+  discoveringSupplierPosition,
   autoSelectingSupplierPosition,
   autoEstimatingPosition,
   acceptingAutoEconomicsPosition,
@@ -116,6 +118,7 @@ export function TenderDetailsTabs({
             onSupplierOptionAutoSelect={onSupplierOptionAutoSelect}
             onSupplierDiscoveryImport={onSupplierDiscoveryImport}
             onSupplierSearchPrepare={onSupplierSearchPrepare}
+            onSupplierDiscoveryRun={onSupplierDiscoveryRun}
             onAutoEconomicsRun={onAutoEconomicsRun}
             onAutoEconomicsAccept={onAutoEconomicsAccept}
             savingEconomicsPosition={savingEconomicsPosition}
@@ -123,6 +126,7 @@ export function TenderDetailsTabs({
             savingSupplierOptionPosition={savingSupplierOptionPosition}
             importingSupplierCandidatePosition={importingSupplierCandidatePosition}
             preparingSupplierSearchPosition={preparingSupplierSearchPosition}
+            discoveringSupplierPosition={discoveringSupplierPosition}
             autoSelectingSupplierPosition={autoSelectingSupplierPosition}
             autoEstimatingPosition={autoEstimatingPosition}
             acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
