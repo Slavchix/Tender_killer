@@ -49,6 +49,9 @@ export function TenderEconomicsTab({
   autoSelectingSupplierPosition = null,
   autoEstimatingPosition = null,
   acceptingAutoEconomicsPosition = null,
+  supplierCatalogHealth = null,
+  supplierCatalogHealthLoading = false,
+  supplierCatalogHealthError = '',
 }) {
   const missingInputs = economics?.missing_cost_inputs?.length || 0
   const displayedRevenue = economics?.revenue ?? tender?.price
@@ -138,6 +141,9 @@ export function TenderEconomicsTab({
                 onSearchPrepare={onSupplierSearchPrepare}
                 onPresetSave={onSupplierCatalogPresetsSave}
                 onDiscoveryRun={onSupplierDiscoveryRun}
+                supplierCatalogHealth={supplierCatalogHealth}
+                supplierCatalogHealthLoading={supplierCatalogHealthLoading}
+                supplierCatalogHealthError={supplierCatalogHealthError}
                 saving={savingSupplierOption}
                 importingDiscovery={importingSupplierCandidate}
                 preparingSearch={preparingSupplierSearch}
@@ -492,6 +498,9 @@ function ProductSupplierOptionsForm({
   onSearchPrepare,
   onPresetSave,
   onDiscoveryRun,
+  supplierCatalogHealth,
+  supplierCatalogHealthLoading = false,
+  supplierCatalogHealthError = '',
   saving = false,
   importingDiscovery = false,
   preparingSearch = false,
@@ -565,6 +574,11 @@ function ProductSupplierOptionsForm({
           profile={profile}
           saving={savingPresets}
           onPresetSave={onPresetSave}
+        />
+        <SupplierCatalogHealthPanel
+          supplierCatalogHealth={supplierCatalogHealth}
+          loading={supplierCatalogHealthLoading}
+          error={supplierCatalogHealthError}
         />
         <div className="supplier-input-grid">
           <label>
@@ -688,6 +702,44 @@ function ProductSupplierOptionsForm({
       )}
     </section>
   )
+}
+
+function SupplierCatalogHealthPanel({ supplierCatalogHealth, loading = false, error = '' }) {
+  const catalogs = Array.isArray(supplierCatalogHealth?.catalogs) ? supplierCatalogHealth.catalogs : []
+  if (!loading && !error && !catalogs.length) return null
+
+  return (
+    <div className="supplier-catalog-health">
+      <div className="supplier-catalog-health-heading">
+        <span>?????? ?????????</span>
+        {loading && <em>????????...</em>}
+      </div>
+      {error && <p>{error}</p>}
+      {catalogs.length > 0 && (
+        <div className="supplier-catalog-health-grid">
+          {catalogs.map((catalog) => (
+            <a
+              className={`supplier-catalog-health-item ${catalog.status || 'unknown'}`}
+              href={catalog.sample_url}
+              key={catalog.preset_id || catalog.provider}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <strong>{catalog.label || catalog.provider}</strong>
+              <span>{catalog.provider}</span>
+              <em>{supplierCatalogHealthStatusLabel(catalog.status, catalog.http_status)}</em>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function supplierCatalogHealthStatusLabel(status, httpStatus) {
+  if (status === 'ok') return httpStatus ? `HTTP ${httpStatus}` : '????????'
+  if (status === 'error') return httpStatus ? `?????? ${httpStatus}` : '??????'
+  return '????????'
 }
 
 function SupplierCatalogPresetControls({ profile, saving = false, onPresetSave }) {

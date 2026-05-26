@@ -2507,6 +2507,74 @@ textarea:focus {
   font-size: 11px;
 }
 
+.supplier-catalog-health {
+  display: grid;
+  gap: 7px;
+  padding: 8px 9px;
+  background: #111a17;
+  border: 1px solid #2b3a34;
+  border-radius: 6px;
+}
+
+.supplier-catalog-health-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.supplier-catalog-health-heading span {
+  color: #eef8f2;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.supplier-catalog-health-heading em,
+.supplier-catalog-health p {
+  margin: 0;
+  color: #9bb2aa;
+  font-size: 11px;
+}
+
+.supplier-catalog-health-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.supplier-catalog-health-item {
+  display: grid;
+  gap: 2px;
+  padding: 7px 8px;
+  color: inherit;
+  text-decoration: none;
+  background: #17211e;
+  border: 1px solid #304039;
+  border-radius: 5px;
+}
+
+.supplier-catalog-health-item strong {
+  color: #eef8f2;
+  font-size: 12px;
+}
+
+.supplier-catalog-health-item span,
+.supplier-catalog-health-item em {
+  color: #9bb2aa;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.supplier-catalog-health-item.ok em {
+  color: #9fe29a;
+}
+
+.supplier-catalog-health-item.error em {
+  color: #f2b8a2;
+}
+
 .supplier-search-preview {
   display: grid;
   gap: 7px;

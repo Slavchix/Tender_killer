@@ -33,6 +33,12 @@ export function fetchSourceStatus() {
   return apiJson('/api/sources/status')
 }
 
+export function fetchSupplierCatalogHealth() {
+  return apiJson('/api/supplier-catalogs/health', {
+    errorMessage: '?? ??????? ????????? ???????? ???????????',
+  })
+}
+
 export function runSearch(filters) {
   return apiJson('/api/search', {
     method: 'POST',

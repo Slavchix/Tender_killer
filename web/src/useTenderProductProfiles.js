@@ -3,6 +3,7 @@ import {
   acceptProfileAutoEconomics as acceptProfileAutoEconomicsRequest,
   addProfileSupplierOption,
   autoSelectProfileSupplierOption,
+  fetchSupplierCatalogHealth,
   importProfileSupplierDiscoveryCandidate,
   prepareProfileSupplierSearch as prepareProfileSupplierSearchRequest,
   rebuildTenderProductProfiles,
@@ -30,6 +31,9 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
   const [autoSelectingSupplierPosition, setAutoSelectingSupplierPosition] = useState(null)
   const [autoEstimatingPosition, setAutoEstimatingPosition] = useState(null)
   const [acceptingAutoEconomicsPosition, setAcceptingAutoEconomicsPosition] = useState(null)
+  const [supplierCatalogHealth, setSupplierCatalogHealth] = useState(null)
+  const [supplierCatalogHealthLoading, setSupplierCatalogHealthLoading] = useState(false)
+  const [supplierCatalogHealthError, setSupplierCatalogHealthError] = useState('')
 
   useEffect(() => {
     applyProductTenderState(tender)
@@ -44,6 +48,15 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     setAutoEstimatingPosition(null)
     setAcceptingAutoEconomicsPosition(null)
   }, [tender.source, tender.external_id, tender.product_profiles, tender.product_profile_summary, tender.economics])
+
+  useEffect(() => {
+    setSupplierCatalogHealthLoading(true)
+    setSupplierCatalogHealthError('')
+    fetchSupplierCatalogHealth()
+      .then((payload) => setSupplierCatalogHealth(payload))
+      .catch((err) => setSupplierCatalogHealthError(err.message))
+      .finally(() => setSupplierCatalogHealthLoading(false))
+  }, [])
 
   function applyProductTenderState(nextTender, options = {}) {
     setProductProfiles(nextTender.product_profiles || [])
@@ -231,6 +244,9 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     autoSelectingSupplierPosition,
     autoEstimatingPosition,
     acceptingAutoEconomicsPosition,
+    supplierCatalogHealth,
+    supplierCatalogHealthLoading,
+    supplierCatalogHealthError,
     applyProductTenderState,
     rebuildProductProfiles,
     saveProfileEconomics,

@@ -46,6 +46,9 @@ export function TenderDetailsTabs({
   autoSelectingSupplierPosition,
   autoEstimatingPosition,
   acceptingAutoEconomicsPosition,
+  supplierCatalogHealth,
+  supplierCatalogHealthLoading,
+  supplierCatalogHealthError,
   note,
   saving,
   onNoteChange,
@@ -134,6 +137,9 @@ export function TenderDetailsTabs({
             autoSelectingSupplierPosition={autoSelectingSupplierPosition}
             autoEstimatingPosition={autoEstimatingPosition}
             acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
+            supplierCatalogHealth={supplierCatalogHealth}
+            supplierCatalogHealthLoading={supplierCatalogHealthLoading}
+            supplierCatalogHealthError={supplierCatalogHealthError}
           />
         )}
 

@@ -854,6 +854,45 @@ def test_product_profile_renders_supplier_option_form():
     assert find_mojibake(source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
+
+def test_economics_tab_surfaces_supplier_catalog_health():
+    details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    hook_source = USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
+    source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    api_source = API_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "export function fetchSupplierCatalogHealth" in api_source
+    assert "/api/supplier-catalogs/health" in api_source
+    assert "fetchSupplierCatalogHealth" in hook_source
+    assert "supplierCatalogHealth" in hook_source
+    assert "supplierCatalogHealthLoading" in hook_source
+    assert "supplierCatalogHealthError" in hook_source
+    assert "setSupplierCatalogHealth" in hook_source
+    assert "setSupplierCatalogHealthLoading" in hook_source
+    assert "setSupplierCatalogHealthError" in hook_source
+    assert "supplierCatalogHealth" in details_source
+    assert "supplierCatalogHealth={supplierCatalogHealth}" in tabs_source
+    assert "supplierCatalogHealthLoading={supplierCatalogHealthLoading}" in tabs_source
+    assert "supplierCatalogHealthError={supplierCatalogHealthError}" in tabs_source
+    assert "SupplierCatalogHealthPanel" in source
+    assert "supplierCatalogHealth?.catalogs" in source
+    assert "supplier-catalog-health" in source
+    assert "supplier-catalog-health-grid" in source
+    assert "catalog.http_status" in source
+    assert "catalog.sample_url" in source
+    assert "?????? ?????????" in source
+    assert ".supplier-catalog-health" in styles_source
+    assert ".supplier-catalog-health-grid" in styles_source
+    assert find_mojibake(details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
+    assert find_mojibake(source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(api_source, API_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_economics_tab_renders_auto_estimate_panel():
     details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")

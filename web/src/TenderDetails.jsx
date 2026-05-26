@@ -58,6 +58,9 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     autoSelectingSupplierPosition,
     autoEstimatingPosition,
     acceptingAutoEconomicsPosition,
+    supplierCatalogHealth,
+    supplierCatalogHealthLoading,
+    supplierCatalogHealthError,
     applyProductTenderState,
     rebuildProductProfiles,
     saveProfileEconomics,
@@ -145,6 +148,9 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         autoSelectingSupplierPosition={autoSelectingSupplierPosition}
         autoEstimatingPosition={autoEstimatingPosition}
         acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
+        supplierCatalogHealth={supplierCatalogHealth}
+        supplierCatalogHealthLoading={supplierCatalogHealthLoading}
+        supplierCatalogHealthError={supplierCatalogHealthError}
         note={note}
         saving={saving}
         onNoteChange={setNote}
