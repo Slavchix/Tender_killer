@@ -1,21 +1,46 @@
-import { useEffect, useState } from 'react'
 import { TenderDetailActions } from './TenderDetailActions'
 import { TenderDetailsHeader } from './TenderDetailsHeader'
 import { TenderDetailsStatusStack } from './TenderDetailsStatusStack'
 import { TenderDetailsTabs } from './TenderDetailsTabs'
 import { PriceChangeBanner, TenderDecisionSummary } from './TenderDecisionSummary'
 import { useTenderDocumentAnalysis } from './useTenderDocumentAnalysis'
+import { useTenderDetailsUi } from './useTenderDetailsUi'
 import { useTenderNotification } from './useTenderNotification'
 import { useTenderProductProfiles } from './useTenderProductProfiles'
 import { useTenderRefreshDetails } from './useTenderRefreshDetails'
 import { useTenderWorkflow } from './useTenderWorkflow'
 
 export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
-  const raw = safeJson(tender.raw_payload_json)
-  const [activeTab, setActiveTab] = useState('overview')
-  const [detailStatus, setDetailStatus] = useState('')
   const { note, setNote, saving, saveWorkflow } = useTenderWorkflow(tender, onWorkflowUpdate)
   const { sending, notifyStatus, setNotifyStatus, sendToTelegram } = useTenderNotification(tender)
+  const {
+    documentRecords,
+    setDocumentRecords,
+    analysis,
+    setAnalysis,
+    downloading,
+    extracting,
+    analyzing,
+    downloadStatus,
+    extractStatus,
+    downloadDocuments,
+    extractDocumentText,
+    analyzeTender,
+  } = useTenderDocumentAnalysis(tender)
+  const {
+    raw,
+    activeTab,
+    setActiveTab,
+    detailStatus,
+    setDetailStatus,
+    statusMessages,
+  } = useTenderDetailsUi({
+    tender,
+    notifyStatus,
+    downloadStatus,
+    extractStatus,
+    setNotifyStatus,
+  })
   const {
     productProfiles,
     productProfileSummary,
@@ -39,20 +64,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     runProfileAutoEconomics,
     acceptProfileAutoEconomics,
   } = useTenderProductProfiles(tender, onTenderRefresh, setDetailStatus)
-  const {
-    documentRecords,
-    setDocumentRecords,
-    analysis,
-    setAnalysis,
-    downloading,
-    extracting,
-    analyzing,
-    downloadStatus,
-    extractStatus,
-    downloadDocuments,
-    extractDocumentText,
-    analyzeTender,
-  } = useTenderDocumentAnalysis(tender)
   const { refreshingDetails, refreshDetails } = useTenderRefreshDetails({
     tender,
     onTenderRefresh,
@@ -61,15 +72,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     setAnalysis,
     applyProductTenderState,
   })
-
-  useEffect(() => {
-    setActiveTab('overview')
-    setNotifyStatus('')
-    setDetailStatus('')
-  }, [tender.source, tender.external_id, tender.workflow_note, tender.analysis, tender.product_profiles, tender.product_profile_summary, tender.economics])
-
-
-  const statusMessages = [detailStatus, notifyStatus, downloadStatus, extractStatus].filter(Boolean)
 
   return (
     <div className="details">
@@ -134,12 +136,4 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       />
     </div>
   )
-}
-
-function safeJson(value) {
-  try {
-    return JSON.parse(value || '{}')
-  } catch {
-    return {}
-  }
 }
