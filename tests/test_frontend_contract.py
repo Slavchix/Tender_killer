@@ -788,6 +788,9 @@ def test_product_profile_renders_supplier_option_form():
     assert "quick_links" in source
     assert "supplier-search-links" in source
     assert "href={link.url}" in source
+    assert "source_query" in source
+    assert "source_kind" in source
+    assert "supplierOptionPayload" in source
     assert "economics_price_source" in source
     assert "EconomicsPriceSource" in source
     assert "unit_price" in source

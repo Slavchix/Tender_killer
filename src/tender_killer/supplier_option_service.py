@@ -8,7 +8,7 @@ from tender_killer.supplier_price_service import best_supplier_price
 from tender_killer.supplier_price_service import supplier_price_source
 
 
-SUPPLIER_OPTION_TEXT_FIELDS = ("name", "url", "availability", "status", "note")
+SUPPLIER_OPTION_TEXT_FIELDS = ("name", "url", "availability", "status", "source_query", "source_kind", "note")
 SUPPLIER_OPTION_NUMBER_FIELDS = ("unit_price",)
 
 

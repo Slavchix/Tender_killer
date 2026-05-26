@@ -50,6 +50,8 @@ def test_add_profile_supplier_option_persists_candidate_and_preserves_raw_payloa
             "unit_price": "1 234,50",
             "availability": "in_stock",
             "status": "candidate",
+            "source_query": "office paper a4",
+            "source_kind": "normalized_name",
             "note": " VAT included ",
             "ignored": "nope",
         },
@@ -67,6 +69,8 @@ def test_add_profile_supplier_option_persists_candidate_and_preserves_raw_payloa
                 "unit_price": 1234.5,
                 "availability": "in_stock",
                 "status": "candidate",
+                "source_query": "office paper a4",
+                "source_kind": "normalized_name",
                 "note": "VAT included",
             }
         ],

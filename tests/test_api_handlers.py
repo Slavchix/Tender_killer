@@ -225,6 +225,8 @@ def test_handle_post_request_routes_product_profile_supplier_option_create(tmp_p
             "unit_price": "1234.50",
             "availability": "in_stock",
             "status": "candidate",
+            "source_query": "office paper a4",
+            "source_kind": "normalized_name",
         },
     )
 
@@ -236,6 +238,8 @@ def test_handle_post_request_routes_product_profile_supplier_option_create(tmp_p
             "unit_price": 1234.5,
             "availability": "in_stock",
             "status": "candidate",
+            "source_query": "office paper a4",
+            "source_kind": "normalized_name",
         }
     ]
 

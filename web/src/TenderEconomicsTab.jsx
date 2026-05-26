@@ -475,6 +475,7 @@ function ProductSupplierOptionsForm({
     ? profile.raw_payload.supplier_options
     : []
   const supplierSearch = profile?.raw_payload?.supplier_search || null
+  const supplierSearchQueries = Array.isArray(supplierSearch?.queries) ? supplierSearch.queries : []
   const [values, setValues] = useState(() => supplierOptionFormValues())
 
   useEffect(() => {
@@ -488,7 +489,7 @@ function ProductSupplierOptionsForm({
   function submitSupplierOption(event) {
     event.preventDefault()
     if (!onSave) return
-    const result = onSave(profile, values)
+    const result = onSave(profile, supplierOptionPayload(values, supplierSearchQueries))
     if (result?.then) {
       result.then(() => setValues(supplierOptionFormValues())).catch(() => {})
       return
@@ -524,6 +525,21 @@ function ProductSupplierOptionsForm({
           </div>
         </div>
         <div className="supplier-input-grid">
+          <label>
+            <span>Запрос-источник</span>
+            <select
+              name="source_query"
+              onChange={(event) => updateField('source_query', event.target.value)}
+              value={values.source_query}
+            >
+              <option value="">Без привязки</option>
+              {supplierSearchQueries.map((item) => (
+                <option key={`${item.priority}-${item.query}`} value={item.query}>
+                  {item.query}
+                </option>
+              ))}
+            </select>
+          </label>
           <label>
             <span>Поставщик</span>
             <input
@@ -605,6 +621,7 @@ function ProductSupplierOptionsForm({
                   <strong>{option.name || 'Поставщик'}</strong>
                 )}
                 {option.note && <p>{option.note}</p>}
+                {option.source_query && <p>Запрос: {option.source_query}</p>}
               </div>
               <span>{formatMoney(option.unit_price)}</span>
               <em>{supplierAvailabilityLabel(option.availability)} · {supplierStatusLabel(option.status)}</em>
@@ -658,8 +675,18 @@ function supplierOptionFormValues() {
     unit_price: '',
     availability: 'unknown',
     status: 'candidate',
+    source_query: '',
     note: '',
   }
+}
+
+function supplierOptionPayload(values, searchQueries = []) {
+  const payload = { ...values }
+  const selectedQuery = searchQueries.find((item) => item.query === values.source_query)
+  if (selectedQuery) {
+    payload.source_kind = selectedQuery.kind || ''
+  }
+  return payload
 }
 
 function hasSupplierOptionInput(values) {
