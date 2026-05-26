@@ -717,16 +717,17 @@ Date: 2026-05-26.
 - Supplier discovery candidates now normalize `provider`, derive `confidence` and `confidence_reasons` from price/link/source-query evidence, and preserve provider/confidence when imported into `supplier_options`.
 - First public supplier discovery run now lives in `src/tender_killer/supplier_price_discovery_service.py`. `SchemaOrgProductCollector` ignores Google/Yandex search pages, can follow same-site schema.org catalog/ListItem product URLs, fetches public product pages, parses JSON-LD Product/Offer, and stages review-only `schema_org_product` candidates with unit price, currency, VAT mode, delivery note, availability, provider confidence, and source-query evidence.
 - Built-in public catalog discovery now has provider-specific collectors for `officemag`, `komus`, `petrovich`, and `vseinstrumenti`. They only consume matching `catalog_search` links, follow same-site catalog anchors/product URLs, parse schema.org Product/Offer on product pages, and stage review-only candidates under the real catalog provider while the generic schema.org collector remains the fallback for manual/unknown public links.
+- Supplier catalog health diagnostics now live in `src/tender_killer/supplier_catalog_health_service.py` and `GET /api/supplier-catalogs/health`. The endpoint is network-free by default and returns configured provider/sample URL diagnostics; `?live=1` performs public HTTP checks per built-in catalog provider and reports HTTP status or fetch errors.
 - Supplier discovery staging now stores provider collector diagnostics under `raw_payload.supplier_discovery.collector_diagnostics`, including seen queries/links, skipped links, fetched pages, candidates found, and fetch errors.
 - `TenderEconomicsTab.jsx` renders collector diagnostics in the supplier discovery preview next to staged candidates, so operator review can see provider, seen/skipped links, fetched pages, candidates found, and errors.
 - `web/src/api.js` now surfaces backend JSON `error` messages, so supplier discovery can show no-new-candidates and missing-prepared-query responses instead of only generic client text.
-- `tender_killer.dev_health` now requires `/api/health` capabilities for `supplier_search_prepare` and `supplier_catalog_presets`, so stale backend processes on port 8000 are rejected before Vite proxies newer supplier UI actions to them.
+- `tender_killer.dev_health` now requires `/api/health` capabilities for `supplier_search_prepare`, `supplier_catalog_presets`, and `supplier_catalog_health`, and also checks `/api/supplier-catalogs/health`, so stale backend processes on port 8000 are rejected before Vite proxies newer supplier UI actions to them.
 - The API dispatcher has a regression test for `/api/tenders?status=active&limit=25&offset=0`, covering the tender list route that powers the main workbench.
 - `web/src/TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
-- Latest local targeted verification after provider-specific public catalog discovery: `9 passed` for `tests/test_supplier_price_discovery_service.py`.
-- Full verification after this slice: `330 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- Latest local targeted verification after supplier catalog health diagnostics: `11 passed` for supplier catalog health service/API/dev health/dev smoke checks.
+- Full verification after this slice: `334 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
 - JSX syntax was checked through Babel parser in the Node REPL after wiring the supplier catalog preset controls into the economics tab.
 - Next planned steps:
-  1. Add provider health/diagnostic checks for public catalog discovery.
-  2. Validate real catalog pages and add narrow provider parsing rules where schema.org/anchor discovery is not enough.
+  1. Validate real catalog pages and add narrow provider parsing rules where schema.org/anchor discovery is not enough.
+  2. Surface supplier catalog health in the economics supplier diagnostics UI.
   3. Keep Telegram as notifications/quick entry, not the main workbench.

@@ -38,6 +38,14 @@ def check_dev_site(
             lambda payload: isinstance(payload.get("sources"), list),
             name="vite_proxy_sources",
         ),
+        _json_endpoint_check(
+            web_base_url,
+            "/api/supplier-catalogs/health",
+            timeout,
+            fetch,
+            lambda payload: payload.get("ok") is True and isinstance(payload.get("catalogs"), list),
+            name="vite_proxy_supplier_catalogs",
+        ),
         _ui_text_check(Path(app_source_path)),
     ]
     checks[2]["name"] = "vite_proxy_health"

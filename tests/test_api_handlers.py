@@ -32,6 +32,23 @@ def test_handle_get_request_returns_health_payload(tmp_path) -> None:
     assert response.payload["ok"] is True
     assert "supplier_search_prepare" in response.payload["capabilities"]
     assert "supplier_catalog_presets" in response.payload["capabilities"]
+    assert "supplier_catalog_health" in response.payload["capabilities"]
+
+
+def test_handle_get_request_routes_supplier_catalog_health(tmp_path) -> None:
+    response = handle_get_request(tmp_path / "tenders.sqlite", "/api/supplier-catalogs/health", {})
+
+    assert response.kind == "json"
+    assert response.status == 200
+    assert response.payload["ok"] is True
+    assert response.payload["live"] is False
+    assert [catalog["provider"] for catalog in response.payload["catalogs"]] == [
+        "officemag",
+        "komus",
+        "petrovich",
+        "vseinstrumenti",
+    ]
+    assert response.payload["catalogs"][0]["status"] == "configured"
 
 
 def test_handle_get_request_routes_tender_detail(tmp_path) -> None:

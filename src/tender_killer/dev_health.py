@@ -15,6 +15,7 @@ Validator = Callable[[dict[str, Any]], str]
 REQUIRED_API_CAPABILITIES: tuple[str, ...] = (
     "supplier_search_prepare",
     "supplier_catalog_presets",
+    "supplier_catalog_health",
 )
 
 
@@ -27,6 +28,13 @@ def check_api_health(
     checks = [
         _check_endpoint(base_url, "/api/health", timeout, fetch, _health_payload_error),
         _check_endpoint(base_url, "/api/sources/status", timeout, fetch, _source_status_payload_error),
+        _check_endpoint(
+            base_url,
+            "/api/supplier-catalogs/health",
+            timeout,
+            fetch,
+            _supplier_catalog_health_payload_error,
+        ),
     ]
     return {
         "ok": all(check["ok"] for check in checks),
@@ -108,6 +116,14 @@ def _health_payload_error(payload: dict[str, Any]) -> str:
 def _source_status_payload_error(payload: dict[str, Any]) -> str:
     if not isinstance(payload.get("sources"), list):
         return "expected sources list"
+    return ""
+
+
+def _supplier_catalog_health_payload_error(payload: dict[str, Any]) -> str:
+    if payload.get("ok") is not True:
+        return "expected ok=true"
+    if not isinstance(payload.get("catalogs"), list):
+        return "expected catalogs list"
     return ""
 
 

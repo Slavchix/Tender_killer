@@ -34,6 +34,7 @@ from tender_killer.product_profile_service import rebuild_product_profiles as re
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
 from tender_killer.search_service import run_search_payload
 from tender_killer.source_run_service import list_source_runs_payload
+from tender_killer.supplier_catalog_health_service import get_supplier_catalog_health_payload
 from tender_killer.supplier_catalog_preset_service import update_profile_supplier_catalog_presets
 from tender_killer.supplier_discovery_service import import_profile_supplier_candidate
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
@@ -60,6 +61,7 @@ SettingsFactory = Callable[[], Settings]
 API_CAPABILITIES: tuple[str, ...] = (
     "supplier_search_prepare",
     "supplier_catalog_presets",
+    "supplier_catalog_health",
 )
 
 
@@ -228,6 +230,8 @@ def handle_get_request(database_path: str | Path, path: str, query: dict[str, st
         return ApiResponse(get_database_table_payload(database_path, table_name, query))
     if path == "/api/sources/status":
         return ApiResponse(list_source_runs_payload(database_path))
+    if path == "/api/supplier-catalogs/health":
+        return ApiResponse(get_supplier_catalog_health_payload(live=_truthy_query_value(query.get("live"))))
     if path == "/api/tenders":
         return ApiResponse(list_tenders_payload(database_path, query))
     if path.startswith("/api/tenders/") and path.endswith("/report.docx"):
@@ -255,6 +259,10 @@ def handle_get_request(database_path: str | Path, path: str, query: dict[str, st
     if path == "/api/health":
         return ApiResponse({"ok": True, "capabilities": list(API_CAPABILITIES)})
     return ApiResponse({"error": "not found"}, status=404)
+
+
+def _truthy_query_value(value: str | None) -> bool:
+    return str(value or "").casefold() in {"1", "true", "yes", "on"}
 
 
 def handle_post_request(
