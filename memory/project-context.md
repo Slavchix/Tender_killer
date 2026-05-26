@@ -694,20 +694,28 @@ Date: 2026-05-26.
   - `web/src/FiltersPanel.jsx`;
   - `web/src/TenderList.jsx`;
   - `web/src/PaginationBar.jsx`;
+  - `web/src/TenderDetailActions.jsx`;
+  - `web/src/TenderDetailsHeader.jsx`;
+  - `web/src/TenderDetailsStatusStack.jsx`;
+  - `web/src/TenderDetailsTabs.jsx`;
   - `web/src/TenderDetailsShared.jsx`;
+  - `web/src/TenderDecisionSummary.jsx`;
   - `web/src/TenderOverviewTab.jsx`;
   - `web/src/TenderDocumentsTab.jsx`;
   - `web/src/TenderAnalysisTab.jsx`;
+  - `web/src/TenderWorkflowTab.jsx`;
+  - `web/src/TenderProductsTab.jsx`;
   - `web/src/TenderEconomicsTab.jsx`.
+- Tender detail hooks now include `web/src/useTenderDetailsUi.js`, `web/src/useTenderDocumentAnalysis.js`, `web/src/useTenderNotification.js`, `web/src/useTenderProductProfiles.js`, `web/src/useTenderRefreshDetails.js`, and `web/src/useTenderWorkflow.js`.
 - `TenderDocumentsTab.jsx` owns document summary, download/extract buttons, document rows, text preview, and document status labels.
 - `TenderAnalysisTab.jsx` owns the TZ analysis panel and checklist. It also exports `AnalysisList`, which is reused by product/economics views.
 - `TenderEconomicsTab.jsx` owns the economics workbench: NMC summary, cost inputs, supplier candidates, selected supplier price source, assumptions, auto-estimate run/accept controls, bid thresholds, and participation decision UI.
-- `web/src/TenderDetails.jsx` now coordinates selected tender state/actions and still contains workflow plus product profile detail pieces. The next decomposition target is `WorkflowTabPanel`.
-- Latest local frontend contract after economics extraction: `41 passed`.
-- Latest full verification after economics extraction: `285 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-economics-escalated`.
-- JSX syntax was checked through Babel parser in the Node REPL after extracting the economics tab.
-- Local commit before documentation update: `92a477b Extract tender economics tab`.
+- `web/src/TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
+- Latest local frontend contract after tender detail UI-state extraction: `54 passed`.
+- Latest full verification after tender detail UI-state extraction: `298 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- JSX syntax was checked through Babel parser in the Node REPL after extracting `useTenderDetailsUi.js`.
+- Local commit before documentation update: `df62593 Extract tender details UI state`.
 - Next planned steps:
-  1. Extract `WorkflowTabPanel` from `web/src/TenderDetails.jsx` into a dedicated module with contract tests.
-  2. Re-check remaining `TenderDetails.jsx`; likely next candidates are product tab/profile detail and possibly decision/price banner helpers.
-  3. After frontend decomposition, return to the economics roadmap: improve automatic supplier/product search and price discovery without making Telegram the main UI.
+  1. Commit/push the current frontend decomposition only when requested.
+  2. Optionally inspect whether the remaining `TenderDetails.jsx` prop wiring should be simplified with a reducer, context, or aggregated prop objects; it is no longer the main decomposition blocker.
+  3. Return to the economics roadmap: improve automatic supplier/product search and price discovery without making Telegram the main UI.
