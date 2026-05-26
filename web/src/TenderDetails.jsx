@@ -2,13 +2,8 @@ import { useEffect, useState } from 'react'
 import { TenderDetailActions } from './TenderDetailActions'
 import { TenderDetailsHeader } from './TenderDetailsHeader'
 import { TenderDetailsStatusStack } from './TenderDetailsStatusStack'
+import { TenderDetailsTabs } from './TenderDetailsTabs'
 import { PriceChangeBanner, TenderDecisionSummary } from './TenderDecisionSummary'
-import { TenderOverviewTab } from './TenderOverviewTab'
-import { TenderProductsTab } from './TenderProductsTab'
-import { TenderDocumentsTab } from './TenderDocumentsTab'
-import { TenderAnalysisTab } from './TenderAnalysisTab'
-import { TenderEconomicsTab } from './TenderEconomicsTab'
-import { WorkflowTabPanel } from './TenderWorkflowTab'
 import { useTenderDocumentAnalysis } from './useTenderDocumentAnalysis'
 import { useTenderNotification } from './useTenderNotification'
 import { useTenderProductProfiles } from './useTenderProductProfiles'
@@ -75,14 +70,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
 
 
   const statusMessages = [detailStatus, notifyStatus, downloadStatus, extractStatus].filter(Boolean)
-  const tabs = [
-    { id: 'overview', label: 'Обзор' },
-    { id: 'products', label: `Товары ${productProfiles.length || tender.items?.length || 0}` },
-    { id: 'documents', label: `Документы ${documentRecords.length}` },
-    { id: 'analysis', label: 'Анализ' },
-    { id: 'economics', label: 'Экономика' },
-    { id: 'workflow', label: 'Статус' },
-  ]
 
   return (
     <div className="details">
@@ -107,84 +94,44 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
 
       <TenderDetailsStatusStack messages={statusMessages} />
 
-      <nav className="detail-tabs" aria-label="Разделы карточки">
-        {tabs.map((tab) => (
-          <button
-            className={activeTab === tab.id ? 'active' : ''}
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            type="button"
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
-
-      <div className="detail-tab-panel">
-        {activeTab === 'overview' && (
-          <TenderOverviewTab tender={tender} raw={raw} />
-        )}
-
-        {activeTab === 'products' && (
-          <TenderProductsTab
-            tender={tender}
-            productProfiles={productProfiles}
-            productProfileSummary={productProfileSummary}
-            selectedProfileIndex={selectedProfileIndex}
-            onSelectedProfileIndexChange={setSelectedProfileIndex}
-            profilesLoading={profilesLoading}
-            onRebuildProductProfiles={rebuildProductProfiles}
-          />
-        )}
-
-        {activeTab === 'documents' && (
-          <TenderDocumentsTab
-            documents={documentRecords}
-            downloading={downloading}
-            extracting={extracting}
-            onDownload={downloadDocuments}
-            onExtract={extractDocumentText}
-          />
-        )}
-
-        {activeTab === 'analysis' && (
-          <TenderAnalysisTab analysis={analysis} analyzing={analyzing} onAnalyze={analyzeTender} />
-        )}
-
-        {activeTab === 'economics' && (
-          <TenderEconomicsTab
-            tender={tender}
-            economics={economics}
-            productProfiles={productProfiles}
-            selectedEconomicsProfileIndex={selectedProfileIndex}
-            onSelectedEconomicsProfileChange={setSelectedProfileIndex}
-            onEconomicsSave={saveProfileEconomics}
-            onEconomicsAssumptionsSave={saveProfileEconomicsAssumptions}
-            onSupplierOptionSave={saveSupplierOption}
-            onSupplierOptionSelect={selectSupplierOption}
-            onSupplierOptionAutoSelect={autoSelectSupplierOption}
-            onAutoEconomicsRun={runProfileAutoEconomics}
-            onAutoEconomicsAccept={acceptProfileAutoEconomics}
-            savingEconomicsPosition={savingEconomicsPosition}
-            savingAssumptionsPosition={savingAssumptionsPosition}
-            savingSupplierOptionPosition={savingSupplierOptionPosition}
-            autoSelectingSupplierPosition={autoSelectingSupplierPosition}
-            autoEstimatingPosition={autoEstimatingPosition}
-            acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
-          />
-        )}
-
-        {activeTab === 'workflow' && (
-          <WorkflowTabPanel
-            tender={tender}
-            raw={raw}
-            note={note}
-            saving={saving}
-            onNoteChange={setNote}
-            onSaveWorkflow={saveWorkflow}
-          />
-        )}
-      </div>
+      <TenderDetailsTabs
+        tender={tender}
+        raw={raw}
+        activeTab={activeTab}
+        onActiveTabChange={setActiveTab}
+        productProfiles={productProfiles}
+        productProfileSummary={productProfileSummary}
+        selectedProfileIndex={selectedProfileIndex}
+        onSelectedProfileIndexChange={setSelectedProfileIndex}
+        profilesLoading={profilesLoading}
+        onRebuildProductProfiles={rebuildProductProfiles}
+        documentRecords={documentRecords}
+        downloading={downloading}
+        extracting={extracting}
+        onDownloadDocuments={downloadDocuments}
+        onExtractDocumentText={extractDocumentText}
+        analysis={analysis}
+        analyzing={analyzing}
+        onAnalyzeTender={analyzeTender}
+        economics={economics}
+        onEconomicsSave={saveProfileEconomics}
+        onEconomicsAssumptionsSave={saveProfileEconomicsAssumptions}
+        onSupplierOptionSave={saveSupplierOption}
+        onSupplierOptionSelect={selectSupplierOption}
+        onSupplierOptionAutoSelect={autoSelectSupplierOption}
+        onAutoEconomicsRun={runProfileAutoEconomics}
+        onAutoEconomicsAccept={acceptProfileAutoEconomics}
+        savingEconomicsPosition={savingEconomicsPosition}
+        savingAssumptionsPosition={savingAssumptionsPosition}
+        savingSupplierOptionPosition={savingSupplierOptionPosition}
+        autoSelectingSupplierPosition={autoSelectingSupplierPosition}
+        autoEstimatingPosition={autoEstimatingPosition}
+        acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
+        note={note}
+        saving={saving}
+        onNoteChange={setNote}
+        onSaveWorkflow={saveWorkflow}
+      />
     </div>
   )
 }
