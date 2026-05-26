@@ -1,3 +1,5 @@
+from urllib.parse import quote
+
 from tender_killer.api_handlers import handle_get_request, handle_post_request
 from tender_killer.models import ProductProfile, Tender
 from tender_killer.storage import TenderStore
@@ -352,6 +354,20 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_candidate
 
 def test_handle_post_request_routes_product_profile_supplier_discovery_run(tmp_path) -> None:
     store = _store_with_tender(tmp_path)
+    product_page = quote(
+        """
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          "name": "Office paper A4 80 gsm",
+          "url": "https://supplier.example/paper-a4",
+          "offers": {"@type": "Offer", "price": "925", "availability": "https://schema.org/InStock"}
+        }
+        </script>
+        """,
+        safe="",
+    )
     store.upsert_product_profiles(
         "mosreg_market",
         "3668200",
@@ -372,7 +388,7 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_run(tmp_p
                                 "kind": "normalized_name",
                                 "priority": 1,
                                 "quick_links": [
-                                    {"label": "Google", "url": "https://www.google.com/search?q=office+paper+a4"},
+                                    {"label": "Supplier page", "url": f"data:text/html,{product_page}"},
                                 ],
                             }
                         ],
@@ -392,8 +408,11 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_run(tmp_p
     assert response.status == 200
     assert profile["profile_status"] == "matched"
     assert profile["raw_payload"]["supplier_discovery"]["status"] == "pending_review"
-    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["provider"] == "public_search"
-    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["confidence"] == "needs_review"
+    assert profile["raw_payload"]["supplier_discovery"]["collector_diagnostics"][0]["provider"] == "schema_org_product"
+    assert profile["raw_payload"]["supplier_discovery"]["collector_diagnostics"][0]["candidates_found"] == 1
+    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["provider"] == "schema_org_product"
+    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["unit_price"] == 925.0
+    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["confidence"] == "high"
     assert "supplier_options" not in profile["raw_payload"]
     assert "economics" not in profile["raw_payload"]
 

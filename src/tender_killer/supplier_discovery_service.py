@@ -17,6 +17,9 @@ DISCOVERY_TEXT_FIELDS = (
     "note",
     "provider",
     "confidence",
+    "currency",
+    "vat_mode",
+    "delivery_note",
 )
 DISCOVERY_NUMBER_FIELDS = ("unit_price",)
 DISCOVERY_CONFIDENCE_VALUES = {"high", "medium", "needs_review"}
@@ -30,6 +33,7 @@ def stage_profile_supplier_candidates(
     external_id: str,
     position_index: int,
     candidates: list[dict[str, Any]],
+    collector_diagnostics: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
@@ -51,6 +55,8 @@ def stage_profile_supplier_candidates(
     existing_candidates = _discovery_candidates(discovery.get("candidates"))
     existing_candidates.extend(staged)
     discovery["status"] = "pending_review"
+    if collector_diagnostics is not None:
+        discovery["collector_diagnostics"] = collector_diagnostics
     discovery["candidates"] = existing_candidates
     raw_payload["supplier_discovery"] = discovery
     target["raw_payload"] = raw_payload

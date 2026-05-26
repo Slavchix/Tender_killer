@@ -714,11 +714,14 @@ Date: 2026-05-26.
 - Manual supplier candidates now preserve the prepared search query that led to them through `source_query` and `source_kind` fields in `raw_payload.supplier_options`, so review evidence stays attached to candidate prices before selection.
 - Supplier discovery review now lives in `src/tender_killer/supplier_discovery_service.py`. Discovered candidates can be staged under `raw_payload.supplier_discovery.candidates` and imported into `supplier_options`; import marks the discovery candidate as `imported` but does not select the supplier or update economics.
 - Supplier discovery candidates now normalize `provider`, derive `confidence` and `confidence_reasons` from price/link/source-query evidence, and preserve provider/confidence when imported into `supplier_options`.
-- First public supplier discovery run now lives in `src/tender_killer/supplier_price_discovery_service.py`. `POST /api/tenders/{source}/{external_id}/product-profiles/{position}/supplier-discovery/run` converts prepared quick links into review-only `public_search` candidates; it is idempotent by provider/link and does not select suppliers or update economics.
+- First public supplier discovery run now lives in `src/tender_killer/supplier_price_discovery_service.py`. `SchemaOrgProductCollector` ignores Google/Yandex search pages, fetches public product-page quick links, parses JSON-LD Product/Offer, and stages review-only `schema_org_product` candidates with unit price, currency, VAT mode, delivery note, availability, provider confidence, and source-query evidence.
+- Supplier discovery staging now stores provider collector diagnostics under `raw_payload.supplier_discovery.collector_diagnostics`, including seen queries/links, skipped links, fetched pages, candidates found, and fetch errors.
+- `web/src/api.js` now surfaces backend JSON `error` messages, so supplier discovery can show no-new-candidates and missing-prepared-query responses instead of only generic client text.
 - `web/src/TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
-- Latest local targeted verification after public supplier discovery run: `93 passed` for supplier discovery/search/price-discovery services, API routes/handlers, and frontend contracts.
+- Latest local targeted verification after schema.org supplier price collection: `95 passed` for supplier discovery/search/price-discovery services, API routes/handlers, and frontend contracts.
+- Full verification after this slice: `318 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
 - JSX syntax was checked through Babel parser in the Node REPL after wiring the discovery run action into the economics tab.
 - Next planned steps:
-  1. Replace the review-only public search link adapter with a provider-specific collector that can extract real public price rows safely.
-  2. Add provider-specific collector diagnostics once real discovery providers start staging candidates.
+  1. Feed real provider/product-page links into prepared supplier search or add provider-specific catalog connectors, so discovery no longer depends on manually supplied product-page quick links.
+  2. Surface supplier discovery collector diagnostics in the economics UI.
   3. Keep Telegram as notifications/quick entry, not the main workbench.

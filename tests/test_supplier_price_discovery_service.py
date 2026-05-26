@@ -5,11 +5,90 @@ import pytest
 from tender_killer.models import ProductProfile
 from tender_killer.models import Tender
 from tender_killer.storage import TenderStore
+from tender_killer.supplier_price_discovery_service import SchemaOrgProductCollector
 from tender_killer.supplier_price_discovery_service import run_profile_supplier_price_discovery
 from tender_killer.tender_detail_service import get_tender_payload
 
 
-def test_run_profile_supplier_price_discovery_stages_public_search_candidates(tmp_path) -> None:
+def test_schema_org_product_collector_extracts_public_offer_price() -> None:
+    html = """
+    <html>
+      <head>
+        <script type="application/ld+json">
+          {
+            "@context": "https://schema.org",
+            "@type": "Product",
+            "name": "Office paper A4 80 gsm",
+            "url": "https://supplier.example/paper-a4",
+            "offers": {
+              "@type": "Offer",
+              "priceSpecification": {
+                "@type": "UnitPriceSpecification",
+                "price": "925,50",
+                "priceCurrency": "RUB",
+                "valueAddedTaxIncluded": true
+              },
+              "availability": "https://schema.org/InStock",
+              "shippingDetails": {
+                "@type": "OfferShippingDetails",
+                "description": "Delivery in Moscow"
+              }
+            }
+          }
+        </script>
+      </head>
+    </html>
+    """
+    collector = SchemaOrgProductCollector(fetch_text=lambda url: html)
+
+    candidates = collector.collect(
+        {
+            "query": "office paper a4",
+            "kind": "normalized_name",
+            "quick_links": [
+                {"label": "Supplier page", "url": "https://supplier.example/paper-a4"},
+            ],
+        }
+    )
+
+    assert candidates == [
+        {
+            "name": "Office paper A4 80 gsm",
+            "url": "https://supplier.example/paper-a4",
+            "unit_price": 925.5,
+            "currency": "RUB",
+            "vat_mode": "vat_included",
+            "delivery_note": "Delivery in Moscow",
+            "availability": "in_stock",
+            "status": "candidate",
+            "source_query": "office paper a4",
+            "source_kind": "normalized_name",
+            "note": "Schema.org product offer from https://supplier.example/paper-a4.",
+            "provider": "schema_org_product",
+        }
+    ]
+
+
+def test_schema_org_product_collector_skips_search_engine_links() -> None:
+    calls: list[str] = []
+    collector = SchemaOrgProductCollector(fetch_text=lambda url: calls.append(url) or "<html></html>")
+
+    candidates = collector.collect(
+        {
+            "query": "office paper a4",
+            "kind": "normalized_name",
+            "quick_links": [
+                {"label": "Google", "url": "https://www.google.com/search?q=office+paper+a4"},
+                {"label": "Yandex", "url": "https://yandex.ru/search/?text=office+paper+a4"},
+            ],
+        }
+    )
+
+    assert candidates == []
+    assert calls == []
+
+
+def test_run_profile_supplier_price_discovery_stages_schema_org_product_candidates(tmp_path) -> None:
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()
     store.upsert_tender(
@@ -42,7 +121,7 @@ def test_run_profile_supplier_price_discovery_stages_public_search_candidates(tm
                                 "priority": 1,
                                 "quick_links": [
                                     {"label": "Google", "url": "https://www.google.com/search?q=office+paper+a4"},
-                                    {"label": "Yandex", "url": "https://yandex.ru/search/?text=office+paper+a4"},
+                                    {"label": "Supplier page", "url": "https://supplier.example/paper-a4"},
                                 ],
                             }
                         ],
@@ -58,6 +137,25 @@ def test_run_profile_supplier_price_discovery_stages_public_search_candidates(tm
         "mosreg_market",
         "supplier-price-discovery",
         1,
+        collectors=[
+            SchemaOrgProductCollector(
+                fetch_text=lambda url: """
+                <script type="application/ld+json">
+                {
+                  "@context": "https://schema.org",
+                  "@type": "Product",
+                  "name": "Office paper A4 80 gsm",
+                  "url": "https://supplier.example/paper-a4",
+                  "offers": {
+                    "@type": "Offer",
+                    "price": "925.50",
+                    "availability": "https://schema.org/InStock"
+                  }
+                }
+                </script>
+                """
+            )
+        ],
     )
 
     assert payload == {
@@ -66,18 +164,30 @@ def test_run_profile_supplier_price_discovery_stages_public_search_candidates(tm
         "staged_count": 1,
         "supplier_discovery": {
             "status": "pending_review",
+            "collector_diagnostics": [
+                {
+                    "provider": "schema_org_product",
+                    "queries_seen": 1,
+                    "links_seen": 2,
+                    "links_skipped": 1,
+                    "pages_fetched": 1,
+                    "candidates_found": 1,
+                    "errors": [],
+                }
+            ],
             "candidates": [
                 {
-                    "name": "Public search: office paper a4",
-                    "url": "https://www.google.com/search?q=office+paper+a4",
-                    "availability": "unknown",
+                    "name": "Office paper A4 80 gsm",
+                    "url": "https://supplier.example/paper-a4",
+                    "unit_price": 925.5,
+                    "availability": "in_stock",
                     "status": "candidate",
                     "source_query": "office paper a4",
                     "source_kind": "normalized_name",
-                    "note": "Google public search result needs manual price review.",
-                    "provider": "public_search",
-                    "confidence": "needs_review",
-                    "confidence_reasons": ["has_url", "has_source_query"],
+                    "note": "Schema.org product offer from https://supplier.example/paper-a4.",
+                    "provider": "schema_org_product",
+                    "confidence": "high",
+                    "confidence_reasons": ["has_price", "has_url", "has_source_query"],
                     "review_status": "pending",
                 }
             ],
@@ -121,7 +231,7 @@ def test_run_profile_supplier_price_discovery_skips_existing_candidates(tmp_path
                                 "kind": "normalized_name",
                                 "priority": 1,
                                 "quick_links": [
-                                    {"label": "Google", "url": "https://www.google.com/search?q=office+paper+a4"},
+                                    {"label": "Supplier page", "url": "https://supplier.example/paper-a4"},
                                 ],
                             }
                         ],
@@ -130,9 +240,9 @@ def test_run_profile_supplier_price_discovery_skips_existing_candidates(tmp_path
                         "status": "pending_review",
                         "candidates": [
                             {
-                                "name": "Public search: office paper a4",
-                                "url": "https://www.google.com/search?q=office+paper+a4",
-                                "provider": "public_search",
+                                "name": "Office paper",
+                                "url": "https://supplier.example/paper-a4",
+                                "provider": "schema_org_product",
                                 "review_status": "pending",
                             }
                         ],
@@ -141,14 +251,31 @@ def test_run_profile_supplier_price_discovery_skips_existing_candidates(tmp_path
             )
         ],
     )
+    calls: list[str] = []
 
-    with pytest.raises(ValueError, match="No new supplier discovery candidates"):
+    with pytest.raises(ValueError, match="Новых кандидатов поставщиков не найдено"):
         run_profile_supplier_price_discovery(
             store.database_path,
             "mosreg_market",
             "supplier-price-discovery-duplicates",
             1,
+            collectors=[
+                SchemaOrgProductCollector(
+                    fetch_text=lambda url: calls.append(url)
+                    or """
+                       <script type="application/ld+json">
+                       {
+                         "@type":"Product",
+                         "name":"Office paper",
+                         "url":"https://supplier.example/paper-a4",
+                         "offers":{"price":"925"}
+                       }
+                       </script>
+                       """
+                )
+            ],
         )
+    assert calls == ["https://supplier.example/paper-a4"]
 
 
 def test_run_profile_supplier_price_discovery_rejects_missing_prepared_queries(tmp_path) -> None:
@@ -175,7 +302,7 @@ def test_run_profile_supplier_price_discovery_rejects_missing_prepared_queries(t
         ],
     )
 
-    with pytest.raises(ValueError, match="No prepared supplier search queries"):
+    with pytest.raises(ValueError, match="Сначала подготовь поиск поставщиков"):
         run_profile_supplier_price_discovery(
             store.database_path,
             "mosreg_market",

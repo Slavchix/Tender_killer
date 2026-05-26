@@ -4,9 +4,11 @@ function apiJson(path, { method = 'GET', body, errorMessage = 'API не отве
     options.headers = { 'Content-Type': 'application/json' }
     options.body = JSON.stringify(body)
   }
-  return fetch(path, options).then((response) => (
-    response.ok ? response.json() : Promise.reject(new Error(errorMessage))
-  ))
+  return fetch(path, options).then(async (response) => {
+    const payload = await response.json().catch(() => null)
+    if (response.ok) return payload
+    throw new Error((payload && payload.error) || errorMessage)
+  })
 }
 
 function tenderPath(tenderOrSource, externalId) {

@@ -61,6 +61,8 @@ def test_frontend_uses_dedicated_api_client():
 
     assert "from './api'" in app_source
     assert "function apiJson" in api_source
+    assert "payload.error" in api_source
+    assert "response.json().catch" in api_source
     assert "export function fetchTenderDetail" in api_source
     assert "export function saveProfileEconomics" in api_source
     assert "export function autoSelectProfileSupplierOption" in api_source
