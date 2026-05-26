@@ -1,16 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Building2 } from 'lucide-react'
 import {
-  acceptProfileAutoEconomics as acceptProfileAutoEconomicsRequest,
-  addProfileSupplierOption,
-  autoSelectProfileSupplierOption,
-  rebuildTenderProductProfiles,
   refreshTenderDetails,
-  runProfileAutoEconomics as runProfileAutoEconomicsRequest,
-  saveProfileEconomics as saveProfileEconomicsRequest,
-  saveProfileEconomicsAssumptions as saveProfileEconomicsAssumptionsRequest,
   saveTenderWorkflow,
-  selectProfileSupplierOption,
   sendTenderNotification,
 } from './api'
 import {
@@ -28,6 +20,7 @@ import { TenderAnalysisTab } from './TenderAnalysisTab'
 import { TenderEconomicsTab } from './TenderEconomicsTab'
 import { WorkflowTabPanel } from './TenderWorkflowTab'
 import { useTenderDocumentAnalysis } from './useTenderDocumentAnalysis'
+import { useTenderProductProfiles } from './useTenderProductProfiles'
 
 export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const raw = safeJson(tender.raw_payload_json)
@@ -39,17 +32,29 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const [refreshingDetails, setRefreshingDetails] = useState(false)
   const [notifyStatus, setNotifyStatus] = useState('')
   const [detailStatus, setDetailStatus] = useState('')
-  const [productProfiles, setProductProfiles] = useState(tender.product_profiles || [])
-  const [productProfileSummary, setProductProfileSummary] = useState(tender.product_profile_summary || null)
-  const [economics, setEconomics] = useState(tender.economics || null)
-  const [selectedProfileIndex, setSelectedProfileIndex] = useState(0)
-  const [profilesLoading, setProfilesLoading] = useState(false)
-  const [savingEconomicsPosition, setSavingEconomicsPosition] = useState(null)
-  const [savingAssumptionsPosition, setSavingAssumptionsPosition] = useState(null)
-  const [savingSupplierOptionPosition, setSavingSupplierOptionPosition] = useState(null)
-  const [autoSelectingSupplierPosition, setAutoSelectingSupplierPosition] = useState(null)
-  const [autoEstimatingPosition, setAutoEstimatingPosition] = useState(null)
-  const [acceptingAutoEconomicsPosition, setAcceptingAutoEconomicsPosition] = useState(null)
+  const {
+    productProfiles,
+    productProfileSummary,
+    economics,
+    selectedProfileIndex,
+    setSelectedProfileIndex,
+    profilesLoading,
+    savingEconomicsPosition,
+    savingAssumptionsPosition,
+    savingSupplierOptionPosition,
+    autoSelectingSupplierPosition,
+    autoEstimatingPosition,
+    acceptingAutoEconomicsPosition,
+    applyProductTenderState,
+    rebuildProductProfiles,
+    saveProfileEconomics,
+    saveProfileEconomicsAssumptions,
+    saveSupplierOption,
+    selectSupplierOption,
+    autoSelectSupplierOption,
+    runProfileAutoEconomics,
+    acceptProfileAutoEconomics,
+  } = useTenderProductProfiles(tender, onTenderRefresh, setDetailStatus)
   const {
     documentRecords,
     setDocumentRecords,
@@ -70,16 +75,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     setNote(tender.workflow_note || '')
     setNotifyStatus('')
     setDetailStatus('')
-    setProductProfiles(tender.product_profiles || [])
-    setProductProfileSummary(tender.product_profile_summary || null)
-    setEconomics(tender.economics || null)
-    setSelectedProfileIndex(0)
-    setSavingEconomicsPosition(null)
-    setSavingAssumptionsPosition(null)
-    setSavingSupplierOptionPosition(null)
-    setAutoSelectingSupplierPosition(null)
-    setAutoEstimatingPosition(null)
-    setAcceptingAutoEconomicsPosition(null)
   }, [tender.source, tender.external_id, tender.workflow_note, tender.analysis, tender.product_profiles, tender.product_profile_summary, tender.economics])
 
   useEffect(() => {
@@ -118,10 +113,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         onTenderRefresh(nextTender)
         setDocumentRecords(nextTender.document_records || [])
         setAnalysis(nextTender.analysis || null)
-        setProductProfiles(nextTender.product_profiles || [])
-        setProductProfileSummary(nextTender.product_profile_summary || null)
-        setEconomics(nextTender.economics || null)
-        setSelectedProfileIndex(0)
+        applyProductTenderState(nextTender)
         const summary = payload.summary || {}
         setDetailStatus(
           payload.refreshed
@@ -133,156 +125,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       .finally(() => setRefreshingDetails(false))
   }
 
-  function rebuildProductProfiles() {
-    setProfilesLoading(true)
-    rebuildTenderProductProfiles(tender)
-      .then((payload) => {
-        setProductProfiles(payload.product_profiles || [])
-        setProductProfileSummary(payload.summary || null)
-        setSelectedProfileIndex(0)
-      })
-      .catch((err) => {
-        setProductProfileSummary((current) => current || { total: productProfiles.length })
-        window.alert(err.message)
-      })
-      .finally(() => setProfilesLoading(false))
-  }
-
-  function saveProfileEconomics(profile, economicsInputs) {
-    if (!profile?.position_index) return
-    setSavingEconomicsPosition(profile.position_index)
-    setDetailStatus('')
-    saveProfileEconomicsRequest(tender, profile, economicsInputs)
-      .then((nextTender) => {
-        onTenderRefresh(nextTender)
-        setProductProfiles(nextTender.product_profiles || [])
-        setProductProfileSummary(nextTender.product_profile_summary || null)
-        setEconomics(nextTender.economics || null)
-        setDetailStatus('Экономика обновлена')
-      })
-      .catch((err) => setDetailStatus(err.message))
-      .finally(() => setSavingEconomicsPosition(null))
-  }
-
-  function saveProfileEconomicsAssumptions(profile, assumptionsInputs) {
-    if (!profile?.position_index) return null
-    setSavingAssumptionsPosition(profile.position_index)
-    setDetailStatus('')
-    return saveProfileEconomicsAssumptionsRequest(tender, profile, assumptionsInputs)
-      .then((nextTender) => {
-        onTenderRefresh(nextTender)
-        setProductProfiles(nextTender.product_profiles || [])
-        setProductProfileSummary(nextTender.product_profile_summary || null)
-        setEconomics(nextTender.economics || null)
-        setDetailStatus('Допущения экономики обновлены')
-        return nextTender
-      })
-      .catch((err) => {
-        setDetailStatus(err.message)
-        throw err
-      })
-      .finally(() => setSavingAssumptionsPosition(null))
-  }
-
-  function saveSupplierOption(profile, supplierOption) {
-    if (!profile?.position_index) return null
-    setSavingSupplierOptionPosition(profile.position_index)
-    setDetailStatus('')
-    return addProfileSupplierOption(tender, profile, supplierOption)
-      .then((nextTender) => {
-        onTenderRefresh(nextTender)
-        setProductProfiles(nextTender.product_profiles || [])
-        setProductProfileSummary(nextTender.product_profile_summary || null)
-        setEconomics(nextTender.economics || null)
-        setDetailStatus('Поставщик добавлен')
-        return nextTender
-      })
-      .catch((err) => {
-        setDetailStatus(err.message)
-        throw err
-      })
-      .finally(() => setSavingSupplierOptionPosition(null))
-  }
-
-  function selectSupplierOption(profile, optionIndex) {
-    if (!profile?.position_index) return null
-    setSavingSupplierOptionPosition(profile.position_index)
-    setDetailStatus('')
-    return selectProfileSupplierOption(tender, profile, optionIndex)
-      .then((nextTender) => {
-        onTenderRefresh(nextTender)
-        setProductProfiles(nextTender.product_profiles || [])
-        setProductProfileSummary(nextTender.product_profile_summary || null)
-        setEconomics(nextTender.economics || null)
-        setDetailStatus('Поставщик взят в расчет')
-        return nextTender
-      })
-      .catch((err) => {
-        setDetailStatus(err.message)
-        throw err
-      })
-      .finally(() => setSavingSupplierOptionPosition(null))
-  }
-
-  function autoSelectSupplierOption(profile) {
-    if (!profile?.position_index) return null
-    setAutoSelectingSupplierPosition(profile.position_index)
-    setDetailStatus('')
-    return autoSelectProfileSupplierOption(tender, profile)
-      .then((nextTender) => {
-        onTenderRefresh(nextTender)
-        setProductProfiles(nextTender.product_profiles || [])
-        setProductProfileSummary(nextTender.product_profile_summary || null)
-        setEconomics(nextTender.economics || null)
-        setDetailStatus('Лучший поставщик взят в расчет')
-        return nextTender
-      })
-      .catch((err) => {
-        setDetailStatus(err.message)
-        throw err
-      })
-      .finally(() => setAutoSelectingSupplierPosition(null))
-  }
-
-  function runProfileAutoEconomics(profile) {
-    if (!profile?.position_index) return null
-    setAutoEstimatingPosition(profile.position_index)
-    setDetailStatus('')
-    return runProfileAutoEconomicsRequest(tender, profile)
-      .then((nextTender) => {
-        onTenderRefresh(nextTender)
-        setProductProfiles(nextTender.product_profiles || [])
-        setProductProfileSummary(nextTender.product_profile_summary || null)
-        setEconomics(nextTender.economics || null)
-        setDetailStatus('Авторасчет обновлен')
-        return nextTender
-      })
-      .catch((err) => {
-        setDetailStatus(err.message)
-        throw err
-      })
-      .finally(() => setAutoEstimatingPosition(null))
-  }
-
-  function acceptProfileAutoEconomics(profile) {
-    if (!profile?.position_index) return null
-    setAcceptingAutoEconomicsPosition(profile.position_index)
-    setDetailStatus('')
-    return acceptProfileAutoEconomicsRequest(tender, profile)
-      .then((nextTender) => {
-        onTenderRefresh(nextTender)
-        setProductProfiles(nextTender.product_profiles || [])
-        setProductProfileSummary(nextTender.product_profile_summary || null)
-        setEconomics(nextTender.economics || null)
-        setDetailStatus('Авторасчет принят в экономику')
-        return nextTender
-      })
-      .catch((err) => {
-        setDetailStatus(err.message)
-        throw err
-      })
-      .finally(() => setAcceptingAutoEconomicsPosition(null))
-  }
 
   const statusMessages = [detailStatus, notifyStatus, downloadStatus, extractStatus].filter(Boolean)
   const tabs = [

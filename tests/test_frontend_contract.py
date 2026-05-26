@@ -26,6 +26,7 @@ TENDER_PRODUCTS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src"
 TENDER_WORKFLOW_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderWorkflowTab.jsx"
 TENDER_LIST_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderList.jsx"
 USE_TENDER_DOCUMENT_ANALYSIS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderDocumentAnalysis.js"
+USE_TENDER_PRODUCT_PROFILES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderProductProfiles.js"
 
 
 def _css_rule(source: str, selector: str) -> str:
@@ -223,6 +224,7 @@ def test_frontend_uses_dedicated_tender_details_module():
     assert "from './TenderProductsTab'" in tender_details_source
     assert "from './TenderWorkflowTab'" in tender_details_source
     assert "from './useTenderDocumentAnalysis'" in tender_details_source
+    assert "from './useTenderProductProfiles'" in tender_details_source
     assert "details-panel" in app_source
     assert "<TenderDetails tender={details}" in app_source
     assert "function TenderDetails" not in app_source
@@ -434,6 +436,58 @@ def test_tender_details_uses_document_analysis_hook():
     assert "const [analyzing" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_DOCUMENT_ANALYSIS_SOURCE) == []
+
+
+def test_tender_details_uses_product_profiles_hook():
+    tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    hook_source = (
+        USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
+        if USE_TENDER_PRODUCT_PROFILES_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './useTenderProductProfiles'" in tender_details_source
+    assert "useTenderProductProfiles(tender, onTenderRefresh, setDetailStatus)" in tender_details_source
+    assert "export function useTenderProductProfiles" in hook_source
+    for api_name in (
+        "rebuildTenderProductProfiles",
+        "saveProfileEconomics",
+        "saveProfileEconomicsAssumptions",
+        "addProfileSupplierOption",
+        "selectProfileSupplierOption",
+        "autoSelectProfileSupplierOption",
+        "runProfileAutoEconomics",
+        "acceptProfileAutoEconomics",
+    ):
+        assert api_name in hook_source
+    for local_function in (
+        "function rebuildProductProfiles",
+        "function saveProfileEconomics",
+        "function saveProfileEconomicsAssumptions",
+        "function saveSupplierOption",
+        "function selectSupplierOption",
+        "function autoSelectSupplierOption",
+        "function runProfileAutoEconomics",
+        "function acceptProfileAutoEconomics",
+    ):
+        assert local_function not in tender_details_source
+    for state_name in (
+        "productProfiles",
+        "productProfileSummary",
+        "economics",
+        "selectedProfileIndex",
+        "profilesLoading",
+        "savingEconomicsPosition",
+        "savingAssumptionsPosition",
+        "savingSupplierOptionPosition",
+        "autoSelectingSupplierPosition",
+        "autoEstimatingPosition",
+        "acceptingAutoEconomicsPosition",
+    ):
+        assert f"const [{state_name}" not in tender_details_source
+    assert "applyProductTenderState(nextTender)" in tender_details_source
+    assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
 
 
 def test_tender_cockpit_exposes_page_size_selector():
