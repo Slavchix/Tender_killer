@@ -158,6 +158,7 @@ def _build_filters(query: dict[str, str]) -> tuple[list[str], list[Any]]:
                 + ")"
             )
             params.extend(["active", "%Актив%", "%актив%", "%Прием%", "%Приём%"])
+            filters.append("(tenders.deadline_at IS NULL OR datetime(tenders.deadline_at) >= datetime('now'))")
         else:
             status_filters, status_params = _text_like_any("tenders.status", status)
             filters.append(status_filters)

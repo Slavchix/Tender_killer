@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from tender_killer.models import Tender
 from tender_killer.storage import TenderStore
@@ -77,6 +77,37 @@ def test_tender_query_service_filters_with_normalized_columns(tmp_path):
 
     assert payload["total"] == 1
     assert payload["items"][0]["external_id"] == "match"
+
+
+def test_tender_query_service_active_status_hides_expired_deadlines(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    now = datetime.now(UTC)
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="expired",
+            url="https://example.test/expired",
+            title="Expired active-looking tender",
+            status="Прием предложений",
+            deadline_at=now - timedelta(days=1),
+        )
+    )
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="actual",
+            url="https://example.test/actual",
+            title="Actual tender",
+            status="Прием предложений",
+            deadline_at=now + timedelta(days=1),
+        )
+    )
+
+    payload = list_tenders_payload(store.database_path, {"status": "active"})
+
+    assert payload["total"] == 1
+    assert payload["items"][0]["external_id"] == "actual"
 
 
 def test_tender_query_service_expands_construction_material_search_query(tmp_path):
