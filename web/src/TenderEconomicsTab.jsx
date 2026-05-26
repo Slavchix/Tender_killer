@@ -673,11 +673,13 @@ function ProductSupplierOptionsForm({
 
 function SupplierDiscoveryPreview({ discovery, importing = false, onImport }) {
   const candidates = Array.isArray(discovery?.candidates) ? discovery.candidates : []
-  if (!candidates.length) return null
+  const diagnostics = Array.isArray(discovery?.collector_diagnostics) ? discovery.collector_diagnostics : []
+  if (!candidates.length && !diagnostics.length) return null
 
   return (
     <div className="supplier-discovery-preview">
       <span>Найденные кандидаты</span>
+      <SupplierDiscoveryDiagnostics diagnostics={diagnostics} />
       {candidates.map((candidate, index) => {
         const imported = candidate.review_status === 'imported'
         const confidenceReasons = Array.isArray(candidate.confidence_reasons) ? candidate.confidence_reasons : []
@@ -706,6 +708,31 @@ function SupplierDiscoveryPreview({ discovery, importing = false, onImport }) {
               {imported ? 'Добавлен' : 'Добавить'}
             </button>
           </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function SupplierDiscoveryDiagnostics({ diagnostics }) {
+  if (!Array.isArray(diagnostics) || !diagnostics.length) return null
+
+  return (
+    <div className="supplier-discovery-diagnostics">
+      {diagnostics.map((diagnostics, index) => {
+        const errors = Array.isArray(diagnostics.errors) ? diagnostics.errors : []
+        return (
+          <section key={`${diagnostics.provider || 'collector'}-${index}`}>
+            <strong>{diagnostics.provider || 'collector'}</strong>
+            <div className="supplier-discovery-metrics">
+              <span>Запросы: {diagnostics.queries_seen || 0}</span>
+              <span>Ссылки: {diagnostics.links_seen || 0}</span>
+              <span>Пропущено: {diagnostics.links_skipped || 0}</span>
+              <span>Страницы: {diagnostics.pages_fetched || 0}</span>
+              <span>Кандидаты: {diagnostics.candidates_found || 0}</span>
+            </div>
+            {errors.length ? <p>{errors.join(' · ')}</p> : null}
+          </section>
         )
       })}
     </div>

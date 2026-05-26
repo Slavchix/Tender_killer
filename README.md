@@ -49,6 +49,7 @@ Recent architecture cleanup:
 - Manual supplier candidates can keep the prepared search query that led to them (`source_query` / `source_kind`), preserving review evidence before any price is selected for economics.
 - The site can run a schema.org public supplier discovery pass from prepared quick links: search-engine links are ignored, public catalog pages can lead to same-site product pages, public product pages are parsed for Product/Offer JSON-LD, and candidates stay review-only until imported.
 - Public supplier discovery now normalizes unit price, currency, VAT mode, delivery note, availability, provider confidence, and collector diagnostics under `raw_payload.supplier_discovery`.
+- The economics tab shows supplier discovery collector diagnostics next to staged candidates, including seen links, skipped links, fetched pages, candidates found, and fetch errors.
 - API errors from supplier discovery are surfaced in the React client, so no-new-candidates and missing-prepared-query messages are visible to the user.
 - Supplier discovery candidates can now be staged into `raw_payload.supplier_discovery.candidates` with normalized provider/confidence metadata and reviewed/imported into `supplier_options`; import does not select a supplier or update economics.
 - Tender Workbench v1 makes the selected tender area wider, adds a compact decision summary, and splits product details into `Паспорт`, `Цены`, `Поставщики`, and `ТЗ` sub-tabs.
@@ -76,8 +77,8 @@ Latest verified result before this handoff: `320 passed`.
 
 Good next steps:
 
-1. Surface supplier discovery collector diagnostics in the economics UI.
-2. Add concrete provider catalog presets/import paths for the suppliers worth tracking first.
+1. Add concrete provider catalog presets/import paths for the suppliers worth tracking first.
+2. Extend provider-specific collectors as real supplier catalogs are selected.
 3. Keep Telegram as notifications/quick entry, not the main workbench.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.

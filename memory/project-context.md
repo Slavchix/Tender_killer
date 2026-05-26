@@ -716,12 +716,13 @@ Date: 2026-05-26.
 - Supplier discovery candidates now normalize `provider`, derive `confidence` and `confidence_reasons` from price/link/source-query evidence, and preserve provider/confidence when imported into `supplier_options`.
 - First public supplier discovery run now lives in `src/tender_killer/supplier_price_discovery_service.py`. `SchemaOrgProductCollector` ignores Google/Yandex search pages, can follow same-site schema.org catalog/ListItem product URLs, fetches public product pages, parses JSON-LD Product/Offer, and stages review-only `schema_org_product` candidates with unit price, currency, VAT mode, delivery note, availability, provider confidence, and source-query evidence.
 - Supplier discovery staging now stores provider collector diagnostics under `raw_payload.supplier_discovery.collector_diagnostics`, including seen queries/links, skipped links, fetched pages, candidates found, and fetch errors.
+- `TenderEconomicsTab.jsx` renders collector diagnostics in the supplier discovery preview next to staged candidates, so operator review can see provider, seen/skipped links, fetched pages, candidates found, and errors.
 - `web/src/api.js` now surfaces backend JSON `error` messages, so supplier discovery can show no-new-candidates and missing-prepared-query responses instead of only generic client text.
 - `web/src/TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
-- Latest local targeted verification after catalog provider link discovery: `17 passed` for supplier search/price-discovery/discovery services, supplier API handlers, and supplier frontend contract.
+- Latest local targeted verification after diagnostics UI: `54 passed` for `tests/test_frontend_contract.py`; JSX parse passed for `web/src/TenderEconomicsTab.jsx`.
 - Full verification after this slice: `320 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
 - JSX syntax was checked through Babel parser in the Node REPL after wiring the discovery run action into the economics tab.
 - Next planned steps:
-  1. Surface supplier discovery collector diagnostics in the economics UI.
-  2. Add concrete provider catalog presets/import paths for the suppliers worth tracking first.
+  1. Add concrete provider catalog presets/import paths for the suppliers worth tracking first.
+  2. Extend provider-specific collectors as real supplier catalogs are selected.
   3. Keep Telegram as notifications/quick entry, not the main workbench.
