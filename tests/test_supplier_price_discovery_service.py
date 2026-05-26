@@ -175,6 +175,123 @@ def test_provider_catalog_collector_follows_matching_catalog_product_links() -> 
     ]
 
 
+def test_provider_catalog_collector_extracts_officemag_visible_offer_without_schema_org() -> None:
+    pages = {
+        "https://www.officemag.ru/search/?q=office+paper+a4": """
+            <html>
+              <body>
+                <a href="/catalog/goods/110532/">Office paper A4</a>
+              </body>
+            </html>
+        """,
+        "https://www.officemag.ru/catalog/goods/110532/": """
+            <html>
+              <body>
+                <h1>Office paper A4 80 gsm, 500 sheets</h1>
+                <p>449,83 руб.</p>
+                <p>346,00 руб.</p>
+                <p>Наличие на складе в Москве 16891 шт.</p>
+              </body>
+            </html>
+        """,
+    }
+    calls: list[str] = []
+    collector = price_discovery.ProviderCatalogCollector(
+        "officemag",
+        fetch_text=lambda url: calls.append(url) or pages.get(url, "<html></html>"),
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "office paper a4",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "OfficeMag",
+                    "url": "https://www.officemag.ru/search/?q=office+paper+a4",
+                    "provider": "officemag",
+                    "link_kind": "catalog_search",
+                    "preset_id": "officemag_office_supplies",
+                }
+            ],
+        }
+    )
+
+    assert calls == [
+        "https://www.officemag.ru/search/?q=office+paper+a4",
+        "https://www.officemag.ru/catalog/goods/110532/",
+    ]
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"] == [
+        {
+            "name": "Office paper A4 80 gsm, 500 sheets",
+            "url": "https://www.officemag.ru/catalog/goods/110532/",
+            "unit_price": 346.0,
+            "currency": "RUB",
+            "availability": "in_stock",
+            "status": "candidate",
+            "source_query": "office paper a4",
+            "source_kind": "normalized_name",
+            "note": "OfficeMag catalog visible offer from https://www.officemag.ru/catalog/goods/110532/.",
+            "provider": "officemag",
+        }
+    ]
+
+
+def test_provider_catalog_collector_extracts_vseinstrumenti_visible_offer_without_schema_org() -> None:
+    pages = {
+        "https://www.vseinstrumenti.ru/category/tsement-3432/": """
+            <html>
+              <body>
+                <a href="/product/cement-movatex-5-kg-17134117/">Cement Movatex 5 kg</a>
+              </body>
+            </html>
+        """,
+        "https://www.vseinstrumenti.ru/product/cement-movatex-5-kg-17134117/": """
+            <html>
+              <body>
+                <h1>Cement Movatex D0 M500, 5 kg</h1>
+                <p>275 ₽</p>
+                <p>В корзину</p>
+                <p>Самовывоз: сегодня, бесплатно</p>
+              </body>
+            </html>
+        """,
+    }
+    calls: list[str] = []
+    collector = price_discovery.ProviderCatalogCollector(
+        "vseinstrumenti",
+        fetch_text=lambda url: calls.append(url) or pages.get(url, "<html></html>"),
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "cement",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "Vseinstrumenti",
+                    "url": "https://www.vseinstrumenti.ru/category/tsement-3432/",
+                    "provider": "vseinstrumenti",
+                    "link_kind": "catalog_search",
+                    "preset_id": "vseinstrumenti_building_materials",
+                }
+            ],
+        }
+    )
+
+    assert calls == [
+        "https://www.vseinstrumenti.ru/category/tsement-3432/",
+        "https://www.vseinstrumenti.ru/product/cement-movatex-5-kg-17134117/",
+    ]
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"][0]["name"] == "Cement Movatex D0 M500, 5 kg"
+    assert result["candidates"][0]["unit_price"] == 275.0
+    assert result["candidates"][0]["currency"] == "RUB"
+    assert result["candidates"][0]["availability"] == "in_stock"
+    assert result["candidates"][0]["provider"] == "vseinstrumenti"
+
+
 def test_schema_org_product_collector_leaves_builtin_catalog_links_to_provider_collectors() -> None:
     calls: list[str] = []
     collector = SchemaOrgProductCollector(fetch_text=lambda url: calls.append(url) or "<html></html>")
