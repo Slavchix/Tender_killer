@@ -45,6 +45,7 @@ Recent architecture cleanup:
 - Draft economics now calculates revenue, manual supplier cost, risk reserve, estimated total cost, gross margin, margin percent, and missing cost inputs.
 - The site can save per-position supplier economics inputs (unit cost, logistics, documents, other costs) and immediately refresh the tender economics summary from SQLite.
 - The site can save manual supplier candidates per product position: supplier name, URL, unit price, availability, status, and note.
+- The site can prepare supplier search queries per product position and save them in SQLite under `raw_payload.supplier_search`; this is a non-network preparation step for future public price discovery.
 - Tender Workbench v1 makes the selected tender area wider, adds a compact decision summary, and splits product details into `Паспорт`, `Цены`, `Поставщики`, and `ТЗ` sub-tabs.
 - Tender filters are collapsible in the workbench, letting the tender list expand while preserving quick access to filter controls.
 - The site now has a global shell with left navigation for `Дашборд`, `Закупки`, and `SQLite`; the dashboard shows metrics, source state, and workflow queue counts.
@@ -66,13 +67,13 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `298 passed`.
+Latest verified result before this handoff: `303 passed`.
 
 Good next steps:
 
-1. Commit/push the current frontend decomposition only when requested.
-2. Optionally inspect whether the remaining `TenderDetails.jsx` prop wiring should be simplified with a reducer, context, or aggregated prop objects; it is no longer the main decomposition blocker.
-3. Return to the economics roadmap: improve supplier/product search automation while keeping Telegram as notifications/quick entry, not the main workbench.
+1. Use prepared supplier search queries as the input to the first public price discovery adapter or manual quick-link workflow.
+2. Add a safe import path from discovered public supplier candidates into existing `supplier_options`, preserving manual review before prices affect economics.
+3. Keep Telegram as notifications/quick entry, not the main workbench.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.
 
