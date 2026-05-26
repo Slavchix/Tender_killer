@@ -15,7 +15,7 @@ export function useTenderDetailsUi({
     setActiveTab('overview')
     setNotifyStatus('')
     setDetailStatus('')
-  }, [tender.source, tender.external_id, tender.workflow_note, tender.analysis, tender.product_profiles, tender.product_profile_summary, tender.economics])
+  }, [tender.source, tender.external_id])
 
   const statusMessages = [detailStatus, notifyStatus, downloadStatus, extractStatus].filter(Boolean)
 

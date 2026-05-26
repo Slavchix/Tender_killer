@@ -678,6 +678,10 @@ def test_tender_details_uses_ui_state_hook():
     assert "function safeJson" in hook_source
     assert "statusMessages" in hook_source
     assert "setActiveTab('overview')" in hook_source
+    assert "[tender.source, tender.external_id]" in hook_source
+    assert "tender.product_profiles" not in hook_source
+    assert "tender.product_profile_summary" not in hook_source
+    assert "tender.economics" not in hook_source
     assert "setNotifyStatus('')" in hook_source
     assert "setDetailStatus('')" in hook_source
     assert "function safeJson" not in tender_details_source
