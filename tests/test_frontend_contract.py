@@ -18,6 +18,7 @@ TENDER_DETAILS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "T
 TENDER_DETAILS_SHARED_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsShared.jsx"
 TENDER_DETAIL_ACTIONS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailActions.jsx"
 TENDER_DETAILS_HEADER_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsHeader.jsx"
+TENDER_DETAILS_STATUS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsStatusStack.jsx"
 TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
 TENDER_DECISION_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDecisionSummary.jsx"
 TENDER_DOCUMENTS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDocumentsTab.jsx"
@@ -230,6 +231,7 @@ def test_frontend_uses_dedicated_tender_details_module():
     assert "export function TenderDetails" in tender_details_source
     assert "from './TenderDetailActions'" in tender_details_source
     assert "from './TenderDetailsHeader'" in tender_details_source
+    assert "from './TenderDetailsStatusStack'" in tender_details_source
     assert "from './TenderDecisionSummary'" in tender_details_source
     assert "from './TenderEconomicsTab'" in tender_details_source
     assert "from './TenderProductsTab'" in tender_details_source
@@ -450,6 +452,26 @@ def test_tender_details_uses_dedicated_header_module():
     assert "workflowLabels" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(header_source, TENDER_DETAILS_HEADER_SOURCE) == []
+
+
+def test_tender_details_uses_dedicated_status_stack_module():
+    tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    status_source = (
+        TENDER_DETAILS_STATUS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_DETAILS_STATUS_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './TenderDetailsStatusStack'" in tender_details_source
+    assert "export function TenderDetailsStatusStack" in status_source
+    assert "messages.length" in status_source
+    assert "status-stack" in status_source
+    assert "inline-status" in status_source
+    assert "<TenderDetailsStatusStack messages={statusMessages} />" in tender_details_source
+    assert "status-stack" not in tender_details_source
+    assert "inline-status" not in tender_details_source
+    assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(status_source, TENDER_DETAILS_STATUS_SOURCE) == []
 
 
 def test_tender_details_uses_document_analysis_hook():

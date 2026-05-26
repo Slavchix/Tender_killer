@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { TenderDetailActions } from './TenderDetailActions'
 import { TenderDetailsHeader } from './TenderDetailsHeader'
+import { TenderDetailsStatusStack } from './TenderDetailsStatusStack'
 import { PriceChangeBanner, TenderDecisionSummary } from './TenderDecisionSummary'
 import { TenderOverviewTab } from './TenderOverviewTab'
 import { TenderProductsTab } from './TenderProductsTab'
@@ -104,11 +105,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         onSendToTelegram={sendToTelegram}
       />
 
-      {statusMessages.length > 0 && (
-        <div className="status-stack">
-          {statusMessages.map((message) => <p className="inline-status" key={message}>{message}</p>)}
-        </div>
-      )}
+      <TenderDetailsStatusStack messages={statusMessages} />
 
       <nav className="detail-tabs" aria-label="Разделы карточки">
         {tabs.map((tab) => (
