@@ -53,6 +53,7 @@ Recent architecture cleanup:
 - The API exposes public supplier catalog health at `/api/supplier-catalogs/health`: by default it reports configured providers without network access, and `?live=1` records per-provider HTTP diagnostics for real public catalog search pages.
 - Public supplier discovery now normalizes unit price, currency, VAT mode, delivery note, availability, provider confidence, and collector diagnostics under `raw_payload.supplier_discovery`.
 - The economics supplier block surfaces configured supplier catalog health next to preset controls, so the operator can see which built-in catalogs are wired before running discovery.
+- The economics supplier block has an explicit manual live health check button; normal page load stays network-free, and live external catalog checks run only after the operator asks for them.
 - The economics tab shows supplier discovery collector diagnostics next to staged candidates, including seen links, skipped links, fetched pages, candidates found, and fetch errors.
 - API errors from supplier discovery are surfaced in the React client, so no-new-candidates and missing-prepared-query messages are visible to the user.
 - Supplier discovery candidates can now be staged into `raw_payload.supplier_discovery.candidates` with normalized provider/confidence metadata and reviewed/imported into `supplier_options`; import does not select a supplier or update economics.
@@ -83,7 +84,7 @@ Latest verified result after supplier catalog health UI: `335 passed`.
 Good next steps:
 
 1. Validate real catalog pages and add narrow provider parsing rules where schema.org/anchor discovery is not enough.
-2. Add a manual live catalog health action in the UI when external network checks are needed.
+2. Use the manual live catalog health action to inspect provider availability before deeper catalog parsing work.
 3. Keep Telegram as notifications/quick entry, not the main workbench.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.

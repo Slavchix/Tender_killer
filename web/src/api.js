@@ -33,9 +33,10 @@ export function fetchSourceStatus() {
   return apiJson('/api/sources/status')
 }
 
-export function fetchSupplierCatalogHealth() {
-  return apiJson('/api/supplier-catalogs/health', {
-    errorMessage: '?? ??????? ????????? ???????? ???????????',
+export function fetchSupplierCatalogHealth({ live = false } = {}) {
+  const suffix = live ? '?live=1' : ''
+  return apiJson(`/api/supplier-catalogs/health${suffix}`, {
+    errorMessage: 'Не удалось проверить каталоги поставщиков',
   })
 }
 

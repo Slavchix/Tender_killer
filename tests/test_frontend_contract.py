@@ -865,14 +865,21 @@ def test_economics_tab_surfaces_supplier_catalog_health():
 
     assert "export function fetchSupplierCatalogHealth" in api_source
     assert "/api/supplier-catalogs/health" in api_source
+    assert "live = false" in api_source
+    assert "?live=1" in api_source
+    assert "Не удалось проверить каталоги поставщиков" in api_source
     assert "fetchSupplierCatalogHealth" in hook_source
+    assert "refreshSupplierCatalogHealth" in hook_source
+    assert "fetchSupplierCatalogHealth({ live })" in hook_source
     assert "supplierCatalogHealth" in hook_source
     assert "supplierCatalogHealthLoading" in hook_source
     assert "supplierCatalogHealthError" in hook_source
     assert "setSupplierCatalogHealth" in hook_source
     assert "setSupplierCatalogHealthLoading" in hook_source
     assert "setSupplierCatalogHealthError" in hook_source
+    assert "onSupplierCatalogHealthRefresh={refreshSupplierCatalogHealth}" in details_source
     assert "supplierCatalogHealth" in details_source
+    assert "onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}" in tabs_source
     assert "supplierCatalogHealth={supplierCatalogHealth}" in tabs_source
     assert "supplierCatalogHealthLoading={supplierCatalogHealthLoading}" in tabs_source
     assert "supplierCatalogHealthError={supplierCatalogHealthError}" in tabs_source
@@ -882,8 +889,17 @@ def test_economics_tab_surfaces_supplier_catalog_health():
     assert "supplier-catalog-health-grid" in source
     assert "catalog.http_status" in source
     assert "catalog.sample_url" in source
-    assert "?????? ?????????" in source
+    assert "onSupplierCatalogHealthRefresh" in source
+    assert "onRefresh?.(true)" in source
+    assert "Статус каталогов" in source
+    assert "Проверить" in source
+    assert "доступен" in source
+    assert "ошибка" in source
+    assert "настроен" in source
+    assert "??????" not in api_source
+    assert "??????" not in source
     assert ".supplier-catalog-health" in styles_source
+    assert ".supplier-catalog-health-heading" in styles_source
     assert ".supplier-catalog-health-grid" in styles_source
     assert find_mojibake(details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []

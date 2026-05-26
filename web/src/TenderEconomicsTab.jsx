@@ -52,6 +52,7 @@ export function TenderEconomicsTab({
   supplierCatalogHealth = null,
   supplierCatalogHealthLoading = false,
   supplierCatalogHealthError = '',
+  onSupplierCatalogHealthRefresh,
 }) {
   const missingInputs = economics?.missing_cost_inputs?.length || 0
   const displayedRevenue = economics?.revenue ?? tender?.price
@@ -144,6 +145,7 @@ export function TenderEconomicsTab({
                 supplierCatalogHealth={supplierCatalogHealth}
                 supplierCatalogHealthLoading={supplierCatalogHealthLoading}
                 supplierCatalogHealthError={supplierCatalogHealthError}
+                onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
                 saving={savingSupplierOption}
                 importingDiscovery={importingSupplierCandidate}
                 preparingSearch={preparingSupplierSearch}
@@ -501,6 +503,7 @@ function ProductSupplierOptionsForm({
   supplierCatalogHealth,
   supplierCatalogHealthLoading = false,
   supplierCatalogHealthError = '',
+  onSupplierCatalogHealthRefresh,
   saving = false,
   importingDiscovery = false,
   preparingSearch = false,
@@ -579,6 +582,7 @@ function ProductSupplierOptionsForm({
           supplierCatalogHealth={supplierCatalogHealth}
           loading={supplierCatalogHealthLoading}
           error={supplierCatalogHealthError}
+          onRefresh={onSupplierCatalogHealthRefresh}
         />
         <div className="supplier-input-grid">
           <label>
@@ -704,15 +708,22 @@ function ProductSupplierOptionsForm({
   )
 }
 
-function SupplierCatalogHealthPanel({ supplierCatalogHealth, loading = false, error = '' }) {
+function SupplierCatalogHealthPanel({ supplierCatalogHealth, loading = false, error = '', onRefresh }) {
   const catalogs = Array.isArray(supplierCatalogHealth?.catalogs) ? supplierCatalogHealth.catalogs : []
   if (!loading && !error && !catalogs.length) return null
 
   return (
     <div className="supplier-catalog-health">
       <div className="supplier-catalog-health-heading">
-        <span>?????? ?????????</span>
-        {loading && <em>????????...</em>}
+        <span>Статус каталогов</span>
+        <button
+          className="secondary-button compact"
+          disabled={loading || !onRefresh}
+          onClick={() => ignoreSupplierActionError(onRefresh?.(true))}
+          type="button"
+        >
+          {loading ? 'Проверяю...' : 'Проверить'}
+        </button>
       </div>
       {error && <p>{error}</p>}
       {catalogs.length > 0 && (
@@ -737,9 +748,9 @@ function SupplierCatalogHealthPanel({ supplierCatalogHealth, loading = false, er
 }
 
 function supplierCatalogHealthStatusLabel(status, httpStatus) {
-  if (status === 'ok') return httpStatus ? `HTTP ${httpStatus}` : '????????'
-  if (status === 'error') return httpStatus ? `?????? ${httpStatus}` : '??????'
-  return '????????'
+  if (status === 'ok') return httpStatus ? `HTTP ${httpStatus}` : 'доступен'
+  if (status === 'error') return httpStatus ? `ошибка ${httpStatus}` : 'ошибка'
+  return 'настроен'
 }
 
 function SupplierCatalogPresetControls({ profile, saving = false, onPresetSave }) {

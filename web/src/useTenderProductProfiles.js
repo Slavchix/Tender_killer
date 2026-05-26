@@ -49,13 +49,23 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     setAcceptingAutoEconomicsPosition(null)
   }, [tender.source, tender.external_id, tender.product_profiles, tender.product_profile_summary, tender.economics])
 
-  useEffect(() => {
+  function refreshSupplierCatalogHealth(live = false) {
     setSupplierCatalogHealthLoading(true)
     setSupplierCatalogHealthError('')
-    fetchSupplierCatalogHealth()
-      .then((payload) => setSupplierCatalogHealth(payload))
-      .catch((err) => setSupplierCatalogHealthError(err.message))
+    return fetchSupplierCatalogHealth({ live })
+      .then((payload) => {
+        setSupplierCatalogHealth(payload)
+        return payload
+      })
+      .catch((err) => {
+        setSupplierCatalogHealthError(err.message)
+        throw err
+      })
       .finally(() => setSupplierCatalogHealthLoading(false))
+  }
+
+  useEffect(() => {
+    refreshSupplierCatalogHealth(false).catch(() => {})
   }, [])
 
   function applyProductTenderState(nextTender, options = {}) {
@@ -247,6 +257,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     supplierCatalogHealth,
     supplierCatalogHealthLoading,
     supplierCatalogHealthError,
+    refreshSupplierCatalogHealth,
     applyProductTenderState,
     rebuildProductProfiles,
     saveProfileEconomics,

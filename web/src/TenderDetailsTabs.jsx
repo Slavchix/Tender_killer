@@ -49,6 +49,7 @@ export function TenderDetailsTabs({
   supplierCatalogHealth,
   supplierCatalogHealthLoading,
   supplierCatalogHealthError,
+  onSupplierCatalogHealthRefresh,
   note,
   saving,
   onNoteChange,
@@ -140,6 +141,7 @@ export function TenderDetailsTabs({
             supplierCatalogHealth={supplierCatalogHealth}
             supplierCatalogHealthLoading={supplierCatalogHealthLoading}
             supplierCatalogHealthError={supplierCatalogHealthError}
+            onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
           />
         )}
 

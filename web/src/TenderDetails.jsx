@@ -61,6 +61,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     supplierCatalogHealth,
     supplierCatalogHealthLoading,
     supplierCatalogHealthError,
+    refreshSupplierCatalogHealth,
     applyProductTenderState,
     rebuildProductProfiles,
     saveProfileEconomics,
@@ -151,6 +152,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         supplierCatalogHealth={supplierCatalogHealth}
         supplierCatalogHealthLoading={supplierCatalogHealthLoading}
         supplierCatalogHealthError={supplierCatalogHealthError}
+        onSupplierCatalogHealthRefresh={refreshSupplierCatalogHealth}
         note={note}
         saving={saving}
         onNoteChange={setNote}
