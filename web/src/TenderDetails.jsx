@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bell, Building2, ExternalLink, FileText, RefreshCcw } from 'lucide-react'
+import { Building2 } from 'lucide-react'
 import {
   acceptProfileAutoEconomics as acceptProfileAutoEconomicsRequest,
   addProfileSupplierOption,
@@ -23,6 +23,7 @@ import {
   documentRecordsForTender,
 } from './formatters'
 import { sourceLabels, workflowLabels } from './constants'
+import { TenderDetailActions } from './TenderDetailActions'
 import { PriceChangeBanner, TenderDecisionSummary } from './TenderDecisionSummary'
 import { TenderOverviewTab } from './TenderOverviewTab'
 import { TenderProductsTab } from './TenderProductsTab'
@@ -360,36 +361,19 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       <TenderDecisionSummary tender={tender} economics={economics} />
       <PriceChangeBanner change={tender.price_change} />
 
-      <div className="detail-actions" aria-label="Действия с закупкой">
-        <div className="details-action-group primary-actions">
-          <a className="detail-action primary" href={tender.url} target="_blank" rel="noreferrer">
-            <ExternalLink size={15} /> Источник
-          </a>
-          <button disabled={refreshingDetails} onClick={() => refreshDetails()} type="button">
-            <RefreshCcw size={15} /> {refreshingDetails ? 'Обновляю' : 'Обновить'}
-          </button>
-        </div>
-        <div className="details-action-group secondary-actions">
-          <button disabled={downloading} onClick={downloadDocuments} type="button">
-            <FileText size={15} /> {downloading ? 'Качаю' : 'Документы'}
-          </button>
-          <button disabled={extracting} onClick={extractDocumentText} type="button">
-            {extracting ? 'Читаю' : 'Текст'}
-          </button>
-          <button disabled={analyzing} onClick={analyzeTender} type="button">
-            {analyzing ? 'Анализ' : 'Анализ'}
-          </button>
-          <a
-            className="detail-action"
-            href={`/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/report.docx`}
-          >
-            Word
-          </a>
-          <button disabled={sending} onClick={sendToTelegram} type="button">
-            <Bell size={15} /> {sending ? 'Отправка' : 'TG'}
-          </button>
-        </div>
-      </div>
+      <TenderDetailActions
+        tender={tender}
+        refreshingDetails={refreshingDetails}
+        downloading={downloading}
+        extracting={extracting}
+        analyzing={analyzing}
+        sending={sending}
+        onRefreshDetails={refreshDetails}
+        onDownloadDocuments={downloadDocuments}
+        onExtractDocumentText={extractDocumentText}
+        onAnalyzeTender={analyzeTender}
+        onSendToTelegram={sendToTelegram}
+      />
 
       {statusMessages.length > 0 && (
         <div className="status-stack">

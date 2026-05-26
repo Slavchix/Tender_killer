@@ -16,6 +16,7 @@ FORMATTERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "forma
 PAGINATION_BAR_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "PaginationBar.jsx"
 TENDER_DETAILS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetails.jsx"
 TENDER_DETAILS_SHARED_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsShared.jsx"
+TENDER_DETAIL_ACTIONS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailActions.jsx"
 TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
 TENDER_DECISION_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDecisionSummary.jsx"
 TENDER_DOCUMENTS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDocumentsTab.jsx"
@@ -215,6 +216,7 @@ def test_frontend_uses_dedicated_tender_details_module():
 
     assert "from './TenderDetails'" in app_source
     assert "export function TenderDetails" in tender_details_source
+    assert "from './TenderDetailActions'" in tender_details_source
     assert "from './TenderDecisionSummary'" in tender_details_source
     assert "from './TenderEconomicsTab'" in tender_details_source
     assert "from './TenderProductsTab'" in tender_details_source
@@ -377,6 +379,32 @@ def test_frontend_uses_dedicated_tender_decision_summary_module():
     assert "price-change-banner" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(decision_source, TENDER_DECISION_SUMMARY_SOURCE) == []
+
+
+def test_frontend_uses_dedicated_tender_detail_actions_module():
+    tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    actions_source = (
+        TENDER_DETAIL_ACTIONS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_DETAIL_ACTIONS_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './TenderDetailActions'" in tender_details_source
+    assert "export function TenderDetailActions" in actions_source
+    assert "details-action-group primary-actions" in actions_source
+    assert "details-action-group secondary-actions" in actions_source
+    assert "onRefreshDetails" in actions_source
+    assert "onDownloadDocuments" in actions_source
+    assert "onExtractDocumentText" in actions_source
+    assert "onAnalyzeTender" in actions_source
+    assert "onSendToTelegram" in actions_source
+    assert "report.docx" in actions_source
+    assert "<TenderDetailActions" in tender_details_source
+    assert "details-action-group primary-actions" not in tender_details_source
+    assert "details-action-group secondary-actions" not in tender_details_source
+    assert "className=\"detail-action\"" not in tender_details_source
+    assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(actions_source, TENDER_DETAIL_ACTIONS_SOURCE) == []
 
 
 def test_tender_cockpit_exposes_page_size_selector():
@@ -634,14 +662,20 @@ def test_tender_workbench_has_collapsible_filters_and_wider_list():
 
 def test_tender_details_v2_keeps_actions_and_document_statuses_scannable():
     app_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    actions_source = (
+        TENDER_DETAIL_ACTIONS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_DETAIL_ACTIONS_SOURCE.exists()
+        else ""
+    )
     documents_source = TENDER_DOCUMENTS_TAB_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
     detail_actions_rule = _css_rule(styles_source, ".detail-actions")
     detail_tabs_rule = _css_rule(styles_source, ".detail-tabs")
 
     assert "details-title-row" in app_source
-    assert "details-action-group primary-actions" in app_source
-    assert "details-action-group secondary-actions" in app_source
+    assert "<TenderDetailActions" in app_source
+    assert "details-action-group primary-actions" in actions_source
+    assert "details-action-group secondary-actions" in actions_source
     assert "documentStatusLabel" in documents_source
     assert "document-status ${document.text_status || 'pending'}" in documents_source
     assert "download-status ${document.local_path ? 'downloaded' : 'missing'}" in documents_source
@@ -652,6 +686,7 @@ def test_tender_details_v2_keeps_actions_and_document_statuses_scannable():
     assert ".document-status.unsupported" in styles_source
     assert ".document-status.ok" in styles_source
     assert find_mojibake(app_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(actions_source, TENDER_DETAIL_ACTIONS_SOURCE) == []
     assert find_mojibake(documents_source, TENDER_DOCUMENTS_TAB_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
