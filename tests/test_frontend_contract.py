@@ -807,6 +807,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "SupplierCatalogPresetControls" in source
     assert "SUPPLIER_CATALOG_PRESETS" in source
     assert "supplier_catalog_preset_ids" in source
+    assert "ignoreSupplierActionError" in source
     assert "onPresetSave(profile, nextPresetIds)" in source
     assert "onPresetSave(profile, null)" in source
     assert "SupplierDiscoveryPreview" in source

@@ -535,7 +535,7 @@ function ProductSupplierOptionsForm({
             <button
               className="secondary-button compact"
               disabled={preparingSearch || !onSearchPrepare}
-              onClick={() => onSearchPrepare?.(profile)}
+              onClick={() => ignoreSupplierActionError(onSearchPrepare?.(profile))}
               type="button"
             >
               {preparingSearch ? 'Готовлю...' : 'Подготовить поиск'}
@@ -543,7 +543,7 @@ function ProductSupplierOptionsForm({
             <button
               className="secondary-button compact"
               disabled={discoveringDiscovery || !onDiscoveryRun || !supplierSearchQueries.length}
-              onClick={() => onDiscoveryRun?.(profile)}
+              onClick={() => ignoreSupplierActionError(onDiscoveryRun?.(profile))}
               type="button"
             >
               {discoveringDiscovery ? 'Ищу...' : 'Найти кандидатов'}
@@ -551,7 +551,7 @@ function ProductSupplierOptionsForm({
             <button
               className="secondary-button compact"
               disabled={autoSelecting || !onAutoSelect || !supplierOptions.length}
-              onClick={() => onAutoSelect?.(profile)}
+              onClick={() => ignoreSupplierActionError(onAutoSelect?.(profile))}
               type="button"
             >
               {autoSelecting ? 'Выбираю...' : 'Лучший в расчет'}
@@ -675,7 +675,7 @@ function ProductSupplierOptionsForm({
               <button
                 className="supplier-select-button"
                 disabled={saving || !onSelect || option.status === 'selected'}
-                onClick={() => onSelect?.(profile, index)}
+                onClick={() => ignoreSupplierActionError(onSelect?.(profile, index))}
                 type="button"
               >
                 {option.status === 'selected' ? 'В расчете' : 'В расчет'}
@@ -708,7 +708,7 @@ function SupplierCatalogPresetControls({ profile, saving = false, onPresetSave }
       selected.add(presetId)
     }
     const nextPresetIds = Array.from(selected)
-    onPresetSave(profile, nextPresetIds)
+    ignoreSupplierActionError(onPresetSave(profile, nextPresetIds))
   }
 
   return (
@@ -719,7 +719,7 @@ function SupplierCatalogPresetControls({ profile, saving = false, onPresetSave }
           <button
             className={autoMode ? 'secondary-button compact active' : 'secondary-button compact'}
             disabled={disabled || autoMode}
-            onClick={() => onPresetSave(profile, null)}
+            onClick={() => ignoreSupplierActionError(onPresetSave(profile, null))}
             type="button"
           >
             Авто
@@ -727,7 +727,7 @@ function SupplierCatalogPresetControls({ profile, saving = false, onPresetSave }
           <button
             className={disabledMode ? 'secondary-button compact active' : 'secondary-button compact'}
             disabled={disabled || disabledMode}
-            onClick={() => onPresetSave(profile, [])}
+            onClick={() => ignoreSupplierActionError(onPresetSave(profile, []))}
             type="button"
           >
             Выкл
@@ -786,7 +786,7 @@ function SupplierDiscoveryPreview({ discovery, importing = false, onImport }) {
             <button
               className="secondary-button compact"
               disabled={importing || imported || !onImport}
-              onClick={() => onImport?.(index)}
+              onClick={() => ignoreSupplierActionError(onImport?.(index))}
               type="button"
             >
               {imported ? 'Добавлен' : 'Добавить'}
@@ -796,6 +796,12 @@ function SupplierDiscoveryPreview({ discovery, importing = false, onImport }) {
       })}
     </div>
   )
+}
+
+function ignoreSupplierActionError(result) {
+  if (result?.catch) {
+    result.catch(() => {})
+  }
 }
 
 function SupplierDiscoveryDiagnostics({ diagnostics }) {
