@@ -785,6 +785,9 @@ def test_product_profile_renders_supplier_option_form():
     assert "supplier_options" in source
     assert "supplier_search" in source
     assert "SupplierSearchPreview" in source
+    assert "quick_links" in source
+    assert "supplier-search-links" in source
+    assert "href={link.url}" in source
     assert "economics_price_source" in source
     assert "EconomicsPriceSource" in source
     assert "unit_price" in source
@@ -795,6 +798,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "selected: 'в расчете'" in formatter_source
     assert "Поставщики" in source
     assert ".supplier-search-preview" in styles_source
+    assert ".supplier-search-links" in styles_source
     assert find_mojibake(details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []

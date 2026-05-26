@@ -635,7 +635,16 @@ function SupplierSearchPreview({ search }) {
       <span>Запросы для поиска</span>
       <div>
         {queries.map((item) => (
-          <code key={`${item.kind}-${item.priority}-${item.query}`}>{item.query}</code>
+          <section key={`${item.kind}-${item.priority}-${item.query}`}>
+            <code>{item.query}</code>
+            <div className="supplier-search-links">
+              {(Array.isArray(item.quick_links) ? item.quick_links : []).map((link) => (
+                <a href={link.url} key={`${item.query}-${link.label}`} target="_blank" rel="noreferrer">
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
     </div>

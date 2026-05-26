@@ -272,9 +272,33 @@ def test_handle_post_request_routes_product_profile_supplier_search_prepare(tmp_
     assert profile["raw_payload"]["supplier_search"] == {
         "status": "ready",
         "queries": [
-            {"query": "office paper a4", "kind": "normalized_name", "priority": 1},
-            {"query": "office paper", "kind": "search_phrase", "priority": 2},
-            {"query": "17.12.14.110 office paper a4", "kind": "classifier", "priority": 3},
+            {
+                "query": "office paper a4",
+                "kind": "normalized_name",
+                "priority": 1,
+                "quick_links": [
+                    {"label": "Google", "url": "https://www.google.com/search?q=office+paper+a4"},
+                    {"label": "Yandex", "url": "https://yandex.ru/search/?text=office+paper+a4"},
+                ],
+            },
+            {
+                "query": "office paper",
+                "kind": "search_phrase",
+                "priority": 2,
+                "quick_links": [
+                    {"label": "Google", "url": "https://www.google.com/search?q=office+paper"},
+                    {"label": "Yandex", "url": "https://yandex.ru/search/?text=office+paper"},
+                ],
+            },
+            {
+                "query": "17.12.14.110 office paper a4",
+                "kind": "classifier",
+                "priority": 3,
+                "quick_links": [
+                    {"label": "Google", "url": "https://www.google.com/search?q=17.12.14.110+office+paper+a4"},
+                    {"label": "Yandex", "url": "https://yandex.ru/search/?text=17.12.14.110+office+paper+a4"},
+                ],
+            },
         ],
     }
 

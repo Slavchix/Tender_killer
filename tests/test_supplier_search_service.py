@@ -5,6 +5,7 @@ import pytest
 from tender_killer.models import ProductProfile
 from tender_killer.models import Tender
 from tender_killer.storage import TenderStore
+from tender_killer.supplier_search_service import build_supplier_search_links
 from tender_killer.supplier_search_service import build_supplier_search_queries
 from tender_killer.supplier_search_service import prepare_profile_supplier_search
 from tender_killer.tender_detail_service import get_tender_payload
@@ -22,10 +23,55 @@ def test_build_supplier_search_queries_prioritizes_profile_terms() -> None:
     )
 
     assert queries == [
-        {"query": "office paper a4", "kind": "normalized_name", "priority": 1},
-        {"query": "office paper", "kind": "search_phrase", "priority": 2},
-        {"query": "A4 paper", "kind": "search_phrase", "priority": 3},
-        {"query": "17.12.14.110 office paper a4", "kind": "classifier", "priority": 4},
+        {
+            "query": "office paper a4",
+            "kind": "normalized_name",
+            "priority": 1,
+            "quick_links": [
+                {"label": "Google", "url": "https://www.google.com/search?q=office+paper+a4"},
+                {"label": "Yandex", "url": "https://yandex.ru/search/?text=office+paper+a4"},
+            ],
+        },
+        {
+            "query": "office paper",
+            "kind": "search_phrase",
+            "priority": 2,
+            "quick_links": [
+                {"label": "Google", "url": "https://www.google.com/search?q=office+paper"},
+                {"label": "Yandex", "url": "https://yandex.ru/search/?text=office+paper"},
+            ],
+        },
+        {
+            "query": "A4 paper",
+            "kind": "search_phrase",
+            "priority": 3,
+            "quick_links": [
+                {"label": "Google", "url": "https://www.google.com/search?q=A4+paper"},
+                {"label": "Yandex", "url": "https://yandex.ru/search/?text=A4+paper"},
+            ],
+        },
+        {
+            "query": "17.12.14.110 office paper a4",
+            "kind": "classifier",
+            "priority": 4,
+            "quick_links": [
+                {"label": "Google", "url": "https://www.google.com/search?q=17.12.14.110+office+paper+a4"},
+                {"label": "Yandex", "url": "https://yandex.ru/search/?text=17.12.14.110+office+paper+a4"},
+            ],
+        },
+    ]
+
+
+def test_build_supplier_search_links_encodes_query_for_manual_search() -> None:
+    assert build_supplier_search_links("бумага А4 80 г/м2") == [
+        {
+            "label": "Google",
+            "url": "https://www.google.com/search?q=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%904+80+%D0%B3%2F%D0%BC2",
+        },
+        {
+            "label": "Yandex",
+            "url": "https://yandex.ru/search/?text=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%904+80+%D0%B3%2F%D0%BC2",
+        },
     ]
 
 
@@ -76,9 +122,33 @@ def test_prepare_profile_supplier_search_persists_queries_and_preserves_options(
         "supplier_search": {
             "status": "ready",
             "queries": [
-                {"query": "office paper a4", "kind": "normalized_name", "priority": 1},
-                {"query": "office paper", "kind": "search_phrase", "priority": 2},
-                {"query": "17.12.14.110 office paper a4", "kind": "classifier", "priority": 3},
+                {
+                    "query": "office paper a4",
+                    "kind": "normalized_name",
+                    "priority": 1,
+                    "quick_links": [
+                        {"label": "Google", "url": "https://www.google.com/search?q=office+paper+a4"},
+                        {"label": "Yandex", "url": "https://yandex.ru/search/?text=office+paper+a4"},
+                    ],
+                },
+                {
+                    "query": "office paper",
+                    "kind": "search_phrase",
+                    "priority": 2,
+                    "quick_links": [
+                        {"label": "Google", "url": "https://www.google.com/search?q=office+paper"},
+                        {"label": "Yandex", "url": "https://yandex.ru/search/?text=office+paper"},
+                    ],
+                },
+                {
+                    "query": "17.12.14.110 office paper a4",
+                    "kind": "classifier",
+                    "priority": 3,
+                    "quick_links": [
+                        {"label": "Google", "url": "https://www.google.com/search?q=17.12.14.110+office+paper+a4"},
+                        {"label": "Yandex", "url": "https://yandex.ru/search/?text=17.12.14.110+office+paper+a4"},
+                    ],
+                },
             ],
         },
     }

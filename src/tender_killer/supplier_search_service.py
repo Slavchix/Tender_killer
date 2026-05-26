@@ -2,11 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote_plus
 
 from tender_killer.storage import TenderStore
 
 
 LOCKED_PROFILE_STATUSES = {"matched", "priced", "rejected"}
+SUPPLIER_SEARCH_TARGETS = (
+    ("Google", "https://www.google.com/search?q={query}"),
+    ("Yandex", "https://yandex.ru/search/?text={query}"),
+)
 
 
 def build_supplier_search_queries(profile: dict[str, Any]) -> list[dict[str, Any]]:
@@ -27,6 +32,14 @@ def build_supplier_search_queries(profile: dict[str, Any]) -> list[dict[str, Any
         _append_query(queries, seen, classifier_query, "classifier")
 
     return queries
+
+
+def build_supplier_search_links(query: str) -> list[dict[str, str]]:
+    encoded_query = quote_plus(query)
+    return [
+        {"label": label, "url": url_template.format(query=encoded_query)}
+        for label, url_template in SUPPLIER_SEARCH_TARGETS
+    ]
 
 
 def prepare_profile_supplier_search(
@@ -79,7 +92,14 @@ def _append_query(queries: list[dict[str, Any]], seen: set[str], query: str, kin
     if key in seen:
         return
     seen.add(key)
-    queries.append({"query": normalized, "kind": kind, "priority": len(queries) + 1})
+    queries.append(
+        {
+            "query": normalized,
+            "kind": kind,
+            "priority": len(queries) + 1,
+            "quick_links": build_supplier_search_links(normalized),
+        }
+    )
 
 
 def _text_items(value: Any) -> list[str]:
