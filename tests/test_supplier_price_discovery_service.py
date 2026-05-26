@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from tender_killer import supplier_price_discovery_service as price_discovery
 from tender_killer.models import ProductProfile
 from tender_killer.models import Tender
 from tender_killer.storage import TenderStore
@@ -87,6 +88,138 @@ def test_schema_org_product_collector_skips_search_engine_links() -> None:
 
     assert candidates == []
     assert calls == []
+
+
+def test_provider_catalog_collector_follows_matching_catalog_product_links() -> None:
+    pages = {
+        "https://petrovich.ru/search/?q=cement+mix": """
+            <html>
+              <body>
+                <a href="/catalog/cement-25kg">Cement mix 25 kg</a>
+              </body>
+            </html>
+        """,
+        "https://petrovich.ru/catalog/cement-25kg": """
+            <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "Cement mix 25 kg",
+              "url": "https://petrovich.ru/catalog/cement-25kg",
+              "offers": {
+                "@type": "Offer",
+                "price": "418.90",
+                "priceCurrency": "RUB",
+                "availability": "https://schema.org/InStock"
+              }
+            }
+            </script>
+        """,
+    }
+    calls: list[str] = []
+    collector = price_discovery.ProviderCatalogCollector(
+        "petrovich",
+        fetch_text=lambda url: calls.append(url) or pages.get(url, "<html></html>"),
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "cement mix",
+            "kind": "normalized_name",
+            "quick_links": [
+                {"label": "Google", "url": "https://www.google.com/search?q=cement+mix"},
+                {
+                    "label": "Petrovich",
+                    "url": "https://petrovich.ru/search/?q=cement+mix",
+                    "provider": "petrovich",
+                    "link_kind": "catalog_search",
+                    "preset_id": "petrovich_building_materials",
+                },
+                {
+                    "label": "OfficeMag",
+                    "url": "https://www.officemag.ru/search/?q=cement+mix",
+                    "provider": "officemag",
+                    "link_kind": "catalog_search",
+                    "preset_id": "officemag_office_supplies",
+                },
+            ],
+        }
+    )
+
+    assert calls == [
+        "https://petrovich.ru/search/?q=cement+mix",
+        "https://petrovich.ru/catalog/cement-25kg",
+    ]
+    assert result["diagnostics"] == {
+        "provider": "catalog_petrovich",
+        "queries_seen": 1,
+        "links_seen": 3,
+        "links_skipped": 2,
+        "pages_fetched": 2,
+        "candidates_found": 1,
+        "errors": [],
+    }
+    assert result["candidates"] == [
+        {
+            "name": "Cement mix 25 kg",
+            "url": "https://petrovich.ru/catalog/cement-25kg",
+            "unit_price": 418.9,
+            "currency": "RUB",
+            "availability": "in_stock",
+            "status": "candidate",
+            "source_query": "cement mix",
+            "source_kind": "normalized_name",
+            "note": "Petrovich catalog offer from https://petrovich.ru/catalog/cement-25kg.",
+            "provider": "petrovich",
+        }
+    ]
+
+
+def test_schema_org_product_collector_leaves_builtin_catalog_links_to_provider_collectors() -> None:
+    calls: list[str] = []
+    collector = SchemaOrgProductCollector(fetch_text=lambda url: calls.append(url) or "<html></html>")
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "cement mix",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "Petrovich",
+                    "url": "https://petrovich.ru/search/?q=cement+mix",
+                    "provider": "petrovich",
+                    "link_kind": "catalog_search",
+                    "preset_id": "petrovich_building_materials",
+                }
+            ],
+        }
+    )
+
+    assert calls == []
+    assert result == {
+        "candidates": [],
+        "diagnostics": {
+            "provider": "schema_org_product",
+            "queries_seen": 1,
+            "links_seen": 1,
+            "links_skipped": 1,
+            "pages_fetched": 0,
+            "candidates_found": 0,
+            "errors": [],
+        },
+    }
+
+
+def test_default_price_collectors_try_builtin_catalogs_before_schema_org_fallback() -> None:
+    collectors = price_discovery.default_price_collectors(fetch_text=lambda url: "<html></html>")
+
+    assert [collector.provider for collector in collectors] == [
+        "catalog_officemag",
+        "catalog_komus",
+        "catalog_petrovich",
+        "catalog_vseinstrumenti",
+        "schema_org_product",
+    ]
 
 
 def test_run_profile_supplier_price_discovery_stages_schema_org_product_candidates(tmp_path) -> None:

@@ -49,6 +49,7 @@ Recent architecture cleanup:
 - Built-in supplier catalog presets currently cover first-pass office supplies (`officemag`, `komus`) and building/tool materials (`petrovich`, `vseinstrumenti`). The economics supplier block can switch each product profile between auto matching, exact preset IDs, or disabled presets through `raw_payload.supplier_catalog_preset_ids`; changing presets clears stale prepared supplier search queries.
 - Manual supplier candidates can keep the prepared search query that led to them (`source_query` / `source_kind`), preserving review evidence before any price is selected for economics.
 - The site can run a schema.org public supplier discovery pass from prepared quick links: search-engine links are ignored, public catalog pages can lead to same-site product pages, public product pages are parsed for Product/Offer JSON-LD, and candidates stay review-only until imported.
+- Public supplier discovery now tries built-in catalog collectors for `officemag`, `komus`, `petrovich`, and `vseinstrumenti` before the generic schema.org fallback. Built-in catalog links get provider-specific diagnostics and candidates, while manual/unknown catalog links still use the generic public schema.org path.
 - Public supplier discovery now normalizes unit price, currency, VAT mode, delivery note, availability, provider confidence, and collector diagnostics under `raw_payload.supplier_discovery`.
 - The economics tab shows supplier discovery collector diagnostics next to staged candidates, including seen links, skipped links, fetched pages, candidates found, and fetch errors.
 - API errors from supplier discovery are surfaced in the React client, so no-new-candidates and missing-prepared-query messages are visible to the user.
@@ -75,12 +76,12 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after restoring the tender list API dispatcher import: `327 passed`.
+Latest verified result after provider-specific catalog discovery collectors: `330 passed`.
 
 Good next steps:
 
-1. Extend provider-specific collectors as real supplier catalogs are selected.
-2. Add provider health/diagnostic checks for public catalog discovery.
+1. Add provider health/diagnostic checks for public catalog discovery.
+2. Validate real catalog pages and add narrow provider parsing rules where schema.org/anchor discovery is not enough.
 3. Keep Telegram as notifications/quick entry, not the main workbench.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.

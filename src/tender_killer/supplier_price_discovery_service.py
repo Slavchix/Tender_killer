@@ -7,15 +7,20 @@ from typing import Callable
 from urllib.parse import unquote
 from urllib.parse import urlparse
 from urllib.parse import urljoin
+from urllib.parse import urldefrag
 
 import httpx
 from bs4 import BeautifulSoup
 
 from tender_killer.storage import TenderStore
+from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
 
 
 SCHEMA_ORG_PRODUCT_PROVIDER = "schema_org_product"
+CATALOG_SEARCH_LINK_KIND = "catalog_search"
+BUILT_IN_CATALOG_PROVIDERS = tuple(str(preset["provider"]) for preset in SUPPLIER_CATALOG_PRESETS)
+BUILT_IN_CATALOG_PROVIDER_SET = {provider.casefold() for provider in BUILT_IN_CATALOG_PROVIDERS}
 SEARCH_ENGINE_HOSTS = ("google.", "yandex.")
 FetchText = Callable[[str], str]
 
@@ -39,6 +44,9 @@ class SchemaOrgProductCollector:
         candidates: list[dict[str, Any]] = []
         for link in _quick_links(query):
             diagnostics["links_seen"] += 1
+            if _is_builtin_catalog_search_link(link):
+                diagnostics["links_skipped"] += 1
+                continue
             url = _text(link.get("url"))
             if not url or not _is_public_product_page_url(url):
                 diagnostics["links_skipped"] += 1
@@ -78,12 +86,103 @@ class SchemaOrgProductCollector:
         return {"candidates": candidates, "diagnostics": diagnostics}
 
 
+class ProviderCatalogCollector:
+    def __init__(self, catalog_provider: str, fetch_text: FetchText | None = None, max_product_pages: int = 5) -> None:
+        self.catalog_provider = str(catalog_provider).casefold()
+        self.provider = f"catalog_{self.catalog_provider}"
+        self.fetch_text = fetch_text or _fetch_public_text
+        self.max_product_pages = max(0, int(max_product_pages))
+
+    def collect(self, query: dict[str, Any]) -> list[dict[str, Any]]:
+        return self.collect_with_diagnostics(query)["candidates"]
+
+    def collect_with_diagnostics(self, query: dict[str, Any]) -> dict[str, Any]:
+        diagnostics = _collector_diagnostics(self.provider)
+        query_text = _text(query.get("query"))
+        if not query_text:
+            return {"candidates": [], "diagnostics": diagnostics}
+        diagnostics["queries_seen"] = 1
+        source_kind = _text(query.get("kind")) or "supplier_search"
+        candidates: list[dict[str, Any]] = []
+        for link in _quick_links(query):
+            diagnostics["links_seen"] += 1
+            url = _text(link.get("url"))
+            if not url or not _is_catalog_search_link_for_provider(link, self.catalog_provider):
+                diagnostics["links_skipped"] += 1
+                continue
+            if not _is_public_product_page_url(url):
+                diagnostics["links_skipped"] += 1
+                continue
+            try:
+                html = self.fetch_text(url)
+            except httpx.HTTPError as exc:
+                diagnostics["errors"].append(str(exc))
+                continue
+            diagnostics["pages_fetched"] += 1
+
+            page_candidates = self._schema_candidates(html, url, query_text, source_kind)
+            diagnostics["candidates_found"] += len(page_candidates)
+            candidates.extend(page_candidates)
+
+            fetched_urls = {url.casefold()}
+            candidate_urls = {
+                candidate_url.casefold()
+                for candidate in page_candidates
+                if (candidate_url := _text(candidate.get("url")))
+            }
+            followed_pages = 0
+            for product_url in _catalog_product_page_urls(html, url):
+                if followed_pages >= self.max_product_pages:
+                    break
+                product_url_key = product_url.casefold()
+                if product_url_key in fetched_urls or product_url_key in candidate_urls:
+                    continue
+                if not _is_public_product_page_url(product_url) or not _is_same_public_site(url, product_url):
+                    diagnostics["links_skipped"] += 1
+                    continue
+                try:
+                    product_html = self.fetch_text(product_url)
+                except httpx.HTTPError as exc:
+                    diagnostics["errors"].append(str(exc))
+                    continue
+                fetched_urls.add(product_url_key)
+                followed_pages += 1
+                diagnostics["pages_fetched"] += 1
+                product_candidates = self._schema_candidates(product_html, product_url, query_text, source_kind)
+                diagnostics["candidates_found"] += len(product_candidates)
+                candidates.extend(product_candidates)
+        return {"candidates": candidates, "diagnostics": diagnostics}
+
+    def _schema_candidates(
+        self,
+        html: str,
+        source_url: str,
+        query_text: str,
+        source_kind: str,
+    ) -> list[dict[str, Any]]:
+        return _schema_org_candidates(
+            html,
+            source_url,
+            query_text,
+            source_kind,
+            provider=self.catalog_provider,
+            note_prefix=f"{_catalog_provider_label(self.catalog_provider)} catalog offer",
+        )
+
+
+def default_price_collectors(fetch_text: FetchText | None = None) -> list[Any]:
+    return [
+        *[ProviderCatalogCollector(provider, fetch_text=fetch_text) for provider in BUILT_IN_CATALOG_PROVIDERS],
+        SchemaOrgProductCollector(fetch_text=fetch_text),
+    ]
+
+
 def run_profile_supplier_price_discovery(
     database_path: str | Path,
     source: str,
     external_id: str,
     position_index: int,
-    collectors: list[SchemaOrgProductCollector] | None = None,
+    collectors: list[Any] | None = None,
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
@@ -101,13 +200,14 @@ def run_profile_supplier_price_discovery(
         raise ValueError("Сначала подготовь поиск поставщиков.")
 
     existing_keys = _existing_candidate_keys(raw_payload)
-    price_collectors = collectors or [SchemaOrgProductCollector()]
+    price_collectors = default_price_collectors() if collectors is None else collectors
     candidates: list[dict[str, Any]] = []
     diagnostics_by_provider: dict[str, dict[str, Any]] = {}
     for query in queries:
         for collector in price_collectors:
             result = collector.collect_with_diagnostics(query)
-            _merge_diagnostics(diagnostics_by_provider, result["diagnostics"])
+            if _diagnostics_has_signal(result["diagnostics"]):
+                _merge_diagnostics(diagnostics_by_provider, result["diagnostics"])
             for candidate in result["candidates"]:
                 key = _candidate_key(candidate)
                 if key in existing_keys:
@@ -163,6 +263,10 @@ def _merge_diagnostics(current: dict[str, dict[str, Any]], item: dict[str, Any])
     target["errors"].extend([str(error) for error in item.get("errors") or []])
 
 
+def _diagnostics_has_signal(item: dict[str, Any]) -> bool:
+    return bool(item.get("pages_fetched") or item.get("candidates_found") or item.get("errors"))
+
+
 def _quick_links(query: dict[str, Any]) -> list[dict[str, Any]]:
     links = query.get("quick_links")
     if not isinstance(links, list):
@@ -170,7 +274,15 @@ def _quick_links(query: dict[str, Any]) -> list[dict[str, Any]]:
     return [dict(link) for link in links if isinstance(link, dict) and _text(link.get("url"))]
 
 
-def _schema_org_candidates(html: str, source_url: str, query_text: str, source_kind: str) -> list[dict[str, Any]]:
+def _schema_org_candidates(
+    html: str,
+    source_url: str,
+    query_text: str,
+    source_kind: str,
+    *,
+    provider: str = SCHEMA_ORG_PRODUCT_PROVIDER,
+    note_prefix: str = "Schema.org product offer",
+) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
     soup = BeautifulSoup(html, "html.parser")
     for script in soup.find_all("script", {"type": "application/ld+json"}):
@@ -193,8 +305,8 @@ def _schema_org_candidates(html: str, source_url: str, query_text: str, source_k
                     "status": "candidate",
                     "source_query": query_text,
                     "source_kind": source_kind,
-                    "note": f"Schema.org product offer from {source_url}.",
-                    "provider": SCHEMA_ORG_PRODUCT_PROVIDER,
+                    "note": f"{note_prefix} from {source_url}.",
+                    "provider": provider,
                 }
                 if currency := _schema_offer_currency(offer):
                     candidate["currency"] = currency
@@ -324,6 +436,34 @@ def _schema_product_page_urls(html: str, source_url: str) -> list[str]:
     return urls
 
 
+def _catalog_product_page_urls(html: str, source_url: str) -> list[str]:
+    urls: list[str] = []
+    seen: set[str] = set()
+    for product_url in _schema_product_page_urls(html, source_url):
+        _append_unique_url(urls, seen, product_url)
+    for product_url in _same_site_anchor_urls(html, source_url):
+        _append_unique_url(urls, seen, product_url)
+    return urls
+
+
+def _same_site_anchor_urls(html: str, source_url: str) -> list[str]:
+    urls: list[str] = []
+    seen: set[str] = set()
+    soup = BeautifulSoup(html, "html.parser")
+    source_key = source_url.casefold()
+    for anchor in soup.find_all("a", href=True):
+        href = _text(anchor.get("href"))
+        if not href or href.startswith(("#", "mailto:", "tel:", "javascript:")):
+            continue
+        url = urldefrag(urljoin(source_url, href))[0]
+        if not _is_public_product_page_url(url) or not _is_same_public_site(source_url, url):
+            continue
+        if url.casefold() == source_key:
+            continue
+        _append_unique_url(urls, seen, url)
+    return urls
+
+
 def _append_unique_url(urls: list[str], seen: set[str], url: str) -> None:
     key = url.casefold()
     if key in seen:
@@ -372,6 +512,34 @@ def _is_same_public_site(source_url: str, target_url: str) -> bool:
     if source.scheme == "data" or target.scheme == "data":
         return True
     return source.netloc.casefold() == target.netloc.casefold()
+
+
+def _is_builtin_catalog_search_link(link: dict[str, Any]) -> bool:
+    provider = _text(link.get("provider"))
+    return (
+        _text(link.get("link_kind")) == CATALOG_SEARCH_LINK_KIND
+        and provider is not None
+        and provider.casefold() in BUILT_IN_CATALOG_PROVIDER_SET
+    )
+
+
+def _is_catalog_search_link_for_provider(link: dict[str, Any], provider: str) -> bool:
+    link_provider = _text(link.get("provider"))
+    return (
+        _text(link.get("link_kind")) == CATALOG_SEARCH_LINK_KIND
+        and link_provider is not None
+        and link_provider.casefold() == provider.casefold()
+    )
+
+
+def _catalog_provider_label(provider: str) -> str:
+    labels = {
+        "officemag": "OfficeMag",
+        "komus": "Komus",
+        "petrovich": "Petrovich",
+        "vseinstrumenti": "Vseinstrumenti",
+    }
+    return labels.get(provider.casefold(), provider.replace("_", " ").title())
 
 
 def _existing_candidate_keys(raw_payload: dict[str, Any]) -> set[tuple[str, str]]:
