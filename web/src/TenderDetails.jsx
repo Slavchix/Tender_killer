@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Building2 } from 'lucide-react'
-import { refreshTenderDetails } from './api'
 import {
-  shouldAutoRefreshDetails,
   formatMoney,
   formatDate,
 } from './formatters'
@@ -18,13 +16,12 @@ import { WorkflowTabPanel } from './TenderWorkflowTab'
 import { useTenderDocumentAnalysis } from './useTenderDocumentAnalysis'
 import { useTenderNotification } from './useTenderNotification'
 import { useTenderProductProfiles } from './useTenderProductProfiles'
+import { useTenderRefreshDetails } from './useTenderRefreshDetails'
 import { useTenderWorkflow } from './useTenderWorkflow'
 
 export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const raw = safeJson(tender.raw_payload_json)
-  const autoRefreshKey = useRef('')
   const [activeTab, setActiveTab] = useState('overview')
-  const [refreshingDetails, setRefreshingDetails] = useState(false)
   const [detailStatus, setDetailStatus] = useState('')
   const { note, setNote, saving, saveWorkflow } = useTenderWorkflow(tender, onWorkflowUpdate)
   const { sending, notifyStatus, setNotifyStatus, sendToTelegram } = useTenderNotification(tender)
@@ -65,40 +62,20 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     extractDocumentText,
     analyzeTender,
   } = useTenderDocumentAnalysis(tender)
+  const { refreshingDetails, refreshDetails } = useTenderRefreshDetails({
+    tender,
+    onTenderRefresh,
+    setDetailStatus,
+    setDocumentRecords,
+    setAnalysis,
+    applyProductTenderState,
+  })
 
   useEffect(() => {
     setActiveTab('overview')
     setNotifyStatus('')
     setDetailStatus('')
   }, [tender.source, tender.external_id, tender.workflow_note, tender.analysis, tender.product_profiles, tender.product_profile_summary, tender.economics])
-
-  useEffect(() => {
-    const key = `${tender.source}/${tender.external_id}`
-    if (!shouldAutoRefreshDetails(tender) || autoRefreshKey.current === key) return
-    autoRefreshKey.current = key
-    refreshDetails({ automatic: true })
-  }, [tender.source, tender.external_id, tender.items?.length])
-
-  function refreshDetails(options = {}) {
-    setRefreshingDetails(true)
-    setDetailStatus(options.automatic ? 'Автоматически добираю позиции и классификаторы...' : '')
-    refreshTenderDetails(tender)
-      .then((payload) => {
-        const nextTender = payload.tender || tender
-        onTenderRefresh(nextTender)
-        setDocumentRecords(nextTender.document_records || [])
-        setAnalysis(nextTender.analysis || null)
-        applyProductTenderState(nextTender)
-        const summary = payload.summary || {}
-        setDetailStatus(
-          payload.refreshed
-            ? `${options.automatic ? 'Автообновление: ' : 'Обновлено: '}позиций ${summary.items_count || 0}, документов ${summary.documents_count || 0}, профилей ${summary.product_profiles_count || 0}`
-            : payload.message || 'Источник не отдал новые детали'
-        )
-      })
-      .catch((err) => setDetailStatus(err.message))
-      .finally(() => setRefreshingDetails(false))
-  }
 
 
   const statusMessages = [detailStatus, notifyStatus, downloadStatus, extractStatus].filter(Boolean)

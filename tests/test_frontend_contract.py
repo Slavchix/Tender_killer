@@ -29,6 +29,7 @@ USE_TENDER_DOCUMENT_ANALYSIS_SOURCE = Path(__file__).resolve().parents[1] / "web
 USE_TENDER_PRODUCT_PROFILES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderProductProfiles.js"
 USE_TENDER_WORKFLOW_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderWorkflow.js"
 USE_TENDER_NOTIFICATION_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderNotification.js"
+USE_TENDER_REFRESH_DETAILS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderRefreshDetails.js"
 
 
 def _css_rule(source: str, selector: str) -> str:
@@ -229,6 +230,7 @@ def test_frontend_uses_dedicated_tender_details_module():
     assert "from './useTenderProductProfiles'" in tender_details_source
     assert "from './useTenderWorkflow'" in tender_details_source
     assert "from './useTenderNotification'" in tender_details_source
+    assert "from './useTenderRefreshDetails'" in tender_details_source
     assert "details-panel" in app_source
     assert "<TenderDetails tender={details}" in app_source
     assert "function TenderDetails" not in app_source
@@ -489,7 +491,8 @@ def test_tender_details_uses_product_profiles_hook():
         "acceptingAutoEconomicsPosition",
     ):
         assert f"const [{state_name}" not in tender_details_source
-    assert "applyProductTenderState(nextTender)" in tender_details_source
+    assert "applyProductTenderState" in tender_details_source
+    assert "applyProductTenderState" in hook_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
 
@@ -530,6 +533,29 @@ def test_tender_details_uses_notification_hook():
     assert "const [notifyStatus" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_NOTIFICATION_SOURCE) == []
+
+
+def test_tender_details_uses_refresh_details_hook():
+    tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    hook_source = (
+        USE_TENDER_REFRESH_DETAILS_SOURCE.read_text(encoding="utf-8")
+        if USE_TENDER_REFRESH_DETAILS_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './useTenderRefreshDetails'" in tender_details_source
+    assert "useTenderRefreshDetails({" in tender_details_source
+    assert "export function useTenderRefreshDetails" in hook_source
+    assert "refreshTenderDetails" in hook_source
+    assert "shouldAutoRefreshDetails" in hook_source
+    assert "applyProductTenderState(nextTender)" in hook_source
+    assert "function refreshDetails" not in tender_details_source
+    assert "const [refreshingDetails" not in tender_details_source
+    assert "autoRefreshKey" not in tender_details_source
+    assert "refreshTenderDetails" not in tender_details_source
+    assert "shouldAutoRefreshDetails" not in tender_details_source
+    assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(hook_source, USE_TENDER_REFRESH_DETAILS_SOURCE) == []
 
 
 def test_tender_cockpit_exposes_page_size_selector():
