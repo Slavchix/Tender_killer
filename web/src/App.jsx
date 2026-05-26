@@ -2,15 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bell,
   Building2,
-  CalendarClock,
   ChevronLeft,
   ChevronRight,
-  CircleDollarSign,
   ExternalLink,
   FileText,
   PlayCircle,
   RefreshCcw,
-  Scale,
 } from 'lucide-react'
 import {
   acceptProfileAutoEconomics as acceptProfileAutoEconomicsRequest,
@@ -64,8 +61,8 @@ import {
 } from './formatters'
 import { DashboardView } from './Dashboard'
 import { DatabaseView } from './DatabaseView'
-import { PaginationBar } from './PaginationBar'
 import { FiltersPanel } from './FiltersPanel'
+import { TenderList } from './TenderList'
 import './styles.css'
 import {
   sourceLabels,
@@ -373,63 +370,21 @@ function App() {
           onUpdateFilter={updateFilter}
         />
 
-        <section className="tender-list">
-          <div className="list-header">
-            <h2>Закупки</h2>
-            {loading && <span>обновление...</span>}
-          </div>
-          <div className="workflow-tabs">
-            <button className={!filters.workflow_status ? 'active' : ''} onClick={() => setWorkflowFilter('')} type="button">Все</button>
-            {Object.entries(workflowLabels).map(([status, label]) => (
-              <button
-                className={filters.workflow_status === status ? 'active' : ''}
-                key={status}
-                onClick={() => setWorkflowFilter(status)}
-                type="button"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <PaginationBar
-            loading={loading}
-            onNext={() => goToOffset(tenderPage.next_offset)}
-            onPageLimitChange={changePageLimit}
-            onPrevious={() => goToOffset(tenderPage.previous_offset)}
-            page={tenderPage}
-            pageLimit={pageLimit}
-            pageLimitOptions={tenderPageLimitOptions}
-            shown={tenders.length}
-          />
-          {error && <div className="error-box">{error}</div>}
-          <div className="rows">
-            {tenders.map((tender) => (
-              <button
-                className={`tender-row ${selected?.source === tender.source && selected?.external_id === tender.external_id ? 'selected' : ''}`}
-                key={`${tender.source}-${tender.external_id}`}
-                onClick={() => setSelected(tender)}
-              >
-                <div className="row-main">
-                  <span className="row-tags">
-                    <span className="source-chip">{sourceLabels[tender.source] || tender.source}</span>
-                    <span className={`workflow-chip ${tender.workflow_status || 'new'}`}>
-                      {workflowLabels[tender.workflow_status] || 'Новая'}
-                    </span>
-                  </span>
-                  <strong>{tender.title}</strong>
-                  <span>{tender.customer || 'Заказчик не указан'}</span>
-                </div>
-                <div className="row-meta">
-                  <span><CircleDollarSign size={15} /> {formatMoney(tender.price)}</span>
-                  <span><Scale size={15} /> {tender.law || 'закон не указан'}</span>
-                  <span><CalendarClock size={15} /> {formatDate(tender.deadline_at)}</span>
-                  <span><FileText size={15} /> {tender.documents_count}</span>
-                  <span>Позиций: {tender.items_count || 0}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
+        <TenderList
+          error={error}
+          loading={loading}
+          onNextPage={() => goToOffset(tenderPage.next_offset)}
+          onPageLimitChange={changePageLimit}
+          onPreviousPage={() => goToOffset(tenderPage.previous_offset)}
+          onTenderSelect={setSelected}
+          onWorkflowFilterChange={setWorkflowFilter}
+          page={tenderPage}
+          pageLimit={pageLimit}
+          pageLimitOptions={tenderPageLimitOptions}
+          selectedTender={selected}
+          tenders={tenders}
+          workflowStatus={filters.workflow_status}
+        />
 
         <aside className="details-panel">
           {details ? (

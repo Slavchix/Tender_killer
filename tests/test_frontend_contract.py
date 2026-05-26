@@ -14,6 +14,7 @@ DATABASE_VIEW_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "Da
 FILTERS_PANEL_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "FiltersPanel.jsx"
 FORMATTERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "formatters.js"
 PAGINATION_BAR_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "PaginationBar.jsx"
+TENDER_LIST_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderList.jsx"
 
 
 def _css_rule(source: str, selector: str) -> str:
@@ -129,18 +130,24 @@ def test_frontend_uses_dedicated_database_view_module():
 
 def test_frontend_uses_dedicated_pagination_bar_module():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
+    tender_list_source = (
+        TENDER_LIST_SOURCE.read_text(encoding="utf-8")
+        if TENDER_LIST_SOURCE.exists()
+        else ""
+    )
     pagination_source = (
         PAGINATION_BAR_SOURCE.read_text(encoding="utf-8")
         if PAGINATION_BAR_SOURCE.exists()
         else ""
     )
 
-    assert "from './PaginationBar'" in app_source
+    assert "from './PaginationBar'" in tender_list_source
     assert "export function PaginationBar" in pagination_source
     assert "page-size-control" in pagination_source
     assert "onPageLimitChange" in pagination_source
     assert "function PaginationBar" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(tender_list_source, TENDER_LIST_SOURCE) == []
     assert find_mojibake(pagination_source, PAGINATION_BAR_SOURCE) == []
 
 
@@ -161,6 +168,26 @@ def test_frontend_uses_dedicated_filters_panel_module():
     assert "function FiltersPanel" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(filters_source, FILTERS_PANEL_SOURCE) == []
+
+
+def test_frontend_uses_dedicated_tender_list_module():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    tender_list_source = (
+        TENDER_LIST_SOURCE.read_text(encoding="utf-8")
+        if TENDER_LIST_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './TenderList'" in app_source
+    assert "export function TenderList" in tender_list_source
+    assert "function TenderListItem" in tender_list_source
+    assert "tender-list" in tender_list_source
+    assert "PaginationBar" in tender_list_source
+    assert "onTenderSelect(tender)" in tender_list_source
+    assert "function TenderList" not in app_source
+    assert "className=\"tender-list\"" not in app_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(tender_list_source, TENDER_LIST_SOURCE) == []
 
 
 def test_tender_cockpit_exposes_page_size_selector():
