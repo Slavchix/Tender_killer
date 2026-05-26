@@ -13,13 +13,13 @@ def test_check_dev_site_verifies_api_frontend_proxy_and_ui_text(tmp_path):
 
     def fetcher(url: str, timeout: float):
         if url == "http://127.0.0.1:8000/api/health":
-            return 200, '{"ok": true}'
+            return 200, '{"ok": true, "capabilities": ["supplier_search_prepare", "supplier_catalog_presets"]}'
         if url == "http://127.0.0.1:8000/api/sources/status":
             return 200, '{"sources": []}'
         if url == "http://127.0.0.1:5173/":
             return 200, '<html><body><div id="root"></div><script type="module" src="/src/App.jsx"></script></body></html>'
         if url == "http://127.0.0.1:5173/api/health":
-            return 200, '{"ok": true}'
+            return 200, '{"ok": true, "capabilities": ["supplier_search_prepare", "supplier_catalog_presets"]}'
         if url == "http://127.0.0.1:5173/api/sources/status":
             return 200, '{"sources": []}'
         raise AssertionError(url)
@@ -47,7 +47,7 @@ def test_check_dev_site_reports_missing_page_size_label(tmp_path):
 
     def fetcher(url: str, timeout: float):
         if url.endswith("/api/health"):
-            return 200, '{"ok": true}'
+            return 200, '{"ok": true, "capabilities": ["supplier_search_prepare", "supplier_catalog_presets"]}'
         if url.endswith("/api/sources/status"):
             return 200, '{"sources": []}'
         return 200, '<div id="root"></div>'

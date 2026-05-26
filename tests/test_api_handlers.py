@@ -29,7 +29,9 @@ def test_handle_get_request_returns_health_payload(tmp_path) -> None:
 
     assert response.kind == "json"
     assert response.status == 200
-    assert response.payload == {"ok": True}
+    assert response.payload["ok"] is True
+    assert "supplier_search_prepare" in response.payload["capabilities"]
+    assert "supplier_catalog_presets" in response.payload["capabilities"]
 
 
 def test_handle_get_request_routes_tender_detail(tmp_path) -> None:

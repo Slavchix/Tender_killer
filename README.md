@@ -60,7 +60,8 @@ Recent architecture cleanup:
 - Dashboard cards share one aligned full-width grid, so metrics, source status, queue, attention items, and recent tenders read as one organized workspace.
 - The tender list has a page-size selector for 10/25/50/100 rows while keeping 25 as the default.
 - Search runs now return readable statistics: new/existing relevant matches plus breakdowns by law, region, and source for Telegram summaries and `/api/search/run`.
-- Local dev startup is guarded by `tender_killer.dev_health`, which checks both `/api/health` and `/api/sources/status` before the frontend starts.
+- Local dev startup is guarded by `tender_killer.dev_health`, which checks `/api/health` capabilities plus `/api/sources/status` before the frontend starts.
+- The API health payload now advertises required local-dev capabilities, so a stale backend on port 8000 is rejected before Vite proxies product-profile supplier actions to it.
 - Runtime/UI text encoding is guarded by `tender_killer.encoding_guard`; `dev_smoke` reuses it to catch Cyrillic mojibake regressions.
 - Active tender lists now hide expired purchases by normalized active status plus `deadline_at >= datetime('now')`, so completed/old cards do not dominate the workbench.
 - The React frontend has been decomposed out of the former oversized `App.jsx` / `TenderDetails.jsx` surface. Current extracted modules include `api.js`, `constants.js`, `formatters.js`, `Dashboard.jsx`, `DatabaseView.jsx`, `FiltersPanel.jsx`, `TenderList.jsx`, `PaginationBar.jsx`, `TenderDetailActions.jsx`, `TenderDetailsHeader.jsx`, `TenderDetailsStatusStack.jsx`, `TenderDetailsTabs.jsx`, `TenderDetailsShared.jsx`, `TenderDecisionSummary.jsx`, `TenderOverviewTab.jsx`, `TenderDocumentsTab.jsx`, `TenderAnalysisTab.jsx`, `TenderWorkflowTab.jsx`, `TenderProductsTab.jsx`, and `TenderEconomicsTab.jsx`.
@@ -74,7 +75,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after supplier catalog preset controls: `325 passed`.
+Latest verified result after the API capability health guard: `326 passed`.
 
 Good next steps:
 
@@ -240,7 +241,7 @@ Recommended combined local startup:
 npm run dev
 ```
 
-This starts the backend from `.\.venv\Scripts\python.exe`, waits until both `/api/health` and `/api/sources/status` respond, then starts Vite. If port `8000` is already occupied by an old or incompatible API process, the script stops with a clear error instead of silently proxying the site to the wrong backend.
+This starts the backend from `.\.venv\Scripts\python.exe`, waits until `/api/health` reports the expected API capabilities and `/api/sources/status` responds, then starts Vite. If port `8000` is already occupied by an old or incompatible API process, the script stops with a clear error instead of silently proxying the site to the wrong backend.
 
 Manual API health check:
 

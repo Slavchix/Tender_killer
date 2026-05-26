@@ -10,6 +10,12 @@ from urllib.request import Request, urlopen
 
 FetchResult = tuple[int, dict[str, Any]]
 Fetcher = Callable[[str, float], FetchResult]
+Validator = Callable[[dict[str, Any]], str]
+
+REQUIRED_API_CAPABILITIES: tuple[str, ...] = (
+    "supplier_search_prepare",
+    "supplier_catalog_presets",
+)
 
 
 def check_api_health(
@@ -19,8 +25,8 @@ def check_api_health(
 ) -> dict[str, Any]:
     fetch = fetcher or _fetch_json
     checks = [
-        _check_endpoint(base_url, "/api/health", timeout, fetch, _is_health_payload),
-        _check_endpoint(base_url, "/api/sources/status", timeout, fetch, _is_source_status_payload),
+        _check_endpoint(base_url, "/api/health", timeout, fetch, _health_payload_error),
+        _check_endpoint(base_url, "/api/sources/status", timeout, fetch, _source_status_payload_error),
     ]
     return {
         "ok": all(check["ok"] for check in checks),
@@ -50,7 +56,7 @@ def _check_endpoint(
     path: str,
     timeout: float,
     fetch: Fetcher,
-    validator: Callable[[dict[str, Any]], bool],
+    validator: Validator,
 ) -> dict[str, Any]:
     url = urljoin(base_url.rstrip("/") + "/", path.lstrip("/"))
     try:
@@ -60,8 +66,9 @@ def _check_endpoint(
 
     if not 200 <= status < 300:
         return {"path": path, "ok": False, "status": status, "error": f"expected HTTP 2xx, got {status}"}
-    if not validator(payload):
-        return {"path": path, "ok": False, "status": status, "error": "unexpected JSON payload shape"}
+    validation_error = validator(payload)
+    if validation_error:
+        return {"path": path, "ok": False, "status": status, "error": validation_error}
     return {"path": path, "ok": True, "status": status, "error": ""}
 
 
@@ -87,12 +94,21 @@ def _json_payload(body: str) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {"raw": payload}
 
 
-def _is_health_payload(payload: dict[str, Any]) -> bool:
-    return payload.get("ok") is True
+def _health_payload_error(payload: dict[str, Any]) -> str:
+    if payload.get("ok") is not True:
+        return "expected ok=true"
+    capabilities = payload.get("capabilities")
+    capability_set = {str(item) for item in capabilities} if isinstance(capabilities, list) else set()
+    missing = [capability for capability in REQUIRED_API_CAPABILITIES if capability not in capability_set]
+    if missing:
+        return "missing API capabilities: " + ", ".join(missing)
+    return ""
 
 
-def _is_source_status_payload(payload: dict[str, Any]) -> bool:
-    return isinstance(payload.get("sources"), list)
+def _source_status_payload_error(payload: dict[str, Any]) -> str:
+    if not isinstance(payload.get("sources"), list):
+        return "expected sources list"
+    return ""
 
 
 def _print_human_result(result: dict[str, Any]) -> None:

@@ -56,6 +56,11 @@ class ApiResponse:
 
 SettingsFactory = Callable[[], Settings]
 
+API_CAPABILITIES: tuple[str, ...] = (
+    "supplier_search_prepare",
+    "supplier_catalog_presets",
+)
+
 
 def rebuild_product_profiles(database_path: str | Path, source: str, external_id: str) -> dict[str, Any]:
     tender = get_tender_payload(database_path, source, external_id, include_product_profiles=False)
@@ -247,7 +252,7 @@ def handle_get_request(database_path: str | Path, path: str, query: dict[str, st
             return ApiResponse({"error": "invalid tender path"}, status=400)
         return ApiResponse(get_tender_payload(database_path, route.source, route.external_id))
     if path == "/api/health":
-        return ApiResponse({"ok": True})
+        return ApiResponse({"ok": True, "capabilities": list(API_CAPABILITIES)})
     return ApiResponse({"error": "not found"}, status=404)
 
 

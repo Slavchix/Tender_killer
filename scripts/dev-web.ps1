@@ -46,7 +46,7 @@ function Test-TcpPort {
 }
 
 function Test-ApiHealth {
-    # dev_health verifies both /api/health and /api/sources/status.
+    # dev_health verifies /api/health capabilities and /api/sources/status.
     & $python -m tender_killer.dev_health --base-url $apiBaseUrl --timeout 2 --quiet
     return $LASTEXITCODE -eq 0
 }

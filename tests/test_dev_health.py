@@ -8,7 +8,7 @@ from tender_killer.dev_health import check_api_health
 def test_check_api_health_requires_health_and_source_status_endpoints():
     def fetcher(url: str, timeout: float):
         if url.endswith("/api/health"):
-            return 200, {"ok": True}
+            return 200, {"ok": True, "capabilities": ["supplier_search_prepare", "supplier_catalog_presets"]}
         if url.endswith("/api/sources/status"):
             return 200, {"sources": []}
         raise AssertionError(url)
@@ -19,10 +19,27 @@ def test_check_api_health_requires_health_and_source_status_endpoints():
     assert [check["path"] for check in payload["checks"]] == ["/api/health", "/api/sources/status"]
 
 
-def test_check_api_health_reports_stale_backend_missing_source_status():
+def test_check_api_health_reports_stale_backend_missing_supplier_capabilities():
     def fetcher(url: str, timeout: float):
         if url.endswith("/api/health"):
             return 200, {"ok": True}
+        if url.endswith("/api/sources/status"):
+            return 200, {"sources": []}
+        raise AssertionError(url)
+
+    payload = check_api_health("http://127.0.0.1:8000", fetcher=fetcher)
+
+    assert payload["ok"] is False
+    health = payload["checks"][0]
+    assert health["path"] == "/api/health"
+    assert "supplier_catalog_presets" in health["error"]
+    assert "supplier_search_prepare" in health["error"]
+
+
+def test_check_api_health_reports_stale_backend_missing_source_status():
+    def fetcher(url: str, timeout: float):
+        if url.endswith("/api/health"):
+            return 200, {"ok": True, "capabilities": ["supplier_search_prepare", "supplier_catalog_presets"]}
         if url.endswith("/api/sources/status"):
             return 404, {"error": "not found"}
         raise AssertionError(url)
@@ -40,5 +57,5 @@ def test_dev_web_script_runs_api_health_check_before_frontend():
     script = Path("scripts/dev-web.ps1").read_text(encoding="utf-8")
 
     assert "tender_killer.dev_health" in script
-    assert "/api/sources/status" in script
+    assert "capabilities" in script
     assert "Port 8000 is already in use" in script

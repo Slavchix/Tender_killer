@@ -719,9 +719,10 @@ Date: 2026-05-26.
 - Supplier discovery staging now stores provider collector diagnostics under `raw_payload.supplier_discovery.collector_diagnostics`, including seen queries/links, skipped links, fetched pages, candidates found, and fetch errors.
 - `TenderEconomicsTab.jsx` renders collector diagnostics in the supplier discovery preview next to staged candidates, so operator review can see provider, seen/skipped links, fetched pages, candidates found, and errors.
 - `web/src/api.js` now surfaces backend JSON `error` messages, so supplier discovery can show no-new-candidates and missing-prepared-query responses instead of only generic client text.
+- `tender_killer.dev_health` now requires `/api/health` capabilities for `supplier_search_prepare` and `supplier_catalog_presets`, so stale backend processes on port 8000 are rejected before Vite proxies newer supplier UI actions to them.
 - `web/src/TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
 - Latest local targeted verification after supplier catalog preset controls: `102 passed` for route/API handlers, supplier catalog/search/discovery services, price discovery, and frontend contracts.
-- Full verification after this slice: `325 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- Full verification after this slice: `326 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
 - JSX syntax was checked through Babel parser in the Node REPL after wiring the supplier catalog preset controls into the economics tab.
 - Next planned steps:
   1. Extend provider-specific collectors as real supplier catalogs are selected.
