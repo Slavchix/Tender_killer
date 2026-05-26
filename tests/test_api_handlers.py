@@ -333,6 +333,7 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_candidate
                     "name": "Paper shop",
                     "url": "https://example.com/paper",
                     "unit_price": "900",
+                    "provider": "public catalog",
                     "source_query": "office paper a4",
                     "source_kind": "normalized_name",
                 }
@@ -345,6 +346,8 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_candidate
     assert profile["profile_status"] == "matched"
     assert profile["raw_payload"]["supplier_discovery"]["status"] == "pending_review"
     assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["review_status"] == "pending"
+    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["provider"] == "public_catalog"
+    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["confidence"] == "high"
 
 
 def test_handle_post_request_routes_product_profile_supplier_discovery_candidate_import(tmp_path) -> None:
@@ -368,6 +371,8 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_candidate
                                 "name": "Paper shop",
                                 "url": "https://example.com/paper",
                                 "unit_price": 900.0,
+                                "provider": "public_catalog",
+                                "confidence": "high",
                                 "source_query": "office paper a4",
                                 "source_kind": "normalized_name",
                                 "review_status": "pending",
@@ -392,6 +397,8 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_candidate
             "name": "Paper shop",
             "url": "https://example.com/paper",
             "unit_price": 900.0,
+            "provider": "public_catalog",
+            "confidence": "high",
             "source_query": "office paper a4",
             "source_kind": "normalized_name",
         }

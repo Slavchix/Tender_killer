@@ -1,14 +1,27 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
 from tender_killer.storage import TenderStore
 
 
-DISCOVERY_TEXT_FIELDS = ("name", "url", "availability", "status", "source_query", "source_kind", "note")
+DISCOVERY_TEXT_FIELDS = (
+    "name",
+    "url",
+    "availability",
+    "status",
+    "source_query",
+    "source_kind",
+    "note",
+    "provider",
+    "confidence",
+)
 DISCOVERY_NUMBER_FIELDS = ("unit_price",)
+DISCOVERY_CONFIDENCE_VALUES = {"high", "medium", "needs_review"}
 LOCKED_PROFILE_STATUSES = {"priced", "rejected"}
+TOKEN_PATTERN = re.compile(r"[^\w]+", re.UNICODE)
 
 
 def stage_profile_supplier_candidates(
@@ -112,7 +125,7 @@ def _find_profile(profiles: list[dict[str, Any]], position_index: int) -> dict[s
 def _discovery_candidate(data: dict[str, Any]) -> dict[str, Any]:
     candidate: dict[str, Any] = {}
     for field in DISCOVERY_TEXT_FIELDS:
-        value = _text(data.get(field))
+        value = _normalized_text_field(field, data.get(field))
         if value:
             candidate[field] = value
     for field in DISCOVERY_NUMBER_FIELDS:
@@ -122,6 +135,9 @@ def _discovery_candidate(data: dict[str, Any]) -> dict[str, Any]:
     has_candidate_signal = any(candidate.get(field) for field in ("name", "url", "note")) or "unit_price" in candidate
     if not has_candidate_signal:
         return {}
+    confidence_reasons = _confidence_reasons(candidate)
+    candidate["confidence"] = _confidence(data.get("confidence")) or _confidence_from_reasons(confidence_reasons)
+    candidate["confidence_reasons"] = confidence_reasons
     candidate.setdefault("review_status", "pending")
     return candidate
 
@@ -129,7 +145,7 @@ def _discovery_candidate(data: dict[str, Any]) -> dict[str, Any]:
 def _supplier_option_from_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     option: dict[str, Any] = {}
     for field in DISCOVERY_TEXT_FIELDS:
-        value = _text(candidate.get(field))
+        value = _normalized_text_field(field, candidate.get(field))
         if value:
             option[field] = value
     for field in DISCOVERY_NUMBER_FIELDS:
@@ -157,6 +173,49 @@ def _text(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _normalized_text_field(field: str, value: Any) -> str | None:
+    if field == "provider":
+        return _token(value)
+    if field == "confidence":
+        return _confidence(value)
+    return _text(value)
+
+
+def _token(value: Any) -> str | None:
+    text = _text(value)
+    if not text:
+        return None
+    token = TOKEN_PATTERN.sub("_", text.casefold()).strip("_")
+    return token or None
+
+
+def _confidence(value: Any) -> str | None:
+    token = _token(value)
+    if token in DISCOVERY_CONFIDENCE_VALUES:
+        return token
+    return None
+
+
+def _confidence_reasons(candidate: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    if "unit_price" in candidate:
+        reasons.append("has_price")
+    if candidate.get("url"):
+        reasons.append("has_url")
+    if candidate.get("source_query"):
+        reasons.append("has_source_query")
+    return reasons
+
+
+def _confidence_from_reasons(reasons: list[str]) -> str:
+    reason_set = set(reasons)
+    if {"has_price", "has_url", "has_source_query"}.issubset(reason_set):
+        return "high"
+    if "has_price" in reason_set and reason_set.intersection({"has_url", "has_source_query"}):
+        return "medium"
+    return "needs_review"
 
 
 def _number(value: Any) -> float | None:

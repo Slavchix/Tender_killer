@@ -793,6 +793,9 @@ def test_product_profile_renders_supplier_option_form():
     assert "supplier_discovery" in source
     assert "SupplierSearchPreview" in source
     assert "SupplierDiscoveryPreview" in source
+    assert "supplierConfidenceLabel(candidate.confidence)" in source
+    assert "candidate.provider" in source
+    assert "confidence_reasons" in source
     assert "quick_links" in source
     assert "supplier-search-links" in source
     assert "href={link.url}" in source

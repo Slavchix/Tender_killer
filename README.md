@@ -47,7 +47,7 @@ Recent architecture cleanup:
 - The site can save manual supplier candidates per product position: supplier name, URL, unit price, availability, status, and note.
 - The site can prepare supplier search queries per product position and save them in SQLite under `raw_payload.supplier_search`; prepared queries include manual Google/Yandex quick links, still without network scraping or automatic economics changes.
 - Manual supplier candidates can keep the prepared search query that led to them (`source_query` / `source_kind`), preserving review evidence before any price is selected for economics.
-- Supplier discovery candidates can now be staged into `raw_payload.supplier_discovery.candidates` and reviewed/imported into `supplier_options`; import does not select a supplier or update economics.
+- Supplier discovery candidates can now be staged into `raw_payload.supplier_discovery.candidates` with normalized provider/confidence metadata and reviewed/imported into `supplier_options`; import does not select a supplier or update economics.
 - Tender Workbench v1 makes the selected tender area wider, adds a compact decision summary, and splits product details into `Паспорт`, `Цены`, `Поставщики`, and `ТЗ` sub-tabs.
 - Tender filters are collapsible in the workbench, letting the tender list expand while preserving quick access to filter controls.
 - The site now has a global shell with left navigation for `Дашборд`, `Закупки`, and `SQLite`; the dashboard shows metrics, source state, and workflow queue counts.
@@ -74,7 +74,7 @@ Latest verified result before this handoff: `311 passed`.
 Good next steps:
 
 1. Add the first public price discovery adapter that proposes supplier candidates from prepared queries into the review queue, without selecting or pricing them automatically.
-2. Add provider-specific normalization and confidence fields for discovered candidates.
+2. Add provider-specific collector diagnostics once real discovery providers start staging candidates.
 3. Keep Telegram as notifications/quick entry, not the main workbench.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.

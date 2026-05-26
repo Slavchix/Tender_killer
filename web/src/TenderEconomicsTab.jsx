@@ -665,6 +665,7 @@ function SupplierDiscoveryPreview({ discovery, importing = false, onImport }) {
       <span>Найденные кандидаты</span>
       {candidates.map((candidate, index) => {
         const imported = candidate.review_status === 'imported'
+        const confidenceReasons = Array.isArray(candidate.confidence_reasons) ? candidate.confidence_reasons : []
         return (
           <div className={imported ? 'supplier-discovery-row imported' : 'supplier-discovery-row'} key={`${candidate.url || candidate.name || 'candidate'}-${index}`}>
             <div>
@@ -674,6 +675,11 @@ function SupplierDiscoveryPreview({ discovery, importing = false, onImport }) {
                 <strong>{candidate.name || 'Поставщик'}</strong>
               )}
               {candidate.source_query && <p>Запрос: {candidate.source_query}</p>}
+              {candidate.provider && <p>{candidate.provider}</p>}
+              <p>
+                {supplierConfidenceLabel(candidate.confidence)}
+                {confidenceReasons.length ? ` · ${confidenceReasons.join(', ')}` : ''}
+              </p>
             </div>
             <span>{formatMoney(candidate.unit_price)}</span>
             <button
