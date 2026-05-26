@@ -153,6 +153,14 @@ export function prepareProfileSupplierSearch(tender, profile) {
   })
 }
 
+export function saveProfileSupplierCatalogPresets(tender, profile, presetIds) {
+  return apiJson(`${productProfilePath(tender, profile)}/supplier-catalog-presets`, {
+    method: 'POST',
+    body: { preset_ids: presetIds },
+    errorMessage: 'Не удалось сохранить каталоги поставщиков',
+  })
+}
+
 export function runProfileSupplierDiscovery(tender, profile) {
   return apiJson(`${productProfilePath(tender, profile)}/supplier-discovery/run`, {
     method: 'POST',

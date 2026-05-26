@@ -780,12 +780,14 @@ def test_product_profile_renders_supplier_option_form():
     assert "importProfileSupplierDiscoveryCandidate" in hook_source
     assert "onSupplierOptionSelect" in source
     assert "onSupplierOptionAutoSelect" in source
+    assert "onSupplierCatalogPresetsSave" in source
     assert "onSupplierSearchPrepare" in source
     assert "onSupplierDiscoveryRun" in source
     assert "onSupplierDiscoveryImport" in source
     assert "preparingSupplierSearchPosition" in details_source
     assert "discoveringSupplierPosition" in details_source
     assert "importingSupplierCandidatePosition" in details_source
+    assert "savingSupplierCatalogPresetPosition" in details_source
     assert "preparingSupplierSearchPosition" in tabs_source
     assert "discoveringSupplierPosition" in tabs_source
     assert "importingSupplierCandidatePosition" in tabs_source
@@ -793,6 +795,8 @@ def test_product_profile_renders_supplier_option_form():
     assert "${productProfilePath(tender, profile)}/supplier-options" in api_source
     assert "${productProfilePath(tender, profile)}/supplier-options/${optionIndex}/select" in api_source
     assert "supplier-options/best/select" in api_source
+    assert "supplier-catalog-presets" in api_source
+    assert "saveProfileSupplierCatalogPresets" in api_source
     assert "supplier-search/prepare" in api_source
     assert "supplier-discovery/run" in api_source
     assert "supplier-discovery/candidates/${candidateIndex}/import" in api_source
@@ -800,6 +804,11 @@ def test_product_profile_renders_supplier_option_form():
     assert "supplier_search" in source
     assert "supplier_discovery" in source
     assert "SupplierSearchPreview" in source
+    assert "SupplierCatalogPresetControls" in source
+    assert "SUPPLIER_CATALOG_PRESETS" in source
+    assert "supplier_catalog_preset_ids" in source
+    assert "onPresetSave(profile, nextPresetIds)" in source
+    assert "onPresetSave(profile, null)" in source
     assert "SupplierDiscoveryPreview" in source
     assert "SupplierDiscoveryDiagnostics" in source
     assert "collector_diagnostics" in source
@@ -828,6 +837,8 @@ def test_product_profile_renders_supplier_option_form():
     assert "selected: 'в расчете'" in formatter_source
     assert "Поставщики" in source
     assert ".supplier-search-preview" in styles_source
+    assert ".supplier-catalog-presets" in styles_source
+    assert ".supplier-catalog-preset-grid" in styles_source
     assert ".supplier-search-links" in styles_source
     assert ".supplier-discovery-preview" in styles_source
     assert ".supplier-discovery-diagnostics" in styles_source

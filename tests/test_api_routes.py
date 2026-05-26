@@ -9,6 +9,7 @@ from tender_killer.api_routes import (
     parse_product_profile_supplier_discovery_candidate_import_path,
     parse_product_profile_supplier_discovery_candidates_path,
     parse_product_profile_supplier_discovery_run_path,
+    parse_product_profile_supplier_catalog_presets_path,
     parse_product_profile_supplier_options_path,
     parse_product_profile_supplier_search_prepare_path,
     parse_tender_path,
@@ -137,6 +138,24 @@ def test_parse_product_profile_supplier_search_prepare_path_decodes_position_rou
     ) is None
     assert parse_product_profile_supplier_search_prepare_path(
         "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-search/prepare"
+    ) is None
+
+
+def test_parse_product_profile_supplier_catalog_presets_path_decodes_position_route() -> None:
+    route = parse_product_profile_supplier_catalog_presets_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/supplier-catalog-presets"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+
+    assert parse_product_profile_supplier_catalog_presets_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/supplier-catalog-presets"
+    ) is None
+    assert parse_product_profile_supplier_catalog_presets_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-catalog-presets"
     ) is None
 
 

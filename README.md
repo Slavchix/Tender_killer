@@ -46,7 +46,7 @@ Recent architecture cleanup:
 - The site can save per-position supplier economics inputs (unit cost, logistics, documents, other costs) and immediately refresh the tender economics summary from SQLite.
 - The site can save manual supplier candidates per product position: supplier name, URL, unit price, availability, status, and note.
 - The site can prepare supplier search queries per product position and save them in SQLite under `raw_payload.supplier_search`; prepared queries include manual Google/Yandex quick links, optional public catalog provider links from `raw_payload.supplier_catalogs`, and matching built-in catalog presets, still without network scraping or automatic economics changes.
-- Built-in supplier catalog presets currently cover first-pass office supplies (`officemag`, `komus`) and building/tool materials (`petrovich`, `vseinstrumenti`). Profiles can select exact preset IDs or disable presets through `raw_payload.supplier_catalog_preset_ids`.
+- Built-in supplier catalog presets currently cover first-pass office supplies (`officemag`, `komus`) and building/tool materials (`petrovich`, `vseinstrumenti`). The economics supplier block can switch each product profile between auto matching, exact preset IDs, or disabled presets through `raw_payload.supplier_catalog_preset_ids`; changing presets clears stale prepared supplier search queries.
 - Manual supplier candidates can keep the prepared search query that led to them (`source_query` / `source_kind`), preserving review evidence before any price is selected for economics.
 - The site can run a schema.org public supplier discovery pass from prepared quick links: search-engine links are ignored, public catalog pages can lead to same-site product pages, public product pages are parsed for Product/Offer JSON-LD, and candidates stay review-only until imported.
 - Public supplier discovery now normalizes unit price, currency, VAT mode, delivery note, availability, provider confidence, and collector diagnostics under `raw_payload.supplier_discovery`.
@@ -74,12 +74,12 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result before this handoff: `323 passed`.
+Latest verified result after supplier catalog preset controls: `325 passed`.
 
 Good next steps:
 
-1. Add UI controls for selecting/disabling supplier catalog presets per product profile.
-2. Extend provider-specific collectors as real supplier catalogs are selected.
+1. Extend provider-specific collectors as real supplier catalogs are selected.
+2. Add provider health/diagnostic checks for public catalog discovery.
 3. Keep Telegram as notifications/quick entry, not the main workbench.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.

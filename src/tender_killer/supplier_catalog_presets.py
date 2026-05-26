@@ -35,6 +35,27 @@ SUPPLIER_CATALOG_PRESETS: tuple[dict[str, Any], ...] = (
 )
 
 
+def supplier_catalog_preset_ids() -> set[str]:
+    return {str(preset["preset_id"]) for preset in SUPPLIER_CATALOG_PRESETS}
+
+
+def normalize_supplier_catalog_preset_ids(value: Any) -> list[str] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise ValueError("supplier catalog preset ids must be a list or null")
+    valid_ids = supplier_catalog_preset_ids()
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        preset_id = _text(item)
+        if not preset_id or preset_id not in valid_ids or preset_id in seen:
+            continue
+        seen.add(preset_id)
+        normalized.append(preset_id)
+    return normalized
+
+
 def supplier_catalog_presets_for_profile(profile: dict[str, Any]) -> list[dict[str, str]]:
     raw_payload = profile.get("raw_payload") if isinstance(profile.get("raw_payload"), dict) else {}
     preset_ids = raw_payload.get("supplier_catalog_preset_ids")

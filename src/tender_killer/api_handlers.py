@@ -13,6 +13,7 @@ from tender_killer.api_routes import parse_product_profile_economics_assumptions
 from tender_killer.api_routes import parse_product_profile_economics_path
 from tender_killer.api_routes import parse_product_profile_supplier_option_best_select_path
 from tender_killer.api_routes import parse_product_profile_supplier_option_select_path
+from tender_killer.api_routes import parse_product_profile_supplier_catalog_presets_path
 from tender_killer.api_routes import parse_product_profile_supplier_discovery_candidate_import_path
 from tender_killer.api_routes import parse_product_profile_supplier_discovery_candidates_path
 from tender_killer.api_routes import parse_product_profile_supplier_discovery_run_path
@@ -33,6 +34,7 @@ from tender_killer.product_profile_service import rebuild_product_profiles as re
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
 from tender_killer.search_service import run_search_payload
 from tender_killer.source_run_service import list_source_runs_payload
+from tender_killer.supplier_catalog_preset_service import update_profile_supplier_catalog_presets
 from tender_killer.supplier_discovery_service import import_profile_supplier_candidate
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
 from tender_killer.supplier_option_service import apply_best_profile_supplier_option
@@ -163,6 +165,17 @@ def prepare_product_profile_supplier_search(
     position_index: int,
 ) -> dict[str, Any]:
     prepare_profile_supplier_search(database_path, source, external_id, position_index)
+    return get_tender_payload(database_path, source, external_id)
+
+
+def update_product_profile_supplier_catalog_presets(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    update_profile_supplier_catalog_presets(database_path, source, external_id, position_index, data)
     return get_tender_payload(database_path, source, external_id)
 
 
@@ -381,6 +394,19 @@ def handle_post_request(
                 route.source,
                 route.external_id,
                 route.position_index,
+            )
+        )
+    if path.startswith("/api/tenders/") and path.endswith("/supplier-catalog-presets"):
+        route = parse_product_profile_supplier_catalog_presets_path(path)
+        if route is None:
+            return ApiResponse({"error": "invalid product profile supplier catalog presets path"}, status=400)
+        return ApiResponse(
+            update_product_profile_supplier_catalog_presets(
+                database_path,
+                route.source,
+                route.external_id,
+                route.position_index,
+                body,
             )
         )
     if path.startswith("/api/tenders/") and path.endswith("/supplier-discovery/candidates"):

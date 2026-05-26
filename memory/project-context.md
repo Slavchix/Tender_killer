@@ -711,7 +711,7 @@ Date: 2026-05-26.
 - `TenderAnalysisTab.jsx` owns the TZ analysis panel and checklist. It also exports `AnalysisList`, which is reused by product/economics views.
 - `TenderEconomicsTab.jsx` owns the economics workbench: NMC summary, cost inputs, supplier candidates, selected supplier price source, assumptions, auto-estimate run/accept controls, bid thresholds, and participation decision UI.
 - Supplier search preparation now lives in `src/tender_killer/supplier_search_service.py`. It builds deterministic per-position supplier search queries from normalized product names, search phrases, and classifiers; `POST /api/tenders/{source}/{external_id}/product-profiles/{position}/supplier-search/prepare` persists those queries under `raw_payload.supplier_search`. Prepared queries include manual Google/Yandex links, optional public catalog provider links from `raw_payload.supplier_catalogs`, and matching built-in catalog presets, without running network search or changing economics.
-- Built-in supplier catalog presets live in `src/tender_killer/supplier_catalog_presets.py`. Current first-pass providers are `officemag` and `komus` for office supplies, plus `petrovich` and `vseinstrumenti` for building/tool materials. `raw_payload.supplier_catalog_preset_ids` can select exact preset IDs or disable presets with an empty list.
+- Built-in supplier catalog presets live in `src/tender_killer/supplier_catalog_presets.py`. Current first-pass providers are `officemag` and `komus` for office supplies, plus `petrovich` and `vseinstrumenti` for building/tool materials. `raw_payload.supplier_catalog_preset_ids` can select exact preset IDs or disable presets with an empty list, and the economics supplier block now exposes compact controls for auto/select/disable per product profile.
 - Manual supplier candidates now preserve the prepared search query that led to them through `source_query` and `source_kind` fields in `raw_payload.supplier_options`, so review evidence stays attached to candidate prices before selection.
 - Supplier discovery review now lives in `src/tender_killer/supplier_discovery_service.py`. Discovered candidates can be staged under `raw_payload.supplier_discovery.candidates` and imported into `supplier_options`; import marks the discovery candidate as `imported` but does not select the supplier or update economics.
 - Supplier discovery candidates now normalize `provider`, derive `confidence` and `confidence_reasons` from price/link/source-query evidence, and preserve provider/confidence when imported into `supplier_options`.
@@ -720,10 +720,10 @@ Date: 2026-05-26.
 - `TenderEconomicsTab.jsx` renders collector diagnostics in the supplier discovery preview next to staged candidates, so operator review can see provider, seen/skipped links, fetched pages, candidates found, and errors.
 - `web/src/api.js` now surfaces backend JSON `error` messages, so supplier discovery can show no-new-candidates and missing-prepared-query responses instead of only generic client text.
 - `web/src/TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
-- Latest local targeted verification after catalog presets: `86 passed` for supplier catalog/search/price-discovery/discovery services, API handlers, and frontend contracts.
-- Full verification after this slice: `323 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
-- JSX syntax was checked through Babel parser in the Node REPL after wiring the discovery run action into the economics tab.
+- Latest local targeted verification after supplier catalog preset controls: `102 passed` for route/API handlers, supplier catalog/search/discovery services, price discovery, and frontend contracts.
+- Full verification after this slice: `325 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- JSX syntax was checked through Babel parser in the Node REPL after wiring the supplier catalog preset controls into the economics tab.
 - Next planned steps:
-  1. Add UI controls for selecting/disabling supplier catalog presets per product profile.
-  2. Extend provider-specific collectors as real supplier catalogs are selected.
+  1. Extend provider-specific collectors as real supplier catalogs are selected.
+  2. Add provider health/diagnostic checks for public catalog discovery.
   3. Keep Telegram as notifications/quick entry, not the main workbench.

@@ -322,6 +322,47 @@ def test_handle_post_request_routes_product_profile_supplier_search_prepare(tmp_
     }
 
 
+def test_handle_post_request_routes_product_profile_supplier_catalog_presets_update(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+                raw_payload={
+                    "supplier_options": [{"name": "Paper shop", "unit_price": 1200.0}],
+                    "supplier_search": {"status": "ready", "queries": [{"query": "office paper a4"}]},
+                },
+            )
+        ],
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/product-profiles/1/supplier-catalog-presets",
+        {"preset_ids": ["petrovich_building_materials", "missing", "petrovich_building_materials"]},
+    )
+
+    profile = response.payload["product_profiles"][0]
+    assert response.status == 200
+    assert profile["raw_payload"]["supplier_catalog_preset_ids"] == ["petrovich_building_materials"]
+    assert "supplier_search" not in profile["raw_payload"]
+    assert profile["raw_payload"]["supplier_options"] == [{"name": "Paper shop", "unit_price": 1200.0}]
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/product-profiles/1/supplier-catalog-presets",
+        {"preset_ids": None},
+    )
+
+    profile = response.payload["product_profiles"][0]
+    assert "supplier_catalog_preset_ids" not in profile["raw_payload"]
+
+
 def test_handle_post_request_routes_product_profile_supplier_discovery_candidates(tmp_path) -> None:
     store = _store_with_tender(tmp_path)
     store.upsert_product_profiles(
