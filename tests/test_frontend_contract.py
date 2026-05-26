@@ -16,6 +16,7 @@ FORMATTERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "forma
 PAGINATION_BAR_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "PaginationBar.jsx"
 TENDER_DETAILS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetails.jsx"
 TENDER_DETAILS_SHARED_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsShared.jsx"
+TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
 TENDER_DOCUMENTS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDocumentsTab.jsx"
 TENDER_OVERVIEW_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderOverviewTab.jsx"
 TENDER_LIST_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderList.jsx"
@@ -257,6 +258,27 @@ def test_frontend_uses_dedicated_tender_documents_tab_module():
     assert find_mojibake(documents_source, TENDER_DOCUMENTS_TAB_SOURCE) == []
 
 
+def test_frontend_uses_dedicated_tender_analysis_tab_module():
+    tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    analysis_source = (
+        TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ANALYSIS_TAB_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './TenderAnalysisTab'" in tender_details_source
+    assert "export function TenderAnalysisTab" in analysis_source
+    assert "export function AnalysisList" in analysis_source
+    assert "function AnalysisChecklist" in analysis_source
+    assert "analysis-tab-summary" in analysis_source
+    assert "analysis-checklist" in analysis_source
+    assert "<TenderAnalysisTab" in tender_details_source
+    assert "function AnalysisTabPanel" not in tender_details_source
+    assert "function AnalysisChecklist" not in tender_details_source
+    assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
+
+
 def test_tender_cockpit_exposes_page_size_selector():
     source = APP_SOURCE.read_text(encoding="utf-8")
     pagination_source = PAGINATION_BAR_SOURCE.read_text(encoding="utf-8")
@@ -273,7 +295,7 @@ def test_tender_cockpit_exposes_page_size_selector():
 
 
 def test_tender_analysis_renders_actionable_checklist():
-    source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
 
     assert "<AnalysisChecklist items={analysis.checklist} />" in source
     assert "function AnalysisChecklist" in source
@@ -537,16 +559,17 @@ def test_tender_detail_tabs_have_scannable_work_areas():
 
 def test_decision_tabs_are_extracted_to_consistent_work_panels():
     app_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
-    assert "function AnalysisTabPanel" in app_source
+    assert "export function TenderAnalysisTab" in analysis_source
     assert "function EconomicsTabPanel" in app_source
     assert "function WorkflowTabPanel" in app_source
-    assert "<AnalysisTabPanel" in app_source
+    assert "<TenderAnalysisTab" in app_source
     assert "<EconomicsTabPanel" in app_source
     assert "productProfiles={productProfiles}" in app_source
     assert "<WorkflowTabPanel" in app_source
-    assert "analysis-tab-summary" in app_source
+    assert "analysis-tab-summary" in analysis_source
     assert "economics-tab-summary" in app_source
     assert "workflow-status-summary" in app_source
     assert "workflow-note-panel" in app_source
@@ -555,6 +578,7 @@ def test_decision_tabs_are_extracted_to_consistent_work_panels():
     assert ".workflow-status-summary" in styles_source
     assert ".workflow-note-panel" in styles_source
     assert find_mojibake(app_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
