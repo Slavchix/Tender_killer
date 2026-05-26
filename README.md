@@ -75,7 +75,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after the API capability health guard: `326 passed`.
+Latest verified result after restoring the tender list API dispatcher import: `327 passed`.
 
 Good next steps:
 

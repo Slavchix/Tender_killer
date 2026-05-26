@@ -44,6 +44,7 @@ from tender_killer.supplier_price_discovery_service import run_profile_supplier_
 from tender_killer.supplier_search_service import prepare_profile_supplier_search
 from tender_killer.tender_detail_service import get_tender_payload
 from tender_killer.tender_detail_service import refresh_tender_detail_payload
+from tender_killer.tender_query_service import list_tenders_payload
 from tender_killer.workflow_service import save_tender_workflow
 
 

@@ -45,6 +45,17 @@ def test_handle_get_request_routes_tender_detail(tmp_path) -> None:
     assert response.payload["external_id"] == "3668200"
 
 
+def test_handle_get_request_routes_tender_list(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+
+    response = handle_get_request(store.database_path, "/api/tenders", {"status": "active", "limit": "25", "offset": "0"})
+
+    assert response.kind == "json"
+    assert response.status == 200
+    assert response.payload["total"] == 1
+    assert response.payload["items"][0]["external_id"] == "3668200"
+
+
 def test_handle_post_request_routes_workflow_update(tmp_path) -> None:
     store = _store_with_tender(tmp_path)
 
