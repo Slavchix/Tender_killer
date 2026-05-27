@@ -9,6 +9,7 @@ from tender_killer.models import Tender
 from tender_killer.storage import TenderStore
 from tender_killer.supplier_search_service import prepare_profile_supplier_search
 from tender_killer.supplier_price_discovery_service import SchemaOrgProductCollector
+from tender_killer.supplier_price_discovery_service import run_profile_supplier_url_discovery
 from tender_killer.supplier_price_discovery_service import run_profile_supplier_price_discovery
 from tender_killer.tender_detail_service import get_tender_payload
 
@@ -582,6 +583,86 @@ def test_run_profile_supplier_price_discovery_stages_schema_org_product_candidat
     detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-price-discovery")
     profile = detail["product_profiles"][0]
     assert profile["profile_status"] == "matched"
+    assert profile["raw_payload"]["note"] == "keep me"
+    assert profile["raw_payload"]["supplier_discovery"] == payload["supplier_discovery"]
+    assert "supplier_options" not in profile["raw_payload"]
+    assert "economics" not in profile["raw_payload"]
+
+
+def test_run_profile_supplier_url_discovery_stages_visible_provider_candidate(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-url-discovery",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-url-discovery",
+            title="Cement tender",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-url-discovery",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-url-discovery",
+                position_index=1,
+                product_name="Cement waterproofing",
+                normalized_name="cement waterproofing",
+                raw_payload={"note": "keep me"},
+            )
+        ],
+    )
+    calls: list[str] = []
+
+    payload = run_profile_supplier_url_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-url-discovery",
+        1,
+        {
+            "url": "https://petrovich.ru/product/101902/",
+            "source_query": "cement waterproofing",
+        },
+        collectors=[
+            price_discovery.ProviderCatalogCollector(
+                "petrovich",
+                fetch_text=lambda url: calls.append(url)
+                or """
+                   <html>
+                     <body>
+                       <h1>Cement waterproofing 15 kg</h1>
+                       <p>2\u202f258 ₽</p>
+                       <p>В корзину</p>
+                     </body>
+                   </html>
+                   """,
+            )
+        ],
+    )
+
+    assert calls == ["https://petrovich.ru/product/101902/"]
+    assert payload["supplier_discovery"]["collector_diagnostics"] == [
+        {
+            "provider": "catalog_petrovich",
+            "queries_seen": 1,
+            "links_seen": 1,
+            "links_skipped": 0,
+            "pages_fetched": 1,
+            "candidates_found": 1,
+            "errors": [],
+        }
+    ]
+    candidate = payload["supplier_discovery"]["candidates"][0]
+    assert candidate["provider"] == "petrovich"
+    assert candidate["url"] == "https://petrovich.ru/product/101902/"
+    assert candidate["unit_price"] == 2258.0
+    assert candidate["source_query"] == "cement waterproofing"
+    assert candidate["source_kind"] == "manual_product_url"
+    assert candidate["review_status"] == "pending"
+    detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-url-discovery")
+    profile = detail["product_profiles"][0]
     assert profile["raw_payload"]["note"] == "keep me"
     assert profile["raw_payload"]["supplier_discovery"] == payload["supplier_discovery"]
     assert "supplier_options" not in profile["raw_payload"]

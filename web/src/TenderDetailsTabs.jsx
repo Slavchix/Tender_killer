@@ -34,6 +34,7 @@ export function TenderDetailsTabs({
   onSupplierSearchPrepare,
   onSupplierCatalogPresetsSave,
   onSupplierDiscoveryRun,
+  onSupplierUrlDiscoveryRun,
   onAutoEconomicsRun,
   onAutoEconomicsAccept,
   savingEconomicsPosition,
@@ -126,6 +127,7 @@ export function TenderDetailsTabs({
             onSupplierSearchPrepare={onSupplierSearchPrepare}
             onSupplierCatalogPresetsSave={onSupplierCatalogPresetsSave}
             onSupplierDiscoveryRun={onSupplierDiscoveryRun}
+            onSupplierUrlDiscoveryRun={onSupplierUrlDiscoveryRun}
             onAutoEconomicsRun={onAutoEconomicsRun}
             onAutoEconomicsAccept={onAutoEconomicsAccept}
             savingEconomicsPosition={savingEconomicsPosition}

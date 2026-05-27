@@ -10,7 +10,12 @@ def test_check_api_health_requires_health_and_source_status_endpoints():
         if url.endswith("/api/health"):
             return 200, {
                 "ok": True,
-                "capabilities": ["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health"],
+                "capabilities": [
+                    "supplier_search_prepare",
+                    "supplier_catalog_presets",
+                    "supplier_catalog_health",
+                    "supplier_discovery_url",
+                ],
             }
         if url.endswith("/api/sources/status"):
             return 200, {"sources": []}
@@ -44,6 +49,7 @@ def test_check_api_health_reports_stale_backend_missing_supplier_capabilities():
     assert "supplier_catalog_presets" in health["error"]
     assert "supplier_search_prepare" in health["error"]
     assert "supplier_catalog_health" in health["error"]
+    assert "supplier_discovery_url" in health["error"]
 
 
 def test_check_api_health_reports_stale_backend_missing_source_status():
@@ -51,7 +57,12 @@ def test_check_api_health_reports_stale_backend_missing_source_status():
         if url.endswith("/api/health"):
             return 200, {
                 "ok": True,
-                "capabilities": ["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health"],
+                "capabilities": [
+                    "supplier_search_prepare",
+                    "supplier_catalog_presets",
+                    "supplier_catalog_health",
+                    "supplier_discovery_url",
+                ],
             }
         if url.endswith("/api/sources/status"):
             return 404, {"error": "not found"}
@@ -73,7 +84,12 @@ def test_check_api_health_reports_stale_backend_missing_supplier_catalog_health(
         if url.endswith("/api/health"):
             return 200, {
                 "ok": True,
-                "capabilities": ["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health"],
+                "capabilities": [
+                    "supplier_search_prepare",
+                    "supplier_catalog_presets",
+                    "supplier_catalog_health",
+                    "supplier_discovery_url",
+                ],
             }
         if url.endswith("/api/sources/status"):
             return 200, {"sources": []}

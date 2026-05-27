@@ -9,6 +9,7 @@ import {
   rebuildTenderProductProfiles,
   runProfileAutoEconomics as runProfileAutoEconomicsRequest,
   runProfileSupplierDiscovery as runProfileSupplierDiscoveryRequest,
+  runProfileSupplierUrlDiscovery as runProfileSupplierUrlDiscoveryRequest,
   saveProfileSupplierCatalogPresets as saveProfileSupplierCatalogPresetsRequest,
   saveProfileEconomics as saveProfileEconomicsRequest,
   saveProfileEconomicsAssumptions as saveProfileEconomicsAssumptionsRequest,
@@ -215,6 +216,23 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .finally(() => setDiscoveringSupplierPosition(null))
   }
 
+  function runSupplierUrlDiscovery(profile, payload) {
+    if (!profile?.position_index) return null
+    setDiscoveringSupplierPosition(profile.position_index)
+    setDetailStatus('')
+    return runProfileSupplierUrlDiscoveryRequest(tender, profile, payload)
+      .then((nextTender) => updateFromNextTender(nextTender, 'Кандидат по ссылке найден'))
+      .catch((err) => {
+        if (err.payload?.product_profiles) {
+          onTenderRefresh(err.payload)
+          applyProductTenderState(err.payload, { resetSelection: false })
+        }
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setDiscoveringSupplierPosition(null))
+  }
+
   function runProfileAutoEconomics(profile) {
     if (!profile?.position_index) return null
     setAutoEstimatingPosition(profile.position_index)
@@ -273,6 +291,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     prepareSupplierSearch,
     saveSupplierCatalogPresets,
     runSupplierDiscovery,
+    runSupplierUrlDiscovery,
     runProfileAutoEconomics,
     acceptProfileAutoEconomics,
   }

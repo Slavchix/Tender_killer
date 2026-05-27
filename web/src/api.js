@@ -178,6 +178,14 @@ export function runProfileSupplierDiscovery(tender, profile) {
   })
 }
 
+export function runProfileSupplierUrlDiscovery(tender, profile, payload) {
+  return apiJson(`${productProfilePath(tender, profile)}/supplier-discovery/url`, {
+    method: 'POST',
+    body: payload,
+    errorMessage: 'Не удалось проверить ссылку поставщика',
+  })
+}
+
 export function runProfileAutoEconomics(tender, profile) {
   return apiJson(`${productProfilePath(tender, profile)}/economics/auto-estimate`, {
     method: 'POST',

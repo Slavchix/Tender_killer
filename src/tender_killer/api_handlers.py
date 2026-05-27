@@ -17,6 +17,7 @@ from tender_killer.api_routes import parse_product_profile_supplier_catalog_pres
 from tender_killer.api_routes import parse_product_profile_supplier_discovery_candidate_import_path
 from tender_killer.api_routes import parse_product_profile_supplier_discovery_candidates_path
 from tender_killer.api_routes import parse_product_profile_supplier_discovery_run_path
+from tender_killer.api_routes import parse_product_profile_supplier_discovery_url_path
 from tender_killer.api_routes import parse_product_profile_supplier_options_path
 from tender_killer.api_routes import parse_product_profile_supplier_search_prepare_path
 from tender_killer.api_routes import parse_tender_path
@@ -42,6 +43,7 @@ from tender_killer.supplier_option_service import apply_best_profile_supplier_op
 from tender_killer.supplier_option_service import add_profile_supplier_option
 from tender_killer.supplier_option_service import select_profile_supplier_option
 from tender_killer.supplier_price_discovery_service import run_profile_supplier_price_discovery
+from tender_killer.supplier_price_discovery_service import run_profile_supplier_url_discovery
 from tender_killer.supplier_search_service import prepare_profile_supplier_search
 from tender_killer.tender_detail_service import get_tender_payload
 from tender_killer.tender_detail_service import refresh_tender_detail_payload
@@ -62,6 +64,7 @@ API_CAPABILITIES: tuple[str, ...] = (
     "supplier_search_prepare",
     "supplier_catalog_presets",
     "supplier_catalog_health",
+    "supplier_discovery_url",
 )
 
 
@@ -206,6 +209,17 @@ def run_product_profile_supplier_discovery(
     position_index: int,
 ) -> dict[str, Any]:
     run_profile_supplier_price_discovery(database_path, source, external_id, position_index)
+    return get_tender_payload(database_path, source, external_id)
+
+
+def run_product_profile_supplier_url_discovery(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    run_profile_supplier_url_discovery(database_path, source, external_id, position_index, data)
     return get_tender_payload(database_path, source, external_id)
 
 
@@ -447,6 +461,24 @@ def handle_post_request(
                     route.source,
                     route.external_id,
                     route.position_index,
+                )
+            )
+        except ValueError as exc:
+            payload = get_tender_payload(database_path, route.source, route.external_id)
+            payload["error"] = str(exc)
+            return ApiResponse(payload, status=400)
+    if path.startswith("/api/tenders/") and path.endswith("/supplier-discovery/url"):
+        route = parse_product_profile_supplier_discovery_url_path(path)
+        if route is None:
+            return ApiResponse({"error": "invalid product profile supplier discovery url path"}, status=400)
+        try:
+            return ApiResponse(
+                run_product_profile_supplier_url_discovery(
+                    database_path,
+                    route.source,
+                    route.external_id,
+                    route.position_index,
+                    body,
                 )
             )
         except ValueError as exc:

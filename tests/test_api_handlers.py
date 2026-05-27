@@ -33,6 +33,7 @@ def test_handle_get_request_returns_health_payload(tmp_path) -> None:
     assert "supplier_search_prepare" in response.payload["capabilities"]
     assert "supplier_catalog_presets" in response.payload["capabilities"]
     assert "supplier_catalog_health" in response.payload["capabilities"]
+    assert "supplier_discovery_url" in response.payload["capabilities"]
 
 
 def test_handle_get_request_routes_supplier_catalog_health(tmp_path) -> None:
@@ -497,6 +498,54 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_run(tmp_p
     assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["provider"] == "schema_org_product"
     assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["unit_price"] == 925.0
     assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["confidence"] == "high"
+    assert "supplier_options" not in profile["raw_payload"]
+    assert "economics" not in profile["raw_payload"]
+
+
+def test_handle_post_request_routes_product_profile_supplier_discovery_url(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    product_page = quote(
+        """
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          "name": "Office paper A4 80 gsm",
+          "url": "https://supplier.example/paper-a4",
+          "offers": {"@type": "Offer", "price": "925", "availability": "https://schema.org/InStock"}
+        }
+        </script>
+        """,
+        safe="",
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/product-profiles/1/supplier-discovery/url",
+        {"url": f"data:text/html,{product_page}", "source_query": "office paper a4"},
+    )
+
+    profile = response.payload["product_profiles"][0]
+    assert response.status == 200
+    assert profile["raw_payload"]["supplier_discovery"]["status"] == "pending_review"
+    assert profile["raw_payload"]["supplier_discovery"]["collector_diagnostics"][0]["provider"] == "schema_org_product"
+    assert profile["raw_payload"]["supplier_discovery"]["collector_diagnostics"][0]["candidates_found"] == 1
+    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["source_kind"] == "manual_product_url"
+    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["unit_price"] == 925.0
     assert "supplier_options" not in profile["raw_payload"]
     assert "economics" not in profile["raw_payload"]
 

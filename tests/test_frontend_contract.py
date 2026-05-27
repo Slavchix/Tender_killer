@@ -782,6 +782,8 @@ def test_product_profile_renders_supplier_option_form():
     assert "prepareProfileSupplierSearch" in hook_source
     assert "runSupplierDiscovery" in details_source
     assert "runProfileSupplierDiscovery" in hook_source
+    assert "runSupplierUrlDiscovery" in details_source
+    assert "runProfileSupplierUrlDiscovery" in hook_source
     assert "err.payload?.product_profiles" in hook_source
     assert "applyProductTenderState(err.payload, { resetSelection: false })" in hook_source
     assert "importSupplierDiscoveryCandidate" in details_source
@@ -791,6 +793,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "onSupplierCatalogPresetsSave" in source
     assert "onSupplierSearchPrepare" in source
     assert "onSupplierDiscoveryRun" in source
+    assert "onSupplierUrlDiscoveryRun" in source
     assert "onSupplierDiscoveryImport" in source
     assert "preparingSupplierSearchPosition" in details_source
     assert "discoveringSupplierPosition" in details_source
@@ -807,6 +810,8 @@ def test_product_profile_renders_supplier_option_form():
     assert "saveProfileSupplierCatalogPresets" in api_source
     assert "supplier-search/prepare" in api_source
     assert "supplier-discovery/run" in api_source
+    assert "supplier-discovery/url" in api_source
+    assert "runProfileSupplierUrlDiscovery" in api_source
     assert "supplier-discovery/candidates/${candidateIndex}/import" in api_source
     assert "supplier_options" in source
     assert "supplier_search" in source
@@ -836,6 +841,8 @@ def test_product_profile_renders_supplier_option_form():
     assert "supplier-search-links" in source
     assert "href={link.url}" in source
     assert "discoveringDiscovery" in source
+    assert "Проверить ссылку" in source
+    assert "supplierUrlDiscoveryPayload(values, supplierSearchQueries)" in source
     assert "source_query" in source
     assert "source_kind" in source
     assert "supplierOptionPayload" in source

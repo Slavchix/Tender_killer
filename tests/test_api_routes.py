@@ -9,6 +9,7 @@ from tender_killer.api_routes import (
     parse_product_profile_supplier_discovery_candidate_import_path,
     parse_product_profile_supplier_discovery_candidates_path,
     parse_product_profile_supplier_discovery_run_path,
+    parse_product_profile_supplier_discovery_url_path,
     parse_product_profile_supplier_catalog_presets_path,
     parse_product_profile_supplier_options_path,
     parse_product_profile_supplier_search_prepare_path,
@@ -192,6 +193,24 @@ def test_parse_product_profile_supplier_discovery_run_path_decodes_position_rout
     ) is None
     assert parse_product_profile_supplier_discovery_run_path(
         "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-discovery/run"
+    ) is None
+
+
+def test_parse_product_profile_supplier_discovery_url_path_decodes_position_route() -> None:
+    route = parse_product_profile_supplier_discovery_url_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/supplier-discovery/url"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+
+    assert parse_product_profile_supplier_discovery_url_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/supplier-discovery/url"
+    ) is None
+    assert parse_product_profile_supplier_discovery_url_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-discovery/url"
     ) is None
 
 

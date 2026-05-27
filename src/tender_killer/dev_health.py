@@ -16,6 +16,7 @@ REQUIRED_API_CAPABILITIES: tuple[str, ...] = (
     "supplier_search_prepare",
     "supplier_catalog_presets",
     "supplier_catalog_health",
+    "supplier_discovery_url",
 )
 
 

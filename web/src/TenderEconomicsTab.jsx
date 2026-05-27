@@ -37,6 +37,7 @@ export function TenderEconomicsTab({
   onSupplierSearchPrepare,
   onSupplierCatalogPresetsSave,
   onSupplierDiscoveryRun,
+  onSupplierUrlDiscoveryRun,
   onAutoEconomicsRun,
   onAutoEconomicsAccept,
   savingEconomicsPosition = null,
@@ -142,6 +143,7 @@ export function TenderEconomicsTab({
                 onSearchPrepare={onSupplierSearchPrepare}
                 onPresetSave={onSupplierCatalogPresetsSave}
                 onDiscoveryRun={onSupplierDiscoveryRun}
+                onDiscoveryUrlRun={onSupplierUrlDiscoveryRun}
                 supplierCatalogHealth={supplierCatalogHealth}
                 supplierCatalogHealthLoading={supplierCatalogHealthLoading}
                 supplierCatalogHealthError={supplierCatalogHealthError}
@@ -500,6 +502,7 @@ function ProductSupplierOptionsForm({
   onSearchPrepare,
   onPresetSave,
   onDiscoveryRun,
+  onDiscoveryUrlRun,
   supplierCatalogHealth,
   supplierCatalogHealthLoading = false,
   supplierCatalogHealthError = '',
@@ -559,6 +562,14 @@ function ProductSupplierOptionsForm({
               type="button"
             >
               {discoveringDiscovery ? 'Ищу...' : 'Найти кандидатов'}
+            </button>
+            <button
+              className="secondary-button compact"
+              disabled={discoveringDiscovery || !onDiscoveryUrlRun || !values.url}
+              onClick={() => ignoreSupplierActionError(onDiscoveryUrlRun?.(profile, supplierUrlDiscoveryPayload(values, supplierSearchQueries)))}
+              type="button"
+            >
+              {discoveringDiscovery ? 'Проверяю...' : 'Проверить ссылку'}
             </button>
             <button
               className="secondary-button compact"
@@ -941,6 +952,15 @@ function supplierOptionPayload(values, searchQueries = []) {
   const selectedQuery = searchQueries.find((item) => item.query === values.source_query)
   if (selectedQuery) {
     payload.source_kind = selectedQuery.kind || ''
+  }
+  return payload
+}
+
+function supplierUrlDiscoveryPayload(values, searchQueries = []) {
+  const payload = { url: values.url }
+  if (values.source_query) {
+    payload.source_query = values.source_query
+    payload.source_kind = supplierSourceKind(values.source_query, searchQueries)
   }
   return payload
 }

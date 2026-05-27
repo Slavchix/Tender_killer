@@ -15,7 +15,7 @@ def test_check_dev_site_verifies_api_frontend_proxy_and_ui_text(tmp_path):
         if url == "http://127.0.0.1:8000/api/health":
             return 200, (
                 '{"ok": true, "capabilities": '
-                '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health"]}'
+                '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health", "supplier_discovery_url"]}'
             )
         if url == "http://127.0.0.1:8000/api/sources/status":
             return 200, '{"sources": []}'
@@ -26,7 +26,7 @@ def test_check_dev_site_verifies_api_frontend_proxy_and_ui_text(tmp_path):
         if url == "http://127.0.0.1:5173/api/health":
             return 200, (
                 '{"ok": true, "capabilities": '
-                '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health"]}'
+                '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health", "supplier_discovery_url"]}'
             )
         if url == "http://127.0.0.1:5173/api/sources/status":
             return 200, '{"sources": []}'
@@ -60,7 +60,7 @@ def test_check_dev_site_reports_missing_page_size_label(tmp_path):
         if url.endswith("/api/health"):
             return 200, (
                 '{"ok": true, "capabilities": '
-                '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health"]}'
+                '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health", "supplier_discovery_url"]}'
             )
         if url.endswith("/api/sources/status"):
             return 200, '{"sources": []}'

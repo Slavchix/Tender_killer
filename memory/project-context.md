@@ -725,6 +725,7 @@ Date: 2026-05-26.
 - The supplier catalog health block now has an explicit manual live check button. Normal page load still calls the network-free health endpoint, while the button calls `/api/supplier-catalogs/health?live=1` and refreshes the same panel with live HTTP diagnostics.
 - `TenderEconomicsTab.jsx` renders collector diagnostics in the supplier discovery preview next to staged candidates, so operator review can see provider, seen/skipped links, fetched pages, candidates found, and errors.
 - Public supplier discovery fetch errors now reuse catalog access-blocked/network diagnostics and include readable response previews in collector errors when a provider returns a browser/captcha challenge instead of a product page.
+- Manual supplier URL discovery is available through `POST /api/tenders/{source}/{external_id}/product-profiles/{position}/supplier-discovery/url`: the economics supplier form can send a pasted product URL, and the backend stages any parsed schema.org/provider-visible offer as a review-only candidate without selecting it or updating economics.
 - `web/src/api.js` now surfaces backend JSON `error` messages, so supplier discovery can show no-new-candidates and missing-prepared-query responses instead of only generic client text.
 - The API handler now converts supplier discovery run `ValueError`s for missing prepared queries and no new candidates into JSON `400` responses, so the React client receives the real service message instead of an unhandled server error.
 - No-candidate supplier discovery runs now write `raw_payload.supplier_discovery.status = "no_candidates"` with collector diagnostics and an empty candidate list. The API error response includes the refreshed tender payload, and `useTenderProductProfiles.js` applies that payload before surfacing the error message, so the economics tab can show diagnostics even when no supplier candidates were staged.
@@ -735,7 +736,7 @@ Date: 2026-05-26.
 - Latest local targeted verification after live supplier catalog health UI: `55 passed` for `tests/test_frontend_contract.py`.
 - Latest provider discovery verification: `14 passed` for `tests/test_supplier_price_discovery_service.py`.
 - Latest API handler verification: `20 passed` for `tests/test_api_handlers.py`.
-- Full verification after supplier discovery blocked-page diagnostics: `343 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- Full verification after manual supplier URL discovery: `346 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
 - JSX syntax was checked through Babel parser in the Node REPL after wiring supplier catalog health through `api.js`, `useTenderProductProfiles.js`, `TenderDetails.jsx`, `TenderDetailsTabs.jsx`, and `TenderEconomicsTab.jsx`.
 - Next planned steps:
   1. Validate real catalog pages and add narrow provider parsing rules where schema.org/anchor discovery is not enough.

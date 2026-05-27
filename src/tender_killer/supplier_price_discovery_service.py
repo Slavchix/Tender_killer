@@ -22,6 +22,7 @@ from tender_killer.supplier_discovery_service import stage_profile_supplier_cand
 
 SCHEMA_ORG_PRODUCT_PROVIDER = "schema_org_product"
 CATALOG_SEARCH_LINK_KIND = "catalog_search"
+MANUAL_PRODUCT_LINK_KIND = "manual_product_url"
 BUILT_IN_CATALOG_PROVIDERS = tuple(str(preset["provider"]) for preset in SUPPLIER_CATALOG_PRESETS)
 BUILT_IN_CATALOG_PROVIDER_SET = {provider.casefold() for provider in BUILT_IN_CATALOG_PROVIDERS}
 SEARCH_ENGINE_HOSTS = ("google.", "yandex.")
@@ -215,6 +216,85 @@ def run_profile_supplier_price_discovery(
 
     existing_keys = _existing_candidate_keys(raw_payload)
     price_collectors = default_price_collectors() if collectors is None else collectors
+    return _run_supplier_discovery_with_queries(
+        database_path,
+        store,
+        source,
+        external_id,
+        profiles,
+        target,
+        queries,
+        price_collectors,
+        existing_keys,
+    )
+
+
+def run_profile_supplier_url_discovery(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+    data: dict[str, Any],
+    collectors: list[Any] | None = None,
+) -> dict[str, Any]:
+    store = TenderStore(database_path)
+    store.initialize()
+    profiles = store.get_product_profiles(source, external_id)
+    if not profiles:
+        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+
+    target = _find_profile(profiles, position_index)
+    if target is None:
+        raise KeyError(f"Product profile position {position_index} not found.")
+
+    url = _text(data.get("url"))
+    if not url or not _is_public_product_page_url(url):
+        raise ValueError("Укажи публичную ссылку на страницу товара поставщика.")
+
+    query_text = _text(data.get("source_query")) or _text(target.get("normalized_name")) or _text(target.get("product_name")) or url
+    provider = _text(data.get("provider")) or _provider_from_url(url)
+    link = {
+        "label": _text(data.get("label")) or "Manual supplier URL",
+        "url": url,
+        "link_kind": MANUAL_PRODUCT_LINK_KIND,
+    }
+    if provider:
+        link["provider"] = provider
+    queries = [
+        {
+            "query": query_text,
+            "kind": MANUAL_PRODUCT_LINK_KIND,
+            "priority": 1,
+            "quick_links": [link],
+        }
+    ]
+    raw_payload = dict(target.get("raw_payload") or {})
+    existing_keys = _existing_candidate_keys(raw_payload)
+    price_collectors = default_price_collectors() if collectors is None else collectors
+    return _run_supplier_discovery_with_queries(
+        database_path,
+        store,
+        source,
+        external_id,
+        profiles,
+        target,
+        queries,
+        price_collectors,
+        existing_keys,
+    )
+
+
+def _run_supplier_discovery_with_queries(
+    database_path: str | Path,
+    store: TenderStore,
+    source: str,
+    external_id: str,
+    profiles: list[dict[str, Any]],
+    target: dict[str, Any],
+    queries: list[dict[str, Any]],
+    price_collectors: list[Any],
+    existing_keys: set[tuple[str, str]],
+) -> dict[str, Any]:
     candidates: list[dict[str, Any]] = []
     diagnostics_by_provider: dict[str, dict[str, Any]] = {}
     for query in queries:
@@ -244,7 +324,7 @@ def run_profile_supplier_price_discovery(
         database_path,
         source,
         external_id,
-        position_index,
+        int(target.get("position_index") or 0),
         candidates,
         collector_diagnostics=list(diagnostics_by_provider.values()),
     )
@@ -678,7 +758,7 @@ def _is_same_public_site(source_url: str, target_url: str) -> bool:
 def _is_builtin_catalog_search_link(link: dict[str, Any]) -> bool:
     provider = _text(link.get("provider"))
     return (
-        _text(link.get("link_kind")) == CATALOG_SEARCH_LINK_KIND
+        _text(link.get("link_kind")) in {CATALOG_SEARCH_LINK_KIND, MANUAL_PRODUCT_LINK_KIND}
         and provider is not None
         and provider.casefold() in BUILT_IN_CATALOG_PROVIDER_SET
     )
@@ -687,10 +767,23 @@ def _is_builtin_catalog_search_link(link: dict[str, Any]) -> bool:
 def _is_catalog_search_link_for_provider(link: dict[str, Any], provider: str) -> bool:
     link_provider = _text(link.get("provider"))
     return (
-        _text(link.get("link_kind")) == CATALOG_SEARCH_LINK_KIND
+        _text(link.get("link_kind")) in {CATALOG_SEARCH_LINK_KIND, MANUAL_PRODUCT_LINK_KIND}
         and link_provider is not None
         and link_provider.casefold() == provider.casefold()
     )
+
+
+def _provider_from_url(url: str) -> str | None:
+    host = urlparse(url).netloc.casefold()
+    if "officemag.ru" in host:
+        return "officemag"
+    if "komus.ru" in host:
+        return "komus"
+    if "petrovich.ru" in host:
+        return "petrovich"
+    if "vseinstrumenti.ru" in host:
+        return "vseinstrumenti"
+    return None
 
 
 def _catalog_provider_label(provider: str) -> str:
