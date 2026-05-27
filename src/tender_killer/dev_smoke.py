@@ -15,7 +15,8 @@ from tender_killer.encoding_guard import find_mojibake
 FetchTextResult = tuple[int, str]
 TextFetcher = Callable[[str, float], FetchTextResult]
 
-REQUIRED_UI_TEXT = ("Панель закупок", "На странице", "Закупок на странице")
+REQUIRED_UI_TEXT = ("Tender Killer", "Закупки", "Фильтры", "На странице", "Закупок на странице")
+UI_SOURCE_SIBLINGS = ("TenderList.jsx", "FiltersPanel.jsx", "PaginationBar.jsx")
 
 
 def check_dev_site(
@@ -134,12 +135,28 @@ def _json_endpoint_check(
 
 
 def _ui_text_check(app_source_path: Path) -> dict[str, Any]:
+    sources: list[tuple[Path, str]] = []
     try:
-        source = app_source_path.read_text(encoding="utf-8")
+        sources.append((app_source_path, app_source_path.read_text(encoding="utf-8")))
     except OSError as exc:
         return {"name": "ui_text", "ok": False, "status": None, "error": str(exc)}
+
+    for sibling in UI_SOURCE_SIBLINGS:
+        sibling_path = app_source_path.parent / sibling
+        if not sibling_path.exists():
+            continue
+        try:
+            sources.append((sibling_path, sibling_path.read_text(encoding="utf-8")))
+        except OSError as exc:
+            return {"name": "ui_text", "ok": False, "status": None, "error": str(exc)}
+
+    source = "\n".join(text for _, text in sources)
     missing = [text for text in REQUIRED_UI_TEXT if text not in source]
-    mojibake = find_mojibake(source, app_source_path)
+    mojibake = [
+        finding
+        for path, text in sources
+        for finding in find_mojibake(text, path)
+    ]
     if missing or mojibake:
         parts = []
         if missing:

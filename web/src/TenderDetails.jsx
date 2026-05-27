@@ -13,7 +13,7 @@ import { useTenderWorkflow } from './useTenderWorkflow'
 
 export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const { note, setNote, saving, saveWorkflow } = useTenderWorkflow(tender, onWorkflowUpdate)
-  const { sending, notifyStatus, setNotifyStatus, sendToTelegram } = useTenderNotification(tender)
+  const { notifyStatus, setNotifyStatus } = useTenderNotification(tender)
   const {
     documentRecords,
     setDocumentRecords,
@@ -103,15 +103,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
       <TenderDetailActions
         tender={tender}
         refreshingDetails={refreshingDetails}
-        downloading={downloading}
-        extracting={extracting}
-        analyzing={analyzing}
-        sending={sending}
         onRefreshDetails={refreshDetails}
-        onDownloadDocuments={downloadDocuments}
-        onExtractDocumentText={extractDocumentText}
-        onAnalyzeTender={analyzeTender}
-        onSendToTelegram={sendToTelegram}
       />
 
       <TenderDetailsStatusStack messages={statusMessages} />

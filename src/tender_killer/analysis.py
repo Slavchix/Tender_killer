@@ -4,6 +4,8 @@ import re
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from tender_killer.text_quality import clean_machine_text
+
 
 @dataclass(slots=True)
 class TenderAnalysisResult:
@@ -25,7 +27,7 @@ RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("requirements", "паспорт качества", ("паспорт качества",)),
     ("requirements", "срок поставки", ("срок постав",)),
     ("requirements", "приемка через ЕИС", ("приемка", "еис")),
-    ("requirements", "ГОСТ/ТУ", ("гост", "техническ")),
+    ("requirements", "ГОСТ/ТУ", ("гост", "технические условия", " ту ")),
     ("requirements", "гарантия", ("гарантийн", "гарантия")),
     ("risks", "обеспечение исполнения контракта", ("обеспечение исполнения", "независимая гарантия")),
     ("risks", "штрафы/пени", ("штраф", "пеня", "пени")),
@@ -36,7 +38,7 @@ RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         ("1875", "национальный режим", "страна происхождения", "страну происхождения", "происхождения товара"),
     ),
     ("red_flags", "реестр российской продукции", ("реестр российской промышленной продукции", "ррпп", "рпп", "ерпт")),
-    ("red_flags", "лицензия/СРО", ("лиценз", "сро")),
+    ("red_flags", "лицензия/СРО", ("лиценз", "допуск сро", "членство в сро", "саморегулируем")),
 )
 
 RULE_METADATA: dict[str, tuple[str, str]] = {
@@ -116,7 +118,11 @@ def _confidence(requirements: list[str], risks: list[str], red_flags: list[str])
 
 
 def _clean_text(value: str) -> str:
-    return re.sub(r"\s+", " ", value).strip()
+    text = re.sub(r"\s+", " ", clean_machine_text(value)).strip()
+    text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+    text = re.sub(r"([(\[{])\s+", r"\1", text)
+    text = re.sub(r"\s+([)\]}])", r"\1", text)
+    return text
 
 
 def _append_unique(values: list[str], value: str) -> None:

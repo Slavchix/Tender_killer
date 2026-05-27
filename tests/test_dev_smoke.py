@@ -9,7 +9,10 @@ def _mojibake(text: str) -> str:
 
 def test_check_dev_site_verifies_api_frontend_proxy_and_ui_text(tmp_path):
     app_source = tmp_path / "App.jsx"
-    app_source.write_text("Панель закупок\nНа странице\nЗакупок на странице\n", encoding="utf-8")
+    app_source.write_text(
+        "Tender Killer\nЗакупки\nФильтры\nНа странице\nЗакупок на странице\n",
+        encoding="utf-8",
+    )
 
     def fetcher(url: str, timeout: float):
         if url == "http://127.0.0.1:8000/api/health":
@@ -54,7 +57,10 @@ def test_check_dev_site_verifies_api_frontend_proxy_and_ui_text(tmp_path):
 
 def test_check_dev_site_reports_missing_page_size_label(tmp_path):
     app_source = tmp_path / "App.jsx"
-    app_source.write_text("Панель закупок\n" + _mojibake("На странице") + "\n", encoding="utf-8")
+    app_source.write_text(
+        "Tender Killer\nЗакупки\nФильтры\n" + _mojibake("На странице") + "\n",
+        encoding="utf-8",
+    )
 
     def fetcher(url: str, timeout: float):
         if url.endswith("/api/health"):

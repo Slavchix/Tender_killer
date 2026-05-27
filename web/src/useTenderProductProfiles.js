@@ -65,10 +65,6 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .finally(() => setSupplierCatalogHealthLoading(false))
   }
 
-  useEffect(() => {
-    refreshSupplierCatalogHealth(false).catch(() => {})
-  }, [])
-
   function applyProductTenderState(nextTender, options = {}) {
     setProductProfiles(nextTender.product_profiles || [])
     setProductProfileSummary(nextTender.product_profile_summary || null)

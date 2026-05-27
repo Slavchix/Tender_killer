@@ -148,6 +148,47 @@ def test_pdf_extractor_reads_simple_literal_text(tmp_path):
     assert "Delivery within 5 days" in result.text
 
 
+def test_pdf_extractor_rejects_binary_literal_garbage(tmp_path):
+    path = tmp_path / "contract.pdf"
+    path.write_bytes(
+        b"%PDF-1.4\n1 0 obj\nstream\nBT (\x02=\x02j\x02Z\x02`\x02^\x02Z\x02g\x02k) Tj ET\nendstream\nendobj\n%%EOF"
+    )
+
+    result = DocumentTextExtractor().extract(path)
+
+    assert result.status == "empty"
+    assert result.text == ""
+    assert "machine-readable" in result.warnings[0]
+
+
+def test_pdf_extractor_rejects_fragmented_pdf_literal_noise(tmp_path):
+    path = tmp_path / "contract.pdf"
+    noise = "\n".join(
+        [
+            "1",
+            "2",
+            "3",
+            "л",
+            "л",
+            "·",
+            "!",
+            "C#Ce",
+            "ёяАІ",
+            "lOK8",
+            "ёякаґ",
+            "4-'0VWёяА@#",
+            "T42UV",
+        ]
+    )
+    path.write_bytes(f"%PDF-1.4\nstream\nBT ({noise}) Tj ET\nendstream\n%%EOF".encode("utf-8"))
+
+    result = DocumentTextExtractor().extract(path)
+
+    assert result.status == "empty"
+    assert result.text == ""
+    assert "machine-readable" in result.warnings[0]
+
+
 def test_processor_downloads_documents_and_writes_extracted_text(tmp_path):
     tender = Tender(
         source="mosreg_market",

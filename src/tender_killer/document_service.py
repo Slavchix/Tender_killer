@@ -25,7 +25,9 @@ def download_tender_documents_payload(
     target_root = Path(documents_dir) / _safe_path_part(source) / _safe_path_part(external_id)
     target_root.mkdir(parents=True, exist_ok=True)
     downloaded = 0
+    skipped = 0
     failed: list[dict[str, str]] = []
+    failed_hosts: dict[str, str] = {}
     downloader = downloader or _download_file
     document_listing_resolver = document_listing_resolver or _resolve_document_listing
 
@@ -54,12 +56,25 @@ def download_tender_documents_payload(
             if expanded:
                 rows = _fetch_download_rows(connection, source, external_id)
         for row in rows:
+            if _existing_local_document_path(row["local_path"]):
+                skipped += 1
+                continue
+            host = _download_host(row["url"])
+            if host in failed_hosts:
+                failed.append({
+                    "url": row["url"],
+                    "error": f"{host} недоступен после предыдущей сетевой ошибки: {failed_hosts[host]}",
+                })
+                continue
             filename = _safe_filename(row["name"] or _filename_from_url(row["url"]) or f"document-{row['document_index']}")
             target_path = _unique_target_path(target_root, filename)
             try:
                 downloader(row["url"], target_path)
             except Exception as exc:  # noqa: BLE001 - report per-document failure to UI.
-                failed.append({"url": row["url"], "error": str(exc)})
+                error = _download_error_message(exc, host)
+                failed.append({"url": row["url"], "error": error})
+                if host and _is_network_download_error(exc):
+                    failed_hosts[host] = error
                 continue
             downloaded += 1
             connection.execute(
@@ -81,7 +96,13 @@ def download_tender_documents_payload(
                 ),
             )
         document_records = _fetch_document_records(connection, source, external_id)
-    return {"ok": True, "downloaded": downloaded, "failed": failed, "document_records": document_records}
+    return {
+        "ok": True,
+        "downloaded": downloaded,
+        "skipped": skipped,
+        "failed": failed,
+        "document_records": document_records,
+    }
 
 
 def extract_tender_document_text_payload(
@@ -171,13 +192,37 @@ def _connect(database_path: str | Path) -> sqlite3.Connection:
 def _fetch_download_rows(connection: sqlite3.Connection, source: str, external_id: str) -> list[sqlite3.Row]:
     return connection.execute(
         """
-        SELECT document_index, name, url
+        SELECT document_index, name, url, local_path
         FROM tender_documents
         WHERE source = ? AND external_id = ?
         ORDER BY document_index
         """,
         (source, external_id),
     ).fetchall()
+
+
+def _existing_local_document_path(value: str | None) -> Path | None:
+    if not value:
+        return None
+    path = Path(value)
+    return path if path.is_file() else None
+
+
+def _download_host(url: str) -> str:
+    return urlparse(url).netloc.casefold()
+
+
+def _is_network_download_error(exc: Exception) -> bool:
+    return isinstance(exc, httpx.TransportError)
+
+
+def _download_error_message(exc: Exception, host: str) -> str:
+    if host == "easuz.mosreg.ru" and isinstance(exc, httpx.ReadTimeout):
+        return (
+            "Сервер документов МО (ЕАСУЗ) не ответил на скачивание файла. "
+            "Попробуйте позже или откройте источник закупки."
+        )
+    return str(exc)
 
 
 def _fetch_document_records(connection: sqlite3.Connection, source: str, external_id: str) -> list[dict[str, Any]]:
@@ -305,7 +350,8 @@ def _resolve_document_listing(url: str) -> list[dict[str, Any]]:
     response = httpx.get(
         url,
         headers={"Accept": "application/json, text/plain, */*", "XXX-TenantId-Header": "2"},
-        timeout=30,
+        timeout=httpx.Timeout(30, connect=5),
+        trust_env=False,
     )
     response.raise_for_status()
     data = response.json()
@@ -315,7 +361,18 @@ def _resolve_document_listing(url: str) -> list[dict[str, Any]]:
 
 
 def _download_file(url: str, target_path: Path) -> None:
-    with httpx.stream("GET", url, follow_redirects=True, timeout=60) as response:
+    with httpx.stream(
+        "GET",
+        url,
+        headers={
+            "Accept": "application/octet-stream,*/*",
+            "User-Agent": "TenderKiller/0.1",
+            "XXX-TenantId-Header": "2",
+        },
+        follow_redirects=True,
+        timeout=httpx.Timeout(30, connect=5),
+        trust_env=False,
+    ) as response:
         response.raise_for_status()
         with target_path.open("wb") as file:
             for chunk in response.iter_bytes():

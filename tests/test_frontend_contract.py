@@ -20,6 +20,7 @@ TENDER_DETAIL_ACTIONS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "sr
 TENDER_DETAILS_HEADER_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsHeader.jsx"
 TENDER_DETAILS_STATUS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsStatusStack.jsx"
 TENDER_DETAILS_TABS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsTabs.jsx"
+TENDER_FULLSCREEN_WORKSPACE_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderFullscreenWorkspace.jsx"
 TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
 TENDER_DECISION_STRIP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDecisionStrip.jsx"
 TENDER_DECISION_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDecisionSummary.jsx"
@@ -440,13 +441,13 @@ def test_frontend_uses_dedicated_tender_detail_actions_module():
     assert "from './TenderDetailActions'" in tender_details_source
     assert "export function TenderDetailActions" in actions_source
     assert "details-action-group primary-actions" in actions_source
-    assert "details-action-group secondary-actions" in actions_source
     assert "onRefreshDetails" in actions_source
-    assert "onDownloadDocuments" in actions_source
-    assert "onExtractDocumentText" in actions_source
-    assert "onAnalyzeTender" in actions_source
-    assert "onSendToTelegram" in actions_source
-    assert "report.docx" in actions_source
+    assert "details-action-group secondary-actions" not in actions_source
+    assert "onDownloadDocuments" not in actions_source
+    assert "onExtractDocumentText" not in actions_source
+    assert "onAnalyzeTender" not in actions_source
+    assert "onSendToTelegram" not in actions_source
+    assert "report.docx" not in actions_source
     assert "<TenderDetailActions" in tender_details_source
     assert "details-action-group primary-actions" not in tender_details_source
     assert "details-action-group secondary-actions" not in tender_details_source
@@ -546,6 +547,8 @@ def test_tender_details_uses_document_analysis_hook():
     assert "useTenderDocumentAnalysis(tender)" in tender_details_source
     assert "export function useTenderDocumentAnalysis" in hook_source
     assert "downloadTenderDocuments" in hook_source
+    assert "payload.skipped" in hook_source
+    assert "уже скачано" in hook_source
     assert "extractTenderDocumentText" in hook_source
     assert "runTenderAnalysis" in hook_source
     assert "documentRecordsForTender" in hook_source
@@ -558,6 +561,28 @@ def test_tender_details_uses_document_analysis_hook():
     assert "const [extracting" not in tender_details_source
     assert "const [analyzing" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(hook_source, USE_TENDER_DOCUMENT_ANALYSIS_SOURCE) == []
+
+
+def test_document_analysis_hook_ignores_stale_async_results_after_tender_switch():
+    hook_source = USE_TENDER_DOCUMENT_ANALYSIS_SOURCE.read_text(encoding="utf-8")
+
+    assert "useRef" in hook_source
+    assert "function documentTenderKey(tender)" in hook_source
+    assert "currentTenderKeyRef" in hook_source
+    assert "downloadRequestRef" in hook_source
+    assert "extractRequestRef" in hook_source
+    assert "analysisRequestRef" in hook_source
+    assert "function isCurrentRequest(requestRef, requestId, requestTenderKey, currentTenderKeyRef)" in hook_source
+    assert "downloadRequestRef.current = null" in hook_source
+    assert "extractRequestRef.current = null" in hook_source
+    assert "analysisRequestRef.current = null" in hook_source
+    assert "setDownloading(false)" in hook_source
+    assert "setExtracting(false)" in hook_source
+    assert "setAnalyzing(false)" in hook_source
+    assert "if (!isCurrentRequest(downloadRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return" in hook_source
+    assert "if (!isCurrentRequest(extractRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return" in hook_source
+    assert "if (!isCurrentRequest(analysisRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return" in hook_source
     assert find_mojibake(hook_source, USE_TENDER_DOCUMENT_ANALYSIS_SOURCE) == []
 
 
@@ -675,6 +700,17 @@ def test_tender_details_uses_refresh_details_hook():
     assert find_mojibake(hook_source, USE_TENDER_REFRESH_DETAILS_SOURCE) == []
 
 
+def test_refresh_details_hides_auto_no_change_status():
+    hook_source = USE_TENDER_REFRESH_DETAILS_SOURCE.read_text(encoding="utf-8")
+
+    assert "const NO_DETAIL_CHANGE_MESSAGE" in hook_source
+    assert "if (!payload.refreshed && options.automatic)" in hook_source
+    assert "setDetailStatus('')" in hook_source
+    assert "payload.message ||" not in hook_source
+    assert "Detail data did not change" not in hook_source
+    assert "Источник не вернул новые детали; оставил сохраненные данные." in hook_source
+
+
 def test_tender_details_uses_ui_state_hook():
     tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     hook_source = (
@@ -725,14 +761,33 @@ def test_tender_cockpit_exposes_page_size_selector():
 
 def test_tender_analysis_renders_actionable_checklist():
     source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    styles = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "<AnalysisChecklist items={analysis.checklist} />" in source
     assert "function AnalysisChecklist" in source
     assert "Проверочный список" in source
     assert "analysis-checklist" in source
+    assert "grid-template-columns: minmax(120px, 0.34fr) minmax(0, 1.4fr) minmax(190px, 0.58fr)" in styles
+    assert ".analysis-card," in styles
+    row_text_rule = styles[
+        styles.index(".analysis-checklist-row p"):styles.index("}", styles.index(".analysis-checklist-row p"))
+    ]
+    assert "overflow-wrap: anywhere" in row_text_rule
     assert "analysisCategoryLabel" in source
     assert "analysisSeverityLabel" in source
     assert find_mojibake(source, TENDER_DETAILS_SOURCE) == []
+
+
+def test_summary_metrics_have_stable_wrapping_container():
+    shared_source = TENDER_DETAILS_SHARED_SOURCE.read_text(encoding="utf-8")
+    styles = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert 'className="summary-metric"' in shared_source
+    assert ".summary-metric {" in styles
+    assert ".summary-metric strong" in styles
+    assert ".summary-metric .summary-label" in styles
+    assert "display: grid" in styles[styles.index(".summary-metric {"):styles.index(".summary-metric strong")]
+    assert "min-width: 0" in styles[styles.index(".summary-metric {"):styles.index(".summary-metric strong")]
 
 
 def test_product_profile_renders_fulfillment_requirements():
@@ -898,6 +953,7 @@ def test_economics_tab_surfaces_supplier_catalog_health():
     assert "fetchSupplierCatalogHealth" in hook_source
     assert "refreshSupplierCatalogHealth" in hook_source
     assert "fetchSupplierCatalogHealth({ live })" in hook_source
+    assert "refreshSupplierCatalogHealth(false).catch" not in hook_source
     assert "supplierCatalogHealth" in hook_source
     assert "supplierCatalogHealthLoading" in hook_source
     assert "supplierCatalogHealthError" in hook_source
@@ -914,6 +970,8 @@ def test_economics_tab_surfaces_supplier_catalog_health():
     assert "supplierCatalogHealth?.catalogs" in source
     assert "supplier-catalog-health" in source
     assert "supplier-catalog-health-grid" in source
+    assert "onSupplierCatalogHealthRefresh?.(false)" in source
+    assert "supplierCatalogHealthLoading || supplierCatalogHealthError" in source
     assert "catalog.http_status" in source
     assert "catalog.error_kind" in source
     assert "catalog.body_preview" in source
@@ -1129,7 +1187,9 @@ def test_tender_workbench_has_collapsible_filters_and_wider_list():
     assert "Свернуть фильтры" in filters_source
     assert "Развернуть фильтры" in filters_source
     assert ".workbench-layout.filters-collapsed" in styles_source
-    assert "minmax(560px, 1.1fr)" in styles_source
+    assert "grid-template-columns: 260px minmax(360px, 1fr) minmax(0, 1.35fr)" in styles_source
+    assert "grid-template-columns: 58px minmax(360px, 1.1fr) minmax(0, 1.25fr)" in styles_source
+    assert "overflow-x: hidden" in styles_source
     assert ".filters-panel.collapsed" in styles_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
@@ -1151,7 +1211,7 @@ def test_tender_details_v2_keeps_actions_and_document_statuses_scannable():
     assert "details-title-row" in header_source
     assert "<TenderDetailActions" in app_source
     assert "details-action-group primary-actions" in actions_source
-    assert "details-action-group secondary-actions" in actions_source
+    assert "details-action-group secondary-actions" not in actions_source
     assert "documentStatusLabel" in documents_source
     assert "document-status ${document.text_status || 'pending'}" in documents_source
     assert "download-status ${document.local_path ? 'downloaded' : 'missing'}" in documents_source
@@ -1214,9 +1274,15 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     assert "Скачать Word" in analysis_source
     assert "analysis-workspace" in analysis_source
     assert "analysis-section-rail" in analysis_source
+    assert "const [selectedAnalysisSection, setSelectedAnalysisSection]" in analysis_source
+    assert "analysisSections.map" in analysis_source
+    assert "onClick={() => setSelectedAnalysisSection(section.id)}" in analysis_source
+    assert "aria-pressed={active}" in analysis_source
+    assert "renderAnalysisSection" in analysis_source
     assert "analysis-evidence-panel" in analysis_source
     assert ".analysis-workspace" in styles_source
     assert ".analysis-evidence-panel" in styles_source
+    assert ".analysis-section-item:hover" in styles_source
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
@@ -1237,6 +1303,72 @@ def test_economics_tab_uses_three_column_position_workspace():
     assert ".economics-calculation-panel" in styles_source
     assert ".economics-supplier-panel" in styles_source
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_tender_summary_cards_wrap_without_clipping_actions():
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    summary_grid_rule = _css_rule(styles_source, ".summary-work-grid")
+    compact_button_rule = _css_rule(styles_source, ".secondary-button.compact")
+    summary_button_rule = _css_rule(styles_source, ".summary-card .secondary-button")
+
+    assert "repeat(auto-fit, minmax(min(170px, 100%), 1fr))" in summary_grid_rule
+    assert "height: auto" in compact_button_rule
+    assert "min-height: 38px" in compact_button_rule
+    assert "white-space: normal" in compact_button_rule
+    assert "line-height: 1.15" in compact_button_rule
+    assert "height: auto" in summary_button_rule
+    assert "overflow-wrap: break-word" in summary_button_rule
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_economics_position_rail_keeps_long_product_names_readable():
+    economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    details_rule = _css_rule(styles_source, ".workbench-layout .details-panel")
+    rail_row_rule = _css_rule(styles_source, ".economics-position-rail .profile-row")
+    rail_name_rule = _css_rule(styles_source, ".economics-position-rail .profile-name")
+
+    assert "economics-profile-row" in economics_source
+    assert "container-type: inline-size" in details_rule
+    assert '"pos status"' in rail_row_rule
+    assert '"name name"' in rail_row_rule
+    assert "grid-template-columns: minmax(0, 1fr) auto" in rail_row_rule
+    assert "overflow-wrap: break-word" in rail_name_rule
+    assert "word-break: normal" in rail_name_rule
+    assert "hyphens: auto" in rail_name_rule
+    assert "@container (max-width: 860px)" in styles_source
+    assert "@container (max-width: 620px)" in styles_source
+    assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_analysis_and_economics_open_in_fullscreen_workspace():
+    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    workspace_source = (
+        TENDER_FULLSCREEN_WORKSPACE_SOURCE.read_text(encoding="utf-8")
+        if TENDER_FULLSCREEN_WORKSPACE_SOURCE.exists()
+        else ""
+    )
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "from './TenderFullscreenWorkspace'" in tabs_source
+    assert "const [workspaceMode, setWorkspaceMode]" in tabs_source
+    assert "function openTab(tabId)" in tabs_source
+    assert "tabId === 'analysis' || tabId === 'economics'" in tabs_source
+    assert "onOpenTab={openTab}" in tabs_source
+    assert "<TenderFullscreenWorkspace" in tabs_source
+    assert "workspaceMode === 'analysis'" in tabs_source
+    assert "workspaceMode === 'economics'" in tabs_source
+    assert "export function TenderFullscreenWorkspace" in workspace_source
+    assert "fullscreen-workspace-backdrop" in workspace_source
+    assert "fullscreen-workspace-body" in workspace_source
+    assert "Escape" in workspace_source
+    assert ".fullscreen-workspace-backdrop" in styles_source
+    assert ".fullscreen-workspace-body .analysis-workspace" in styles_source
+    assert ".fullscreen-workspace-body .economics-workspace-grid" in styles_source
+    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(workspace_source, TENDER_FULLSCREEN_WORKSPACE_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 

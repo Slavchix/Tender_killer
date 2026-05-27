@@ -53,6 +53,32 @@ def test_analyze_tender_texts_builds_actionable_checklist_with_evidence():
     assert "12 месяцев" in warranty["evidence"]
 
 
+def test_analyze_tender_texts_ignores_binary_garbage_lines():
+    result = analyze_tender_texts(
+        [
+            "ГОСТ\x00\x02=\x02j\x02Z\x02`\x02^\x02Z\x02g\x02k\x03\x04\x05",
+            "Техническое задание: поставка багетного стекла. Срок поставки товара - 5 рабочих дней.",
+        ]
+    )
+
+    labels = [item["label"] for item in result.checklist]
+    assert "ГОСТ/ТУ" not in labels
+    assert "лицензия/СРО" not in labels
+    assert "срок поставки" in labels
+    assert all("\x00" not in item["evidence"] for item in result.checklist)
+
+
+def test_analyze_tender_texts_normalizes_spacing_before_punctuation():
+    result = analyze_tender_texts(
+        [
+            "Техническое задание: Поставка , монтаж и установка товара. "
+            "Срок поставки товара - 5 рабочих дней."
+        ]
+    )
+
+    assert "Поставка, монтаж" in result.summary
+
+
 def test_analyze_tender_texts_handles_empty_text_cautiously():
     result = analyze_tender_texts(["", "   "])
 

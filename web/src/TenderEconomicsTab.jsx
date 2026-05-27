@@ -71,6 +71,16 @@ export function TenderEconomicsTab({
   const autoEstimating = autoEstimatingPosition === selectedPosition
   const acceptingAutoEconomics = acceptingAutoEconomicsPosition === selectedPosition
 
+  useEffect(() => {
+    if (supplierCatalogHealth || supplierCatalogHealthLoading || supplierCatalogHealthError) return
+    onSupplierCatalogHealthRefresh?.(false)?.catch?.(() => {})
+  }, [
+    onSupplierCatalogHealthRefresh,
+    supplierCatalogHealth,
+    supplierCatalogHealthLoading,
+    supplierCatalogHealthError,
+  ])
+
   return (
     <section className="detail-section active economics-section">
       <div className="section-heading-row">
@@ -95,7 +105,7 @@ export function TenderEconomicsTab({
             const costValue = profileEconomics.total_cost ?? profileEconomics.unit_cost
             return (
               <button
-                className={index === selectedEconomicsProfileIndex ? 'profile-row selected' : 'profile-row'}
+                className={index === selectedEconomicsProfileIndex ? 'profile-row economics-profile-row selected' : 'profile-row economics-profile-row'}
                 key={`${profile.position_index}-${profile.product_name}-${index}`}
                 onClick={() => onSelectedEconomicsProfileChange?.(index)}
                 type="button"

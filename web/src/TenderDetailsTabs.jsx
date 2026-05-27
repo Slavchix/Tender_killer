@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { TenderProductsTab } from './TenderProductsTab'
 import { TenderDocumentsTab } from './TenderDocumentsTab'
 import { TenderAnalysisTab } from './TenderAnalysisTab'
 import { TenderEconomicsTab } from './TenderEconomicsTab'
+import { TenderFullscreenWorkspace } from './TenderFullscreenWorkspace'
 import { TenderSummaryTab } from './TenderSummaryTab'
 import { WorkflowTabPanel } from './TenderWorkflowTab'
 
@@ -57,6 +59,7 @@ export function TenderDetailsTabs({
   onSaveWorkflow,
 }) {
   const reportHref = `/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/report.docx`
+  const [workspaceMode, setWorkspaceMode] = useState(null)
   const tabs = [
     { id: 'summary', label: 'Сводка' },
     { id: 'products', label: `Товары ${productProfiles.length || tender.items?.length || 0}` },
@@ -66,6 +69,14 @@ export function TenderDetailsTabs({
     { id: 'workflow', label: 'Статус' },
   ]
 
+  function openTab(tabId) {
+    if (tabId === 'analysis' || tabId === 'economics') {
+      setWorkspaceMode(tabId)
+      return
+    }
+    onActiveTabChange(tabId)
+  }
+
   return (
     <>
       <nav className="detail-tabs" aria-label="Разделы карточки">
@@ -73,7 +84,7 @@ export function TenderDetailsTabs({
           <button
             className={activeTab === tab.id ? 'active' : ''}
             key={tab.id}
-            onClick={() => onActiveTabChange(tab.id)}
+            onClick={() => openTab(tab.id)}
             type="button"
           >
             {tab.label}
@@ -89,7 +100,7 @@ export function TenderDetailsTabs({
             analysis={analysis}
             productProfiles={productProfiles}
             documents={documentRecords}
-            onOpenTab={onActiveTabChange}
+            onOpenTab={openTab}
           />
         )}
 
@@ -172,6 +183,59 @@ export function TenderDetailsTabs({
           />
         )}
       </div>
+
+      <TenderFullscreenWorkspace
+        mode={workspaceMode}
+        onClose={() => setWorkspaceMode(null)}
+        subtitle={tender.title}
+        title={workspaceMode === 'analysis' ? 'Анализ ТЗ' : 'Экономика'}
+      >
+        {workspaceMode === 'analysis' && (
+          <TenderAnalysisTab
+            analysis={analysis}
+            analyzing={analyzing}
+            onAnalyze={onAnalyzeTender}
+            reportHref={reportHref}
+            documents={documentRecords}
+          />
+        )}
+
+        {workspaceMode === 'economics' && (
+          <TenderEconomicsTab
+            tender={tender}
+            economics={economics}
+            productProfiles={productProfiles}
+            selectedEconomicsProfileIndex={selectedProfileIndex}
+            onSelectedEconomicsProfileChange={onSelectedProfileIndexChange}
+            onEconomicsSave={onEconomicsSave}
+            onEconomicsAssumptionsSave={onEconomicsAssumptionsSave}
+            onSupplierOptionSave={onSupplierOptionSave}
+            onSupplierOptionSelect={onSupplierOptionSelect}
+            onSupplierOptionAutoSelect={onSupplierOptionAutoSelect}
+            onSupplierDiscoveryImport={onSupplierDiscoveryImport}
+            onSupplierSearchPrepare={onSupplierSearchPrepare}
+            onSupplierCatalogPresetsSave={onSupplierCatalogPresetsSave}
+            onSupplierDiscoveryRun={onSupplierDiscoveryRun}
+            onSupplierUrlDiscoveryRun={onSupplierUrlDiscoveryRun}
+            onAutoEconomicsRun={onAutoEconomicsRun}
+            onAutoEconomicsAccept={onAutoEconomicsAccept}
+            savingEconomicsPosition={savingEconomicsPosition}
+            savingAssumptionsPosition={savingAssumptionsPosition}
+            savingSupplierOptionPosition={savingSupplierOptionPosition}
+            importingSupplierCandidatePosition={importingSupplierCandidatePosition}
+            preparingSupplierSearchPosition={preparingSupplierSearchPosition}
+            savingSupplierCatalogPresetPosition={savingSupplierCatalogPresetPosition}
+            discoveringSupplierPosition={discoveringSupplierPosition}
+            autoSelectingSupplierPosition={autoSelectingSupplierPosition}
+            autoEstimatingPosition={autoEstimatingPosition}
+            acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
+            supplierCatalogHealth={supplierCatalogHealth}
+            supplierCatalogHealthLoading={supplierCatalogHealthLoading}
+            supplierCatalogHealthError={supplierCatalogHealthError}
+            onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
+          />
+        )}
+      </TenderFullscreenWorkspace>
     </>
   )
 }

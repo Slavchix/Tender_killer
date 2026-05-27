@@ -14,6 +14,7 @@ from zipfile import BadZipFile, ZipFile
 import httpx
 
 from tender_killer.models import Tender
+from tender_killer.text_quality import clean_machine_text
 
 
 @dataclass(frozen=True)
@@ -346,8 +347,7 @@ def _printable_text(text: str) -> str:
 
 
 def _clean_text(text: str) -> str:
-    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.splitlines()]
-    return "\n".join(line for line in lines if line)
+    return clean_machine_text(text)
 
 
 def _is_unsupported_document(warnings: list[str]) -> bool:

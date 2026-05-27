@@ -1,18 +1,27 @@
+import { useState } from 'react'
 import {
   normalizeListItems,
   analysisCategoryLabel,
   analysisSeverityLabel,
   analysisStatusLabel,
   documentStatusCounts,
+  documentStatusLabel,
   formatConfidence,
 } from './formatters'
 import { SummaryMetric } from './TenderDetailsShared'
 
 export function TenderAnalysisTab({ analysis, analyzing, onAnalyze, reportHref, documents = [] }) {
+  const [selectedAnalysisSection, setSelectedAnalysisSection] = useState('checklist')
   const requirementsCount = analysis?.requirements?.length || 0
   const risksCount = (analysis?.risks?.length || 0) + (analysis?.red_flags?.length || 0)
   const checklistCount = analysis?.checklist?.length || 0
   const documentCounts = documentStatusCounts(documents)
+  const analysisSections = [
+    { id: 'risks', title: 'Риски', value: risksCount },
+    { id: 'requirements', title: 'Требования', value: requirementsCount },
+    { id: 'documents', title: 'Документы', value: `${documentCounts.ok}/${documents.length}` },
+    { id: 'checklist', title: 'Чеклист', value: checklistCount },
+  ]
 
   return (
     <section className="detail-section active analysis-section">
@@ -41,21 +50,20 @@ export function TenderAnalysisTab({ analysis, analyzing, onAnalyze, reportHref, 
 
       <div className="analysis-workspace">
         <aside className="analysis-section-rail" aria-label="Разделы анализа">
-          <AnalysisSectionRailItem title="Риски" value={risksCount} active />
-          <AnalysisSectionRailItem title="Требования" value={requirementsCount} />
-          <AnalysisSectionRailItem title="Документы" value={`${documentCounts.ok}/${documents.length}`} />
-          <AnalysisSectionRailItem title="Чеклист" value={checklistCount} />
+          {analysisSections.map((section) => (
+            <AnalysisSectionRailItem
+              active={selectedAnalysisSection === section.id}
+              key={section.id}
+              onClick={() => setSelectedAnalysisSection(section.id)}
+              title={section.title}
+              value={section.value}
+            />
+          ))}
         </aside>
 
         <div className="analysis-main-panel">
           {analysis ? (
-            <div className="analysis-card">
-              <p>{analysis.summary}</p>
-              <AnalysisChecklist items={analysis.checklist} />
-              <AnalysisList title="Требования" items={analysis.requirements} empty="Явные требования пока не найдены" />
-              <AnalysisList title="Риски" items={analysis.risks} empty="Явные риски пока не найдены" />
-              <AnalysisList title="Красные флаги" items={analysis.red_flags} empty="Критичные признаки пока не найдены" danger />
-            </div>
+            renderAnalysisSection(selectedAnalysisSection, analysis, documents, documentCounts)
           ) : (
             <p className="muted-text">Сначала извлеки текст документов, затем запусти анализ ТЗ.</p>
           )}
@@ -67,11 +75,63 @@ export function TenderAnalysisTab({ analysis, analyzing, onAnalyze, reportHref, 
   )
 }
 
-function AnalysisSectionRailItem({ title, value, active = false }) {
+function AnalysisSectionRailItem({ title, value, active = false, onClick }) {
   return (
-    <div className={active ? 'analysis-section-item active' : 'analysis-section-item'}>
+    <button
+      aria-pressed={active}
+      className={active ? 'analysis-section-item active' : 'analysis-section-item'}
+      onClick={onClick}
+      type="button"
+    >
       <strong>{title}</strong>
       <span>{value}</span>
+    </button>
+  )
+}
+
+function renderAnalysisSection(sectionId, analysis, documents, documentCounts) {
+  if (sectionId === 'risks') {
+    return (
+      <div className="analysis-card">
+        <p>{analysis.summary}</p>
+        <AnalysisList title="Риски" items={analysis.risks} empty="Явные риски пока не найдены" />
+        <AnalysisList title="Красные флаги" items={analysis.red_flags} empty="Критичные признаки пока не найдены" danger />
+      </div>
+    )
+  }
+
+  if (sectionId === 'requirements') {
+    return (
+      <div className="analysis-card">
+        <p>{analysis.summary}</p>
+        <AnalysisList title="Требования" items={analysis.requirements} empty="Явные требования пока не найдены" />
+      </div>
+    )
+  }
+
+  if (sectionId === 'documents') {
+    return (
+      <div className="analysis-card">
+        <p>Текст извлечен у {documentCounts.ok} из {documents.length} документов.</p>
+        <div className="analysis-document-list">
+          {documents.length ? documents.map((document, index) => (
+            <article className="analysis-document-row" key={`${document.name || document.url}-${index}`}>
+              <strong>{document.name || document.url || `Документ ${index + 1}`}</strong>
+              <span>{documentStatusLabel(document.text_status)}</span>
+              <p>{document.text_status === 'ok' ? 'Текст готов для анализа.' : 'Документ требует внимания или не содержит машинно-читаемый текст.'}</p>
+            </article>
+          )) : (
+            <p className="muted-text">Документы по закупке пока не загружены.</p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="analysis-card">
+      <p>{analysis.summary}</p>
+      <AnalysisChecklist items={analysis.checklist} />
     </div>
   )
 }

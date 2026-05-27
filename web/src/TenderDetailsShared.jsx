@@ -1,6 +1,6 @@
 export function SummaryMetric({ value, label }) {
   return (
-    <span>
+    <span className="summary-metric">
       <strong>{value}</strong>
       <em className="summary-label">{label}</em>
     </span>

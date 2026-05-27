@@ -7,6 +7,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
+import httpx
 
 from tender_killer.analysis_service import analyze_tender_payload
 from tender_killer.api_handlers import build_tender_report_response
@@ -629,6 +630,45 @@ def test_download_tender_documents_payload_updates_local_paths(tmp_path):
     assert detail["document_records"][0]["downloaded_at"]
 
 
+def test_download_tender_documents_payload_skips_existing_local_files(tmp_path):
+    store = _store_with_tenders(tmp_path)
+    existing_path = tmp_path / "documents" / "existing-tz.docx"
+    existing_path.parent.mkdir(parents=True)
+    existing_path.write_bytes(b"already downloaded")
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            """
+            UPDATE tender_documents
+            SET local_path = ?, downloaded_at = ?, text_status = ?
+            WHERE source = ? AND external_id = ? AND url = ?
+            """,
+            (
+                str(existing_path),
+                "2026-05-26T15:47:21",
+                "downloaded",
+                "mosreg_market",
+                "3668200",
+                "https://example.test/tz.docx",
+            ),
+        )
+
+    def fail_downloader(url, target_path):
+        raise AssertionError(f"unexpected re-download of {url} to {target_path}")
+
+    payload = download_tender_documents_payload(
+        store.database_path,
+        "mosreg_market",
+        "3668200",
+        tmp_path / "documents",
+        downloader=fail_downloader,
+    )
+
+    assert payload["downloaded"] == 0
+    assert payload["skipped"] == 1
+    assert payload["failed"] == []
+    assert payload["document_records"][0]["local_path"] == str(existing_path)
+
+
 def test_download_tender_documents_payload_backfills_legacy_document_urls(tmp_path):
     store = _store_with_tenders(tmp_path)
     downloaded = []
@@ -734,6 +774,47 @@ def test_download_tender_documents_payload_avoids_duplicate_filenames(tmp_path):
     assert paths[0].endswith("ООЗ.docx")
     assert paths[1].endswith("ООЗ-2.docx")
     assert paths[0] != paths[1]
+
+
+def test_download_tender_documents_payload_stops_retrying_same_host_after_network_error(tmp_path):
+    store = _store_with_tenders(tmp_path)
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            "DELETE FROM tender_documents WHERE source = ? AND external_id = ?",
+            ("mosreg_market", "3668200"),
+        )
+        connection.executemany(
+            """
+            INSERT INTO tender_documents (
+                source, external_id, document_index, name, document_type, url,
+                source_document_id, raw_payload_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                ("mosreg_market", "3668200", 1, "first.docx", "ТЗ", "https://easuz.mosreg.ru/file/1", "1", "{}"),
+                ("mosreg_market", "3668200", 2, "second.docx", "ТЗ", "https://easuz.mosreg.ru/file/2", "2", "{}"),
+            ],
+        )
+    calls = []
+
+    def failing_downloader(url, target_path):
+        calls.append(url)
+        raise httpx.ConnectError("[WinError 10061] refused")
+
+    payload = download_tender_documents_payload(
+        store.database_path,
+        "mosreg_market",
+        "3668200",
+        tmp_path / "documents",
+        downloader=failing_downloader,
+    )
+
+    assert calls == ["https://easuz.mosreg.ru/file/1"]
+    assert payload["downloaded"] == 0
+    assert len(payload["failed"]) == 2
+    assert payload["failed"][0]["error"] == "[WinError 10061] refused"
+    assert payload["failed"][1]["error"] == "easuz.mosreg.ru недоступен после предыдущей сетевой ошибки: [WinError 10061] refused"
 
 
 def test_extract_tender_document_text_payload_saves_text_for_downloaded_documents(tmp_path):
