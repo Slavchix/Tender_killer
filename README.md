@@ -57,6 +57,7 @@ Recent architecture cleanup:
 - The economics supplier block surfaces configured supplier catalog health next to preset controls, so the operator can see which built-in catalogs are wired before running discovery.
 - The economics supplier block has an explicit manual live health check button; normal page load stays network-free, and live external catalog checks run only after the operator asks for them.
 - The economics tab shows supplier discovery collector diagnostics next to staged candidates, including seen links, skipped links, fetched pages, candidates found, and fetch errors.
+- Public supplier discovery fetch errors reuse catalog access-blocked/network diagnostics, preserving readable response previews when a provider returns a browser/captcha challenge instead of a product page.
 - API errors from supplier discovery are surfaced in the React client, so no-new-candidates and missing-prepared-query messages are visible to the user.
 - Supplier discovery run errors for missing prepared queries or no new candidates now return JSON `400` responses from the API handler instead of bubbling up as server errors.
 - No-candidate supplier discovery runs now preserve collector diagnostics in the product profile and include the refreshed tender payload in the API error response, so the economics tab can show what was checked even when nothing was staged.
@@ -84,7 +85,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after supplier catalog live diagnostics: `342 passed`.
+Latest verified result after supplier discovery blocked-page diagnostics: `343 passed`.
 
 Good next steps:
 

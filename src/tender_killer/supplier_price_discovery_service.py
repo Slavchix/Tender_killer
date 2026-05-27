@@ -15,6 +15,8 @@ from bs4 import BeautifulSoup
 
 from tender_killer.storage import TenderStore
 from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
+from tender_killer.supplier_catalog_health_service import http_error_kind
+from tender_killer.supplier_catalog_health_service import response_body_preview
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
 
 
@@ -643,7 +645,15 @@ def _fetch_public_text(url: str) -> str:
         timeout=10.0,
         headers={"User-Agent": "TenderKiller/0.1 public price discovery"},
     )
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        kind = http_error_kind(int(response.status_code))
+        preview = response_body_preview(response.text)
+        message = f"{kind} HTTP {response.status_code} from {url}"
+        if preview:
+            message = f"{message}: {preview}"
+        raise httpx.HTTPStatusError(message, request=exc.request, response=exc.response) from exc
     return response.text
 
 

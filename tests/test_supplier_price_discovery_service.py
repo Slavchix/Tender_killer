@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from tender_killer import supplier_price_discovery_service as price_discovery
@@ -88,6 +89,27 @@ def test_schema_org_product_collector_skips_search_engine_links() -> None:
 
     assert candidates == []
     assert calls == []
+
+
+def test_public_fetch_error_preserves_blocked_catalog_preview(monkeypatch) -> None:
+    url = "https://www.vseinstrumenti.ru/search/?q=cement+mix"
+
+    class BlockedResponse:
+        status_code = 403
+        text = "<html><body><main>Пожалуйста, пройдите проверку</main></body></html>"
+        request = httpx.Request("GET", url)
+
+        def raise_for_status(self) -> None:
+            raise httpx.HTTPStatusError("raw forbidden", request=self.request, response=self)
+
+    monkeypatch.setattr(price_discovery.httpx, "get", lambda *args, **kwargs: BlockedResponse())
+
+    with pytest.raises(httpx.HTTPStatusError) as excinfo:
+        price_discovery._fetch_public_text(url)
+
+    message = str(excinfo.value)
+    assert "access_blocked HTTP 403" in message
+    assert "Пожалуйста, пройдите проверку" in message
 
 
 def test_provider_catalog_collector_follows_matching_catalog_product_links() -> None:

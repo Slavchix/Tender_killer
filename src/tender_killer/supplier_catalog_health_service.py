@@ -81,9 +81,9 @@ def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogH
         catalog["body_preview"] = ""
         return
     catalog["status"] = "error"
-    catalog["error_kind"] = _http_error_kind(int(status))
+    catalog["error_kind"] = http_error_kind(int(status))
     catalog["error"] = f"expected HTTP 2xx/3xx, got {status}"
-    catalog["body_preview"] = _body_preview(_body)
+    catalog["body_preview"] = response_body_preview(_body)
 
 
 def _fetch_catalog_status(url: str, timeout: float) -> CatalogHealthFetchResult:
@@ -96,13 +96,13 @@ def _fetch_catalog_status(url: str, timeout: float) -> CatalogHealthFetchResult:
     return int(response.status_code), response.text
 
 
-def _http_error_kind(status: int) -> str:
+def http_error_kind(status: int) -> str:
     if status in {401, 403, 429, 503}:
         return "access_blocked"
     return "http_error"
 
 
-def _body_preview(body: str) -> str:
+def response_body_preview(body: str) -> str:
     raw_body = str(body or "")
     soup = BeautifulSoup(raw_body, "html.parser")
     for node in soup(["script", "style", "template", "noscript"]):
