@@ -821,13 +821,15 @@ function SupplierCatalogPresetControls({ profile, saving = false, onPresetSave }
 function SupplierDiscoveryPreview({ discovery, importing = false, onImport }) {
   const candidates = Array.isArray(discovery?.candidates) ? discovery.candidates : []
   const diagnostics = Array.isArray(discovery?.collector_diagnostics) ? discovery.collector_diagnostics : []
+  const noCandidates = discovery?.status === 'no_candidates'
   if (!candidates.length && !diagnostics.length) return null
 
   return (
     <div className="supplier-discovery-preview">
-      <span>Найденные кандидаты</span>
+      <span>{noCandidates && !candidates.length ? 'Кандидаты не найдены' : 'Найденные кандидаты'}</span>
+      {noCandidates && !candidates.length && <p>Смотри диагностику ниже: она показывает, какие каталоги и страницы проверялись.</p>}
       <SupplierDiscoveryDiagnostics diagnostics={diagnostics} />
-      {candidates.map((candidate, index) => {
+      {candidates.length > 0 && candidates.map((candidate, index) => {
         const imported = candidate.review_status === 'imported'
         const confidenceReasons = Array.isArray(candidate.confidence_reasons) ? candidate.confidence_reasons : []
         return (

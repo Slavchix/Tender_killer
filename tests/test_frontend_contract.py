@@ -820,6 +820,10 @@ def test_product_profile_renders_supplier_option_form():
     assert "onPresetSave(profile, null)" in source
     assert "SupplierDiscoveryPreview" in source
     assert "SupplierDiscoveryDiagnostics" in source
+    assert "discovery?.status === 'no_candidates'" in source
+    assert "Кандидаты не найдены" in source
+    assert "Смотри диагностику ниже" in source
+    assert "candidates.length > 0" in source
     assert "collector_diagnostics" in source
     assert "diagnostics.pages_fetched" in source
     assert "diagnostics.candidates_found" in source
