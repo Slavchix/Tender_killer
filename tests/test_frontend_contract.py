@@ -896,12 +896,16 @@ def test_economics_tab_surfaces_supplier_catalog_health():
     assert "supplier-catalog-health" in source
     assert "supplier-catalog-health-grid" in source
     assert "catalog.http_status" in source
+    assert "catalog.error_kind" in source
+    assert "catalog.body_preview" in source
     assert "catalog.sample_url" in source
     assert "onSupplierCatalogHealthRefresh" in source
     assert "onRefresh?.(true)" in source
     assert "Статус каталогов" in source
     assert "Проверить" in source
     assert "доступен" in source
+    assert "блокировка" in source
+    assert "сеть недоступна" in source
     assert "ошибка" in source
     assert "настроен" in source
     assert "??????" not in api_source

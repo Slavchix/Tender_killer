@@ -738,7 +738,10 @@ function SupplierCatalogHealthPanel({ supplierCatalogHealth, loading = false, er
             >
               <strong>{catalog.label || catalog.provider}</strong>
               <span>{catalog.provider}</span>
-              <em>{supplierCatalogHealthStatusLabel(catalog.status, catalog.http_status)}</em>
+              <em>{supplierCatalogHealthStatusLabel(catalog.status, catalog.http_status, catalog.error_kind)}</em>
+              {(catalog.error || catalog.body_preview) && (
+                <small>{[catalog.error, catalog.body_preview].filter(Boolean).join(' · ')}</small>
+              )}
             </a>
           ))}
         </div>
@@ -747,8 +750,10 @@ function SupplierCatalogHealthPanel({ supplierCatalogHealth, loading = false, er
   )
 }
 
-function supplierCatalogHealthStatusLabel(status, httpStatus) {
+function supplierCatalogHealthStatusLabel(status, httpStatus, errorKind = '') {
   if (status === 'ok') return httpStatus ? `HTTP ${httpStatus}` : 'доступен'
+  if (status === 'error' && errorKind === 'access_blocked') return httpStatus ? `блокировка ${httpStatus}` : 'блокировка'
+  if (status === 'error' && errorKind === 'network_error') return 'сеть недоступна'
   if (status === 'error') return httpStatus ? `ошибка ${httpStatus}` : 'ошибка'
   return 'настроен'
 }

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import quote_plus
 
 import httpx
+from bs4 import BeautifulSoup
 
 from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
 
@@ -55,7 +57,9 @@ def _catalog_health_item(preset: dict[str, Any]) -> dict[str, Any]:
         "sample_url": sample_url,
         "status": "configured",
         "http_status": None,
+        "error_kind": "",
         "error": "",
+        "body_preview": "",
     }
 
 
@@ -65,15 +69,21 @@ def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogH
     except Exception as exc:  # noqa: BLE001 - health diagnostics should preserve provider failures.
         catalog["status"] = "error"
         catalog["http_status"] = None
+        catalog["error_kind"] = "network_error"
         catalog["error"] = str(exc)
+        catalog["body_preview"] = ""
         return
     catalog["http_status"] = int(status)
     if 200 <= int(status) < 400:
         catalog["status"] = "ok"
+        catalog["error_kind"] = ""
         catalog["error"] = ""
+        catalog["body_preview"] = ""
         return
     catalog["status"] = "error"
+    catalog["error_kind"] = _http_error_kind(int(status))
     catalog["error"] = f"expected HTTP 2xx/3xx, got {status}"
+    catalog["body_preview"] = _body_preview(_body)
 
 
 def _fetch_catalog_status(url: str, timeout: float) -> CatalogHealthFetchResult:
@@ -83,4 +93,30 @@ def _fetch_catalog_status(url: str, timeout: float) -> CatalogHealthFetchResult:
         timeout=timeout,
         headers={"User-Agent": "TenderKiller/0.1 public catalog health"},
     )
-    return int(response.status_code), response.text[:512]
+    return int(response.status_code), response.text
+
+
+def _http_error_kind(status: int) -> str:
+    if status in {401, 403, 429, 503}:
+        return "access_blocked"
+    return "http_error"
+
+
+def _body_preview(body: str) -> str:
+    raw_body = str(body or "")
+    soup = BeautifulSoup(raw_body, "html.parser")
+    for node in soup(["script", "style", "template", "noscript"]):
+        node.decompose()
+    text = " ".join(soup.get_text(" ").split())
+    if not text:
+        text = " ".join(re.sub(r"<[^>]+>", " ", raw_body).split())
+    if not text or _looks_like_css_preview(text):
+        return "HTML response without readable text"
+    return text[:180]
+
+
+def _looks_like_css_preview(text: str) -> bool:
+    stripped = text.strip()
+    if stripped.startswith((".", "#", "@")) and "{" in stripped[:80] and ":" in stripped[:160]:
+        return True
+    return bool(re.fullmatch(r"(?:[.#]?[a-zA-Z0-9_-]+\s*\{[^{}]*:[^{}]*\}\s*)+", stripped))

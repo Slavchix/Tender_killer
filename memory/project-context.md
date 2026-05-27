@@ -719,6 +719,7 @@ Date: 2026-05-26.
 - Built-in public catalog discovery now has provider-specific collectors for `officemag`, `komus`, `petrovich`, and `vseinstrumenti`. They only consume matching `catalog_search` links, follow same-site catalog anchors/product URLs, parse schema.org Product/Offer on product pages, and stage review-only candidates under the real catalog provider while the generic schema.org collector remains the fallback for manual/unknown public links.
 - Provider-specific catalog collectors now also have a narrow visible-offer fallback for OfficeMag, Komus, Petrovich, and Vseinstrumenti product pages: if schema.org offers are missing, they can extract the H1 product name, visible ruble price, and availability from product-detail pages only. Category/search pages are still used only for following product links.
 - Supplier catalog health diagnostics now live in `src/tender_killer/supplier_catalog_health_service.py` and `GET /api/supplier-catalogs/health`. The endpoint is network-free by default and returns configured provider/sample URL diagnostics; `?live=1` performs public HTTP checks per built-in catalog provider and reports HTTP status or fetch errors.
+- Live supplier catalog health now classifies access-blocked/network failures and stores short readable response previews, so the economics panel can show when a public catalog returned a browser/captcha challenge instead of a parseable page.
 - Supplier discovery staging now stores provider collector diagnostics under `raw_payload.supplier_discovery.collector_diagnostics`, including seen queries/links, skipped links, fetched pages, candidates found, and fetch errors.
 - `TenderEconomicsTab.jsx` now shows configured supplier catalog health in the supplier block next to preset controls. The UI uses the network-free health endpoint by default, preserving explicit operator control over live external checks.
 - The supplier catalog health block now has an explicit manual live check button. Normal page load still calls the network-free health endpoint, while the button calls `/api/supplier-catalogs/health?live=1` and refreshes the same panel with live HTTP diagnostics.
@@ -733,7 +734,7 @@ Date: 2026-05-26.
 - Latest local targeted verification after live supplier catalog health UI: `55 passed` for `tests/test_frontend_contract.py`.
 - Latest provider discovery verification: `14 passed` for `tests/test_supplier_price_discovery_service.py`.
 - Latest API handler verification: `20 passed` for `tests/test_api_handlers.py`.
-- Full verification after no-candidate supplier diagnostics UI: `342 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- Full verification after supplier catalog live diagnostics: `342 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
 - JSX syntax was checked through Babel parser in the Node REPL after wiring supplier catalog health through `api.js`, `useTenderProductProfiles.js`, `TenderDetails.jsx`, `TenderDetailsTabs.jsx`, and `TenderEconomicsTab.jsx`.
 - Next planned steps:
   1. Validate real catalog pages and add narrow provider parsing rules where schema.org/anchor discovery is not enough.

@@ -28,8 +28,10 @@ def test_supplier_catalog_health_live_mode_records_provider_errors() -> None:
 
     def fetcher(url: str, timeout: float) -> tuple[int, str]:
         calls.append((url, timeout))
+        if "komus" in url:
+            return 403, "<html><body>.container { display: flex; } .load { color: grey; }</body></html>"
         if "petrovich" in url:
-            return 503, "maintenance"
+            return 503, "<html><head><style>body{display:block}</style></head><body><main>maintenance</main></body></html>"
         if "vseinstrumenti" in url:
             raise RuntimeError("timed out")
         return 200, "<html></html>"
@@ -48,9 +50,17 @@ def test_supplier_catalog_health_live_mode_records_provider_errors() -> None:
     statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
     assert statuses["officemag"]["status"] == "ok"
     assert statuses["officemag"]["http_status"] == 200
+    assert statuses["komus"]["status"] == "error"
+    assert statuses["komus"]["http_status"] == 403
+    assert statuses["komus"]["error_kind"] == "access_blocked"
+    assert statuses["komus"]["body_preview"] == "HTML response without readable text"
     assert statuses["petrovich"]["status"] == "error"
     assert statuses["petrovich"]["http_status"] == 503
     assert statuses["petrovich"]["error"] == "expected HTTP 2xx/3xx, got 503"
+    assert statuses["petrovich"]["error_kind"] == "access_blocked"
+    assert statuses["petrovich"]["body_preview"] == "maintenance"
     assert statuses["vseinstrumenti"]["status"] == "error"
     assert statuses["vseinstrumenti"]["http_status"] is None
     assert statuses["vseinstrumenti"]["error"] == "timed out"
+    assert statuses["vseinstrumenti"]["error_kind"] == "network_error"
+    assert statuses["vseinstrumenti"]["body_preview"] == ""
