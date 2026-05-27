@@ -1,8 +1,9 @@
 import { TenderDetailActions } from './TenderDetailActions'
+import { TenderDecisionStrip } from './TenderDecisionStrip'
 import { TenderDetailsHeader } from './TenderDetailsHeader'
 import { TenderDetailsStatusStack } from './TenderDetailsStatusStack'
 import { TenderDetailsTabs } from './TenderDetailsTabs'
-import { PriceChangeBanner, TenderDecisionSummary } from './TenderDecisionSummary'
+import { PriceChangeBanner } from './TenderDecisionSummary'
 import { useTenderDocumentAnalysis } from './useTenderDocumentAnalysis'
 import { useTenderDetailsUi } from './useTenderDetailsUi'
 import { useTenderNotification } from './useTenderNotification'
@@ -90,7 +91,13 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     <div className="details">
       <TenderDetailsHeader tender={tender} />
 
-      <TenderDecisionSummary tender={tender} economics={economics} />
+      <TenderDecisionStrip
+        tender={tender}
+        economics={economics}
+        productProfiles={productProfiles}
+        documents={documentRecords}
+        analysis={analysis}
+      />
       <PriceChangeBanner change={tender.price_change} />
 
       <TenderDetailActions

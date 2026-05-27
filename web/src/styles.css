@@ -1147,6 +1147,19 @@ textarea:focus {
   gap: 8px;
 }
 
+.decision-strip {
+  padding: 10px;
+  background: #1b2622;
+  border: 1px solid #33443d;
+  border-radius: 7px;
+}
+
+.decision-strip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: 8px;
+}
+
 .price-change-banner {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1452,6 +1465,64 @@ textarea:focus {
   gap: 9px;
 }
 
+.summary-decision-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+  padding: 10px;
+  background: #1b2622;
+  border: 1px solid #33443d;
+  border-radius: 7px;
+}
+
+.summary-work-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.1fr) repeat(3, minmax(180px, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.summary-card,
+.summary-next-action {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  background: #1b2622;
+  border: 1px solid #33443d;
+  border-radius: 7px;
+}
+
+.summary-card > span,
+.summary-next-action > span {
+  color: #9bb2aa;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.summary-card p,
+.summary-card em,
+.summary-next-action p {
+  margin: 0;
+  color: #a9bdb5;
+  font-size: 13px;
+  font-style: normal;
+}
+
+.summary-card strong,
+.summary-next-action strong {
+  color: #eef8f2;
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.summary-card .secondary-button {
+  align-self: end;
+  margin-top: 4px;
+}
+
 .product-tab-summary,
 .document-status-summary {
   display: grid;
@@ -1534,6 +1605,74 @@ textarea:focus {
 
 .section-heading-row h3 {
   margin: 0;
+}
+
+.analysis-action-row {
+  align-items: flex-start;
+}
+
+.analysis-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-end;
+}
+
+.analysis-actions .secondary-button,
+.analysis-actions .secondary-link-button {
+  width: auto;
+  min-width: 136px;
+  margin-top: 0;
+}
+
+.analysis-workspace {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.46fr) minmax(0, 1.2fr) minmax(230px, 0.72fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.analysis-section-rail,
+.analysis-main-panel,
+.analysis-evidence-panel {
+  min-width: 0;
+}
+
+.analysis-section-rail,
+.analysis-evidence-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  background: #1b2622;
+  border: 1px solid #33443d;
+  border-radius: 7px;
+}
+
+.analysis-section-item {
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  background: #202b27;
+  border: 1px solid #304039;
+  border-radius: 7px;
+}
+
+.analysis-section-item.active {
+  background: #21352a;
+  border-color: #5d9d54;
+}
+
+.analysis-section-item strong,
+.analysis-evidence-panel h4 {
+  margin: 0;
+  color: #eef8f2;
+  font-size: 13px;
+}
+
+.analysis-section-item span {
+  color: #9bb2aa;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .analysis-card {
@@ -1661,6 +1800,27 @@ textarea:focus {
   border-radius: 999px;
 }
 
+.analysis-evidence-card {
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+  background: #202b27;
+  border: 1px solid #304039;
+  border-radius: 7px;
+}
+
+.analysis-evidence-card strong {
+  color: #eef8f2;
+  font-size: 13px;
+}
+
+.analysis-evidence-card p {
+  margin: 0;
+  color: #a9bdb5;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .economics-card {
   display: grid;
   gap: 12px;
@@ -1681,6 +1841,10 @@ textarea:focus {
   align-items: start;
 }
 
+.economics-workspace-grid {
+  grid-template-columns: minmax(190px, 0.55fr) minmax(320px, 1fr) minmax(300px, 0.95fr);
+}
+
 .economics-position-list {
   max-height: 460px;
   overflow: auto;
@@ -1689,15 +1853,31 @@ textarea:focus {
   border-radius: 7px;
 }
 
-.economics-position-list .muted-text {
+.economics-position-rail {
+  max-height: 620px;
+  overflow: auto;
+  background: #202b27;
+  border: 1px solid #304039;
+  border-radius: 7px;
+}
+
+.economics-position-list .muted-text,
+.economics-position-rail .muted-text {
   margin: 0;
   padding: 12px;
 }
 
-.economics-position-panel {
+.economics-position-panel,
+.economics-calculation-panel,
+.economics-supplier-panel {
   display: grid;
   gap: 10px;
   min-width: 0;
+}
+
+.economics-calculation-panel,
+.economics-supplier-panel {
+  align-content: start;
 }
 
 .economics-position-heading {
@@ -3018,6 +3198,7 @@ textarea:focus {
   .detail-grid,
   .raw-grid,
   .overview-brief-grid,
+  .summary-work-grid,
   .item-facts,
   .document-row,
   .source-status-list,
@@ -3027,6 +3208,8 @@ textarea:focus {
   .profile-summary-grid,
   .profile-detail-grid,
   .decision-summary-grid,
+  .decision-strip-grid,
+  .summary-decision-grid,
   .supplier-input-grid,
   .economics-input-grid {
     grid-template-columns: 1fr;
@@ -3041,6 +3224,14 @@ textarea:focus {
   }
 
   .economics-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .economics-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-workspace {
     grid-template-columns: 1fr;
   }
 

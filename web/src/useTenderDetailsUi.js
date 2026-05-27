@@ -8,11 +8,11 @@ export function useTenderDetailsUi({
   setNotifyStatus,
 }) {
   const raw = safeJson(tender.raw_payload_json)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState('summary')
   const [detailStatus, setDetailStatus] = useState('')
 
   useEffect(() => {
-    setActiveTab('overview')
+    setActiveTab('summary')
     setNotifyStatus('')
     setDetailStatus('')
   }, [tender.source, tender.external_id])

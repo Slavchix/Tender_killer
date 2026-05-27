@@ -1,8 +1,8 @@
-import { TenderOverviewTab } from './TenderOverviewTab'
 import { TenderProductsTab } from './TenderProductsTab'
 import { TenderDocumentsTab } from './TenderDocumentsTab'
 import { TenderAnalysisTab } from './TenderAnalysisTab'
 import { TenderEconomicsTab } from './TenderEconomicsTab'
+import { TenderSummaryTab } from './TenderSummaryTab'
 import { WorkflowTabPanel } from './TenderWorkflowTab'
 
 export function TenderDetailsTabs({
@@ -56,8 +56,9 @@ export function TenderDetailsTabs({
   onNoteChange,
   onSaveWorkflow,
 }) {
+  const reportHref = `/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/report.docx`
   const tabs = [
-    { id: 'overview', label: 'Обзор' },
+    { id: 'summary', label: 'Сводка' },
     { id: 'products', label: `Товары ${productProfiles.length || tender.items?.length || 0}` },
     { id: 'documents', label: `Документы ${documentRecords.length}` },
     { id: 'analysis', label: 'Анализ' },
@@ -81,8 +82,15 @@ export function TenderDetailsTabs({
       </nav>
 
       <div className="detail-tab-panel">
-        {activeTab === 'overview' && (
-          <TenderOverviewTab tender={tender} raw={raw} />
+        {activeTab === 'summary' && (
+          <TenderSummaryTab
+            tender={tender}
+            economics={economics}
+            analysis={analysis}
+            productProfiles={productProfiles}
+            documents={documentRecords}
+            onOpenTab={onActiveTabChange}
+          />
         )}
 
         {activeTab === 'products' && (
@@ -108,7 +116,13 @@ export function TenderDetailsTabs({
         )}
 
         {activeTab === 'analysis' && (
-          <TenderAnalysisTab analysis={analysis} analyzing={analyzing} onAnalyze={onAnalyzeTender} />
+          <TenderAnalysisTab
+            analysis={analysis}
+            analyzing={analyzing}
+            onAnalyze={onAnalyzeTender}
+            reportHref={reportHref}
+            documents={documentRecords}
+          />
         )}
 
         {activeTab === 'economics' && (

@@ -85,8 +85,8 @@ export function TenderEconomicsTab({
         <SummaryMetric value={missingInputs} label="цен добавить" />
       </div>
       <EconomicsSummary economics={economics} tender={tender} />
-      <div className="economics-workbench">
-        <div className="economics-position-list" role="listbox" aria-label="Позиции для экономики">
+      <div className="economics-workbench economics-workspace-grid">
+        <aside className="economics-position-rail" role="listbox" aria-label="Позиции для экономики">
           {profiles.length ? profiles.map((profile, index) => {
             const supplierOptions = Array.isArray(profile.raw_payload?.supplier_options)
               ? profile.raw_payload.supplier_options
@@ -112,54 +112,60 @@ export function TenderEconomicsTab({
           }) : (
             <p className="muted-text">Товарные позиции пока не сформированы.</p>
           )}
-        </div>
-        <div className="economics-position-panel">
+        </aside>
+        <>
           {selectedEconomicsProfile ? (
             <>
-              <div className="economics-position-heading">
-                <span>Позиция #{selectedEconomicsProfile.position_index || selectedEconomicsProfileIndex + 1}</span>
-                <strong>{selectedEconomicsProfile.product_name || 'Без названия'}</strong>
-              </div>
-              <ProductAutoEconomicsPanel
-                profile={selectedEconomicsProfile}
-                onRun={onAutoEconomicsRun}
-                onAccept={onAutoEconomicsAccept}
-                saving={autoEstimating}
-                accepting={acceptingAutoEconomics}
-              />
-              <ProductEconomicsForm profile={selectedEconomicsProfile} onSave={onEconomicsSave} saving={savingEconomics} />
-              <ProductEconomicsAssumptionsForm
-                item={economics?.items?.[selectedEconomicsProfileIndex]}
-                profile={selectedEconomicsProfile}
-                onSave={onEconomicsAssumptionsSave}
-                saving={savingAssumptions}
-              />
-              <ProductSupplierOptionsForm
-                profile={selectedEconomicsProfile}
-                onSave={onSupplierOptionSave}
-                onSelect={onSupplierOptionSelect}
-                onAutoSelect={onSupplierOptionAutoSelect}
-                onDiscoveryImport={onSupplierDiscoveryImport}
-                onSearchPrepare={onSupplierSearchPrepare}
-                onPresetSave={onSupplierCatalogPresetsSave}
-                onDiscoveryRun={onSupplierDiscoveryRun}
-                onDiscoveryUrlRun={onSupplierUrlDiscoveryRun}
-                supplierCatalogHealth={supplierCatalogHealth}
-                supplierCatalogHealthLoading={supplierCatalogHealthLoading}
-                supplierCatalogHealthError={supplierCatalogHealthError}
-                onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
-                saving={savingSupplierOption}
-                importingDiscovery={importingSupplierCandidate}
-                preparingSearch={preparingSupplierSearch}
-                savingPresets={savingSupplierCatalogPresets}
-                discoveringDiscovery={discoveringDiscovery}
-                autoSelecting={autoSelectingSupplier}
-              />
+              <section className="economics-calculation-panel">
+                <div className="economics-position-heading">
+                  <span>Позиция #{selectedEconomicsProfile.position_index || selectedEconomicsProfileIndex + 1}</span>
+                  <strong>{selectedEconomicsProfile.product_name || 'Без названия'}</strong>
+                </div>
+                <ProductAutoEconomicsPanel
+                  profile={selectedEconomicsProfile}
+                  onRun={onAutoEconomicsRun}
+                  onAccept={onAutoEconomicsAccept}
+                  saving={autoEstimating}
+                  accepting={acceptingAutoEconomics}
+                />
+                <ProductEconomicsForm profile={selectedEconomicsProfile} onSave={onEconomicsSave} saving={savingEconomics} />
+                <ProductEconomicsAssumptionsForm
+                  item={economics?.items?.[selectedEconomicsProfileIndex]}
+                  profile={selectedEconomicsProfile}
+                  onSave={onEconomicsAssumptionsSave}
+                  saving={savingAssumptions}
+                />
+              </section>
+              <aside className="economics-supplier-panel">
+                <ProductSupplierOptionsForm
+                  profile={selectedEconomicsProfile}
+                  onSave={onSupplierOptionSave}
+                  onSelect={onSupplierOptionSelect}
+                  onAutoSelect={onSupplierOptionAutoSelect}
+                  onDiscoveryImport={onSupplierDiscoveryImport}
+                  onSearchPrepare={onSupplierSearchPrepare}
+                  onPresetSave={onSupplierCatalogPresetsSave}
+                  onDiscoveryRun={onSupplierDiscoveryRun}
+                  onDiscoveryUrlRun={onSupplierUrlDiscoveryRun}
+                  supplierCatalogHealth={supplierCatalogHealth}
+                  supplierCatalogHealthLoading={supplierCatalogHealthLoading}
+                  supplierCatalogHealthError={supplierCatalogHealthError}
+                  onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
+                  saving={savingSupplierOption}
+                  importingDiscovery={importingSupplierCandidate}
+                  preparingSearch={preparingSupplierSearch}
+                  savingPresets={savingSupplierCatalogPresets}
+                  discoveringDiscovery={discoveringDiscovery}
+                  autoSelecting={autoSelectingSupplier}
+                />
+              </aside>
             </>
           ) : (
-            <p className="muted-text">Сначала обнови детали закупки, чтобы появились товарные позиции.</p>
+            <section className="economics-calculation-panel economics-empty-panel">
+              <p className="muted-text">Сначала обнови детали закупки, чтобы появились товарные позиции.</p>
+            </section>
           )}
-        </div>
+        </>
       </div>
     </section>
   )

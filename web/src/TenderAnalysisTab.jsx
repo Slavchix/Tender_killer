@@ -3,22 +3,32 @@ import {
   analysisCategoryLabel,
   analysisSeverityLabel,
   analysisStatusLabel,
+  documentStatusCounts,
   formatConfidence,
 } from './formatters'
 import { SummaryMetric } from './TenderDetailsShared'
 
-export function TenderAnalysisTab({ analysis, analyzing, onAnalyze }) {
+export function TenderAnalysisTab({ analysis, analyzing, onAnalyze, reportHref, documents = [] }) {
   const requirementsCount = analysis?.requirements?.length || 0
   const risksCount = (analysis?.risks?.length || 0) + (analysis?.red_flags?.length || 0)
   const checklistCount = analysis?.checklist?.length || 0
+  const documentCounts = documentStatusCounts(documents)
 
   return (
     <section className="detail-section active analysis-section">
-      <div className="section-heading-row">
-        <h3>Выжимка ТЗ</h3>
-        <button className="secondary-button compact" disabled={analyzing} onClick={onAnalyze} type="button">
-          {analyzing ? 'Анализ...' : 'Проанализировать'}
-        </button>
+      <div className="section-heading-row analysis-action-row">
+        <div>
+          <h3>Анализ ТЗ</h3>
+          <p className="muted-text">Риски, требования и доказательства из документов.</p>
+        </div>
+        <div className="analysis-actions">
+          <button className="secondary-button compact" disabled={analyzing} onClick={onAnalyze} type="button">
+            {analyzing ? 'Анализ...' : 'Проанализировать'}
+          </button>
+          <a className="secondary-link-button compact" href={reportHref}>
+            Скачать Word
+          </a>
+        </div>
       </div>
       <div className="analysis-tab-summary tab-summary-grid" aria-label="Сводка анализа ТЗ">
         <SummaryMetric value={analysis ? analysisStatusLabel(analysis.status) : 'нет анализа'} label="статус" />
@@ -26,19 +36,68 @@ export function TenderAnalysisTab({ analysis, analyzing, onAnalyze }) {
         <SummaryMetric value={requirementsCount} label="требований" />
         <SummaryMetric value={risksCount} label="рисков" />
         <SummaryMetric value={checklistCount} label="пунктов" />
+        <SummaryMetric value={`${documentCounts.ok}/${documents.length}`} label="документов" />
       </div>
-      {analysis ? (
-        <div className="analysis-card">
-          <p>{analysis.summary}</p>
-          <AnalysisChecklist items={analysis.checklist} />
-          <AnalysisList title="Требования" items={analysis.requirements} empty="Явные требования пока не найдены" />
-          <AnalysisList title="Риски" items={analysis.risks} empty="Явные риски пока не найдены" />
-          <AnalysisList title="Красные флаги" items={analysis.red_flags} empty="Критичные признаки пока не найдены" danger />
+
+      <div className="analysis-workspace">
+        <aside className="analysis-section-rail" aria-label="Разделы анализа">
+          <AnalysisSectionRailItem title="Риски" value={risksCount} active />
+          <AnalysisSectionRailItem title="Требования" value={requirementsCount} />
+          <AnalysisSectionRailItem title="Документы" value={`${documentCounts.ok}/${documents.length}`} />
+          <AnalysisSectionRailItem title="Чеклист" value={checklistCount} />
+        </aside>
+
+        <div className="analysis-main-panel">
+          {analysis ? (
+            <div className="analysis-card">
+              <p>{analysis.summary}</p>
+              <AnalysisChecklist items={analysis.checklist} />
+              <AnalysisList title="Требования" items={analysis.requirements} empty="Явные требования пока не найдены" />
+              <AnalysisList title="Риски" items={analysis.risks} empty="Явные риски пока не найдены" />
+              <AnalysisList title="Красные флаги" items={analysis.red_flags} empty="Критичные признаки пока не найдены" danger />
+            </div>
+          ) : (
+            <p className="muted-text">Сначала извлеки текст документов, затем запусти анализ ТЗ.</p>
+          )}
         </div>
-      ) : (
-        <p className="muted-text">Сначала извлеки текст документов, затем запусти анализ ТЗ.</p>
-      )}
+
+        <AnalysisEvidencePanel documents={documents} analysis={analysis} />
+      </div>
     </section>
+  )
+}
+
+function AnalysisSectionRailItem({ title, value, active = false }) {
+  return (
+    <div className={active ? 'analysis-section-item active' : 'analysis-section-item'}>
+      <strong>{title}</strong>
+      <span>{value}</span>
+    </div>
+  )
+}
+
+function AnalysisEvidencePanel({ documents = [], analysis }) {
+  const readyDocuments = documents.filter((document) => document.text_status === 'ok')
+  const evidenceItems = (analysis?.checklist || []).filter((item) => item?.evidence).slice(0, 3)
+
+  return (
+    <aside className="analysis-evidence-panel" aria-label="Доказательства из документов">
+      <h4>Доказательства</h4>
+      {evidenceItems.length ? (
+        evidenceItems.map((item, index) => (
+          <article className="analysis-evidence-card" key={`${item.label}-${index}`}>
+            <strong>{item.label}</strong>
+            <p>{item.evidence}</p>
+          </article>
+        ))
+      ) : (
+        <p className="muted-text">После анализа здесь будут короткие фрагменты из ТЗ и документов.</p>
+      )}
+      <div className="analysis-evidence-card">
+        <strong>Источник</strong>
+        <p>Текст извлечен у {readyDocuments.length} из {documents.length} документов.</p>
+      </div>
+    </aside>
   )
 }
 
