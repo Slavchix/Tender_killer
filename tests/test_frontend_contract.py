@@ -62,6 +62,8 @@ def test_frontend_uses_dedicated_api_client():
     assert "from './api'" in app_source
     assert "function apiJson" in api_source
     assert "payload.error" in api_source
+    assert "error.payload = payload" in api_source
+    assert "error.status = response.status" in api_source
     assert "response.json().catch" in api_source
     assert "export function fetchTenderDetail" in api_source
     assert "export function saveProfileEconomics" in api_source
@@ -780,6 +782,8 @@ def test_product_profile_renders_supplier_option_form():
     assert "prepareProfileSupplierSearch" in hook_source
     assert "runSupplierDiscovery" in details_source
     assert "runProfileSupplierDiscovery" in hook_source
+    assert "err.payload?.product_profiles" in hook_source
+    assert "applyProductTenderState(err.payload, { resetSelection: false })" in hook_source
     assert "importSupplierDiscoveryCandidate" in details_source
     assert "importProfileSupplierDiscoveryCandidate" in hook_source
     assert "onSupplierOptionSelect" in source

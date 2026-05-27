@@ -450,7 +450,9 @@ def handle_post_request(
                 )
             )
         except ValueError as exc:
-            return ApiResponse({"error": str(exc)}, status=400)
+            payload = get_tender_payload(database_path, route.source, route.external_id)
+            payload["error"] = str(exc)
+            return ApiResponse(payload, status=400)
     if path.startswith("/api/tenders/") and path.endswith("/import"):
         route = parse_product_profile_supplier_discovery_candidate_import_path(path)
         if route is None:

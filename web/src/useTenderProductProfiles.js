@@ -205,6 +205,10 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     return runProfileSupplierDiscoveryRequest(tender, profile)
       .then((nextTender) => updateFromNextTender(nextTender, 'Кандидаты поставщиков найдены'))
       .catch((err) => {
+        if (err.payload?.product_profiles) {
+          onTenderRefresh(err.payload)
+          applyProductTenderState(err.payload, { resetSelection: false })
+        }
         setDetailStatus(err.message)
         throw err
       })

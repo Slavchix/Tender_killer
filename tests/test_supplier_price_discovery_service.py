@@ -753,6 +753,90 @@ def test_run_profile_supplier_price_discovery_skips_existing_candidates(tmp_path
     assert calls == ["https://supplier.example/paper-a4"]
 
 
+def test_run_profile_supplier_price_discovery_records_diagnostics_without_candidates(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-discovery-no-candidates",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-discovery-no-candidates",
+            title="Paper tender",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-discovery-no-candidates",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-no-candidates",
+                position_index=1,
+                product_name="Office paper A4",
+                raw_payload={
+                    "supplier_search": {
+                        "status": "ready",
+                        "queries": [
+                            {
+                                "query": "office paper a4",
+                                "kind": "normalized_name",
+                                "priority": 1,
+                                "quick_links": [
+                                    {"label": "Supplier page", "url": "https://supplier.example/empty"},
+                                ],
+                            }
+                        ],
+                    }
+                },
+            )
+        ],
+    )
+
+    class EmptyCollector:
+        provider = "empty_public_catalog"
+
+        def collect_with_diagnostics(self, query):
+            return {
+                "candidates": [],
+                "diagnostics": {
+                    "provider": "empty_public_catalog",
+                    "queries_seen": 1,
+                    "links_seen": 1,
+                    "links_skipped": 0,
+                    "pages_fetched": 1,
+                    "candidates_found": 0,
+                    "errors": ["no offer found"],
+                },
+            }
+
+    with pytest.raises(ValueError, match="Новых кандидатов поставщиков не найдено"):
+        run_profile_supplier_price_discovery(
+            store.database_path,
+            "mosreg_market",
+            "supplier-price-discovery-no-candidates",
+            1,
+            collectors=[EmptyCollector()],
+        )
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-price-discovery-no-candidates")
+    discovery = detail["product_profiles"][0]["raw_payload"]["supplier_discovery"]
+    assert discovery == {
+        "status": "no_candidates",
+        "collector_diagnostics": [
+            {
+                "provider": "empty_public_catalog",
+                "queries_seen": 1,
+                "links_seen": 1,
+                "links_skipped": 0,
+                "pages_fetched": 1,
+                "candidates_found": 0,
+                "errors": ["no offer found"],
+            }
+        ],
+        "candidates": [],
+    }
+
+
 def test_run_profile_supplier_price_discovery_rejects_missing_prepared_queries(tmp_path) -> None:
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()

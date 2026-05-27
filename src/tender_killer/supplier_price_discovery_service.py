@@ -227,6 +227,15 @@ def run_profile_supplier_price_discovery(
                 existing_keys.add(key)
                 candidates.append(candidate)
     if not candidates:
+        if diagnostics_by_provider:
+            _record_supplier_discovery_diagnostics(
+                store,
+                source,
+                external_id,
+                profiles,
+                target,
+                list(diagnostics_by_provider.values()),
+            )
         raise ValueError("Новых кандидатов поставщиков не найдено.")
 
     return stage_profile_supplier_candidates(
@@ -253,6 +262,27 @@ def _supplier_search_queries(value: Any) -> list[dict[str, Any]]:
     if not isinstance(queries, list):
         return []
     return [dict(item) for item in queries if isinstance(item, dict)]
+
+
+def _record_supplier_discovery_diagnostics(
+    store: TenderStore,
+    source: str,
+    external_id: str,
+    profiles: list[dict[str, Any]],
+    target: dict[str, Any],
+    collector_diagnostics: list[dict[str, Any]],
+) -> None:
+    raw_payload = dict(target.get("raw_payload") or {})
+    discovery = dict(raw_payload.get("supplier_discovery") or {})
+    candidates = _dict_items(discovery.get("candidates"))
+    discovery["status"] = discovery.get("status") or "no_candidates"
+    if not candidates:
+        discovery["status"] = "no_candidates"
+    discovery["collector_diagnostics"] = collector_diagnostics
+    discovery["candidates"] = candidates
+    raw_payload["supplier_discovery"] = discovery
+    target["raw_payload"] = raw_payload
+    store.upsert_product_profiles(source, external_id, profiles)
 
 
 def _collector_diagnostics(provider: str) -> dict[str, Any]:

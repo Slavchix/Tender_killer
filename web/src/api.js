@@ -7,7 +7,10 @@ function apiJson(path, { method = 'GET', body, errorMessage = 'API не отве
   return fetch(path, options).then(async (response) => {
     const payload = await response.json().catch(() => null)
     if (response.ok) return payload
-    throw new Error((payload && payload.error) || errorMessage)
+    const error = new Error((payload && payload.error) || errorMessage)
+    error.payload = payload
+    error.status = response.status
+    throw error
   })
 }
 

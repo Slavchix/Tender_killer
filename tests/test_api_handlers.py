@@ -523,7 +523,8 @@ def test_handle_post_request_reports_supplier_discovery_missing_prepared_queries
     )
 
     assert response.status == 400
-    assert response.payload == {"error": "Сначала подготовь поиск поставщиков."}
+    assert response.payload["error"] == "Сначала подготовь поиск поставщиков."
+    assert response.payload["product_profiles"][0]["position_index"] == 1
 
 
 def test_handle_post_request_reports_supplier_discovery_no_new_candidates(tmp_path) -> None:
@@ -564,7 +565,13 @@ def test_handle_post_request_reports_supplier_discovery_no_new_candidates(tmp_pa
     )
 
     assert response.status == 400
-    assert response.payload == {"error": "Новых кандидатов поставщиков не найдено."}
+    assert response.payload["error"] == "Новых кандидатов поставщиков не найдено."
+    discovery = response.payload["product_profiles"][0]["raw_payload"]["supplier_discovery"]
+    assert discovery["status"] == "no_candidates"
+    assert discovery["collector_diagnostics"][0]["provider"] == "schema_org_product"
+    assert discovery["collector_diagnostics"][0]["pages_fetched"] == 1
+    assert discovery["collector_diagnostics"][0]["candidates_found"] == 0
+    assert discovery["candidates"] == []
 
 
 def test_handle_post_request_routes_product_profile_supplier_discovery_candidate_import(tmp_path) -> None:
