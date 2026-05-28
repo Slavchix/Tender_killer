@@ -1,4 +1,5 @@
 import { TenderAnalysisTab } from './TenderAnalysisTab'
+import { TenderDocumentsTab } from './TenderDocumentsTab'
 import { TenderEconomicsTab } from './TenderEconomicsTab'
 import { TenderFullscreenWorkspace } from './TenderFullscreenWorkspace'
 import { TenderProductsTab } from './TenderProductsTab'
@@ -13,7 +14,13 @@ export function TenderWorkspaces({
   economicsState,
 }) {
   const reportHref = `/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/report.docx`
-  const { documentRecords } = documentState
+  const {
+    documentRecords,
+    downloading,
+    extracting,
+    onDownloadDocuments,
+    onExtractDocumentText,
+  } = documentState
   const {
     analysis,
     analyzing,
@@ -76,6 +83,16 @@ export function TenderWorkspaces({
         />
       )}
 
+      {mode === 'documents' && (
+        <TenderDocumentsTab
+          documents={documentRecords}
+          downloading={downloading}
+          extracting={extracting}
+          onDownload={onDownloadDocuments}
+          onExtract={onExtractDocumentText}
+        />
+      )}
+
       {mode === 'analysis' && (
         <TenderAnalysisTab
           analysis={analysis}
@@ -127,6 +144,7 @@ export function TenderWorkspaces({
 
 function workspaceTitle(mode) {
   if (mode === 'products') return 'Товары'
+  if (mode === 'documents') return 'Документы'
   if (mode === 'analysis') return 'Анализ ТЗ'
   return 'Экономика'
 }

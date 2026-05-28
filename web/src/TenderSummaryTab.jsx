@@ -42,28 +42,48 @@ export function TenderSummaryTab({
       </div>
 
       <div className="summary-work-grid">
-        <article className="summary-next-action">
+        <SummaryCard
+          title="Экономика"
+          action="Открыть экономику"
+          variant="economics"
+          onClick={() => onOpenTab?.('economics')}
+        >
+          <p>{economics ? `Расчет есть, маржа ${marginText}.` : 'Расчет еще не готов.'}</p>
+          {missingCostInputs > 0 && <em>{missingCostInputs} позиций без себестоимости</em>}
+        </SummaryCard>
+
+        <SummaryCard
+          title="Анализ"
+          action="Открыть анализ"
+          variant="analysis"
+          onClick={() => onOpenTab?.('analysis')}
+        >
+          <p>{analysis ? `Рисков: ${riskCount}.` : 'Анализ ТЗ еще не запускался.'}</p>
+          {analysis?.summary && <em>{analysis.summary}</em>}
+        </SummaryCard>
+
+        <article className="summary-next-action summary-card secondary">
           <span>Следующий шаг</span>
           <strong>{tenderDecisionNextStep(tender, economics)}</strong>
           <p>{missingCostInputs ? 'Закрыть недостающие цены в экономике.' : 'Проверить риски и документы перед финальным решением.'}</p>
         </article>
 
-        <SummaryCard title="Товары" action="Открыть товары" onClick={() => onOpenTab?.('products')}>
+        <SummaryCard
+          title="Товары"
+          action="Открыть товары"
+          variant="products"
+          onClick={() => onOpenTab?.('products')}
+        >
           <p>{positionCount ? `${positionCount} позиций, к расчету готово ${readyProducts}.` : 'Позиции еще не сформированы.'}</p>
           {missingCostInputs > 0 && <em>{missingCostInputs} позиций без себестоимости</em>}
         </SummaryCard>
 
-        <SummaryCard title="Экономика" action="Открыть экономику" onClick={() => onOpenTab?.('economics')}>
-          <p>{economics ? `Расчет есть, маржа ${marginText}.` : 'Расчет еще не готов.'}</p>
-          {missingCostInputs > 0 && <em>{missingCostInputs} позиций без себестоимости</em>}
-        </SummaryCard>
-
-        <SummaryCard title="Анализ" action="Открыть анализ" onClick={() => onOpenTab?.('analysis')}>
-          <p>{analysis ? `Рисков: ${riskCount}.` : 'Анализ ТЗ еще не запускался.'}</p>
-          {analysis?.summary && <em>{analysis.summary}</em>}
-        </SummaryCard>
-
-        <SummaryCard title="Документы" action="Открыть документы" onClick={() => onOpenTab?.('documents')}>
+        <SummaryCard
+          title="Документы"
+          action="Открыть документы"
+          variant="documents"
+          onClick={() => onOpenTab?.('documents')}
+        >
           <p>Извлечено текстов: {documentCounts.ok} из {documents.length}.</p>
           {documentCounts.attention > 0 && <em>{documentCounts.attention} документов требуют внимания</em>}
         </SummaryCard>
@@ -72,9 +92,9 @@ export function TenderSummaryTab({
   )
 }
 
-function SummaryCard({ title, action, onClick, children }) {
+function SummaryCard({ title, action, variant = 'secondary', onClick, children }) {
   return (
-    <article className="summary-card">
+    <article className={`summary-card ${variant === 'economics' || variant === 'analysis' ? 'primary' : 'secondary'} ${variant}`}>
       <span>{title}</span>
       {children}
       <button className="secondary-button compact" onClick={onClick} type="button">

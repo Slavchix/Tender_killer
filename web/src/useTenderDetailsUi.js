@@ -7,12 +7,9 @@ export function useTenderDetailsUi({
   extractStatus,
   setNotifyStatus,
 }) {
-  const raw = safeJson(tender.raw_payload_json)
-  const [activeTab, setActiveTab] = useState('summary')
   const [detailStatus, setDetailStatus] = useState('')
 
   useEffect(() => {
-    setActiveTab('summary')
     setNotifyStatus('')
     setDetailStatus('')
   }, [tender.source, tender.external_id])
@@ -20,19 +17,8 @@ export function useTenderDetailsUi({
   const statusMessages = [detailStatus, notifyStatus, downloadStatus, extractStatus].filter(Boolean)
 
   return {
-    raw,
-    activeTab,
-    setActiveTab,
     detailStatus,
     setDetailStatus,
     statusMessages,
-  }
-}
-
-function safeJson(value) {
-  try {
-    return JSON.parse(value || '{}')
-  } catch {
-    return {}
   }
 }

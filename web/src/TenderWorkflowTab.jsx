@@ -1,34 +1,48 @@
 import { workflowLabels } from './constants'
 import { formatDate } from './formatters'
-import { Info, SummaryMetric } from './TenderDetailsShared'
 
-export function WorkflowTabPanel({ tender, raw, note, saving, onNoteChange, onSaveWorkflow }) {
+export function WorkflowTabPanel({ tender, note, saving, onNoteChange, onSaveWorkflow }) {
   const currentStatus = tender.workflow_status || 'new'
   const noteState = note?.trim() ? 'есть' : 'нет'
 
   return (
     <section className="detail-section active workflow-section">
-      <div className="section-heading-row">
-        <h3>Рабочий статус</h3>
-      </div>
-      <div className="workflow-status-summary tab-summary-grid" aria-label="Сводка рабочего статуса">
-        <SummaryMetric value={workflowLabels[currentStatus] || 'Новая'} label="текущий статус" />
-        <SummaryMetric value={noteState} label="заметка" />
-        <SummaryMetric value={formatDate(tender.deadline_at)} label="срок" />
-      </div>
-      <div className="workflow-actions">
-        {Object.entries(workflowLabels).map(([status, label]) => (
-          <button
-            className={status === currentStatus ? 'active' : ''}
+      <div className="section-heading-row workflow-heading-row">
+        <div>
+          <h3>Рабочий статус</h3>
+          <p className="muted-text">Решение и заметка по закупке.</p>
+        </div>
+        <label className="workflow-status-select">
+          Статус
+          <select
             disabled={saving}
-            key={status}
-            onClick={() => onSaveWorkflow(status)}
-            type="button"
+            value={currentStatus}
+            onChange={(event) => onSaveWorkflow(event.target.value)}
           >
-            {label}
-          </button>
-        ))}
+            {Object.entries(workflowLabels).map(([status, label]) => (
+              <option key={status} value={status}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
+
+      <div className="workflow-compact-row" aria-label="Сводка рабочего статуса">
+        <span>
+          <strong>{workflowLabels[currentStatus] || 'Новая'}</strong>
+          <em>статус</em>
+        </span>
+        <span>
+          <strong>{noteState}</strong>
+          <em>заметка</em>
+        </span>
+        <span>
+          <strong>{formatDate(tender.deadline_at)}</strong>
+          <em>срок</em>
+        </span>
+      </div>
+
       <div className="workflow-note-panel">
         <label className="note-editor">
           Заметка
@@ -42,14 +56,6 @@ export function WorkflowTabPanel({ tender, raw, note, saving, onNoteChange, onSa
           {saving ? 'Сохранение...' : 'Сохранить заметку'}
         </button>
       </div>
-      <details className="debug-details">
-        <summary>Сырые признаки</summary>
-        <div className="raw-grid">
-          <Info label="Закон" value={raw.federalLawName || raw.SourcePlatformName || 'не найден'} />
-          <Info label="ОКПД2" value={tender.okpd2 || raw.Koz2Value || 'не найден'} />
-          <Info label="Категория" value={tender.category || raw.CategoryName || 'не найдена'} />
-        </div>
-      </details>
     </section>
   )
 }

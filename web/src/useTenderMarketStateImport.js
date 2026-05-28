@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { importTenderMarketState } from './api'
+
+const MARKET_IMPORT_TIMEOUT_MS = 15000
 
 export function useTenderMarketStateImport({
   tender,
@@ -9,10 +11,17 @@ export function useTenderMarketStateImport({
 }) {
   const [marketImportText, setMarketImportText] = useState('')
   const [importingMarketState, setImportingMarketState] = useState(false)
+  const activeImportRef = useRef(null)
 
   useEffect(() => {
+    activeImportRef.current?.abort()
+    activeImportRef.current = null
     setMarketImportText('')
     setImportingMarketState(false)
+    return () => {
+      activeImportRef.current?.abort()
+      activeImportRef.current = null
+    }
   }, [tender.source, tender.external_id])
 
   function importMarketState(event) {
@@ -24,9 +33,13 @@ export function useTenderMarketStateImport({
       setDetailStatus('JSON ответа не прочитан')
       return null
     }
+    activeImportRef.current?.abort()
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), MARKET_IMPORT_TIMEOUT_MS)
+    activeImportRef.current = controller
     setImportingMarketState(true)
     setDetailStatus('')
-    return importTenderMarketState(tender, payload)
+    return importTenderMarketState(tender, payload, { signal: controller.signal })
       .then((nextTender) => {
         onTenderRefresh(nextTender)
         applyProductTenderState(nextTender, { resetSelection: false })
@@ -35,9 +48,17 @@ export function useTenderMarketStateImport({
         return nextTender
       })
       .catch((err) => {
-        setDetailStatus(err.message)
+        if (activeImportRef.current === controller) {
+          setDetailStatus(err.message)
+        }
       })
-      .finally(() => setImportingMarketState(false))
+      .finally(() => {
+        window.clearTimeout(timeoutId)
+        if (activeImportRef.current === controller) {
+          activeImportRef.current = null
+          setImportingMarketState(false)
+        }
+      })
   }
 
   return {

@@ -1,17 +1,27 @@
-function apiJson(path, { method = 'GET', body, errorMessage = 'API не отвечает' } = {}) {
+function apiJson(path, { method = 'GET', body, errorMessage = 'API не отвечает', signal } = {}) {
   const options = { method }
+  if (signal) {
+    options.signal = signal
+  }
   if (body !== undefined) {
     options.headers = { 'Content-Type': 'application/json' }
     options.body = JSON.stringify(body)
   }
-  return fetch(path, options).then(async (response) => {
-    const payload = await response.json().catch(() => null)
-    if (response.ok) return payload
-    const error = new Error((payload && payload.error) || errorMessage)
-    error.payload = payload
-    error.status = response.status
-    throw error
-  })
+  return fetch(path, options)
+    .then(async (response) => {
+      const payload = await response.json().catch(() => null)
+      if (response.ok) return payload
+      const error = new Error((payload && payload.error) || errorMessage)
+      error.payload = payload
+      error.status = response.status
+      throw error
+    })
+    .catch((error) => {
+      if (error.name === 'AbortError') {
+        throw new Error(errorMessage)
+      }
+      throw error
+    })
 }
 
 function tenderPath(tenderOrSource, externalId) {
@@ -104,10 +114,11 @@ export function refreshTenderDetails(tender) {
   })
 }
 
-export function importTenderMarketState(tender, payload) {
+export function importTenderMarketState(tender, payload, { signal } = {}) {
   return apiJson(`${tenderPath(tender)}/market-state/import`, {
     method: 'POST',
     body: payload,
+    signal,
     errorMessage: 'Не удалось импортировать ставку',
   })
 }

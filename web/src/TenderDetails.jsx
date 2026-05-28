@@ -30,9 +30,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     analyzeTender,
   } = useTenderDocumentAnalysis(tender)
   const {
-    raw,
-    activeTab,
-    setActiveTab,
     detailStatus,
     setDetailStatus,
     statusMessages,
@@ -99,10 +96,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     applyProductTenderState,
   })
 
-  const tabState = {
-    activeTab,
-    onActiveTabChange: setActiveTab,
-  }
   const productState = {
     productProfiles,
     productProfileSummary,
@@ -153,7 +146,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     onSupplierCatalogHealthRefresh: refreshSupplierCatalogHealth,
   }
   const workflowState = {
-    raw,
     note,
     saving,
     onNoteChange: setNote,
@@ -187,7 +179,6 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
 
       <TenderDetailsTabs
         tender={tender}
-        tabState={tabState}
         productState={productState}
         documentState={documentState}
         analysisState={analysisState}

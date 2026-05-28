@@ -1355,6 +1355,15 @@ textarea:focus {
   cursor: pointer;
 }
 
+.market-import-help {
+  display: grid;
+  gap: 4px;
+  padding: 0 10px 10px;
+  color: #a9c2b8;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .market-import-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(112px, auto);
@@ -1381,55 +1390,9 @@ textarea:focus {
   gap: 6px;
 }
 
-.detail-navigation {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  justify-content: space-between;
-  min-width: 0;
-  padding-bottom: 2px;
-}
-
-.detail-tabs,
-.detail-workspace-launchers {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  overflow-x: visible;
-}
-
-.detail-workspace-launchers {
-  justify-content: flex-end;
-}
-
-.detail-tabs button,
-.detail-workspace-launchers button {
-  flex: 0 1 auto;
-  min-height: 34px;
-  padding: 0 10px;
-  color: #bcd1c9;
-  background: #202b27;
-  border: 1px solid #304039;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.detail-workspace-launchers button {
-  color: #d6f5dd;
-  border-color: #43634f;
-}
-
-.detail-tabs button.active,
-.detail-workspace-launchers button.active {
-  color: #0d160f;
-  background: #6edc61;
-  border-color: #6edc61;
-}
-
 .detail-tab-panel {
+  display: grid;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -1464,6 +1427,10 @@ textarea:focus {
 
 .fullscreen-workspace.products {
   width: min(1560px, calc(100vw - 36px));
+}
+
+.fullscreen-workspace.documents {
+  width: min(1420px, calc(100vw - 36px));
 }
 
 .fullscreen-workspace-header {
@@ -1522,6 +1489,10 @@ textarea:focus {
 
 .fullscreen-workspace-body .product-profile-section {
   min-height: 100%;
+}
+
+.fullscreen-workspace-body .document-table {
+  max-height: none;
 }
 
 .fullscreen-workspace-body .product-profile-section .profile-layout {
@@ -1637,7 +1608,7 @@ textarea:focus {
 }
 
 .secondary-button:disabled,
-.workflow-actions button:disabled {
+.workflow-status-select select:disabled {
   cursor: wait;
   opacity: 0.72;
 }
@@ -1726,7 +1697,8 @@ textarea:focus {
 
 .summary-work-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-auto-rows: minmax(172px, 1fr);
   gap: 10px;
   align-items: stretch;
 }
@@ -1745,6 +1717,14 @@ textarea:focus {
 
 .summary-card {
   grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.summary-card.primary {
+  grid-column: span 3;
+}
+
+.summary-card.secondary {
+  grid-column: span 2;
 }
 
 .summary-card > span,
@@ -1856,15 +1836,51 @@ textarea:focus {
 
 .analysis-tab-summary,
 .economics-tab-summary,
-.workflow-status-summary {
+.workflow-compact-row {
   padding: 10px;
   background: #1b2622;
   border: 1px solid #33443d;
   border-radius: 7px;
 }
 
+.workflow-heading-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.42fr);
+  align-items: end;
+}
+
+.workflow-status-select {
+  margin: 0;
+}
+
+.workflow-compact-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.workflow-compact-row span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.workflow-compact-row strong {
+  color: #eef8f2;
+  overflow-wrap: anywhere;
+}
+
+.workflow-compact-row em {
+  color: #9bb2aa;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
 .workflow-note-panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   gap: 8px;
   padding: 10px;
   background: #1b2622;
@@ -1874,6 +1890,10 @@ textarea:focus {
 
 .workflow-note-panel .secondary-button {
   margin-top: 0;
+}
+
+.workflow-note-panel textarea {
+  min-height: 56px;
 }
 
 .section-heading-row {
@@ -2423,34 +2443,6 @@ textarea:focus {
   color: #b8cbc4;
   font-size: 12px;
   white-space: nowrap;
-}
-
-.workflow-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.workflow-actions button {
-  min-height: 36px;
-  padding: 0 10px;
-  color: #dbe8e2;
-  background: #26302d;
-  border: 1px solid #3a4943;
-  border-radius: 7px;
-  cursor: pointer;
-}
-
-.workflow-actions button.active {
-  color: #0d160f;
-  background: #6edc61;
-  border-color: #6edc61;
-  font-weight: 800;
-}
-
-.note-editor {
-  margin-top: 10px;
 }
 
 .document-list {
@@ -3477,6 +3469,17 @@ textarea:focus {
 @container (max-width: 620px) {
   .summary-work-grid,
   .economics-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-card.primary,
+  .summary-card.secondary {
+    grid-column: span 1;
+  }
+
+  .workflow-heading-row,
+  .workflow-note-panel,
+  .workflow-compact-row {
     grid-template-columns: 1fr;
   }
 
