@@ -34,6 +34,7 @@ TENDER_DOCUMENTS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src
 TENDER_ECONOMICS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsTab.jsx"
 TENDER_ECONOMICS_FORMS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsForms.jsx"
 TENDER_ECONOMICS_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSummary.jsx"
+TENDER_ECONOMICS_SUPPLIERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSuppliers.jsx"
 TENDER_OVERVIEW_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderOverviewTab.jsx"
 TENDER_PRODUCTS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderProductsTab.jsx"
 TENDER_SUMMARY_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderSummaryTab.jsx"
@@ -362,26 +363,35 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
         if TENDER_ECONOMICS_FORMS_SOURCE.exists()
         else ""
     )
+    economics_suppliers_source = (
+        TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_SUPPLIERS_SOURCE.exists()
+        else ""
+    )
 
     assert "from './TenderEconomicsTab'" in workspaces_source
     assert "export function TenderEconomicsTab" in economics_source
     assert "from './TenderEconomicsSummary'" in economics_source
     assert "from './TenderEconomicsForms'" in economics_source
+    assert "from './TenderEconomicsSuppliers'" in economics_source
     assert "function EconomicsSummary" not in economics_source
     assert "export function EconomicsSummary" in economics_summary_source
     assert "function ProductEconomicsForm" not in economics_source
     assert "export function ProductEconomicsForm" in economics_forms_source
     assert "export function ProductEconomicsAssumptionsForm" in economics_forms_source
-    assert "function ProductSupplierOptionsForm" in economics_source
+    assert "function ProductSupplierOptionsForm" not in economics_source
+    assert "export function ProductSupplierOptionsForm" in economics_suppliers_source
     assert "economics-workbench" in economics_source
     assert "<TenderEconomicsTab" in workspaces_source
     assert "function EconomicsTabPanel" not in tender_details_source
     assert "function ProductEconomicsForm" not in tender_details_source
+    assert "function ProductSupplierOptionsForm" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(economics_summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
     assert find_mojibake(economics_forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
+    assert find_mojibake(economics_suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
 
 
 def test_frontend_uses_dedicated_tender_workflow_tab_module():
@@ -1017,14 +1027,21 @@ def test_product_profile_renders_supplier_option_form():
     tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
-    source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    source = (
+        TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_SUPPLIERS_SOURCE.exists()
+        else ""
+    )
     forms_source = TENDER_ECONOMICS_FORMS_SOURCE.read_text(encoding="utf-8") if TENDER_ECONOMICS_FORMS_SOURCE.exists() else ""
     api_source = API_SOURCE.read_text(encoding="utf-8")
     formatter_source = FORMATTERS_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
-    assert "function ProductSupplierOptionsForm" in source
-    assert "onSupplierOptionSave" in source
+    assert "from './TenderEconomicsSuppliers'" in tab_source
+    assert "export function ProductSupplierOptionsForm" in source
+    assert "function ProductSupplierOptionsForm" not in tab_source
+    assert "onSupplierOptionSave" in tab_source
     assert "selectSupplierOption" in details_source
     assert "autoSelectSupplierOption" in details_source
     assert "prepareSupplierSearch" in details_source
@@ -1037,13 +1054,13 @@ def test_product_profile_renders_supplier_option_form():
     assert "applyProductTenderState(err.payload, { resetSelection: false })" in hook_source
     assert "importSupplierDiscoveryCandidate" in details_source
     assert "importProfileSupplierDiscoveryCandidate" in hook_source
-    assert "onSupplierOptionSelect" in source
-    assert "onSupplierOptionAutoSelect" in source
-    assert "onSupplierCatalogPresetsSave" in source
-    assert "onSupplierSearchPrepare" in source
-    assert "onSupplierDiscoveryRun" in source
-    assert "onSupplierUrlDiscoveryRun" in source
-    assert "onSupplierDiscoveryImport" in source
+    assert "onSupplierOptionSelect" in tab_source
+    assert "onSupplierOptionAutoSelect" in tab_source
+    assert "onSupplierCatalogPresetsSave" in tab_source
+    assert "onSupplierSearchPrepare" in tab_source
+    assert "onSupplierDiscoveryRun" in tab_source
+    assert "onSupplierUrlDiscoveryRun" in tab_source
+    assert "onSupplierDiscoveryImport" in tab_source
     assert "preparingSupplierSearchPosition" in details_source
     assert "discoveringSupplierPosition" in details_source
     assert "importingSupplierCandidatePosition" in details_source
@@ -1119,7 +1136,8 @@ def test_product_profile_renders_supplier_option_form():
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
     assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
-    assert find_mojibake(source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
     assert find_mojibake(forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
@@ -1129,7 +1147,12 @@ def test_economics_tab_surfaces_supplier_catalog_health():
     tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
-    source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    source = (
+        TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_SUPPLIERS_SOURCE.exists()
+        else ""
+    )
     api_source = API_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
@@ -1155,12 +1178,13 @@ def test_economics_tab_surfaces_supplier_catalog_health():
     assert "supplierCatalogHealthLoading," in workspaces_source
     assert "supplierCatalogHealthError," in workspaces_source
     assert "economicsState={economicsState}" in tabs_source
+    assert "from './TenderEconomicsSuppliers'" in tab_source
     assert "SupplierCatalogHealthPanel" in source
     assert "supplierCatalogHealth?.catalogs" in source
     assert "supplier-catalog-health" in source
     assert "supplier-catalog-health-grid" in source
-    assert "onSupplierCatalogHealthRefresh?.(false)" in source
-    assert "supplierCatalogHealthLoading || supplierCatalogHealthError" in source
+    assert "onSupplierCatalogHealthRefresh?.(false)" in tab_source
+    assert "supplierCatalogHealthLoading || supplierCatalogHealthError" in tab_source
     assert "catalog.http_status" in source
     assert "catalog.error_kind" in source
     assert "catalog.body_preview" in source
@@ -1183,7 +1207,8 @@ def test_economics_tab_surfaces_supplier_catalog_health():
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
     assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
-    assert find_mojibake(source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
     assert find_mojibake(api_source, API_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
