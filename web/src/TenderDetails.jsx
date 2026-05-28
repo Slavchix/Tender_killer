@@ -99,6 +99,67 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     applyProductTenderState,
   })
 
+  const tabState = {
+    activeTab,
+    onActiveTabChange: setActiveTab,
+  }
+  const productState = {
+    productProfiles,
+    productProfileSummary,
+    selectedProfileIndex,
+    onSelectedProfileIndexChange: setSelectedProfileIndex,
+    profilesLoading,
+    onRebuildProductProfiles: rebuildProductProfiles,
+  }
+  const documentState = {
+    documentRecords,
+    downloading,
+    extracting,
+    onDownloadDocuments: downloadDocuments,
+    onExtractDocumentText: extractDocumentText,
+  }
+  const analysisState = {
+    analysis,
+    analyzing,
+    onAnalyzeTender: analyzeTender,
+  }
+  const economicsState = {
+    economics,
+    onEconomicsSave: saveProfileEconomics,
+    onEconomicsAssumptionsSave: saveProfileEconomicsAssumptions,
+    onSupplierOptionSave: saveSupplierOption,
+    onSupplierOptionSelect: selectSupplierOption,
+    onSupplierOptionAutoSelect: autoSelectSupplierOption,
+    onSupplierDiscoveryImport: importSupplierDiscoveryCandidate,
+    onSupplierSearchPrepare: prepareSupplierSearch,
+    onSupplierCatalogPresetsSave: saveSupplierCatalogPresets,
+    onSupplierDiscoveryRun: runSupplierDiscovery,
+    onSupplierUrlDiscoveryRun: runSupplierUrlDiscovery,
+    onAutoEconomicsRun: runProfileAutoEconomics,
+    onAutoEconomicsAccept: acceptProfileAutoEconomics,
+    savingEconomicsPosition,
+    savingAssumptionsPosition,
+    savingSupplierOptionPosition,
+    importingSupplierCandidatePosition,
+    preparingSupplierSearchPosition,
+    savingSupplierCatalogPresetPosition,
+    discoveringSupplierPosition,
+    autoSelectingSupplierPosition,
+    autoEstimatingPosition,
+    acceptingAutoEconomicsPosition,
+    supplierCatalogHealth,
+    supplierCatalogHealthLoading,
+    supplierCatalogHealthError,
+    onSupplierCatalogHealthRefresh: refreshSupplierCatalogHealth,
+  }
+  const workflowState = {
+    raw,
+    note,
+    saving,
+    onNoteChange: setNote,
+    onSaveWorkflow: saveWorkflow,
+  }
+
   return (
     <div className="details">
       <TenderDetailsHeader tender={tender} />
@@ -126,54 +187,12 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
 
       <TenderDetailsTabs
         tender={tender}
-        raw={raw}
-        activeTab={activeTab}
-        onActiveTabChange={setActiveTab}
-        productProfiles={productProfiles}
-        productProfileSummary={productProfileSummary}
-        selectedProfileIndex={selectedProfileIndex}
-        onSelectedProfileIndexChange={setSelectedProfileIndex}
-        profilesLoading={profilesLoading}
-        onRebuildProductProfiles={rebuildProductProfiles}
-        documentRecords={documentRecords}
-        downloading={downloading}
-        extracting={extracting}
-        onDownloadDocuments={downloadDocuments}
-        onExtractDocumentText={extractDocumentText}
-        analysis={analysis}
-        analyzing={analyzing}
-        onAnalyzeTender={analyzeTender}
-        economics={economics}
-        onEconomicsSave={saveProfileEconomics}
-        onEconomicsAssumptionsSave={saveProfileEconomicsAssumptions}
-        onSupplierOptionSave={saveSupplierOption}
-        onSupplierOptionSelect={selectSupplierOption}
-        onSupplierOptionAutoSelect={autoSelectSupplierOption}
-        onSupplierDiscoveryImport={importSupplierDiscoveryCandidate}
-        onSupplierSearchPrepare={prepareSupplierSearch}
-        onSupplierCatalogPresetsSave={saveSupplierCatalogPresets}
-        onSupplierDiscoveryRun={runSupplierDiscovery}
-        onSupplierUrlDiscoveryRun={runSupplierUrlDiscovery}
-        onAutoEconomicsRun={runProfileAutoEconomics}
-        onAutoEconomicsAccept={acceptProfileAutoEconomics}
-        savingEconomicsPosition={savingEconomicsPosition}
-        savingAssumptionsPosition={savingAssumptionsPosition}
-        savingSupplierOptionPosition={savingSupplierOptionPosition}
-        importingSupplierCandidatePosition={importingSupplierCandidatePosition}
-        preparingSupplierSearchPosition={preparingSupplierSearchPosition}
-        savingSupplierCatalogPresetPosition={savingSupplierCatalogPresetPosition}
-        discoveringSupplierPosition={discoveringSupplierPosition}
-        autoSelectingSupplierPosition={autoSelectingSupplierPosition}
-        autoEstimatingPosition={autoEstimatingPosition}
-        acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
-        supplierCatalogHealth={supplierCatalogHealth}
-        supplierCatalogHealthLoading={supplierCatalogHealthLoading}
-        supplierCatalogHealthError={supplierCatalogHealthError}
-        onSupplierCatalogHealthRefresh={refreshSupplierCatalogHealth}
-        note={note}
-        saving={saving}
-        onNoteChange={setNote}
-        onSaveWorkflow={saveWorkflow}
+        tabState={tabState}
+        productState={productState}
+        documentState={documentState}
+        analysisState={analysisState}
+        economicsState={economicsState}
+        workflowState={workflowState}
       />
     </div>
   )

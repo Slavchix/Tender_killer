@@ -568,6 +568,48 @@ def test_tender_details_uses_dedicated_tabs_module():
     assert find_mojibake(panels_source, TENDER_TAB_PANELS_SOURCE) == []
 
 
+def test_tender_details_passes_grouped_state_to_tabs_module():
+    tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+
+    for group_name in (
+        "tabState",
+        "productState",
+        "documentState",
+        "analysisState",
+        "economicsState",
+        "workflowState",
+    ):
+        assert f"const {group_name} = {{" in tender_details_source
+        assert f"{group_name}={{{group_name}}}" in tender_details_source
+        assert group_name in tabs_source
+
+    for direct_prop in (
+        "raw={raw}",
+        "activeTab={activeTab}",
+        "onActiveTabChange={setActiveTab}",
+        "productProfileSummary={productProfileSummary}",
+        "selectedProfileIndex={selectedProfileIndex}",
+        "onDownloadDocuments={downloadDocuments}",
+        "analyzing={analyzing}",
+        "onEconomicsSave={saveProfileEconomics}",
+        "onSupplierCatalogHealthRefresh={refreshSupplierCatalogHealth}",
+        "note={note}",
+        "onSaveWorkflow={saveWorkflow}",
+    ):
+        assert direct_prop not in tender_details_source
+
+    assert "tabState," in tabs_source
+    assert "productState," in tabs_source
+    assert "documentState," in tabs_source
+    assert "analysisState," in tabs_source
+    assert "economicsState," in tabs_source
+    assert "workflowState," in tabs_source
+    assert "const { activeTab, onActiveTabChange } = tabState" in tabs_source
+    assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+
+
 def test_tender_details_uses_document_analysis_hook():
     tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     hook_source = (
@@ -997,7 +1039,7 @@ def test_economics_tab_surfaces_supplier_catalog_health():
     assert "setSupplierCatalogHealth" in hook_source
     assert "setSupplierCatalogHealthLoading" in hook_source
     assert "setSupplierCatalogHealthError" in hook_source
-    assert "onSupplierCatalogHealthRefresh={refreshSupplierCatalogHealth}" in details_source
+    assert "onSupplierCatalogHealthRefresh: refreshSupplierCatalogHealth" in details_source
     assert "supplierCatalogHealth" in details_source
     assert "onSupplierCatalogHealthRefresh," in tabs_source
     assert "supplierCatalogHealth," in tabs_source
