@@ -13,21 +13,27 @@ MOSCOW_ACTIVE_STATE_ID = 19000002
 def extract_market_state(tender: dict[str, Any]) -> dict[str, Any]:
     raw_payload = _raw_payload(tender)
     detail = raw_payload.get("__detail") if isinstance(raw_payload.get("__detail"), dict) else {}
+    imported = (
+        raw_payload.get("__market_state_import")
+        if isinstance(raw_payload.get("__market_state_import"), dict)
+        else {}
+    )
     nmc_price = _first_number(tender, raw_payload, detail, ("price", "InitialPrice", "startPrice", "startCost"))
     source = str(tender.get("source") or "")
-    participant_count = _participant_count(raw_payload, detail)
-    bid_count = _bid_count(raw_payload, detail)
-    public_bid_count = _public_moscow_bid_count(raw_payload, detail) if source == "moscow_supplier_portal" else None
+    participant_count = _participant_count(raw_payload, detail, imported)
+    bid_count = _bid_count(raw_payload, detail, imported)
+    public_bid_count = _public_moscow_bid_count(raw_payload, detail, imported) if source == "moscow_supplier_portal" else None
     current_offer_price, price_source = _current_offer_price(
         raw_payload,
         detail,
+        imported,
         source=source,
         public_bid_count=bid_count or public_bid_count,
     )
     if price_source == "moscow_public_step_estimate" and (bid_count is None or bid_count == 0):
         bid_count = public_bid_count
-    next_bid_price = _first_number(detail, raw_payload, tender, ("nextCost", "auctionNextPrice", "next_bid_price"))
-    last_offer_supplier = _last_offer_supplier(detail)
+    next_bid_price = _first_number(imported, detail, raw_payload, ("nextCost", "auctionNextPrice", "next_bid_price"))
+    last_offer_supplier = _last_offer_supplier(imported) or _last_offer_supplier(detail)
 
     if current_offer_price is not None:
         status = "has_current_offer"
@@ -69,9 +75,14 @@ def _raw_payload(tender: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
-def _participant_count(raw_payload: dict[str, Any], detail: dict[str, Any]) -> int | None:
+def _participant_count(
+    raw_payload: dict[str, Any],
+    detail: dict[str, Any],
+    imported: dict[str, Any] | None = None,
+) -> int | None:
     count_values: list[int] = []
     for payload, keys in (
+        (imported or {}, ("uniqueSupplierCount", "participantCount", "offerCount")),
         (detail, ("uniqueSupplierCount", "participantCount", "offerCount", "ApplicationsCount")),
         (raw_payload, ("ApplicationsCount", "uniqueSupplierCount", "participantCount", "offerCount")),
     ):
@@ -94,8 +105,23 @@ def _participant_count(raw_payload: dict[str, Any], detail: dict[str, Any]) -> i
     return None
 
 
-def _bid_count(raw_payload: dict[str, Any], detail: dict[str, Any]) -> int | None:
+def _bid_count(
+    raw_payload: dict[str, Any],
+    detail: dict[str, Any],
+    imported: dict[str, Any] | None = None,
+) -> int | None:
     count_values: list[int] = []
+    if imported:
+        bets_diff = imported.get("betsDiff")
+        if isinstance(bets_diff, list) and bets_diff:
+            return len(bets_diff)
+        for key in ("bidCount", "betCount", "offerCount"):
+            value = _int_value(imported.get(key))
+            if value is not None:
+                count_values.append(value)
+        participant_count = _int_value(imported.get("uniqueSupplierCount"))
+        if parse_float(imported.get("lastBetCost")) is not None:
+            count_values.append(max(1, participant_count or 1))
     for payload in (detail, raw_payload):
         bets = payload.get("bets")
         if isinstance(bets, list) and bets:
@@ -120,10 +146,17 @@ def _bid_count(raw_payload: dict[str, Any], detail: dict[str, Any]) -> int | Non
 def _current_offer_price(
     raw_payload: dict[str, Any],
     detail: dict[str, Any],
+    imported: dict[str, Any],
     *,
     source: str,
     public_bid_count: int | None,
 ) -> tuple[float | None, str | None]:
+    imported_price = parse_float(
+        first_present(imported, "lastBetCost", "currentOfferPrice", "auctionCurrentPrice", "currentCost")
+    )
+    if imported_price is not None:
+        return imported_price, "moscow_get_bet_update_import"
+
     bets = detail.get("bets")
     bet_prices: list[float] = []
     if isinstance(bets, list):
@@ -155,9 +188,16 @@ def _current_offer_price(
     return None, None
 
 
-def _public_moscow_bid_count(raw_payload: dict[str, Any], detail: dict[str, Any]) -> int | None:
+def _public_moscow_bid_count(
+    raw_payload: dict[str, Any],
+    detail: dict[str, Any],
+    imported: dict[str, Any] | None = None,
+) -> int | None:
     if not _is_active_moscow_session(raw_payload, detail):
         return None
+    imported_count = _int_value((imported or {}).get("uniqueSupplierCount"))
+    if imported_count is not None:
+        return imported_count
     for payload, keys in (
         (detail, ("bidCount", "betCount", "offerCount", "uniqueSupplierCount")),
         (raw_payload, ("bidCount", "betCount", "offerCount", "uniqueSupplierCount")),

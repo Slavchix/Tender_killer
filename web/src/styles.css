@@ -1336,6 +1336,46 @@ textarea:focus {
   border-color: #6edc61;
 }
 
+.market-import-panel {
+  width: 100%;
+  color: #bcd1c9;
+  background: #15241f;
+  border: 1px solid #304039;
+  border-radius: 7px;
+}
+
+.market-import-panel summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.market-import-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, auto);
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
+.market-import-textarea {
+  min-height: 72px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+@media (max-width: 760px) {
+  .market-import-form {
+    grid-template-columns: 1fr;
+  }
+}
+
 .status-stack {
   display: grid;
   gap: 6px;

@@ -276,13 +276,13 @@ def _extract_zip(data: bytes, extractor: DocumentTextExtractor) -> str:
 
 def _extract_pdf(data: bytes) -> str:
     streams = _pdf_streams(data)
+    cmap = _pdf_to_unicode_map(streams)
     text_parts: list[str] = []
     for stream in streams:
-        for literal in re.findall(rb"\((?:\\.|[^\\)])*\)", stream):
-            text_parts.append(_decode_pdf_literal(literal[1:-1]))
-        for array in re.findall(rb"\[((?:\s*\((?:\\.|[^\\)])*\)\s*)+)\]\s*TJ", stream):
-            for literal in re.findall(rb"\((?:\\.|[^\\)])*\)", array):
-                text_parts.append(_decode_pdf_literal(literal[1:-1]))
+        if b"begincmap" in stream:
+            continue
+        for token in _pdf_text_tokens(stream):
+            text_parts.append(_decode_pdf_token(token, cmap))
     return "\n".join(text_parts)
 
 
@@ -300,16 +300,210 @@ def _pdf_streams(data: bytes) -> list[bytes]:
     return streams
 
 
-def _decode_pdf_literal(value: bytes) -> str:
-    value = (
-        value.replace(rb"\(", b"(")
-        .replace(rb"\)", b")")
-        .replace(rb"\\", b"\\")
-        .replace(rb"\n", b"\n")
-        .replace(rb"\r", b"\r")
-        .replace(rb"\t", b"\t")
+def _pdf_to_unicode_map(streams: list[bytes]) -> dict[bytes, str]:
+    mapping: dict[bytes, str] = {}
+    for stream in streams:
+        if b"begincmap" not in stream:
+            continue
+        mapping.update(_pdf_bfchar_map(stream))
+        mapping.update(_pdf_bfrange_map(stream))
+    return mapping
+
+
+def _pdf_bfchar_map(stream: bytes) -> dict[bytes, str]:
+    mapping: dict[bytes, str] = {}
+    for block in re.findall(rb"beginbfchar(.*?)endbfchar", stream, flags=re.DOTALL):
+        for source, target in re.findall(rb"<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>", block):
+            source_bytes = _hex_to_bytes(source)
+            target_text = _decode_utf16_hex(target)
+            if source_bytes and target_text:
+                mapping[source_bytes] = target_text
+    return mapping
+
+
+def _pdf_bfrange_map(stream: bytes) -> dict[bytes, str]:
+    mapping: dict[bytes, str] = {}
+    for block in re.findall(rb"beginbfrange(.*?)endbfrange", stream, flags=re.DOTALL):
+        consumed_spans: list[tuple[int, int]] = []
+        for match in re.finditer(
+            rb"<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*\[(.*?)\]",
+            block,
+            flags=re.DOTALL,
+        ):
+            consumed_spans.append(match.span())
+            start = int(match.group(1), 16)
+            end = int(match.group(2), 16)
+            source_width = len(_hex_to_bytes(match.group(1)))
+            targets = re.findall(rb"<([0-9A-Fa-f]+)>", match.group(3))
+            for offset, target in enumerate(targets[: max(0, end - start + 1)]):
+                target_text = _decode_utf16_hex(target)
+                if target_text:
+                    mapping[(start + offset).to_bytes(source_width, "big")] = target_text
+
+        block_without_arrays = _remove_spans(block, consumed_spans)
+        for source_start, source_end, target_start in re.findall(
+            rb"<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>",
+            block_without_arrays,
+        ):
+            start = int(source_start, 16)
+            end = int(source_end, 16)
+            target = int(target_start, 16)
+            source_width = len(_hex_to_bytes(source_start))
+            target_width = len(_hex_to_bytes(target_start))
+            for offset in range(max(0, end - start + 1)):
+                source_bytes = (start + offset).to_bytes(source_width, "big")
+                target_text = _decode_utf16_codepoint(target + offset, target_width)
+                if target_text:
+                    mapping[source_bytes] = target_text
+    return mapping
+
+
+def _remove_spans(value: bytes, spans: list[tuple[int, int]]) -> bytes:
+    if not spans:
+        return value
+    parts: list[bytes] = []
+    cursor = 0
+    for start, end in sorted(spans):
+        parts.append(value[cursor:start])
+        cursor = end
+    parts.append(value[cursor:])
+    return b"".join(parts)
+
+
+def _pdf_text_tokens(stream: bytes) -> list[bytes]:
+    token_pattern = rb"\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]+>"
+    operator_pattern = re.compile(
+        rb"(?P<token>" + token_pattern + rb")\s*Tj|(?P<array>\[(?:.*?)\]\s*TJ)",
+        flags=re.DOTALL,
     )
+    tokens: list[bytes] = []
+    for match in operator_pattern.finditer(stream):
+        token = match.group("token")
+        if token is not None:
+            tokens.append(token)
+            continue
+        array = match.group("array") or b""
+        tokens.extend(token_match.group(0) for token_match in re.finditer(token_pattern, array, flags=re.DOTALL))
+    return tokens
+
+
+def _decode_pdf_token(token: bytes, cmap: dict[bytes, str]) -> str:
+    if token.startswith(b"(") and token.endswith(b")"):
+        return _decode_pdf_bytes(_pdf_literal_bytes(token[1:-1]), cmap)
+    if token.startswith(b"<") and token.endswith(b">"):
+        return _decode_pdf_bytes(_hex_to_bytes(re.sub(rb"\s+", b"", token[1:-1])), cmap)
+    return ""
+
+
+def _decode_pdf_bytes(value: bytes, cmap: dict[bytes, str]) -> str:
+    if cmap:
+        mapped = _decode_pdf_cmap_bytes(value, cmap)
+        if mapped.strip():
+            return mapped
     return _decode_text(value)
+
+
+def _decode_pdf_cmap_bytes(value: bytes, cmap: dict[bytes, str]) -> str:
+    lengths = sorted({len(source) for source in cmap}, reverse=True)
+    if not lengths:
+        return ""
+
+    parts: list[str] = []
+    index = 0
+    while index < len(value):
+        for length in lengths:
+            chunk = value[index : index + length]
+            if chunk in cmap:
+                parts.append(cmap[chunk])
+                index += length
+                break
+        else:
+            byte = value[index]
+            if byte in {0x09, 0x0A, 0x0D, 0x20}:
+                parts.append(chr(byte))
+            index += 1
+    return "".join(parts)
+
+
+def _decode_pdf_literal(value: bytes) -> str:
+    return _decode_text(_pdf_literal_bytes(value))
+
+
+def _pdf_literal_bytes(value: bytes) -> bytes:
+    escapes = {
+        ord("n"): b"\n",
+        ord("r"): b"\r",
+        ord("t"): b"\t",
+        ord("b"): b"\b",
+        ord("f"): b"\f",
+        ord("("): b"(",
+        ord(")"): b")",
+        ord("\\"): b"\\",
+    }
+    result = bytearray()
+    index = 0
+    while index < len(value):
+        byte = value[index]
+        if byte != ord("\\"):
+            result.append(byte)
+            index += 1
+            continue
+
+        index += 1
+        if index >= len(value):
+            break
+        escaped = value[index]
+        if escaped in escapes:
+            result.extend(escapes[escaped])
+            index += 1
+            continue
+        if escaped in {ord("\n"), ord("\r")}:
+            index += 1
+            if escaped == ord("\r") and index < len(value) and value[index] == ord("\n"):
+                index += 1
+            continue
+        if ord("0") <= escaped <= ord("7"):
+            octal = bytes([escaped])
+            index += 1
+            while index < len(value) and len(octal) < 3 and ord("0") <= value[index] <= ord("7"):
+                octal += bytes([value[index]])
+                index += 1
+            result.append(int(octal, 8))
+            continue
+        result.append(escaped)
+        index += 1
+    return bytes(result)
+
+
+def _hex_to_bytes(value: bytes) -> bytes:
+    normalized = re.sub(rb"\s+", b"", value)
+    if len(normalized) % 2:
+        normalized += b"0"
+    try:
+        return bytes.fromhex(normalized.decode("ascii"))
+    except ValueError:
+        return b""
+
+
+def _decode_utf16_hex(value: bytes) -> str:
+    raw = _hex_to_bytes(value)
+    if not raw:
+        return ""
+    if len(raw) % 2 == 0:
+        try:
+            return raw.decode("utf-16-be")
+        except UnicodeDecodeError:
+            pass
+    return _decode_text(raw)
+
+
+def _decode_utf16_codepoint(value: int, width: int) -> str:
+    if width <= 0:
+        return ""
+    try:
+        return value.to_bytes(width, "big").decode("utf-16-be")
+    except (OverflowError, UnicodeDecodeError):
+        return ""
 
 
 def _text_from_xml(raw: bytes) -> str:

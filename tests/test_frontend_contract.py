@@ -17,6 +17,9 @@ PAGINATION_BAR_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "P
 TENDER_DETAILS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetails.jsx"
 TENDER_DETAILS_SHARED_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsShared.jsx"
 TENDER_DETAIL_ACTIONS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailActions.jsx"
+TENDER_MARKET_STATE_IMPORT_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderMarketStateImport.jsx"
+)
 TENDER_DETAILS_HEADER_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsHeader.jsx"
 TENDER_DETAILS_STATUS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsStatusStack.jsx"
 TENDER_DETAILS_TABS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsTabs.jsx"
@@ -37,6 +40,9 @@ USE_TENDER_WORKFLOW_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src"
 USE_TENDER_NOTIFICATION_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderNotification.js"
 USE_TENDER_REFRESH_DETAILS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderRefreshDetails.js"
 USE_TENDER_DETAILS_UI_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderDetailsUi.js"
+USE_TENDER_MARKET_STATE_IMPORT_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderMarketStateImport.js"
+)
 
 
 def _css_rule(source: str, selector: str) -> str:
@@ -1654,3 +1660,28 @@ def test_tender_notify_uses_backend_message_for_configuration_errors():
 
     assert "payload.message || (payload.sent ? 'Отправлено в Telegram' : 'Telegram не настроен')" in notification_source
     assert find_mojibake(notification_source, USE_TENDER_NOTIFICATION_SOURCE) == []
+
+
+def test_frontend_exposes_local_market_state_import():
+    api_source = API_SOURCE.read_text(encoding="utf-8")
+    details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    actions_source = TENDER_DETAIL_ACTIONS_SOURCE.read_text(encoding="utf-8")
+    import_source = TENDER_MARKET_STATE_IMPORT_SOURCE.read_text(encoding="utf-8")
+    hook_source = USE_TENDER_MARKET_STATE_IMPORT_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "export function importTenderMarketState" in api_source
+    assert "/market-state/import" in api_source
+    assert "useTenderMarketStateImport" in details_source
+    assert "TenderMarketStateImport" in actions_source
+    assert "market-import-panel" in import_source
+    assert "JSON.parse(marketImportText" in hook_source
+    assert "applyProductTenderState(nextTender, { resetSelection: false })" in hook_source
+    assert ".market-import-panel" in styles_source
+    assert ".market-import-form" in styles_source
+    assert find_mojibake(api_source, API_SOURCE) == []
+    assert find_mojibake(details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(actions_source, TENDER_DETAIL_ACTIONS_SOURCE) == []
+    assert find_mojibake(import_source, TENDER_MARKET_STATE_IMPORT_SOURCE) == []
+    assert find_mojibake(hook_source, USE_TENDER_MARKET_STATE_IMPORT_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []

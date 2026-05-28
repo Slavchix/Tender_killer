@@ -1,9 +1,14 @@
 import { ExternalLink, RefreshCcw } from 'lucide-react'
+import { TenderMarketStateImport } from './TenderMarketStateImport'
 
 export function TenderDetailActions({
   tender,
   refreshingDetails,
   onRefreshDetails,
+  marketImportText,
+  importingMarketState,
+  onMarketImportTextChange,
+  onMarketStateImport,
 }) {
   return (
     <div className="detail-actions" aria-label="Действия с закупкой">
@@ -15,6 +20,12 @@ export function TenderDetailActions({
           <RefreshCcw size={15} /> {refreshingDetails ? 'Обновляю' : 'Обновить'}
         </button>
       </div>
+      <TenderMarketStateImport
+        value={marketImportText}
+        importing={importingMarketState}
+        onChange={onMarketImportTextChange}
+        onImport={onMarketStateImport}
+      />
     </div>
   )
 }

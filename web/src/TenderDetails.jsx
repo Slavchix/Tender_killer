@@ -6,6 +6,7 @@ import { TenderDetailsTabs } from './TenderDetailsTabs'
 import { PriceChangeBanner } from './TenderDecisionSummary'
 import { useTenderDocumentAnalysis } from './useTenderDocumentAnalysis'
 import { useTenderDetailsUi } from './useTenderDetailsUi'
+import { useTenderMarketStateImport } from './useTenderMarketStateImport'
 import { useTenderNotification } from './useTenderNotification'
 import { useTenderProductProfiles } from './useTenderProductProfiles'
 import { useTenderRefreshDetails } from './useTenderRefreshDetails'
@@ -78,6 +79,17 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     runProfileAutoEconomics,
     acceptProfileAutoEconomics,
   } = useTenderProductProfiles(tender, onTenderRefresh, setDetailStatus)
+  const {
+    marketImportText,
+    setMarketImportText,
+    importingMarketState,
+    importMarketState,
+  } = useTenderMarketStateImport({
+    tender,
+    onTenderRefresh,
+    setDetailStatus,
+    applyProductTenderState,
+  })
   const { refreshingDetails, refreshDetails } = useTenderRefreshDetails({
     tender,
     onTenderRefresh,
@@ -104,6 +116,10 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
         tender={tender}
         refreshingDetails={refreshingDetails}
         onRefreshDetails={refreshDetails}
+        marketImportText={marketImportText}
+        importingMarketState={importingMarketState}
+        onMarketImportTextChange={setMarketImportText}
+        onMarketStateImport={importMarketState}
       />
 
       <TenderDetailsStatusStack messages={statusMessages} />

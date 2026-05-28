@@ -104,6 +104,14 @@ export function refreshTenderDetails(tender) {
   })
 }
 
+export function importTenderMarketState(tender, payload) {
+  return apiJson(`${tenderPath(tender)}/market-state/import`, {
+    method: 'POST',
+    body: payload,
+    errorMessage: 'Не удалось импортировать ставку',
+  })
+}
+
 export function rebuildTenderProductProfiles(tender) {
   return apiJson(`${tenderPath(tender)}/product-profiles/rebuild`, {
     method: 'POST',

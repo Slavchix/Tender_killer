@@ -754,3 +754,25 @@ Date: 2026-05-27.
 - `src/tender_killer/market_state.py` now exposes `bid_count` and uses the minimum public Moscow bid from `__detail.bets` when several bids are present. Single-bid sessions keep the existing `lastBetCost` source semantics.
 - Frontend market-state formatters now include bid count next to the displayed participant price where available, so list rows, decision cards, dashboard previews, and economics summary can show "minimum bid + number of bids" from the same SQLite-backed payload.
 - Source adapters for Moscow and Mosreg pass `trust_env=False` to their public HTTP calls. This prevents local/Codex proxy environment variables such as `HTTP_PROXY=http://127.0.0.1:9` from breaking source refreshes with `WinError 10061`.
+
+## Local market-state import checkpoint
+
+Date: 2026-05-28.
+
+- Active Moscow supplier portal sessions expose exact current bid state to an authenticated browser through `GET https://zakupki.mos.ru/newapi/api/Auction/GetBetUpdate?auctionId=...&lastLoadedBetNum=...`.
+- Tender Killer must not ask the operator to paste bearer tokens, cookies, passwords, ЭП credentials, SMS codes, or any private auth material into the app or repository.
+- Local MVP: the operator copies only the JSON response body from DevTools and pastes it into a compact `Импорт ставки` panel in the tender card. The backend accepts only an allowlisted market-state subset: `lastBetCost`, `nextCost`, `uniqueSupplierCount`, `lastBetSupplier`, `state`, `endDate`, `rowVersion`, and safe bid-diff fields.
+- `POST /api/tenders/{source}/{external_id}/market-state/import` stores that sanitized subset under `raw_payload.__market_state_import`, records a `current_offer` price snapshot, refreshes `market_state`, and therefore updates the same tender card, economics, list, and dashboard surfaces that already read SQLite.
+- The import endpoint rejects recursive sensitive keys such as `Authorization`, `Cookie`, `token`, `password`, or `secret` before anything is written.
+- Future SaaS shape: use a separate read-only browser connector/extension or desktop helper that runs in the user's already-authenticated browser context and sends only sanitized `GetBetUpdate` result fields to Tender Killer. The server should never store portal passwords or raw bearer cookies; if an official OAuth/session API appears later, use encrypted short-lived per-user credentials with audit logging, strict endpoint allowlists, tenant isolation, and an explicit no-submit/no-sign/no-legal-action boundary.
+
+## PDF ToUnicode extraction checkpoint
+
+Date: 2026-05-28.
+
+- Root cause of Moscow PDFs showing `No machine-readable text extracted`: many contract PDFs are not scans, but store Cyrillic text as internal two-byte font codes plus a `/ToUnicode` CMap. The previous extractor only read simple literal PDF strings and therefore filtered the decoded byte noise as empty.
+- `src/tender_killer/documents.py` now parses PDF `/ToUnicode` CMaps, including `beginbfchar` and `beginbfrange`, and decodes `Tj`/`TJ` literal and hex text tokens through that map before the existing text-quality filter runs.
+- `tests/test_documents.py::test_pdf_extractor_reads_tounicode_cmap_text` covers a minimal PDF with glyph codes mapped to `Проект контракта`; the original failing symptom was verified red before the fix.
+- Re-extraction against the local Moscow smartphone tender PDF changed the contract text from empty to readable Cyrillic starting with `Государственный Контракт` / `Поставка смартфонов`; locally downloaded PDF rows no longer have `text_status = 'empty'` after the batch refresh.
+- True image-only scanned PDFs still need a separate OCR fallback later. The current fix is the fast path for PDFs that already contain a text layer.
+- Full verification after local market-state import plus PDF ToUnicode extraction: `394 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-pdf`.

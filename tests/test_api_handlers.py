@@ -1,3 +1,4 @@
+import json
 from urllib.parse import quote
 
 from tender_killer.api_handlers import handle_get_request, handle_post_request
@@ -51,6 +52,37 @@ def _store_with_materializable_tender_item(tmp_path):
     return store
 
 
+def _store_with_moscow_market_state_tender(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="moscow_supplier_portal",
+            external_id="Auction10212588",
+            url="https://zakupki.mos.ru/auction/10212588",
+            title="Climbing gear",
+            customer="School",
+            region="Moscow",
+            price=48460.0,
+            status="Active",
+            raw_payload={
+                "auctionId": 10212588,
+                "startPrice": 48460.0,
+                "stateId": 19000002,
+                "stateName": "Active",
+                "__detail": {
+                    "state": {"name": "Active", "id": 19000002},
+                    "startCost": 48460.0,
+                    "lastBetCost": None,
+                    "uniqueSupplierCount": 1,
+                    "bets": [],
+                },
+            },
+        )
+    )
+    return store
+
+
 def test_handle_get_request_returns_health_payload(tmp_path) -> None:
     response = handle_get_request(tmp_path / "tenders.sqlite", "/api/health", {})
 
@@ -62,6 +94,7 @@ def test_handle_get_request_returns_health_payload(tmp_path) -> None:
     assert "supplier_catalog_health" in response.payload["capabilities"]
     assert "supplier_discovery_url" in response.payload["capabilities"]
     assert "web_auto_search" in response.payload["capabilities"]
+    assert "market_state_import" in response.payload["capabilities"]
 
 
 def test_handle_get_request_routes_supplier_catalog_health(tmp_path) -> None:
@@ -114,6 +147,55 @@ def test_handle_post_request_routes_workflow_update(tmp_path) -> None:
     assert response.status == 200
     assert response.payload["workflow_status"] == "interesting"
     assert response.payload["workflow_note"] == "check margin"
+
+
+def test_handle_post_request_imports_moscow_market_state_payload(tmp_path) -> None:
+    store = _store_with_moscow_market_state_tender(tmp_path)
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/moscow_supplier_portal/Auction10212588/market-state/import",
+        {
+            "endDate": "28.05.2026 16:26:11",
+            "state": {"name": "Active", "id": 19000002},
+            "nextCost": 47975.4,
+            "lastBetSupplier": {"name": "Other participant", "id": None},
+            "lastBetCost": 48217.7,
+            "betsDiff": [],
+            "uniqueSupplierCount": 1,
+            "rowVersion": "AAAAAvAo3L0=",
+        },
+    )
+
+    assert response.status == 200
+    assert response.payload["market_state"]["status"] == "has_current_offer"
+    assert response.payload["market_state"]["current_offer_price"] == 48217.7
+    assert response.payload["market_state"]["next_bid_price"] == 47975.4
+    assert response.payload["market_state"]["price_source"] == "moscow_get_bet_update_import"
+    assert response.payload["market_state"]["participant_count"] == 1
+    assert response.payload["market_state"]["bid_count"] == 1
+    assert response.payload["market_state"]["last_offer_supplier"] == "Other participant"
+    raw_payload = json.loads(response.payload["raw_payload_json"])
+    assert raw_payload["__market_state_import"]["lastBetCost"] == 48217.7
+    assert "Authorization" not in json.dumps(raw_payload, ensure_ascii=False)
+
+
+def test_handle_post_request_rejects_sensitive_market_state_import_payload(tmp_path) -> None:
+    store = _store_with_moscow_market_state_tender(tmp_path)
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/moscow_supplier_portal/Auction10212588/market-state/import",
+        {
+            "lastBetCost": 48217.7,
+            "headers": {
+                "Authorization": "Bearer secret",
+            },
+        },
+    )
+
+    assert response.status == 400
+    assert "sensitive" in response.payload["error"]
 
 
 def test_handle_post_request_routes_product_profile_economics_update(tmp_path) -> None:

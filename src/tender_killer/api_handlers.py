@@ -30,6 +30,7 @@ from tender_killer.economics_service import accept_profile_auto_economics as acc
 from tender_killer.economics_service import update_profile_economics as update_profile_economics_inputs
 from tender_killer.economics_service import update_profile_economics_assumptions as update_profile_economics_assumptions_inputs
 from tender_killer.economics_service import update_profile_auto_economics as update_profile_auto_economics_inputs
+from tender_killer.market_state_import_service import import_tender_market_state
 from tender_killer.notification_service import send_tender_notification_payload
 from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
@@ -67,6 +68,7 @@ API_CAPABILITIES: tuple[str, ...] = (
     "supplier_catalog_health",
     "supplier_discovery_url",
     "web_auto_search",
+    "market_state_import",
 )
 
 
@@ -332,6 +334,16 @@ def handle_post_request(
         if route is None:
             return ApiResponse({"error": "invalid detail refresh path"}, status=400)
         return ApiResponse(refresh_tender_detail_payload(database_path, route.source, route.external_id))
+    if path.startswith("/api/tenders/") and path.endswith("/market-state/import"):
+        route = parse_tender_path(path, suffix="market-state/import")
+        if route is None:
+            return ApiResponse({"error": "invalid market state import path"}, status=400)
+        try:
+            return ApiResponse(import_tender_market_state(database_path, route.source, route.external_id, body))
+        except ValueError as exc:
+            return ApiResponse({"error": str(exc)}, status=400)
+        except KeyError as exc:
+            return ApiResponse({"error": str(exc)}, status=404)
     if path.startswith("/api/tenders/") and path.endswith("/economics"):
         route = parse_product_profile_economics_path(path)
         if route is None:

@@ -152,3 +152,37 @@ def test_extract_market_state_estimates_active_moscow_bid_when_public_detail_hid
     assert state["price_source"] == "moscow_public_step_estimate"
     assert state["participant_count"] == 1
     assert state["bid_count"] == 1
+
+
+def test_extract_market_state_uses_imported_moscow_get_bet_update_payload() -> None:
+    state = extract_market_state(
+        {
+            "source": "moscow_supplier_portal",
+            "price": 48_460.0,
+            "raw_payload": {
+                "__detail": {
+                    "state": {"name": "Активная", "id": 19000002},
+                    "startCost": 48_460.0,
+                    "lastBetCost": None,
+                    "uniqueSupplierCount": 1,
+                    "bets": [],
+                },
+                "__market_state_import": {
+                    "source": "zakupki_mos_get_bet_update",
+                    "lastBetCost": 48_217.7,
+                    "nextCost": 47_975.4,
+                    "uniqueSupplierCount": 1,
+                    "lastBetSupplier": {"name": "Другой участник"},
+                    "rowVersion": "AAAAAvAo3L0=",
+                },
+            },
+        }
+    )
+
+    assert state["status"] == "has_current_offer"
+    assert state["current_offer_price"] == 48_217.7
+    assert state["next_bid_price"] == 47_975.4
+    assert state["price_source"] == "moscow_get_bet_update_import"
+    assert state["participant_count"] == 1
+    assert state["bid_count"] == 1
+    assert state["last_offer_supplier"] == "Другой участник"

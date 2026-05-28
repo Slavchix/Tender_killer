@@ -2,7 +2,7 @@
 
 ## Current Handoff Snapshot
 
-Date: 2026-05-26.
+Date: 2026-05-28.
 
 Current branch: `codex/moscow-mo-parser`.
 
@@ -75,6 +75,9 @@ Recent architecture cleanup:
 - The API health payload now advertises required local-dev capabilities, so a stale backend on port 8000 is rejected before Vite proxies product-profile supplier actions to it.
 - The web API now runs an hourly background source refresh through the same search runner as the site `Запустить поиск` button; overlapping manual/auto runs are rejected instead of racing SQLite writes.
 - Public market state now tracks NMC, current/minimum public participant bid, participant count, and bid count where the source exposes them; tender cards, economics, lists, and dashboard surfaces use the same saved state from SQLite.
+- Local market-state import is available for authenticated Moscow bid snapshots: the operator can paste only the safe `GetBetUpdate` JSON response body into the tender card, and `POST /api/tenders/{source}/{external_id}/market-state/import` stores a sanitized subset under `raw_payload.__market_state_import`.
+- The market-state import endpoint rejects recursive sensitive keys such as `Authorization`, `Cookie`, `token`, `password`, and `secret`; Tender Killer still must not store portal passwords, bearer tokens, cookies, SMS codes, or ЭП credentials.
+- PDF text extraction now supports `/ToUnicode` CMaps and PDF `Tj`/`TJ` text tokens, so Moscow contract PDFs with embedded text layers extract readable Cyrillic instead of being marked as empty. True scanned image-only PDFs still need a future OCR fallback.
 - Runtime/UI text encoding is guarded by `tender_killer.encoding_guard`; `dev_smoke` reuses it to catch Cyrillic mojibake regressions.
 - Active tender lists now hide expired purchases by normalized active status plus `deadline_at >= datetime('now')`, so completed/old cards do not dominate the workbench.
 - The React frontend has been decomposed out of the former oversized `App.jsx` / `TenderDetails.jsx` surface. Current extracted modules include `api.js`, `constants.js`, `formatters.js`, `Dashboard.jsx`, `DatabaseView.jsx`, `FiltersPanel.jsx`, `TenderList.jsx`, `PaginationBar.jsx`, `TenderDetailActions.jsx`, `TenderDetailsHeader.jsx`, `TenderDetailsStatusStack.jsx`, `TenderDetailsTabs.jsx`, `TenderDetailsShared.jsx`, `TenderDecisionSummary.jsx`, `TenderOverviewTab.jsx`, `TenderDocumentsTab.jsx`, `TenderAnalysisTab.jsx`, `TenderWorkflowTab.jsx`, `TenderProductsTab.jsx`, and `TenderEconomicsTab.jsx`.
@@ -88,13 +91,13 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after manual supplier URL discovery: `346 passed`.
+Latest verified result after local market-state import and PDF ToUnicode extraction: `394 passed`.
 
 Good next steps:
 
-1. Validate real catalog pages and add narrow provider parsing rules where schema.org/anchor discovery is not enough.
-2. Use the manual live catalog health action to inspect provider availability before deeper catalog parsing work.
-3. Keep Telegram as notifications/quick entry, not the main workbench.
+1. Tighten bid-state UX around the same SQLite-backed market-state payload: list, card, summary, economics, and dashboard should consistently show NMC, current/minimum participant bid, and bid count.
+2. Add OCR fallback for true scanned image-only PDFs while keeping the current `/ToUnicode` text-layer extractor as the fast path.
+3. Continue the workbench split: keep the tender card as the decision summary and use full-screen analysis/economics modes for deeper work.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.
 

@@ -148,6 +148,40 @@ def test_pdf_extractor_reads_simple_literal_text(tmp_path):
     assert "Delivery within 5 days" in result.text
 
 
+def test_pdf_extractor_reads_tounicode_cmap_text(tmp_path):
+    path = tmp_path / "contract.pdf"
+    text = "Проект контракта"
+    glyphs = b"".join(index.to_bytes(2, "big") for index, _ in enumerate(text, start=1))
+    cmap_entries = "\n".join(
+        f"<{index:04X}><{character.encode('utf-16-be').hex().upper()}>"
+        for index, character in enumerate(text, start=1)
+    )
+    path.write_bytes(
+        b"%PDF-1.4\n"
+        b"1 0 obj\nstream\n"
+        + (
+            "/CIDInit /ProcSet findresource begin\n"
+            "begincmap\n"
+            "1 begincodespacerange\n"
+            "<0000><FFFF>\n"
+            "endcodespacerange\n"
+            f"{len(text)} beginbfchar\n"
+            f"{cmap_entries}\n"
+            "endbfchar\n"
+            "endcmap\n"
+        ).encode("ascii")
+        + b"endstream\nendobj\n"
+        b"2 0 obj\nstream\nBT ("
+        + glyphs
+        + b") Tj ET\nendstream\nendobj\n%%EOF"
+    )
+
+    result = DocumentTextExtractor().extract(path)
+
+    assert result.status == "ok"
+    assert text in result.text
+
+
 def test_pdf_extractor_rejects_binary_literal_garbage(tmp_path):
     path = tmp_path / "contract.pdf"
     path.write_bytes(
