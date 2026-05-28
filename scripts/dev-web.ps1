@@ -20,6 +20,11 @@ if (-not $npm) {
     throw "npm.cmd not found. Add portable Node.js folder to PATH before running npm run dev."
 }
 
+$ocrWrapper = Join-Path $root "scripts\ocr-pdf.ps1"
+if (-not $env:TENDER_KILLER_PDF_OCR_COMMAND -and (Test-Path -LiteralPath $ocrWrapper)) {
+    $env:TENDER_KILLER_PDF_OCR_COMMAND = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$ocrWrapper`" {path}"
+}
+
 $apiArgs = @("-m", "tender_killer.web_api", "--host", "127.0.0.1", "--port", "8000")
 $apiBaseUrl = "http://127.0.0.1:8000"
 

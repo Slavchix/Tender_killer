@@ -17,7 +17,8 @@ $OutputEncoding = $utf8NoBom
 function Resolve-Executable {
     param(
         [string] $ExplicitPath,
-        [string] $CommandName
+        [string] $CommandName,
+        [string[]] $FallbackPaths = @()
     )
 
     if ($ExplicitPath) {
@@ -32,6 +33,16 @@ function Resolve-Executable {
     if ($command) {
         return $command.Source
     }
+
+    foreach ($fallbackPath in $FallbackPaths) {
+        if (-not $fallbackPath) {
+            continue
+        }
+        $candidate = Resolve-Path -LiteralPath $fallbackPath -ErrorAction SilentlyContinue
+        if ($candidate) {
+            return $candidate.Path
+        }
+    }
     return $null
 }
 
@@ -44,8 +55,25 @@ function Fail-Ocr {
 
 $pdfPath = Resolve-Path -LiteralPath $Path -ErrorAction Stop
 $ocrMyPdfPath = Resolve-Executable -ExplicitPath $OcrMyPdf -CommandName "ocrmypdf"
-$tesseractPath = Resolve-Executable -ExplicitPath $Tesseract -CommandName "tesseract"
-$pdfToPpmPath = Resolve-Executable -ExplicitPath $PdfToPpm -CommandName "pdftoppm"
+$tesseractPath = Resolve-Executable `
+    -ExplicitPath $Tesseract `
+    -CommandName "tesseract" `
+    -FallbackPaths @(
+        (Join-Path $env:LOCALAPPDATA "Programs\Tesseract-OCR\tesseract.exe"),
+        (Join-Path $env:ProgramFiles "Tesseract-OCR\tesseract.exe")
+    )
+$popplerPackageRoot = Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages"
+$popplerCandidates = @()
+if (Test-Path -LiteralPath $popplerPackageRoot) {
+    $popplerCandidates = Get-ChildItem -LiteralPath $popplerPackageRoot -Recurse -Filter "pdftoppm.exe" -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -like "*oschwartz10612.Poppler*" } |
+        Sort-Object FullName -Descending |
+        ForEach-Object { $_.FullName }
+}
+$pdfToPpmPath = Resolve-Executable `
+    -ExplicitPath $PdfToPpm `
+    -CommandName "pdftoppm" `
+    -FallbackPaths $popplerCandidates
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("tender-killer-ocr-" + [System.Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tempRoot | Out-Null
