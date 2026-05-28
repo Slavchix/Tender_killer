@@ -64,33 +64,51 @@ export function TenderDetailsTabs({
     { id: 'summary', label: 'Сводка' },
     { id: 'products', label: `Товары ${productProfiles.length || tender.items?.length || 0}` },
     { id: 'documents', label: `Документы ${documentRecords.length}` },
-    { id: 'analysis', label: 'Анализ' },
-    { id: 'economics', label: 'Экономика' },
     { id: 'workflow', label: 'Статус' },
+  ]
+  const workspaceActions = [
+    { id: 'analysis', label: 'Анализ ТЗ' },
+    { id: 'economics', label: 'Экономика' },
   ]
 
   function openTab(tabId) {
-    if (tabId === 'analysis' || tabId === 'economics') {
-      setWorkspaceMode(tabId)
-      return
-    }
     onActiveTabChange(tabId)
+  }
+
+  function openWorkspace(mode) {
+    setWorkspaceMode(mode)
   }
 
   return (
     <>
-      <nav className="detail-tabs" aria-label="Разделы карточки">
-        {tabs.map((tab) => (
-          <button
-            className={activeTab === tab.id ? 'active' : ''}
-            key={tab.id}
-            onClick={() => openTab(tab.id)}
-            type="button"
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+      <div className="detail-navigation">
+        <nav className="detail-tabs" aria-label="Разделы карточки">
+          {tabs.map((tab) => (
+            <button
+              className={activeTab === tab.id ? 'active' : ''}
+              key={tab.id}
+              onClick={() => openTab(tab.id)}
+              type="button"
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="detail-workspace-launchers" aria-label="Рабочие области тендера">
+          {workspaceActions.map((action) => (
+            <button
+              aria-haspopup="dialog"
+              className={workspaceMode === action.id ? 'active' : ''}
+              key={action.id}
+              onClick={() => openWorkspace(action.id)}
+              type="button"
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="detail-tab-panel">
         {activeTab === 'summary' && (
@@ -100,7 +118,10 @@ export function TenderDetailsTabs({
             analysis={analysis}
             productProfiles={productProfiles}
             documents={documentRecords}
-            onOpenTab={openTab}
+            onOpenTab={(tabId) => {
+              if (tabId === 'analysis' || tabId === 'economics') openWorkspace(tabId)
+              else openTab(tabId)
+            }}
           />
         )}
 
@@ -123,52 +144,6 @@ export function TenderDetailsTabs({
             extracting={extracting}
             onDownload={onDownloadDocuments}
             onExtract={onExtractDocumentText}
-          />
-        )}
-
-        {activeTab === 'analysis' && (
-          <TenderAnalysisTab
-            analysis={analysis}
-            analyzing={analyzing}
-            onAnalyze={onAnalyzeTender}
-            reportHref={reportHref}
-            documents={documentRecords}
-          />
-        )}
-
-        {activeTab === 'economics' && (
-          <TenderEconomicsTab
-            tender={tender}
-            economics={economics}
-            productProfiles={productProfiles}
-            selectedEconomicsProfileIndex={selectedProfileIndex}
-            onSelectedEconomicsProfileChange={onSelectedProfileIndexChange}
-            onEconomicsSave={onEconomicsSave}
-            onEconomicsAssumptionsSave={onEconomicsAssumptionsSave}
-            onSupplierOptionSave={onSupplierOptionSave}
-            onSupplierOptionSelect={onSupplierOptionSelect}
-            onSupplierOptionAutoSelect={onSupplierOptionAutoSelect}
-            onSupplierDiscoveryImport={onSupplierDiscoveryImport}
-            onSupplierSearchPrepare={onSupplierSearchPrepare}
-            onSupplierCatalogPresetsSave={onSupplierCatalogPresetsSave}
-            onSupplierDiscoveryRun={onSupplierDiscoveryRun}
-            onSupplierUrlDiscoveryRun={onSupplierUrlDiscoveryRun}
-            onAutoEconomicsRun={onAutoEconomicsRun}
-            onAutoEconomicsAccept={onAutoEconomicsAccept}
-            savingEconomicsPosition={savingEconomicsPosition}
-            savingAssumptionsPosition={savingAssumptionsPosition}
-            savingSupplierOptionPosition={savingSupplierOptionPosition}
-            importingSupplierCandidatePosition={importingSupplierCandidatePosition}
-            preparingSupplierSearchPosition={preparingSupplierSearchPosition}
-            savingSupplierCatalogPresetPosition={savingSupplierCatalogPresetPosition}
-            discoveringSupplierPosition={discoveringSupplierPosition}
-            autoSelectingSupplierPosition={autoSelectingSupplierPosition}
-            autoEstimatingPosition={autoEstimatingPosition}
-            acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
-            supplierCatalogHealth={supplierCatalogHealth}
-            supplierCatalogHealthLoading={supplierCatalogHealthLoading}
-            supplierCatalogHealthError={supplierCatalogHealthError}
-            onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
           />
         )}
 

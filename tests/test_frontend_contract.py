@@ -818,6 +818,8 @@ def test_tender_details_render_economics_summary():
     source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
 
     assert "{ id: 'economics', label: 'Экономика' }" in tabs_source
+    assert "const workspaceActions = [" in tabs_source
+    assert "workspaceMode === 'economics'" in tabs_source
     assert "<EconomicsSummary economics={economics} tender={tender} />" in source
     assert "function EconomicsSummary" in source
     assert "economicsStatusLabel" in source
@@ -1366,8 +1368,10 @@ def test_analysis_and_economics_open_in_fullscreen_workspace():
     assert "from './TenderFullscreenWorkspace'" in tabs_source
     assert "const [workspaceMode, setWorkspaceMode]" in tabs_source
     assert "function openTab(tabId)" in tabs_source
-    assert "tabId === 'analysis' || tabId === 'economics'" in tabs_source
-    assert "onOpenTab={openTab}" in tabs_source
+    assert "function openWorkspace(mode)" in tabs_source
+    assert "workspaceActions.map" in tabs_source
+    assert "onClick={() => openWorkspace(action.id)}" in tabs_source
+    assert "openWorkspace(tabId)" in tabs_source
     assert "<TenderFullscreenWorkspace" in tabs_source
     assert "workspaceMode === 'analysis'" in tabs_source
     assert "workspaceMode === 'economics'" in tabs_source
@@ -1380,6 +1384,19 @@ def test_analysis_and_economics_open_in_fullscreen_workspace():
     assert ".fullscreen-workspace-body .economics-workspace-grid" in styles_source
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
     assert find_mojibake(workspace_source, TENDER_FULLSCREEN_WORKSPACE_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_analysis_and_economics_are_workspace_launchers_not_inline_tabs():
+    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "const workspaceActions = [" in tabs_source
+    assert "onClick={() => openWorkspace(action.id)}" in tabs_source
+    assert "activeTab === 'analysis'" not in tabs_source
+    assert "activeTab === 'economics'" not in tabs_source
+    assert ".detail-workspace-launchers" in styles_source
+    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 

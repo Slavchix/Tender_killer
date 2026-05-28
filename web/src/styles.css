@@ -1381,15 +1381,30 @@ textarea:focus {
   gap: 6px;
 }
 
-.detail-tabs {
+.detail-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
+.detail-tabs,
+.detail-workspace-launchers {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding-bottom: 2px;
   overflow-x: visible;
 }
 
-.detail-tabs button {
+.detail-workspace-launchers {
+  justify-content: flex-end;
+}
+
+.detail-tabs button,
+.detail-workspace-launchers button {
   flex: 0 1 auto;
   min-height: 34px;
   padding: 0 10px;
@@ -1402,7 +1417,13 @@ textarea:focus {
   cursor: pointer;
 }
 
-.detail-tabs button.active {
+.detail-workspace-launchers button {
+  color: #d6f5dd;
+  border-color: #43634f;
+}
+
+.detail-tabs button.active,
+.detail-workspace-launchers button.active {
   color: #0d160f;
   background: #6edc61;
   border-color: #6edc61;
