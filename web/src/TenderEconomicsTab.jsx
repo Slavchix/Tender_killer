@@ -9,6 +9,7 @@ import {
   formatQuantity,
   marketStateCaption,
   marketStateValue,
+  nmcPriceValue,
   participantBidValue,
   profileStatusLabel,
   supplierAvailabilityLabel,
@@ -58,9 +59,9 @@ export function TenderEconomicsTab({
   supplierCatalogHealthError = '',
   onSupplierCatalogHealthRefresh,
 }) {
-  const missingInputs = economics?.missing_cost_inputs?.length || 0
-  const displayedRevenue = economics?.revenue ?? tender?.price
   const marketState = economics?.market_state || tender?.market_state
+  const missingInputs = economics?.missing_cost_inputs?.length || 0
+  const displayedRevenue = economics?.revenue ?? marketState?.nmc_price ?? tender?.price
   const revenueLabel = economics?.revenue_kind === 'current_offer' ? 'Цена участника' : 'НМЦК'
   const profiles = productProfiles || []
   const selectedEconomicsProfile = profiles[selectedEconomicsProfileIndex] || profiles[0] || null
@@ -93,7 +94,7 @@ export function TenderEconomicsTab({
       </div>
       <div className="economics-tab-summary tab-summary-grid" aria-label="Сводка экономики">
         <SummaryMetric value={economics ? economicsStatusLabel(economics.status) : 'не рассчитана'} label="статус" />
-        <SummaryMetric value={formatMoney(tender?.price)} label="НМЦК" />
+        <SummaryMetric value={nmcPriceValue(tender, marketState)} label="НМЦК" />
         <SummaryMetric value={participantBidValue(economics?.market_state || tender?.market_state)} label="ставка участника" />
         <SummaryMetric value={marketStateValue(economics?.market_state || tender?.market_state)} label="рынок" />
         <SummaryMetric value={formatMoney(displayedRevenue)} label={revenueLabel} />
@@ -216,7 +217,7 @@ function EconomicsSummary({ economics, tender }) {
       <ParticipationDecisionCard decision={participationDecision} />
       <BidScenarioStrip scenarios={bidScenarios} />
       <div className="economics-grid">
-        <Info label="НМЦК" value={formatMoney(economics.nmc_price ?? tender?.price)} />
+        <Info label="НМЦК" value={nmcPriceValue(tender, marketState)} />
         <Info label="Ставка участника" value={participantBidValue(marketState)} />
         <Info label={revenueLabel === 'Цена участника' ? 'Расчет от ставки' : 'Расчет от НМЦК'} value={formatMoney(economics.revenue)} />
         <Info label="Рынок" value={`${marketStateValue(marketState)} · ${marketStateCaption(economics?.market_state || tender?.market_state)}`} />

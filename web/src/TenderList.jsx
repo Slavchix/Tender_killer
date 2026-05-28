@@ -1,6 +1,6 @@
 import { CalendarClock, CircleDollarSign, FileText, Scale, Users } from 'lucide-react'
 import { sourceLabels, workflowLabels } from './constants'
-import { economicsDecisionLabel, formatDate, formatMoney, marketStateValue } from './formatters'
+import { economicsDecisionLabel, formatDate, marketStateValue, nmcPriceValue } from './formatters'
 import { PaginationBar } from './PaginationBar'
 
 export function TenderList({
@@ -91,7 +91,7 @@ function TenderListItem({ isSelected, onTenderSelect, tender }) {
         <span>{tender.customer || 'Заказчик не указан'}</span>
       </div>
       <div className="row-meta">
-        <span><CircleDollarSign size={15} /> {formatMoney(tender.price)}</span>
+        <span><CircleDollarSign size={15} /> {nmcPriceValue(tender)}</span>
         <span><Users size={15} /> {marketStateValue(tender.market_state)}</span>
         <span><Scale size={15} /> {tender.law || 'закон не указан'}</span>
         <span><CalendarClock size={15} /> {formatDate(tender.deadline_at)}</span>

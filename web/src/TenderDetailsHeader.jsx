@@ -1,6 +1,6 @@
 import { Building2 } from 'lucide-react'
 import { sourceLabels, workflowLabels } from './constants'
-import { formatDate, formatMoney } from './formatters'
+import { formatDate, nmcPriceValue, participantBidValue } from './formatters'
 
 export function TenderDetailsHeader({ tender }) {
   return (
@@ -14,7 +14,8 @@ export function TenderDetailsHeader({ tender }) {
       <h2>{tender.title}</h2>
       <div className="detail-pills">
         <span>{sourceLabels[tender.source] || tender.source}</span>
-        <span>{formatMoney(tender.price)}</span>
+        <span>{nmcPriceValue(tender)}</span>
+        <span>{participantBidValue(tender.market_state)}</span>
         <span>{formatDate(tender.deadline_at)}</span>
       </div>
     </div>

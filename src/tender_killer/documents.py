@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
+import shlex
+import subprocess
 import zlib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
@@ -30,6 +34,9 @@ class ExtractedDocument:
     text: str
     status: str
     warnings: tuple[str, ...] = field(default_factory=tuple)
+
+
+PdfOcrRunner = Callable[[Path], tuple[str, tuple[str, ...]]]
 
 
 class DocumentDownloader:
@@ -64,6 +71,9 @@ class DocumentDownloader:
 
 
 class DocumentTextExtractor:
+    def __init__(self, ocr_runner: PdfOcrRunner | None = None) -> None:
+        self.ocr_runner = ocr_runner or _ocr_runner_from_environment()
+
     def extract(self, path: str | Path) -> ExtractedDocument:
         document_path = Path(path)
         try:
@@ -74,6 +84,13 @@ class DocumentTextExtractor:
         cleaned = _clean_text(text)
         if cleaned:
             return ExtractedDocument(document_path, cleaned, "ok", tuple(warnings))
+        if document_path.suffix.lower() == ".pdf" and self.ocr_runner and not _is_unsupported_document(warnings):
+            ocr_text, ocr_warnings = self._extract_pdf_ocr(document_path)
+            ocr_cleaned = _clean_text(ocr_text)
+            combined_warnings = tuple([*warnings, *ocr_warnings])
+            if ocr_cleaned:
+                return ExtractedDocument(document_path, ocr_cleaned, "ok", combined_warnings)
+            warnings.extend(ocr_warnings)
         if _is_unsupported_document(warnings):
             return ExtractedDocument(document_path, "", "unsupported", tuple(warnings))
         return ExtractedDocument(
@@ -111,6 +128,14 @@ class DocumentTextExtractor:
             return _strip_html(_decode_text(data)), []
         return "", [f"Unsupported document type for {name}"]
 
+    def _extract_pdf_ocr(self, path: Path) -> tuple[str, tuple[str, ...]]:
+        if not self.ocr_runner:
+            return "", ()
+        try:
+            return self.ocr_runner(path)
+        except Exception as exc:  # noqa: BLE001 - OCR is optional and must not break extraction.
+            return "", (f"OCR fallback failed: {exc}",)
+
 
 class TenderDocumentProcessor:
     def __init__(self, downloader: DocumentDownloader, extractor: DocumentTextExtractor) -> None:
@@ -147,6 +172,59 @@ def _write_manifest(target_dir: Path, tender: Tender, documents: list[Downloaded
         json.dumps(manifest, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+def _ocr_runner_from_environment() -> PdfOcrRunner | None:
+    command = os.environ.get("TENDER_KILLER_PDF_OCR_COMMAND", "").strip()
+    if not command:
+        return None
+    timeout = _float_env("TENDER_KILLER_PDF_OCR_TIMEOUT_SECONDS", 120.0)
+    return _PdfOcrCommandRunner(command, timeout_seconds=timeout)
+
+
+def _float_env(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, ""))
+    except ValueError:
+        return default
+
+
+class _PdfOcrCommandRunner:
+    def __init__(self, command: str, timeout_seconds: float) -> None:
+        self.command = command
+        self.timeout_seconds = timeout_seconds
+
+    def __call__(self, path: Path) -> tuple[str, tuple[str, ...]]:
+        args = self._args(path)
+        completed = subprocess.run(
+            args,
+            capture_output=True,
+            check=False,
+            timeout=self.timeout_seconds,
+        )
+        warnings = [f"OCR fallback used: {Path(args[0]).name}."]
+        if completed.returncode:
+            stderr = _decode_text(completed.stderr).strip()
+            detail = f": {stderr[:400]}" if stderr else ""
+            return "", (f"OCR fallback failed with exit code {completed.returncode}{detail}",)
+        stderr = _decode_text(completed.stderr).strip()
+        if stderr:
+            warnings.append(stderr[:400])
+        return _decode_text(completed.stdout), tuple(warnings)
+
+    def _args(self, path: Path) -> list[str]:
+        parts = shlex.split(self.command, posix=os.name != "nt")
+        uses_path_template = any("{path}" in part for part in parts)
+        args = [_strip_wrapping_quotes(part.replace("{path}", str(path))) for part in parts]
+        if not uses_path_template:
+            args.append(str(path))
+        return args
+
+
+def _strip_wrapping_quotes(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        return value[1:-1]
+    return value
 
 
 def _filename_from_url(url: str, content_type: str | None, index: int) -> str:

@@ -1,6 +1,6 @@
 import { Bell, FileText, RefreshCcw } from 'lucide-react'
 import { sourceLabels } from './constants'
-import { economicsDecisionLabel, formatDate, formatDateTime, formatMoney, participantBidValue } from './formatters'
+import { economicsDecisionLabel, formatDate, formatDateTime, formatMoney, hasParticipantBid, nmcPriceValue, participantBidValue } from './formatters'
 
 function Metric({ label, value, tone }) {
   return (
@@ -12,7 +12,7 @@ function Metric({ label, value, tone }) {
 }
 
 export function DashboardView({ tenderPage, stats, workflowCounts, sources, sourceStatusError, searchSummary, error, onRefreshSources, onOpenTenders, tenders }) {
-  const currentOfferCount = (tenders || []).filter((tender) => Number.isFinite(Number(tender.market_state?.current_offer_price))).length
+  const currentOfferCount = (tenders || []).filter((tender) => hasParticipantBid(tender.market_state)).length
   const noParticipantsCount = (tenders || []).filter((tender) => tender.market_state?.status === 'no_participants').length
   const economicsReadyCount = (tenders || []).filter((tender) => tender.economics?.participation_decision).length
   const marketMetric = currentOfferCount ? `${currentOfferCount} с ценой` : (noParticipantsCount ? `${noParticipantsCount} без участников` : 'нет данных')
@@ -113,7 +113,7 @@ function DashboardTenderPreview({ tenders, onOpenTenders }) {
 }
 
 function dashboardTenderLine(tender) {
-  return `${sourceLabels[tender.source] || tender.source} · НМЦК ${formatMoney(tender.price)} · ставка ${participantBidValue(tender.market_state)} · ${economicsDecisionLabel(tender.economics)} · ${formatDate(tender.deadline_at)}`
+  return `${sourceLabels[tender.source] || tender.source} · НМЦК ${nmcPriceValue(tender)} · ставка ${participantBidValue(tender.market_state)} · ${economicsDecisionLabel(tender.economics)} · ${formatDate(tender.deadline_at)}`
 }
 
 function SourceStatusPanel({ sources, error, onRefresh }) {

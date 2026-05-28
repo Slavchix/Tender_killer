@@ -7,6 +7,7 @@ import {
   formatPriceChangeDirection,
   formatSignedMoney,
   formatSignedPercent,
+  nmcPriceValue,
   participantBidValue,
   tenderDecisionNextStep,
 } from './formatters'
@@ -21,8 +22,8 @@ export function TenderDecisionSummary({ tender, economics }) {
   return (
     <section className="decision-summary" aria-label="Краткое решение по закупке">
       <div className="decision-summary-grid">
-        <Info label="НМЦК" value={formatMoney(tender.price)} />
-        <Info label="Ставка участника" value={participantBidValue(tender.market_state || economics?.market_state)} />
+        <Info label="НМЦК" value={nmcPriceValue(tender, economics?.market_state || tender.market_state)} />
+        <Info label="Ставка участника" value={participantBidValue(economics?.market_state || tender.market_state)} />
         <Info label="Срок" value={formatDate(tender.deadline_at)} />
         <Info label="Заказчик" value={tender.customer || 'не указан'} />
         <Info label="Экономика" value={economicsText} />

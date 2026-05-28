@@ -18,7 +18,7 @@ def extract_market_state(tender: dict[str, Any]) -> dict[str, Any]:
         if isinstance(raw_payload.get("__market_state_import"), dict)
         else {}
     )
-    nmc_price = _first_number(tender, raw_payload, detail, ("price", "InitialPrice", "startPrice", "startCost"))
+    nmc_price = _first_positive_number(tender, raw_payload, detail, ("price", "InitialPrice", "startPrice", "startCost"))
     source = str(tender.get("source") or "")
     participant_count = _participant_count(raw_payload, detail, imported)
     bid_count = _bid_count(raw_payload, detail, imported)
@@ -32,7 +32,7 @@ def extract_market_state(tender: dict[str, Any]) -> dict[str, Any]:
     )
     if price_source == "moscow_public_step_estimate" and (bid_count is None or bid_count == 0):
         bid_count = public_bid_count
-    next_bid_price = _first_number(imported, detail, raw_payload, ("nextCost", "auctionNextPrice", "next_bid_price"))
+    next_bid_price = _first_positive_number(imported, detail, raw_payload, ("nextCost", "auctionNextPrice", "next_bid_price"))
     last_offer_supplier = _last_offer_supplier(imported) or _last_offer_supplier(detail)
 
     if current_offer_price is not None:
@@ -120,12 +120,14 @@ def _bid_count(
             if value is not None:
                 count_values.append(value)
         participant_count = _int_value(imported.get("uniqueSupplierCount"))
-        if parse_float(imported.get("lastBetCost")) is not None:
+        if _positive_number(imported.get("lastBetCost")) is not None:
             count_values.append(max(1, participant_count or 1))
     for payload in (detail, raw_payload):
         bets = payload.get("bets")
         if isinstance(bets, list) and bets:
-            return len(bets)
+            priced_bets = _priced_bet_count(bets)
+            if priced_bets > 0:
+                return priced_bets
     for payload, keys in (
         (detail, ("bidCount", "betCount", "offerCount")),
         (raw_payload, ("bidCount", "betCount", "offerCount", "ApplicationsCount")),
@@ -139,7 +141,7 @@ def _bid_count(
     for payload in (detail, raw_payload):
         bets = payload.get("bets")
         if isinstance(bets, list):
-            return len(bets)
+            return _priced_bet_count(bets)
     return None
 
 
@@ -151,7 +153,7 @@ def _current_offer_price(
     source: str,
     public_bid_count: int | None,
 ) -> tuple[float | None, str | None]:
-    imported_price = parse_float(
+    imported_price = _positive_number(
         first_present(imported, "lastBetCost", "currentOfferPrice", "auctionCurrentPrice", "currentCost")
     )
     if imported_price is not None:
@@ -164,7 +166,7 @@ def _current_offer_price(
             value
             for bet in bets
             if isinstance(bet, dict)
-            for value in (parse_float(first_present(bet, "cost", "price", "amount")),)
+            for value in (_positive_number(first_present(bet, "cost", "price", "amount")),)
             if value is not None
         ]
         if len(bet_prices) > 1:
@@ -175,7 +177,7 @@ def _current_offer_price(
         ("auctionCurrentPrice", "moscow_current_price"),
         ("currentOfferPrice", "current_offer"),
     ):
-        value = parse_float(first_present(detail, key) or first_present(raw_payload, key))
+        value = _positive_number(first_present(detail, key) or first_present(raw_payload, key))
         if value is not None:
             return value, price_source
 
@@ -224,14 +226,14 @@ def _estimated_moscow_public_bid_price(
 ) -> float | None:
     if public_bid_count is None or public_bid_count <= 0:
         return None
-    start_price = _first_number(detail, raw_payload, {}, ("startCost", "startPrice", "price"))
+    start_price = _first_positive_number(detail, raw_payload, {}, ("startCost", "startPrice", "price"))
     if start_price is None:
         return None
     current_price = start_price * (1 - MOSCOW_PUBLIC_BID_STEP_RATIO * public_bid_count)
     return round(max(0.0, current_price), 2)
 
 
-def _first_number(
+def _first_positive_number(
     primary: dict[str, Any],
     secondary: dict[str, Any],
     tertiary: dict[str, Any],
@@ -239,10 +241,26 @@ def _first_number(
 ) -> float | None:
     for payload in (primary, secondary, tertiary):
         for key in keys:
-            value = parse_float(first_present(payload, key))
+            value = _positive_number(first_present(payload, key))
             if value is not None:
                 return value
     return None
+
+
+def _positive_number(value: Any) -> float | None:
+    number = parse_float(value)
+    if number is None or number <= 0:
+        return None
+    return number
+
+
+def _priced_bet_count(bets: list[Any]) -> int:
+    return sum(
+        1
+        for bet in bets
+        if isinstance(bet, dict)
+        and _positive_number(first_present(bet, "cost", "price", "amount")) is not None
+    )
 
 
 def _last_offer_supplier(detail: dict[str, Any]) -> str | None:

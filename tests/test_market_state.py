@@ -76,6 +76,31 @@ def test_extract_market_state_reports_participants_without_public_price() -> Non
     assert state["current_offer_price"] is None
 
 
+def test_extract_market_state_ignores_zero_bid_price_without_participants() -> None:
+    state = extract_market_state(
+        {
+            "source": "moscow_supplier_portal",
+            "price": 38970.0,
+            "raw_payload": {
+                "__detail": {
+                    "startCost": 38970.0,
+                    "lastBetCost": 0,
+                    "nextCost": 0,
+                    "uniqueSupplierCount": 0,
+                    "bets": [{"cost": 0}],
+                }
+            },
+        }
+    )
+
+    assert state["status"] == "no_participants"
+    assert state["participant_count"] == 0
+    assert state["bid_count"] == 0
+    assert state["current_offer_price"] is None
+    assert state["next_bid_price"] is None
+    assert state["price_source"] is None
+
+
 def test_extract_market_state_uses_lowest_moscow_bid_and_counts_bids() -> None:
     state = extract_market_state(
         {

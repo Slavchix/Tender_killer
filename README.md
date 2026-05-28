@@ -77,7 +77,8 @@ Recent architecture cleanup:
 - Public market state now tracks NMC, current/minimum public participant bid, participant count, and bid count where the source exposes them; tender cards, economics, lists, and dashboard surfaces use the same saved state from SQLite.
 - Local market-state import is available for authenticated Moscow bid snapshots: the operator can paste only the safe `GetBetUpdate` JSON response body into the tender card, and `POST /api/tenders/{source}/{external_id}/market-state/import` stores a sanitized subset under `raw_payload.__market_state_import`.
 - The market-state import endpoint rejects recursive sensitive keys such as `Authorization`, `Cookie`, `token`, `password`, and `secret`; Tender Killer still must not store portal passwords, bearer tokens, cookies, SMS codes, or ЭП credentials.
-- PDF text extraction now supports `/ToUnicode` CMaps and PDF `Tj`/`TJ` text tokens, so Moscow contract PDFs with embedded text layers extract readable Cyrillic instead of being marked as empty. True scanned image-only PDFs still need a future OCR fallback.
+- PDF text extraction now supports `/ToUnicode` CMaps and PDF `Tj`/`TJ` text tokens, so Moscow contract PDFs with embedded text layers extract readable Cyrillic instead of being marked as empty. True scanned image-only PDFs can use an optional local OCR command fallback without adding a mandatory OCR dependency.
+- `scripts/ocr-pdf.ps1` is the local OCR wrapper for scanned PDFs. Configure `TENDER_KILLER_PDF_OCR_COMMAND="powershell -NoProfile -ExecutionPolicy Bypass -File scripts\ocr-pdf.ps1 {path}"`; the wrapper uses OCRmyPDF when available, or Tesseract plus Poppler `pdftoppm`.
 - Runtime/UI text encoding is guarded by `tender_killer.encoding_guard`; `dev_smoke` reuses it to catch Cyrillic mojibake regressions.
 - Active tender lists now hide expired purchases by normalized active status plus `deadline_at >= datetime('now')`, so completed/old cards do not dominate the workbench.
 - The React frontend has been decomposed out of the former oversized `App.jsx` / `TenderDetails.jsx` surface. Current extracted modules include `api.js`, `constants.js`, `formatters.js`, `Dashboard.jsx`, `DatabaseView.jsx`, `FiltersPanel.jsx`, `TenderList.jsx`, `PaginationBar.jsx`, `TenderDetailActions.jsx`, `TenderDetailsHeader.jsx`, `TenderDetailsStatusStack.jsx`, `TenderDetailsTabs.jsx`, `TenderDetailsShared.jsx`, `TenderDecisionSummary.jsx`, `TenderOverviewTab.jsx`, `TenderDocumentsTab.jsx`, `TenderAnalysisTab.jsx`, `TenderWorkflowTab.jsx`, `TenderProductsTab.jsx`, and `TenderEconomicsTab.jsx`.
@@ -91,13 +92,13 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after local market-state import and PDF ToUnicode extraction: `394 passed`.
+Latest verified result after bid-state UX and optional PDF OCR fallback: `400 passed`.
 
 Good next steps:
 
-1. Tighten bid-state UX around the same SQLite-backed market-state payload: list, card, summary, economics, and dashboard should consistently show NMC, current/minimum participant bid, and bid count.
-2. Add OCR fallback for true scanned image-only PDFs while keeping the current `/ToUnicode` text-layer extractor as the fast path.
-3. Continue the workbench split: keep the tender card as the decision summary and use full-screen analysis/economics modes for deeper work.
+1. Install a real local OCR backend if needed: OCRmyPDF, or Tesseract plus Poppler `pdftoppm`, then validate scanned Moscow/MO PDFs through `scripts/ocr-pdf.ps1`.
+2. Continue the workbench split: keep the tender card as the decision summary and use full-screen analysis/economics modes for deeper work.
+3. Start the next product/economics UX slice after the current checkpoint is pushed.
 
 Личный инструмент, готовый к будущему SaaS-расширению: публично мониторит закупки Москвы и Московской области, сохраняет их в SQLite, фильтрует по профилям поиска и отправляет новые релевантные карточки в Telegram.
 

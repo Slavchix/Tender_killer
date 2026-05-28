@@ -120,3 +120,15 @@ def test_dev_web_script_runs_api_health_check_before_frontend():
     assert "tender_killer.dev_health" in script
     assert "capabilities" in script
     assert "Port 8000 is already in use" in script
+
+
+def test_ocr_pdf_script_wraps_local_ocr_backends_for_pdf_text_fallback():
+    script = Path("scripts/ocr-pdf.ps1").read_text(encoding="utf-8")
+
+    assert "TENDER_KILLER_PDF_OCR_COMMAND" in script
+    assert "ocrmypdf" in script
+    assert "tesseract" in script
+    assert "pdftoppm" in script
+    assert "OCR backend not found" in script
+    assert "Fail-Ocr" in script
+    assert "[Console]::OutputEncoding" in script

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from io import BytesIO
 from zipfile import ZipFile
 
@@ -146,6 +147,81 @@ def test_pdf_extractor_reads_simple_literal_text(tmp_path):
 
     assert result.status == "ok"
     assert "Delivery within 5 days" in result.text
+
+
+def test_pdf_extractor_keeps_text_layer_as_fast_path_without_ocr(tmp_path):
+    path = tmp_path / "contract.pdf"
+    path.write_bytes(b"%PDF-1.4\n1 0 obj\nstream\nBT (Readable contract text) Tj ET\nendstream\nendobj\n%%EOF")
+
+    def forbidden_ocr_runner(_path):
+        raise AssertionError("OCR must not run for PDFs with a readable text layer")
+
+    result = DocumentTextExtractor(ocr_runner=forbidden_ocr_runner).extract(path)
+
+    assert result.status == "ok"
+    assert "Readable contract text" in result.text
+
+
+def test_pdf_extractor_uses_ocr_fallback_for_scanned_pdf_when_configured(tmp_path):
+    path = tmp_path / "scanned-contract.pdf"
+    path.write_bytes(
+        b"%PDF-1.4\n"
+        b"1 0 obj\n<< /Subtype /Image /Width 20 /Height 20 /ColorSpace /DeviceGray >>\nendobj\n"
+        b"%%EOF"
+    )
+
+    def fake_ocr_runner(received_path):
+        assert received_path == path
+        return "Государственный контракт\nПоставка смартфонов", ("OCR fallback used.",)
+
+    result = DocumentTextExtractor(ocr_runner=fake_ocr_runner).extract(path)
+
+    assert result.status == "ok"
+    assert "Государственный контракт" in result.text
+    assert "OCR fallback used." in result.warnings
+
+
+def test_pdf_extractor_reads_ocr_command_from_environment(monkeypatch, tmp_path):
+    path = tmp_path / "scanned-contract.pdf"
+    path.write_bytes(b"%PDF-1.4\n1 0 obj\n<< /Subtype /Image >>\nendobj\n%%EOF")
+    ocr_script = tmp_path / "fake_ocr.py"
+    ocr_script.write_text(
+        "from pathlib import Path\n"
+        "import sys\n"
+        "assert Path(sys.argv[1]).name == 'scanned-contract.pdf'\n"
+        "print('Распознанный контракт')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TENDER_KILLER_PDF_OCR_COMMAND", f"{sys.executable} {ocr_script}")
+
+    result = DocumentTextExtractor().extract(path)
+
+    assert result.status == "ok"
+    assert "Распознанный контракт" in result.text
+    assert any("OCR fallback used" in warning for warning in result.warnings)
+
+
+def test_pdf_ocr_command_supports_quoted_windows_paths(monkeypatch, tmp_path):
+    path = tmp_path / "scanned contract.pdf"
+    path.write_bytes(b"%PDF-1.4\n1 0 obj\n<< /Subtype /Image >>\nendobj\n%%EOF")
+    script_dir = tmp_path / "ocr tools"
+    script_dir.mkdir()
+    ocr_script = script_dir / "fake ocr.py"
+    ocr_script.write_text(
+        "import sys\n"
+        "assert sys.argv[1].endswith('scanned contract.pdf')\n"
+        "print('OCR text from quoted path')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(
+        "TENDER_KILLER_PDF_OCR_COMMAND",
+        f'"{sys.executable}" "{ocr_script}" {{path}}',
+    )
+
+    result = DocumentTextExtractor().extract(path)
+
+    assert result.status == "ok"
+    assert "OCR text from quoted path" in result.text
 
 
 def test_pdf_extractor_reads_tounicode_cmap_text(tmp_path):

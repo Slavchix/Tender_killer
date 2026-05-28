@@ -58,22 +58,34 @@ export function shouldAutoRefreshDetails(tender) {
   return ['mosreg_market', 'moscow_supplier_portal'].includes(tender.source)
 }
 
+function finiteNumber(value) {
+  if (value === null || value === undefined || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
+function positiveNumber(value) {
+  const number = finiteNumber(value)
+  return number !== null && number > 0 ? number : null
+}
+
 export function formatMoney(value) {
+  if (value === null || value === undefined || value === '') return 'не указана'
   const number = Number(value)
   if (!Number.isFinite(number)) return 'не указана'
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(number)
 }
 
 export function formatSignedMoney(value) {
-  const number = Number(value)
-  if (!Number.isFinite(number)) return 'не указана'
+  const number = finiteNumber(value)
+  if (number === null) return 'не указана'
   const sign = number > 0 ? '+' : ''
   return `${sign}${formatMoney(number)}`
 }
 
 export function formatSignedPercent(value) {
-  const number = Number(value)
-  if (!Number.isFinite(number)) return 'не указано'
+  const number = finiteNumber(value)
+  if (number === null) return 'не указано'
   const sign = number > 0 ? '+' : ''
   return `${sign}${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(number)}%`
 }
@@ -91,8 +103,8 @@ export function formatPriceChangeDirection(change) {
 }
 
 export function formatAmount(quantity, unit) {
-  const number = Number(quantity)
-  const amount = Number.isFinite(number)
+  const number = finiteNumber(quantity)
+  const amount = number !== null
     ? new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 4 }).format(number)
     : 'не указано'
   return unit ? `${amount} ${unit}` : amount
@@ -115,8 +127,8 @@ export function profileStatusLabel(status) {
 }
 
 export function formatConfidence(value) {
-  const number = Number(value)
-  if (!Number.isFinite(number)) return 'не указана'
+  const number = finiteNumber(value)
+  if (number === null) return 'не указана'
   return `${Math.round(number * 100)}%`
 }
 
@@ -145,10 +157,10 @@ export function economicsDecisionLabel(economics) {
 }
 
 export function marketStateValue(marketState) {
-  const currentOffer = Number(marketState?.current_offer_price)
+  const currentOffer = positiveNumber(marketState?.current_offer_price)
   const bidCount = Number(marketState?.bid_count)
   const bidText = formatBidCount(bidCount)
-  if (Number.isFinite(currentOffer)) return bidText ? `${formatMoney(currentOffer)} · ${bidText}` : formatMoney(currentOffer)
+  if (currentOffer !== null) return bidText ? `${formatMoney(currentOffer)} · ${bidText}` : formatMoney(currentOffer)
   const participantCount = Number(marketState?.participant_count)
   if (Number.isFinite(bidCount) && bidCount > 0) return `${bidText}, цена скрыта`
   if (marketState?.status === 'no_participants' || participantCount === 0) return 'участников нет'
@@ -157,21 +169,21 @@ export function marketStateValue(marketState) {
 }
 
 export function participantBidValue(marketState) {
-  const currentOffer = Number(marketState?.current_offer_price)
+  const currentOffer = positiveNumber(marketState?.current_offer_price)
   const bidCount = Number(marketState?.bid_count)
   const bidText = formatBidCount(bidCount)
-  if (Number.isFinite(currentOffer)) return bidText ? `${formatMoney(currentOffer)} · ${bidText}` : formatMoney(currentOffer)
+  if (currentOffer !== null) return bidText ? `${formatMoney(currentOffer)} · ${bidText}` : formatMoney(currentOffer)
   const participantCount = Number(marketState?.participant_count)
   if (Number.isFinite(bidCount) && bidCount > 0) return `цена скрыта · ${bidText}`
   if (marketState?.status === 'no_participants' || participantCount === 0) return 'участников нет'
-  if (Number.isFinite(participantCount) && participantCount > 0) return 'цена скрыта'
+  if (Number.isFinite(participantCount) && participantCount > 0) return `${participantCount} участн., цена скрыта`
   return 'нет данных'
 }
 
 export function marketStateCaption(marketState) {
   const participantCount = Number(marketState?.participant_count)
   const bidCount = Number(marketState?.bid_count)
-  if (Number.isFinite(Number(marketState?.current_offer_price))) {
+  if (positiveNumber(marketState?.current_offer_price) !== null) {
     if (Number.isFinite(bidCount) && bidCount > 0) {
       return bidCount > 1 ? `минимальная из ${formatBidCount(bidCount)}` : formatBidCount(bidCount)
     }
@@ -180,6 +192,14 @@ export function marketStateCaption(marketState) {
   if (marketState?.status === 'no_participants' || participantCount === 0) return 'ставок нет'
   if (Number.isFinite(participantCount) && participantCount > 0) return 'участники есть, цена не раскрыта'
   return 'рыночных данных нет'
+}
+
+export function hasParticipantBid(marketState) {
+  return positiveNumber(marketState?.current_offer_price) !== null
+}
+
+export function nmcPriceValue(tender, marketState = tender?.market_state) {
+  return formatMoney(positiveNumber(marketState?.nmc_price) ?? positiveNumber(tender?.price))
 }
 
 function formatBidCount(value) {
@@ -265,8 +285,8 @@ export function costDriverLabel(type) {
 }
 
 export function formatPercent(value) {
-  const number = Number(value)
-  if (!Number.isFinite(number)) return 'не указано'
+  const number = finiteNumber(value)
+  if (number === null) return 'не указано'
   return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(number)}%`
 }
 

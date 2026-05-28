@@ -473,7 +473,8 @@ def test_tender_details_uses_dedicated_header_module():
     assert "from './TenderDetailsHeader'" in tender_details_source
     assert "export function TenderDetailsHeader" in header_source
     assert "Building2" in header_source
-    assert "formatMoney" in header_source
+    assert "nmcPriceValue" in header_source
+    assert "participantBidValue" in header_source
     assert "formatDate" in header_source
     assert "sourceLabels" in header_source
     assert "workflowLabels" in header_source
@@ -481,7 +482,8 @@ def test_tender_details_uses_dedicated_header_module():
     assert "<TenderDetailsHeader tender={tender} />" in tender_details_source
     assert "details-header" not in tender_details_source
     assert "Building2" not in tender_details_source
-    assert "formatMoney" not in tender_details_source
+    assert "nmcPriceValue" not in tender_details_source
+    assert "participantBidValue" not in tender_details_source
     assert "formatDate" not in tender_details_source
     assert "sourceLabels" not in tender_details_source
     assert "workflowLabels" not in tender_details_source
@@ -1440,7 +1442,7 @@ def test_economics_tab_uses_tender_price_before_manual_calculation():
     app_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
 
     assert "export function TenderEconomicsTab({" in app_source
-    assert "const displayedRevenue = economics?.revenue ?? tender?.price" in app_source
+    assert "const displayedRevenue = economics?.revenue ?? marketState?.nmc_price ?? tender?.price" in app_source
     assert "const revenueLabel = economics?.revenue_kind === 'current_offer'" in app_source
     assert "<SummaryMetric value={formatMoney(displayedRevenue)} label={revenueLabel} />" in app_source
     assert "НМЦК подтянута из карточки закупки" in app_source
@@ -1482,6 +1484,11 @@ def test_frontend_formats_market_state_for_tender_surfaces():
 
     assert "export function marketStateValue" in formatter_source
     assert "export function participantBidValue" in formatter_source
+    assert "export function nmcPriceValue" in formatter_source
+    assert "export function hasParticipantBid" in formatter_source
+    assert "function positiveNumber" in formatter_source
+    assert "if (value === null || value === undefined || value === '') return 'не указана'" in formatter_source
+    assert "const currentOffer = positiveNumber(marketState?.current_offer_price)" in formatter_source
     assert "marketState?.bid_count" in formatter_source
     assert "function formatBidCount" in formatter_source
     assert "минимальная из ${formatBidCount(bidCount)}" in formatter_source
@@ -1495,6 +1502,7 @@ def test_tender_list_surfaces_market_state_and_economics_decision():
     source = TENDER_LIST_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
+    assert "nmcPriceValue" in source
     assert "marketStateValue(tender.market_state)" in source
     assert "economicsDecisionLabel(tender.economics)" in source
     assert "economics-chip" in source
@@ -1507,11 +1515,12 @@ def test_dashboard_surfaces_current_offers_and_saved_economics():
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "currentOfferCount" in dashboard_source
+    assert "hasParticipantBid(tender.market_state)" in dashboard_source
     assert "marketMetric" in dashboard_source
     assert "economicsReadyCount" in dashboard_source
     assert "economicsDecisionLabel(tender.economics)" in dashboard_source
     assert "participantBidValue(tender.market_state)" in dashboard_source
-    assert "НМЦК ${formatMoney(tender.price)}" in dashboard_source
+    assert "НМЦК ${nmcPriceValue(tender)}" in dashboard_source
     assert "ставка ${participantBidValue(tender.market_state)}" in dashboard_source
     assert "repeat(auto-fit, minmax(180px, 1fr))" in styles_source
     assert find_mojibake(dashboard_source, DASHBOARD_SOURCE) == []
@@ -1521,7 +1530,8 @@ def test_economics_summary_labels_current_offer_revenue():
     source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
 
     assert "economics?.revenue_kind === 'current_offer' ? 'Цена участника' : 'НМЦК'" in source
-    assert '<SummaryMetric value={formatMoney(tender?.price)} label="НМЦК" />' in source
+    assert '<SummaryMetric value={nmcPriceValue(tender, marketState)} label="НМЦК" />' in source
+    assert '<Info label="НМЦК" value={nmcPriceValue(tender, marketState)} />' in source
     assert '<SummaryMetric value={participantBidValue(economics?.market_state || tender?.market_state)} label="ставка участника" />' in source
     assert "marketStateValue(economics?.market_state || tender?.market_state)" in source
     assert "marketStateCaption(economics?.market_state || tender?.market_state)" in source
@@ -1532,9 +1542,9 @@ def test_tender_card_surfaces_participant_bid_next_to_nmc():
     summary_source = TENDER_DECISION_SUMMARY_SOURCE.read_text(encoding="utf-8")
     strip_source = TENDER_DECISION_STRIP_SOURCE.read_text(encoding="utf-8")
 
-    assert 'Info label="НМЦК" value={formatMoney(tender.price)}' in summary_source
-    assert 'Info label="Ставка участника" value={participantBidValue(tender.market_state || economics?.market_state)}' in summary_source
-    assert 'SummaryMetric value={formatMoney(tender.price)} label="НМЦК"' in strip_source
+    assert 'Info label="НМЦК" value={nmcPriceValue(tender, economics?.market_state || tender.market_state)}' in summary_source
+    assert 'Info label="Ставка участника" value={participantBidValue(economics?.market_state || tender.market_state)}' in summary_source
+    assert 'SummaryMetric value={nmcPriceValue(tender, economics?.market_state || tender.market_state)} label="НМЦК"' in strip_source
     assert 'SummaryMetric value={participantBidValue(economics?.market_state || tender.market_state)} label="ставка участника"' in strip_source
     assert find_mojibake(summary_source, TENDER_DECISION_SUMMARY_SOURCE) == []
     assert find_mojibake(strip_source, TENDER_DECISION_STRIP_SOURCE) == []
