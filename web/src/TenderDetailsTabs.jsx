@@ -14,131 +14,19 @@ export function TenderDetailsTabs({
 }) {
   const [workspaceMode, setWorkspaceMode] = useState(null)
   const { activeTab, onActiveTabChange } = tabState
-  const {
-    productProfiles,
-    productProfileSummary,
-    selectedProfileIndex,
-    onSelectedProfileIndexChange,
-    profilesLoading,
-    onRebuildProductProfiles,
-  } = productState
-  const {
-    documentRecords,
-    downloading,
-    extracting,
-    onDownloadDocuments,
-    onExtractDocumentText,
-  } = documentState
-  const {
-    analysis,
-    analyzing,
-    onAnalyzeTender,
-  } = analysisState
-  const {
-    economics,
-    onEconomicsSave,
-    onEconomicsAssumptionsSave,
-    onSupplierOptionSave,
-    onSupplierOptionSelect,
-    onSupplierOptionAutoSelect,
-    onSupplierDiscoveryImport,
-    onSupplierSearchPrepare,
-    onSupplierCatalogPresetsSave,
-    onSupplierDiscoveryRun,
-    onSupplierUrlDiscoveryRun,
-    onAutoEconomicsRun,
-    onAutoEconomicsAccept,
-    savingEconomicsPosition,
-    savingAssumptionsPosition,
-    savingSupplierOptionPosition,
-    importingSupplierCandidatePosition,
-    preparingSupplierSearchPosition,
-    savingSupplierCatalogPresetPosition,
-    discoveringSupplierPosition,
-    autoSelectingSupplierPosition,
-    autoEstimatingPosition,
-    acceptingAutoEconomicsPosition,
-    supplierCatalogHealth,
-    supplierCatalogHealthLoading,
-    supplierCatalogHealthError,
-    onSupplierCatalogHealthRefresh,
-  } = economicsState
-  const {
-    raw,
-    note,
-    saving,
-    onNoteChange,
-    onSaveWorkflow,
-  } = workflowState
+  const { productProfiles } = productState
+  const { documentRecords } = documentState
   const tabs = [
     { id: 'summary', label: 'Сводка' },
-    { id: 'products', label: `Товары ${productProfiles.length || tender.items?.length || 0}` },
     { id: 'documents', label: `Документы ${documentRecords.length}` },
     { id: 'workflow', label: 'Статус' },
   ]
   const workspaceActions = [
+    { id: 'products', label: `Товары ${productProfiles.length || tender.items?.length || 0}` },
     { id: 'analysis', label: 'Анализ ТЗ' },
     { id: 'economics', label: 'Экономика' },
   ]
-  const workspaceProps = {
-    tender,
-    documentRecords,
-    analysis,
-    analyzing,
-    onAnalyzeTender,
-    economics,
-    productProfiles,
-    selectedProfileIndex,
-    onSelectedProfileIndexChange,
-    onEconomicsSave,
-    onEconomicsAssumptionsSave,
-    onSupplierOptionSave,
-    onSupplierOptionSelect,
-    onSupplierOptionAutoSelect,
-    onSupplierDiscoveryImport,
-    onSupplierSearchPrepare,
-    onSupplierCatalogPresetsSave,
-    onSupplierDiscoveryRun,
-    onSupplierUrlDiscoveryRun,
-    onAutoEconomicsRun,
-    onAutoEconomicsAccept,
-    savingEconomicsPosition,
-    savingAssumptionsPosition,
-    savingSupplierOptionPosition,
-    importingSupplierCandidatePosition,
-    preparingSupplierSearchPosition,
-    savingSupplierCatalogPresetPosition,
-    discoveringSupplierPosition,
-    autoSelectingSupplierPosition,
-    autoEstimatingPosition,
-    acceptingAutoEconomicsPosition,
-    supplierCatalogHealth,
-    supplierCatalogHealthLoading,
-    supplierCatalogHealthError,
-    onSupplierCatalogHealthRefresh,
-  }
-  const tabPanelProps = {
-    activeTab,
-    tender,
-    raw,
-    productProfiles,
-    productProfileSummary,
-    selectedProfileIndex,
-    onSelectedProfileIndexChange,
-    profilesLoading,
-    onRebuildProductProfiles,
-    documentRecords,
-    downloading,
-    extracting,
-    onDownloadDocuments,
-    onExtractDocumentText,
-    analysis,
-    economics,
-    note,
-    saving,
-    onNoteChange,
-    onSaveWorkflow,
-  }
+  const workspaceModes = new Set(workspaceActions.map((action) => action.id))
 
   function openTab(tabId) {
     onActiveTabChange(tabId)
@@ -160,17 +48,27 @@ export function TenderDetailsTabs({
       />
 
       <TenderTabPanels
+        tender={tender}
+        tabState={tabState}
+        productState={productState}
+        documentState={documentState}
+        analysisState={analysisState}
+        economicsState={economicsState}
+        workflowState={workflowState}
         onOpenTab={(tabId) => {
-          if (tabId === 'analysis' || tabId === 'economics') openWorkspace(tabId)
+          if (workspaceModes.has(tabId)) openWorkspace(tabId)
           else openTab(tabId)
         }}
-        {...tabPanelProps}
       />
 
       <TenderWorkspaces
         mode={workspaceMode}
         onClose={() => setWorkspaceMode(null)}
-        {...workspaceProps}
+        tender={tender}
+        productState={productState}
+        documentState={documentState}
+        analysisState={analysisState}
+        economicsState={economicsState}
       />
     </>
   )

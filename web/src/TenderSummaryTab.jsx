@@ -14,6 +14,10 @@ export function TenderSummaryTab({
   const marginText = Number.isFinite(margin) ? formatPercent(margin) : 'нужны цены'
   const riskCount = (analysis?.risks?.length || 0) + (analysis?.red_flags?.length || 0)
   const positionCount = productProfiles.length || tender.items?.length || 0
+  const readyProducts = productProfiles.filter((profile) => {
+    const raw = profile.raw_payload || {}
+    return raw.economics || raw.selected_supplier_option != null
+  }).length
   const missingCostInputs = economics?.missing_cost_inputs?.length || 0
   const stopPrice = economics?.minimum_margin_price ?? economics?.break_even_price
   const marketState = economics?.market_state || tender.market_state
@@ -43,6 +47,11 @@ export function TenderSummaryTab({
           <strong>{tenderDecisionNextStep(tender, economics)}</strong>
           <p>{missingCostInputs ? 'Закрыть недостающие цены в экономике.' : 'Проверить риски и документы перед финальным решением.'}</p>
         </article>
+
+        <SummaryCard title="Товары" action="Открыть товары" onClick={() => onOpenTab?.('products')}>
+          <p>{positionCount ? `${positionCount} позиций, к расчету готово ${readyProducts}.` : 'Позиции еще не сформированы.'}</p>
+          {missingCostInputs > 0 && <em>{missingCostInputs} позиций без себестоимости</em>}
+        </SummaryCard>
 
         <SummaryCard title="Экономика" action="Открыть экономику" onClick={() => onOpenTab?.('economics')}>
           <p>{economics ? `Расчет есть, маржа ${marginText}.` : 'Расчет еще не готов.'}</p>

@@ -1,55 +1,81 @@
 import { TenderAnalysisTab } from './TenderAnalysisTab'
 import { TenderEconomicsTab } from './TenderEconomicsTab'
 import { TenderFullscreenWorkspace } from './TenderFullscreenWorkspace'
+import { TenderProductsTab } from './TenderProductsTab'
 
 export function TenderWorkspaces({
   mode,
   onClose,
   tender,
-  documentRecords,
-  analysis,
-  analyzing,
-  onAnalyzeTender,
-  economics,
-  productProfiles,
-  selectedProfileIndex,
-  onSelectedProfileIndexChange,
-  onEconomicsSave,
-  onEconomicsAssumptionsSave,
-  onSupplierOptionSave,
-  onSupplierOptionSelect,
-  onSupplierOptionAutoSelect,
-  onSupplierDiscoveryImport,
-  onSupplierSearchPrepare,
-  onSupplierCatalogPresetsSave,
-  onSupplierDiscoveryRun,
-  onSupplierUrlDiscoveryRun,
-  onAutoEconomicsRun,
-  onAutoEconomicsAccept,
-  savingEconomicsPosition,
-  savingAssumptionsPosition,
-  savingSupplierOptionPosition,
-  importingSupplierCandidatePosition,
-  preparingSupplierSearchPosition,
-  savingSupplierCatalogPresetPosition,
-  discoveringSupplierPosition,
-  autoSelectingSupplierPosition,
-  autoEstimatingPosition,
-  acceptingAutoEconomicsPosition,
-  supplierCatalogHealth,
-  supplierCatalogHealthLoading,
-  supplierCatalogHealthError,
-  onSupplierCatalogHealthRefresh,
+  productState,
+  documentState,
+  analysisState,
+  economicsState,
 }) {
   const reportHref = `/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/report.docx`
+  const { documentRecords } = documentState
+  const {
+    analysis,
+    analyzing,
+    onAnalyzeTender,
+  } = analysisState
+  const {
+    productProfiles,
+    productProfileSummary,
+    selectedProfileIndex,
+    onSelectedProfileIndexChange,
+    profilesLoading,
+    onRebuildProductProfiles,
+  } = productState
+  const {
+    economics,
+    onEconomicsSave,
+    onEconomicsAssumptionsSave,
+    onSupplierOptionSave,
+    onSupplierOptionSelect,
+    onSupplierOptionAutoSelect,
+    onSupplierDiscoveryImport,
+    onSupplierSearchPrepare,
+    onSupplierCatalogPresetsSave,
+    onSupplierDiscoveryRun,
+    onSupplierUrlDiscoveryRun,
+    onAutoEconomicsRun,
+    onAutoEconomicsAccept,
+    savingEconomicsPosition,
+    savingAssumptionsPosition,
+    savingSupplierOptionPosition,
+    importingSupplierCandidatePosition,
+    preparingSupplierSearchPosition,
+    savingSupplierCatalogPresetPosition,
+    discoveringSupplierPosition,
+    autoSelectingSupplierPosition,
+    autoEstimatingPosition,
+    acceptingAutoEconomicsPosition,
+    supplierCatalogHealth,
+    supplierCatalogHealthLoading,
+    supplierCatalogHealthError,
+    onSupplierCatalogHealthRefresh,
+  } = economicsState
 
   return (
     <TenderFullscreenWorkspace
       mode={mode}
       onClose={onClose}
       subtitle={tender.title}
-      title={mode === 'analysis' ? 'Анализ ТЗ' : 'Экономика'}
+      title={workspaceTitle(mode)}
     >
+      {mode === 'products' && (
+        <TenderProductsTab
+          tender={tender}
+          productProfiles={productProfiles}
+          productProfileSummary={productProfileSummary}
+          selectedProfileIndex={selectedProfileIndex}
+          onSelectedProfileIndexChange={onSelectedProfileIndexChange}
+          profilesLoading={profilesLoading}
+          onRebuildProductProfiles={onRebuildProductProfiles}
+        />
+      )}
+
       {mode === 'analysis' && (
         <TenderAnalysisTab
           analysis={analysis}
@@ -97,4 +123,10 @@ export function TenderWorkspaces({
       )}
     </TenderFullscreenWorkspace>
   )
+}
+
+function workspaceTitle(mode) {
+  if (mode === 'products') return 'Товары'
+  if (mode === 'analysis') return 'Анализ ТЗ'
+  return 'Экономика'
 }

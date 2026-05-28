@@ -1,31 +1,38 @@
-import { TenderProductsTab } from './TenderProductsTab'
 import { TenderDocumentsTab } from './TenderDocumentsTab'
 import { TenderSummaryTab } from './TenderSummaryTab'
 import { WorkflowTabPanel } from './TenderWorkflowTab'
 
 export function TenderTabPanels({
-  activeTab,
   tender,
-  raw,
-  productProfiles,
-  productProfileSummary,
-  selectedProfileIndex,
-  onSelectedProfileIndexChange,
-  profilesLoading,
-  onRebuildProductProfiles,
-  documentRecords,
-  downloading,
-  extracting,
-  onDownloadDocuments,
-  onExtractDocumentText,
-  analysis,
-  economics,
+  tabState,
+  productState,
+  documentState,
+  analysisState,
+  economicsState,
+  workflowState,
   onOpenTab,
-  note,
-  saving,
-  onNoteChange,
-  onSaveWorkflow,
 }) {
+  const { activeTab } = tabState
+  const {
+    productProfiles,
+  } = productState
+  const {
+    documentRecords,
+    downloading,
+    extracting,
+    onDownloadDocuments,
+    onExtractDocumentText,
+  } = documentState
+  const { analysis } = analysisState
+  const { economics } = economicsState
+  const {
+    raw,
+    note,
+    saving,
+    onNoteChange,
+    onSaveWorkflow,
+  } = workflowState
+
   return (
     <div className="detail-tab-panel">
       {activeTab === 'summary' && (
@@ -36,18 +43,6 @@ export function TenderTabPanels({
           productProfiles={productProfiles}
           documents={documentRecords}
           onOpenTab={onOpenTab}
-        />
-      )}
-
-      {activeTab === 'products' && (
-        <TenderProductsTab
-          tender={tender}
-          productProfiles={productProfiles}
-          productProfileSummary={productProfileSummary}
-          selectedProfileIndex={selectedProfileIndex}
-          onSelectedProfileIndexChange={onSelectedProfileIndexChange}
-          profilesLoading={profilesLoading}
-          onRebuildProductProfiles={onRebuildProductProfiles}
         />
       )}
 
