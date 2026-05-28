@@ -23,7 +23,10 @@ TENDER_MARKET_STATE_IMPORT_SOURCE = (
 TENDER_DETAILS_HEADER_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsHeader.jsx"
 TENDER_DETAILS_STATUS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsStatusStack.jsx"
 TENDER_DETAILS_TABS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsTabs.jsx"
+TENDER_DETAILS_NAVIGATION_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetailsNavigation.jsx"
+TENDER_TAB_PANELS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderTabPanels.jsx"
 TENDER_FULLSCREEN_WORKSPACE_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderFullscreenWorkspace.jsx"
+TENDER_WORKSPACES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderWorkspaces.jsx"
 TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
 TENDER_DECISION_STRIP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDecisionStrip.jsx"
 TENDER_DECISION_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDecisionSummary.jsx"
@@ -265,124 +268,132 @@ def test_frontend_uses_dedicated_tender_details_module():
 
 def test_frontend_uses_dedicated_tender_summary_tab_module():
     tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
-    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    panels_source = TENDER_TAB_PANELS_SOURCE.read_text(encoding="utf-8")
     summary_source = (
         TENDER_SUMMARY_TAB_SOURCE.read_text(encoding="utf-8")
         if TENDER_SUMMARY_TAB_SOURCE.exists()
         else ""
     )
 
-    assert "from './TenderSummaryTab'" in tabs_source
+    assert "from './TenderSummaryTab'" in panels_source
     assert "export function TenderSummaryTab" in summary_source
     assert "summary-decision-grid" in summary_source
     assert "summary-next-action" in summary_source
-    assert "<TenderSummaryTab" in tabs_source
+    assert "<TenderSummaryTab" in panels_source
     assert "function TenderSummaryTab" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
-    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(panels_source, TENDER_TAB_PANELS_SOURCE) == []
     assert find_mojibake(summary_source, TENDER_SUMMARY_TAB_SOURCE) == []
 
 
 def test_frontend_uses_dedicated_tender_documents_tab_module():
     tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
-    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    panels_source = TENDER_TAB_PANELS_SOURCE.read_text(encoding="utf-8")
     documents_source = (
         TENDER_DOCUMENTS_TAB_SOURCE.read_text(encoding="utf-8")
         if TENDER_DOCUMENTS_TAB_SOURCE.exists()
         else ""
     )
 
-    assert "from './TenderDocumentsTab'" in tabs_source
+    assert "from './TenderDocumentsTab'" in panels_source
     assert "export function TenderDocumentsTab" in documents_source
     assert "function DocumentStatusSummary" in documents_source
     assert "document-table" in documents_source
     assert "document-status ${document.text_status || 'pending'}" in documents_source
-    assert "<TenderDocumentsTab" in tabs_source
+    assert "<TenderDocumentsTab" in panels_source
     assert "function DocumentStatusSummary" not in tender_details_source
     assert "document-table" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
-    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(panels_source, TENDER_TAB_PANELS_SOURCE) == []
     assert find_mojibake(documents_source, TENDER_DOCUMENTS_TAB_SOURCE) == []
 
 
 def test_frontend_uses_dedicated_tender_analysis_tab_module():
     tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
-    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    workspaces_source = (
+        TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
+        if TENDER_WORKSPACES_SOURCE.exists()
+        else ""
+    )
     analysis_source = (
         TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
         if TENDER_ANALYSIS_TAB_SOURCE.exists()
         else ""
     )
 
-    assert "from './TenderAnalysisTab'" in tabs_source
+    assert "from './TenderAnalysisTab'" in workspaces_source
     assert "export function TenderAnalysisTab" in analysis_source
     assert "export function AnalysisList" in analysis_source
     assert "function AnalysisChecklist" in analysis_source
     assert "analysis-tab-summary" in analysis_source
     assert "analysis-checklist" in analysis_source
-    assert "<TenderAnalysisTab" in tabs_source
+    assert "<TenderAnalysisTab" in workspaces_source
     assert "function AnalysisTabPanel" not in tender_details_source
     assert "function AnalysisChecklist" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
-    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
 
 
 def test_frontend_uses_dedicated_tender_economics_tab_module():
     tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
-    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    workspaces_source = (
+        TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
+        if TENDER_WORKSPACES_SOURCE.exists()
+        else ""
+    )
     economics_source = (
         TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
         if TENDER_ECONOMICS_TAB_SOURCE.exists()
         else ""
     )
 
-    assert "from './TenderEconomicsTab'" in tabs_source
+    assert "from './TenderEconomicsTab'" in workspaces_source
     assert "export function TenderEconomicsTab" in economics_source
     assert "function EconomicsSummary" in economics_source
     assert "function ProductEconomicsForm" in economics_source
     assert "function ProductSupplierOptionsForm" in economics_source
     assert "economics-workbench" in economics_source
-    assert "<TenderEconomicsTab" in tabs_source
+    assert "<TenderEconomicsTab" in workspaces_source
     assert "function EconomicsTabPanel" not in tender_details_source
     assert "function ProductEconomicsForm" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
-    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
 
 
 def test_frontend_uses_dedicated_tender_workflow_tab_module():
     tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
-    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    panels_source = TENDER_TAB_PANELS_SOURCE.read_text(encoding="utf-8")
     workflow_source = (
         TENDER_WORKFLOW_TAB_SOURCE.read_text(encoding="utf-8")
         if TENDER_WORKFLOW_TAB_SOURCE.exists()
         else ""
     )
 
-    assert "from './TenderWorkflowTab'" in tabs_source
+    assert "from './TenderWorkflowTab'" in panels_source
     assert "export function WorkflowTabPanel" in workflow_source
     assert "workflow-status-summary" in workflow_source
     assert "workflow-note-panel" in workflow_source
-    assert "<WorkflowTabPanel" in tabs_source
+    assert "<WorkflowTabPanel" in panels_source
     assert "function WorkflowTabPanel" not in tender_details_source
     assert "workflow-status-summary" not in tender_details_source
     assert "workflow-note-panel" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
-    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(panels_source, TENDER_TAB_PANELS_SOURCE) == []
     assert find_mojibake(workflow_source, TENDER_WORKFLOW_TAB_SOURCE) == []
 
 
 def test_frontend_uses_dedicated_tender_products_tab_module():
     tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
-    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    panels_source = TENDER_TAB_PANELS_SOURCE.read_text(encoding="utf-8")
     products_source = (
         TENDER_PRODUCTS_TAB_SOURCE.read_text(encoding="utf-8")
         if TENDER_PRODUCTS_TAB_SOURCE.exists()
         else ""
     )
 
-    assert "from './TenderProductsTab'" in tabs_source
+    assert "from './TenderProductsTab'" in panels_source
     assert "export function TenderProductsTab" in products_source
     assert "function ProductTabSummary" in products_source
     assert "function ProductProfileDetail" in products_source
@@ -391,7 +402,7 @@ def test_frontend_uses_dedicated_tender_products_tab_module():
     assert "product-tab-summary" in products_source
     assert "profile-detail" in products_source
     assert "source-items" in products_source
-    assert "<TenderProductsTab" in tabs_source
+    assert "<TenderProductsTab" in panels_source
     assert "function ProductTabSummary" not in tender_details_source
     assert "function ProductProfileDetail" not in tender_details_source
     assert "function TenderItems" not in tender_details_source
@@ -400,7 +411,7 @@ def test_frontend_uses_dedicated_tender_products_tab_module():
     assert "profile-detail" not in tender_details_source
     assert "source-items" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
-    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(panels_source, TENDER_TAB_PANELS_SOURCE) == []
     assert find_mojibake(products_source, TENDER_PRODUCTS_TAB_SOURCE) == []
 
 
@@ -518,17 +529,28 @@ def test_tender_details_uses_dedicated_tabs_module():
         if TENDER_DETAILS_TABS_SOURCE.exists()
         else ""
     )
+    navigation_source = (
+        TENDER_DETAILS_NAVIGATION_SOURCE.read_text(encoding="utf-8")
+        if TENDER_DETAILS_NAVIGATION_SOURCE.exists()
+        else ""
+    )
+    panels_source = (
+        TENDER_TAB_PANELS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_TAB_PANELS_SOURCE.exists()
+        else ""
+    )
 
     assert "from './TenderDetailsTabs'" in tender_details_source
     assert "export function TenderDetailsTabs" in tabs_source
-    assert "detail-tabs" in tabs_source
-    assert "detail-tab-panel" in tabs_source
-    assert "TenderSummaryTab" in tabs_source
-    assert "TenderProductsTab" in tabs_source
-    assert "TenderDocumentsTab" in tabs_source
-    assert "TenderAnalysisTab" in tabs_source
-    assert "TenderEconomicsTab" in tabs_source
-    assert "WorkflowTabPanel" in tabs_source
+    assert "TenderDetailsNavigation" in tabs_source
+    assert "detail-tabs" in navigation_source
+    assert "TenderTabPanels" in tabs_source
+    assert "detail-tab-panel" in panels_source
+    assert "TenderSummaryTab" in panels_source
+    assert "TenderProductsTab" in panels_source
+    assert "TenderDocumentsTab" in panels_source
+    assert "TenderWorkspaces" in tabs_source
+    assert "WorkflowTabPanel" in panels_source
     assert "<TenderDetailsTabs" in tender_details_source
     assert "const tabs =" not in tender_details_source
     assert "detail-tabs" not in tender_details_source
@@ -536,11 +558,14 @@ def test_tender_details_uses_dedicated_tabs_module():
     assert "TenderSummaryTab" not in tender_details_source
     assert "TenderProductsTab" not in tender_details_source
     assert "TenderDocumentsTab" not in tender_details_source
+    assert "TenderWorkspaces" not in tender_details_source
     assert "TenderAnalysisTab" not in tender_details_source
     assert "TenderEconomicsTab" not in tender_details_source
     assert "WorkflowTabPanel" not in tender_details_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(navigation_source, TENDER_DETAILS_NAVIGATION_SOURCE) == []
+    assert find_mojibake(panels_source, TENDER_TAB_PANELS_SOURCE) == []
 
 
 def test_tender_details_uses_document_analysis_hook():
@@ -819,7 +844,6 @@ def test_tender_details_render_economics_summary():
 
     assert "{ id: 'economics', label: 'Экономика' }" in tabs_source
     assert "const workspaceActions = [" in tabs_source
-    assert "workspaceMode === 'economics'" in tabs_source
     assert "<EconomicsSummary economics={economics} tender={tender} />" in source
     assert "function EconomicsSummary" in source
     assert "economicsStatusLabel" in source
@@ -1083,7 +1107,7 @@ def test_economics_tab_renders_participation_decision():
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 def test_economics_tab_owns_product_costs_and_suppliers():
-    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     app_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
@@ -1093,10 +1117,10 @@ def test_economics_tab_owns_product_costs_and_suppliers():
     assert "<ProductEconomicsForm profile={selectedEconomicsProfile}" in app_source
     assert "<ProductSupplierOptionsForm" in app_source
     assert "profile={selectedEconomicsProfile}" in app_source
-    assert "<TenderEconomicsTab" in tabs_source
+    assert "<TenderEconomicsTab" in workspaces_source
     assert "economics-workbench" in app_source
     assert ".economics-workbench" in styles_source
-    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(app_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
@@ -1119,6 +1143,7 @@ def test_product_detail_keeps_passport_and_requirements_only():
 def test_tender_workbench_uses_decision_first_summary_shell():
     details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    panels_source = TENDER_TAB_PANELS_SOURCE.read_text(encoding="utf-8")
     ui_source = USE_TENDER_DETAILS_UI_SOURCE.read_text(encoding="utf-8")
     strip_source = (
         TENDER_DECISION_STRIP_SOURCE.read_text(encoding="utf-8")
@@ -1134,7 +1159,7 @@ def test_tender_workbench_uses_decision_first_summary_shell():
 
     assert "from './TenderDecisionStrip'" in details_source
     assert "<TenderDecisionStrip" in details_source
-    assert "from './TenderSummaryTab'" in tabs_source
+    assert "from './TenderSummaryTab'" in panels_source
     assert "export function TenderSummaryTab" in summary_source
     assert "export function TenderDecisionStrip" in strip_source
     assert "useState('summary')" in ui_source
@@ -1242,7 +1267,7 @@ def test_tender_details_v2_keeps_actions_and_document_statuses_scannable():
 
 
 def test_tender_detail_tabs_have_scannable_work_areas():
-    app_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    panels_source = TENDER_TAB_PANELS_SOURCE.read_text(encoding="utf-8")
     summary_source = TENDER_SUMMARY_TAB_SOURCE.read_text(encoding="utf-8")
     documents_source = TENDER_DOCUMENTS_TAB_SOURCE.read_text(encoding="utf-8")
     products_source = (
@@ -1257,10 +1282,10 @@ def test_tender_detail_tabs_have_scannable_work_areas():
     assert "function ProductTabSummary" in products_source
     assert "function DocumentStatusSummary" in documents_source
     assert "export function documentStatusCounts" in formatter_source
-    assert "<TenderSummaryTab" in app_source
-    assert "<TenderProductsTab" in app_source
+    assert "<TenderSummaryTab" in panels_source
+    assert "<TenderProductsTab" in panels_source
     assert "<ProductTabSummary" in products_source
-    assert "<TenderDocumentsTab" in app_source
+    assert "<TenderDocumentsTab" in panels_source
     assert "summary-decision-grid" in summary_source
     assert "summary-work-grid" in summary_source
     assert "document-status-summary" in documents_source
@@ -1269,7 +1294,7 @@ def test_tender_detail_tabs_have_scannable_work_areas():
     assert ".summary-work-grid" in styles_source
     assert ".document-status-summary" in styles_source
     assert ".product-tab-summary" in styles_source
-    assert find_mojibake(app_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(panels_source, TENDER_TAB_PANELS_SOURCE) == []
     assert find_mojibake(summary_source, TENDER_SUMMARY_TAB_SOURCE) == []
     assert find_mojibake(documents_source, TENDER_DOCUMENTS_TAB_SOURCE) == []
     assert find_mojibake(products_source, TENDER_PRODUCTS_TAB_SOURCE) == []
@@ -1277,12 +1302,12 @@ def test_tender_detail_tabs_have_scannable_work_areas():
 
 
 def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
-    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
-    assert "reportHref" in tabs_source
-    assert "documents={documentRecords}" in tabs_source
+    assert "reportHref" in workspaces_source
+    assert "documents={documentRecords}" in workspaces_source
     assert "analysis-action-row" in analysis_source
     assert "Скачать Word" in analysis_source
     assert "analysis-workspace" in analysis_source
@@ -1296,7 +1321,7 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     assert ".analysis-workspace" in styles_source
     assert ".analysis-evidence-panel" in styles_source
     assert ".analysis-section-item:hover" in styles_source
-    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
@@ -1358,46 +1383,128 @@ def test_economics_position_rail_keeps_long_product_names_readable():
 
 def test_analysis_and_economics_open_in_fullscreen_workspace():
     tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
-    workspace_source = (
+    navigation_source = TENDER_DETAILS_NAVIGATION_SOURCE.read_text(encoding="utf-8")
+    fullscreen_source = (
         TENDER_FULLSCREEN_WORKSPACE_SOURCE.read_text(encoding="utf-8")
         if TENDER_FULLSCREEN_WORKSPACE_SOURCE.exists()
         else ""
     )
+    workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
-    assert "from './TenderFullscreenWorkspace'" in tabs_source
+    assert "from './TenderWorkspaces'" in tabs_source
     assert "const [workspaceMode, setWorkspaceMode]" in tabs_source
     assert "function openTab(tabId)" in tabs_source
     assert "function openWorkspace(mode)" in tabs_source
-    assert "workspaceActions.map" in tabs_source
-    assert "onClick={() => openWorkspace(action.id)}" in tabs_source
     assert "openWorkspace(tabId)" in tabs_source
-    assert "<TenderFullscreenWorkspace" in tabs_source
-    assert "workspaceMode === 'analysis'" in tabs_source
-    assert "workspaceMode === 'economics'" in tabs_source
-    assert "export function TenderFullscreenWorkspace" in workspace_source
-    assert "fullscreen-workspace-backdrop" in workspace_source
-    assert "fullscreen-workspace-body" in workspace_source
-    assert "Escape" in workspace_source
+    assert "<TenderWorkspaces" in tabs_source
+    assert "workspaceActions.map" in navigation_source
+    assert "onClick={() => onWorkspaceOpen(action.id)}" in navigation_source
+    assert "from './TenderFullscreenWorkspace'" in workspaces_source
+    assert "<TenderFullscreenWorkspace" in workspaces_source
+    assert "mode === 'analysis'" in workspaces_source
+    assert "mode === 'economics'" in workspaces_source
+    assert "export function TenderFullscreenWorkspace" in fullscreen_source
+    assert "fullscreen-workspace-backdrop" in fullscreen_source
+    assert "fullscreen-workspace-body" in fullscreen_source
+    assert "Escape" in fullscreen_source
     assert ".fullscreen-workspace-backdrop" in styles_source
     assert ".fullscreen-workspace-body .analysis-workspace" in styles_source
     assert ".fullscreen-workspace-body .economics-workspace-grid" in styles_source
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
-    assert find_mojibake(workspace_source, TENDER_FULLSCREEN_WORKSPACE_SOURCE) == []
+    assert find_mojibake(navigation_source, TENDER_DETAILS_NAVIGATION_SOURCE) == []
+    assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
+    assert find_mojibake(fullscreen_source, TENDER_FULLSCREEN_WORKSPACE_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
 def test_analysis_and_economics_are_workspace_launchers_not_inline_tabs():
     tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    navigation_source = TENDER_DETAILS_NAVIGATION_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "const workspaceActions = [" in tabs_source
-    assert "onClick={() => openWorkspace(action.id)}" in tabs_source
+    assert "<TenderDetailsNavigation" in tabs_source
+    assert "onClick={() => onWorkspaceOpen(action.id)}" in navigation_source
     assert "activeTab === 'analysis'" not in tabs_source
     assert "activeTab === 'economics'" not in tabs_source
     assert ".detail-workspace-launchers" in styles_source
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(navigation_source, TENDER_DETAILS_NAVIGATION_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_tender_workspaces_module_owns_fullscreen_analysis_and_economics():
+    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    workspaces_source = (
+        TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
+        if TENDER_WORKSPACES_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './TenderWorkspaces'" in tabs_source
+    assert "<TenderWorkspaces" in tabs_source
+    assert "from './TenderFullscreenWorkspace'" not in tabs_source
+    assert "from './TenderAnalysisTab'" not in tabs_source
+    assert "from './TenderEconomicsTab'" not in tabs_source
+    assert "export function TenderWorkspaces" in workspaces_source
+    assert "from './TenderFullscreenWorkspace'" in workspaces_source
+    assert "from './TenderAnalysisTab'" in workspaces_source
+    assert "from './TenderEconomicsTab'" in workspaces_source
+    assert "mode === 'analysis'" in workspaces_source
+    assert "mode === 'economics'" in workspaces_source
+    assert "report.docx" in workspaces_source
+    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
+
+
+def test_tender_details_navigation_module_owns_tabs_and_workspace_launchers():
+    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    navigation_source = (
+        TENDER_DETAILS_NAVIGATION_SOURCE.read_text(encoding="utf-8")
+        if TENDER_DETAILS_NAVIGATION_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './TenderDetailsNavigation'" in tabs_source
+    assert "<TenderDetailsNavigation" in tabs_source
+    assert "detail-navigation" not in tabs_source
+    assert "detail-workspace-launchers" not in tabs_source
+    assert "export function TenderDetailsNavigation" in navigation_source
+    assert "detail-navigation" in navigation_source
+    assert "detail-tabs" in navigation_source
+    assert "detail-workspace-launchers" in navigation_source
+    assert "tabs.map" in navigation_source
+    assert "workspaceActions.map" in navigation_source
+    assert "onTabOpen(tab.id)" in navigation_source
+    assert "onWorkspaceOpen(action.id)" in navigation_source
+    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(navigation_source, TENDER_DETAILS_NAVIGATION_SOURCE) == []
+
+
+def test_tender_tab_panels_module_owns_inline_summary_products_documents_workflow():
+    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    panels_source = (
+        TENDER_TAB_PANELS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_TAB_PANELS_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './TenderTabPanels'" in tabs_source
+    assert "<TenderTabPanels" in tabs_source
+    assert "detail-tab-panel" not in tabs_source
+    assert "export function TenderTabPanels" in panels_source
+    assert "detail-tab-panel" in panels_source
+    assert "from './TenderSummaryTab'" in panels_source
+    assert "from './TenderProductsTab'" in panels_source
+    assert "from './TenderDocumentsTab'" in panels_source
+    assert "from './TenderWorkflowTab'" in panels_source
+    assert "activeTab === 'summary'" in panels_source
+    assert "activeTab === 'products'" in panels_source
+    assert "activeTab === 'documents'" in panels_source
+    assert "activeTab === 'workflow'" in panels_source
+    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(panels_source, TENDER_TAB_PANELS_SOURCE) == []
 
 
 def test_fullscreen_economics_workspace_is_a_dedicated_workbench():
@@ -1425,6 +1532,8 @@ def test_fullscreen_economics_workspace_is_a_dedicated_workbench():
 
 def test_decision_tabs_are_extracted_to_consistent_work_panels():
     app_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+    panels_source = TENDER_TAB_PANELS_SOURCE.read_text(encoding="utf-8")
+    workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     workflow_source = (
@@ -1437,10 +1546,10 @@ def test_decision_tabs_are_extracted_to_consistent_work_panels():
     assert "export function TenderAnalysisTab" in analysis_source
     assert "export function TenderEconomicsTab" in economics_source
     assert "export function WorkflowTabPanel" in workflow_source
-    assert "<TenderAnalysisTab" in app_source
-    assert "<TenderEconomicsTab" in app_source
-    assert "productProfiles={productProfiles}" in app_source
-    assert "<WorkflowTabPanel" in app_source
+    assert "<TenderAnalysisTab" in workspaces_source
+    assert "<TenderEconomicsTab" in workspaces_source
+    assert "productProfiles={productProfiles}" in workspaces_source
+    assert "<WorkflowTabPanel" in panels_source
     assert "analysis-tab-summary" in analysis_source
     assert "economics-tab-summary" in economics_source
     assert "workflow-status-summary" in workflow_source
@@ -1450,6 +1559,8 @@ def test_decision_tabs_are_extracted_to_consistent_work_panels():
     assert ".workflow-status-summary" in styles_source
     assert ".workflow-note-panel" in styles_source
     assert find_mojibake(app_source, TENDER_DETAILS_TABS_SOURCE) == []
+    assert find_mojibake(panels_source, TENDER_TAB_PANELS_SOURCE) == []
+    assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(workflow_source, TENDER_WORKFLOW_TAB_SOURCE) == []

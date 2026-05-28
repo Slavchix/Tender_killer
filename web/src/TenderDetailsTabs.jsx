@@ -1,11 +1,7 @@
 import { useState } from 'react'
-import { TenderProductsTab } from './TenderProductsTab'
-import { TenderDocumentsTab } from './TenderDocumentsTab'
-import { TenderAnalysisTab } from './TenderAnalysisTab'
-import { TenderEconomicsTab } from './TenderEconomicsTab'
-import { TenderFullscreenWorkspace } from './TenderFullscreenWorkspace'
-import { TenderSummaryTab } from './TenderSummaryTab'
-import { WorkflowTabPanel } from './TenderWorkflowTab'
+import { TenderDetailsNavigation } from './TenderDetailsNavigation'
+import { TenderTabPanels } from './TenderTabPanels'
+import { TenderWorkspaces } from './TenderWorkspaces'
 
 export function TenderDetailsTabs({
   tender,
@@ -58,7 +54,6 @@ export function TenderDetailsTabs({
   onNoteChange,
   onSaveWorkflow,
 }) {
-  const reportHref = `/api/tenders/${encodeURIComponent(tender.source)}/${encodeURIComponent(tender.external_id)}/report.docx`
   const [workspaceMode, setWorkspaceMode] = useState(null)
   const tabs = [
     { id: 'summary', label: 'Сводка' },
@@ -81,136 +76,81 @@ export function TenderDetailsTabs({
 
   return (
     <>
-      <div className="detail-navigation">
-        <nav className="detail-tabs" aria-label="Разделы карточки">
-          {tabs.map((tab) => (
-            <button
-              className={activeTab === tab.id ? 'active' : ''}
-              key={tab.id}
-              onClick={() => openTab(tab.id)}
-              type="button"
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+      <TenderDetailsNavigation
+        activeTab={activeTab}
+        tabs={tabs}
+        workspaceMode={workspaceMode}
+        workspaceActions={workspaceActions}
+        onTabOpen={openTab}
+        onWorkspaceOpen={openWorkspace}
+      />
 
-        <div className="detail-workspace-launchers" aria-label="Рабочие области тендера">
-          {workspaceActions.map((action) => (
-            <button
-              aria-haspopup="dialog"
-              className={workspaceMode === action.id ? 'active' : ''}
-              key={action.id}
-              onClick={() => openWorkspace(action.id)}
-              type="button"
-            >
-              {action.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <TenderTabPanels
+        activeTab={activeTab}
+        tender={tender}
+        raw={raw}
+        productProfiles={productProfiles}
+        productProfileSummary={productProfileSummary}
+        selectedProfileIndex={selectedProfileIndex}
+        onSelectedProfileIndexChange={onSelectedProfileIndexChange}
+        profilesLoading={profilesLoading}
+        onRebuildProductProfiles={onRebuildProductProfiles}
+        documentRecords={documentRecords}
+        downloading={downloading}
+        extracting={extracting}
+        onDownloadDocuments={onDownloadDocuments}
+        onExtractDocumentText={onExtractDocumentText}
+        analysis={analysis}
+        economics={economics}
+        onOpenTab={(tabId) => {
+          if (tabId === 'analysis' || tabId === 'economics') openWorkspace(tabId)
+          else openTab(tabId)
+        }}
+        note={note}
+        saving={saving}
+        onNoteChange={onNoteChange}
+        onSaveWorkflow={onSaveWorkflow}
+      />
 
-      <div className="detail-tab-panel">
-        {activeTab === 'summary' && (
-          <TenderSummaryTab
-            tender={tender}
-            economics={economics}
-            analysis={analysis}
-            productProfiles={productProfiles}
-            documents={documentRecords}
-            onOpenTab={(tabId) => {
-              if (tabId === 'analysis' || tabId === 'economics') openWorkspace(tabId)
-              else openTab(tabId)
-            }}
-          />
-        )}
-
-        {activeTab === 'products' && (
-          <TenderProductsTab
-            tender={tender}
-            productProfiles={productProfiles}
-            productProfileSummary={productProfileSummary}
-            selectedProfileIndex={selectedProfileIndex}
-            onSelectedProfileIndexChange={onSelectedProfileIndexChange}
-            profilesLoading={profilesLoading}
-            onRebuildProductProfiles={onRebuildProductProfiles}
-          />
-        )}
-
-        {activeTab === 'documents' && (
-          <TenderDocumentsTab
-            documents={documentRecords}
-            downloading={downloading}
-            extracting={extracting}
-            onDownload={onDownloadDocuments}
-            onExtract={onExtractDocumentText}
-          />
-        )}
-
-        {activeTab === 'workflow' && (
-          <WorkflowTabPanel
-            tender={tender}
-            raw={raw}
-            note={note}
-            saving={saving}
-            onNoteChange={onNoteChange}
-            onSaveWorkflow={onSaveWorkflow}
-          />
-        )}
-      </div>
-
-      <TenderFullscreenWorkspace
+      <TenderWorkspaces
         mode={workspaceMode}
         onClose={() => setWorkspaceMode(null)}
-        subtitle={tender.title}
-        title={workspaceMode === 'analysis' ? 'Анализ ТЗ' : 'Экономика'}
-      >
-        {workspaceMode === 'analysis' && (
-          <TenderAnalysisTab
-            analysis={analysis}
-            analyzing={analyzing}
-            onAnalyze={onAnalyzeTender}
-            reportHref={reportHref}
-            documents={documentRecords}
-          />
-        )}
-
-        {workspaceMode === 'economics' && (
-          <TenderEconomicsTab
-            tender={tender}
-            economics={economics}
-            productProfiles={productProfiles}
-            selectedEconomicsProfileIndex={selectedProfileIndex}
-            onSelectedEconomicsProfileChange={onSelectedProfileIndexChange}
-            onEconomicsSave={onEconomicsSave}
-            onEconomicsAssumptionsSave={onEconomicsAssumptionsSave}
-            onSupplierOptionSave={onSupplierOptionSave}
-            onSupplierOptionSelect={onSupplierOptionSelect}
-            onSupplierOptionAutoSelect={onSupplierOptionAutoSelect}
-            onSupplierDiscoveryImport={onSupplierDiscoveryImport}
-            onSupplierSearchPrepare={onSupplierSearchPrepare}
-            onSupplierCatalogPresetsSave={onSupplierCatalogPresetsSave}
-            onSupplierDiscoveryRun={onSupplierDiscoveryRun}
-            onSupplierUrlDiscoveryRun={onSupplierUrlDiscoveryRun}
-            onAutoEconomicsRun={onAutoEconomicsRun}
-            onAutoEconomicsAccept={onAutoEconomicsAccept}
-            savingEconomicsPosition={savingEconomicsPosition}
-            savingAssumptionsPosition={savingAssumptionsPosition}
-            savingSupplierOptionPosition={savingSupplierOptionPosition}
-            importingSupplierCandidatePosition={importingSupplierCandidatePosition}
-            preparingSupplierSearchPosition={preparingSupplierSearchPosition}
-            savingSupplierCatalogPresetPosition={savingSupplierCatalogPresetPosition}
-            discoveringSupplierPosition={discoveringSupplierPosition}
-            autoSelectingSupplierPosition={autoSelectingSupplierPosition}
-            autoEstimatingPosition={autoEstimatingPosition}
-            acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
-            supplierCatalogHealth={supplierCatalogHealth}
-            supplierCatalogHealthLoading={supplierCatalogHealthLoading}
-            supplierCatalogHealthError={supplierCatalogHealthError}
-            onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
-          />
-        )}
-      </TenderFullscreenWorkspace>
+        tender={tender}
+        documentRecords={documentRecords}
+        analysis={analysis}
+        analyzing={analyzing}
+        onAnalyzeTender={onAnalyzeTender}
+        economics={economics}
+        productProfiles={productProfiles}
+        selectedProfileIndex={selectedProfileIndex}
+        onSelectedProfileIndexChange={onSelectedProfileIndexChange}
+        onEconomicsSave={onEconomicsSave}
+        onEconomicsAssumptionsSave={onEconomicsAssumptionsSave}
+        onSupplierOptionSave={onSupplierOptionSave}
+        onSupplierOptionSelect={onSupplierOptionSelect}
+        onSupplierOptionAutoSelect={onSupplierOptionAutoSelect}
+        onSupplierDiscoveryImport={onSupplierDiscoveryImport}
+        onSupplierSearchPrepare={onSupplierSearchPrepare}
+        onSupplierCatalogPresetsSave={onSupplierCatalogPresetsSave}
+        onSupplierDiscoveryRun={onSupplierDiscoveryRun}
+        onSupplierUrlDiscoveryRun={onSupplierUrlDiscoveryRun}
+        onAutoEconomicsRun={onAutoEconomicsRun}
+        onAutoEconomicsAccept={onAutoEconomicsAccept}
+        savingEconomicsPosition={savingEconomicsPosition}
+        savingAssumptionsPosition={savingAssumptionsPosition}
+        savingSupplierOptionPosition={savingSupplierOptionPosition}
+        importingSupplierCandidatePosition={importingSupplierCandidatePosition}
+        preparingSupplierSearchPosition={preparingSupplierSearchPosition}
+        savingSupplierCatalogPresetPosition={savingSupplierCatalogPresetPosition}
+        discoveringSupplierPosition={discoveringSupplierPosition}
+        autoSelectingSupplierPosition={autoSelectingSupplierPosition}
+        autoEstimatingPosition={autoEstimatingPosition}
+        acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
+        supplierCatalogHealth={supplierCatalogHealth}
+        supplierCatalogHealthLoading={supplierCatalogHealthLoading}
+        supplierCatalogHealthError={supplierCatalogHealthError}
+        onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
+      />
     </>
   )
 }
