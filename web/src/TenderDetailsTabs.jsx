@@ -65,6 +65,65 @@ export function TenderDetailsTabs({
     { id: 'analysis', label: 'Анализ ТЗ' },
     { id: 'economics', label: 'Экономика' },
   ]
+  const workspaceProps = {
+    tender,
+    documentRecords,
+    analysis,
+    analyzing,
+    onAnalyzeTender,
+    economics,
+    productProfiles,
+    selectedProfileIndex,
+    onSelectedProfileIndexChange,
+    onEconomicsSave,
+    onEconomicsAssumptionsSave,
+    onSupplierOptionSave,
+    onSupplierOptionSelect,
+    onSupplierOptionAutoSelect,
+    onSupplierDiscoveryImport,
+    onSupplierSearchPrepare,
+    onSupplierCatalogPresetsSave,
+    onSupplierDiscoveryRun,
+    onSupplierUrlDiscoveryRun,
+    onAutoEconomicsRun,
+    onAutoEconomicsAccept,
+    savingEconomicsPosition,
+    savingAssumptionsPosition,
+    savingSupplierOptionPosition,
+    importingSupplierCandidatePosition,
+    preparingSupplierSearchPosition,
+    savingSupplierCatalogPresetPosition,
+    discoveringSupplierPosition,
+    autoSelectingSupplierPosition,
+    autoEstimatingPosition,
+    acceptingAutoEconomicsPosition,
+    supplierCatalogHealth,
+    supplierCatalogHealthLoading,
+    supplierCatalogHealthError,
+    onSupplierCatalogHealthRefresh,
+  }
+  const tabPanelProps = {
+    activeTab,
+    tender,
+    raw,
+    productProfiles,
+    productProfileSummary,
+    selectedProfileIndex,
+    onSelectedProfileIndexChange,
+    profilesLoading,
+    onRebuildProductProfiles,
+    documentRecords,
+    downloading,
+    extracting,
+    onDownloadDocuments,
+    onExtractDocumentText,
+    analysis,
+    economics,
+    note,
+    saving,
+    onNoteChange,
+    onSaveWorkflow,
+  }
 
   function openTab(tabId) {
     onActiveTabChange(tabId)
@@ -86,70 +145,17 @@ export function TenderDetailsTabs({
       />
 
       <TenderTabPanels
-        activeTab={activeTab}
-        tender={tender}
-        raw={raw}
-        productProfiles={productProfiles}
-        productProfileSummary={productProfileSummary}
-        selectedProfileIndex={selectedProfileIndex}
-        onSelectedProfileIndexChange={onSelectedProfileIndexChange}
-        profilesLoading={profilesLoading}
-        onRebuildProductProfiles={onRebuildProductProfiles}
-        documentRecords={documentRecords}
-        downloading={downloading}
-        extracting={extracting}
-        onDownloadDocuments={onDownloadDocuments}
-        onExtractDocumentText={onExtractDocumentText}
-        analysis={analysis}
-        economics={economics}
         onOpenTab={(tabId) => {
           if (tabId === 'analysis' || tabId === 'economics') openWorkspace(tabId)
           else openTab(tabId)
         }}
-        note={note}
-        saving={saving}
-        onNoteChange={onNoteChange}
-        onSaveWorkflow={onSaveWorkflow}
+        {...tabPanelProps}
       />
 
       <TenderWorkspaces
         mode={workspaceMode}
         onClose={() => setWorkspaceMode(null)}
-        tender={tender}
-        documentRecords={documentRecords}
-        analysis={analysis}
-        analyzing={analyzing}
-        onAnalyzeTender={onAnalyzeTender}
-        economics={economics}
-        productProfiles={productProfiles}
-        selectedProfileIndex={selectedProfileIndex}
-        onSelectedProfileIndexChange={onSelectedProfileIndexChange}
-        onEconomicsSave={onEconomicsSave}
-        onEconomicsAssumptionsSave={onEconomicsAssumptionsSave}
-        onSupplierOptionSave={onSupplierOptionSave}
-        onSupplierOptionSelect={onSupplierOptionSelect}
-        onSupplierOptionAutoSelect={onSupplierOptionAutoSelect}
-        onSupplierDiscoveryImport={onSupplierDiscoveryImport}
-        onSupplierSearchPrepare={onSupplierSearchPrepare}
-        onSupplierCatalogPresetsSave={onSupplierCatalogPresetsSave}
-        onSupplierDiscoveryRun={onSupplierDiscoveryRun}
-        onSupplierUrlDiscoveryRun={onSupplierUrlDiscoveryRun}
-        onAutoEconomicsRun={onAutoEconomicsRun}
-        onAutoEconomicsAccept={onAutoEconomicsAccept}
-        savingEconomicsPosition={savingEconomicsPosition}
-        savingAssumptionsPosition={savingAssumptionsPosition}
-        savingSupplierOptionPosition={savingSupplierOptionPosition}
-        importingSupplierCandidatePosition={importingSupplierCandidatePosition}
-        preparingSupplierSearchPosition={preparingSupplierSearchPosition}
-        savingSupplierCatalogPresetPosition={savingSupplierCatalogPresetPosition}
-        discoveringSupplierPosition={discoveringSupplierPosition}
-        autoSelectingSupplierPosition={autoSelectingSupplierPosition}
-        autoEstimatingPosition={autoEstimatingPosition}
-        acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
-        supplierCatalogHealth={supplierCatalogHealth}
-        supplierCatalogHealthLoading={supplierCatalogHealthLoading}
-        supplierCatalogHealthError={supplierCatalogHealthError}
-        onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
+        {...workspaceProps}
       />
     </>
   )

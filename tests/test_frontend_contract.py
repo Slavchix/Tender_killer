@@ -999,10 +999,11 @@ def test_economics_tab_surfaces_supplier_catalog_health():
     assert "setSupplierCatalogHealthError" in hook_source
     assert "onSupplierCatalogHealthRefresh={refreshSupplierCatalogHealth}" in details_source
     assert "supplierCatalogHealth" in details_source
-    assert "onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}" in tabs_source
-    assert "supplierCatalogHealth={supplierCatalogHealth}" in tabs_source
-    assert "supplierCatalogHealthLoading={supplierCatalogHealthLoading}" in tabs_source
-    assert "supplierCatalogHealthError={supplierCatalogHealthError}" in tabs_source
+    assert "onSupplierCatalogHealthRefresh," in tabs_source
+    assert "supplierCatalogHealth," in tabs_source
+    assert "supplierCatalogHealthLoading," in tabs_source
+    assert "supplierCatalogHealthError," in tabs_source
+    assert "{...workspaceProps}" in tabs_source
     assert "SupplierCatalogHealthPanel" in source
     assert "supplierCatalogHealth?.catalogs" in source
     assert "supplier-catalog-health" in source
@@ -1456,6 +1457,26 @@ def test_tender_workspaces_module_owns_fullscreen_analysis_and_economics():
     assert "report.docx" in workspaces_source
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
     assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
+
+
+def test_tender_details_tabs_groups_fullscreen_workspace_props():
+    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+
+    assert "const workspaceProps = {" in tabs_source
+    assert "{...workspaceProps}" in tabs_source
+    assert "onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}" not in tabs_source
+    assert "supplierCatalogHealth={supplierCatalogHealth}" not in tabs_source
+    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
+
+
+def test_tender_details_tabs_groups_inline_tab_panel_props():
+    tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
+
+    assert "const tabPanelProps = {" in tabs_source
+    assert "{...tabPanelProps}" in tabs_source
+    assert "onExtractDocumentText={onExtractDocumentText}" not in tabs_source
+    assert "onRebuildProductProfiles={onRebuildProductProfiles}" not in tabs_source
+    assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
 
 
 def test_tender_details_navigation_module_owns_tabs_and_workspace_launchers():
