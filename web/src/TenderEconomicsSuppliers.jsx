@@ -1,14 +1,13 @@
 ﻿import { useEffect, useState } from 'react'
 import {
-  formatMoney,
-  supplierAvailabilityLabel,
-  supplierConfidenceLabel,
-  supplierStatusLabel,
-} from './formatters'
-import {
   SupplierCatalogHealthPanel,
   SupplierCatalogPresetControls,
 } from './TenderEconomicsSupplierCatalogs'
+import {
+  SupplierDiscoveryPreview,
+  SupplierSearchPreview,
+} from './TenderEconomicsSupplierDiscovery'
+import { SupplierOptionsList } from './TenderEconomicsSupplierOptions'
 
 export function ProductSupplierOptionsForm({
   profile,
@@ -189,85 +188,12 @@ export function ProductSupplierOptionsForm({
         importing={importingDiscovery}
         onImport={(candidateIndex) => onDiscoveryImport?.(profile, candidateIndex)}
       />
-
-      {supplierOptions.length ? (
-        <div className="supplier-options-list">
-          {supplierOptions.map((option, index) => (
-            <div
-              className={option.status === 'selected' ? 'supplier-option-row selected' : 'supplier-option-row'}
-              key={`${option.url || option.name || 'supplier'}-${index}`}
-            >
-              <div>
-                {option.url ? (
-                  <a href={option.url} target="_blank" rel="noreferrer">{option.name || option.url}</a>
-                ) : (
-                  <strong>{option.name || 'Поставщик'}</strong>
-                )}
-                {option.note && <p>{option.note}</p>}
-                {option.source_query && <p>Запрос: {option.source_query}</p>}
-              </div>
-              <span>{formatMoney(option.unit_price)}</span>
-              <em>{supplierAvailabilityLabel(option.availability)} · {supplierStatusLabel(option.status)}</em>
-              <button
-                className="supplier-select-button"
-                disabled={saving || !onSelect || option.status === 'selected'}
-                onClick={() => ignoreSupplierActionError(onSelect?.(profile, index))}
-                type="button"
-              >
-                {option.status === 'selected' ? 'В расчете' : 'В расчет'}
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="muted-text">Кандидаты поставщиков пока не добавлены.</p>
-      )}
+      <SupplierOptionsList
+        supplierOptions={supplierOptions}
+        saving={saving}
+        onSelect={(optionIndex) => onSelect?.(profile, optionIndex)}
+      />
     </section>
-  )
-}
-
-function SupplierDiscoveryPreview({ discovery, importing = false, onImport }) {
-  const candidates = Array.isArray(discovery?.candidates) ? discovery.candidates : []
-  const diagnostics = Array.isArray(discovery?.collector_diagnostics) ? discovery.collector_diagnostics : []
-  const noCandidates = discovery?.status === 'no_candidates'
-  if (!candidates.length && !diagnostics.length) return null
-
-  return (
-    <div className="supplier-discovery-preview">
-      <span>{noCandidates && !candidates.length ? 'Кандидаты не найдены' : 'Найденные кандидаты'}</span>
-      {noCandidates && !candidates.length && <p>Смотри диагностику ниже: она показывает, какие каталоги и страницы проверялись.</p>}
-      <SupplierDiscoveryDiagnostics diagnostics={diagnostics} />
-      {candidates.length > 0 && candidates.map((candidate, index) => {
-        const imported = candidate.review_status === 'imported'
-        const confidenceReasons = Array.isArray(candidate.confidence_reasons) ? candidate.confidence_reasons : []
-        return (
-          <div className={imported ? 'supplier-discovery-row imported' : 'supplier-discovery-row'} key={`${candidate.url || candidate.name || 'candidate'}-${index}`}>
-            <div>
-              {candidate.url ? (
-                <a href={candidate.url} target="_blank" rel="noreferrer">{candidate.name || candidate.url}</a>
-              ) : (
-                <strong>{candidate.name || 'Поставщик'}</strong>
-              )}
-              {candidate.source_query && <p>Запрос: {candidate.source_query}</p>}
-              {candidate.provider && <p>{candidate.provider}</p>}
-              <p>
-                {supplierConfidenceLabel(candidate.confidence)}
-                {confidenceReasons.length ? ` · ${confidenceReasons.join(', ')}` : ''}
-              </p>
-            </div>
-            <span>{formatMoney(candidate.unit_price)}</span>
-            <button
-              className="secondary-button compact"
-              disabled={importing || imported || !onImport}
-              onClick={() => ignoreSupplierActionError(onImport?.(index))}
-              type="button"
-            >
-              {imported ? 'Добавлен' : 'Добавить'}
-            </button>
-          </div>
-        )
-      })}
-    </div>
   )
 }
 
@@ -275,56 +201,6 @@ function ignoreSupplierActionError(result) {
   if (result?.catch) {
     result.catch(() => {})
   }
-}
-
-function SupplierDiscoveryDiagnostics({ diagnostics }) {
-  if (!Array.isArray(diagnostics) || !diagnostics.length) return null
-
-  return (
-    <div className="supplier-discovery-diagnostics">
-      {diagnostics.map((diagnostics, index) => {
-        const errors = Array.isArray(diagnostics.errors) ? diagnostics.errors : []
-        return (
-          <section key={`${diagnostics.provider || 'collector'}-${index}`}>
-            <strong>{diagnostics.provider || 'collector'}</strong>
-            <div className="supplier-discovery-metrics">
-              <span>Запросы: {diagnostics.queries_seen || 0}</span>
-              <span>Ссылки: {diagnostics.links_seen || 0}</span>
-              <span>Пропущено: {diagnostics.links_skipped || 0}</span>
-              <span>Страницы: {diagnostics.pages_fetched || 0}</span>
-              <span>Кандидаты: {diagnostics.candidates_found || 0}</span>
-            </div>
-            {errors.length ? <p>{errors.join(' · ')}</p> : null}
-          </section>
-        )
-      })}
-    </div>
-  )
-}
-
-function SupplierSearchPreview({ search }) {
-  const queries = Array.isArray(search?.queries) ? search.queries : []
-  if (!queries.length) return null
-
-  return (
-    <div className="supplier-search-preview">
-      <span>Запросы для поиска</span>
-      <div>
-        {queries.map((item) => (
-          <section key={`${item.kind}-${item.priority}-${item.query}`}>
-            <code>{item.query}</code>
-            <div className="supplier-search-links">
-              {(Array.isArray(item.quick_links) ? item.quick_links : []).map((link) => (
-                <a href={link.url} key={`${item.query}-${link.label}`} target="_blank" rel="noreferrer">
-                  {link.label}
-                </a>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 function supplierOptionFormValues() {
