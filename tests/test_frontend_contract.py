@@ -35,9 +35,13 @@ TENDER_ECONOMICS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src
 TENDER_ECONOMICS_FORMS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsForms.jsx"
 TENDER_ECONOMICS_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSummary.jsx"
 TENDER_ECONOMICS_SUPPLIERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSuppliers.jsx"
+TENDER_ECONOMICS_SUPPLIER_CATALOGS_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSupplierCatalogs.jsx"
+)
 TENDER_ECONOMICS_AUTO_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsAuto.jsx"
 TENDER_ECONOMICS_POSITION_RAIL_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPositionRail.jsx"
 TENDER_ECONOMICS_WORKBENCH_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsWorkbench.jsx"
+TENDER_ECONOMICS_METRICS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsMetrics.jsx"
 TENDER_OVERVIEW_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderOverviewTab.jsx"
 TENDER_PRODUCTS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderProductsTab.jsx"
 TENDER_SUMMARY_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderSummaryTab.jsx"
@@ -371,6 +375,11 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
         if TENDER_ECONOMICS_SUPPLIERS_SOURCE.exists()
         else ""
     )
+    economics_supplier_catalogs_source = (
+        TENDER_ECONOMICS_SUPPLIER_CATALOGS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_SUPPLIER_CATALOGS_SOURCE.exists()
+        else ""
+    )
     economics_auto_source = (
         TENDER_ECONOMICS_AUTO_SOURCE.read_text(encoding="utf-8")
         if TENDER_ECONOMICS_AUTO_SOURCE.exists()
@@ -386,9 +395,15 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
         if TENDER_ECONOMICS_WORKBENCH_SOURCE.exists()
         else ""
     )
+    economics_metrics_source = (
+        TENDER_ECONOMICS_METRICS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_METRICS_SOURCE.exists()
+        else ""
+    )
 
     assert "from './TenderEconomicsTab'" in workspaces_source
     assert "export function TenderEconomicsTab" in economics_source
+    assert "from './TenderEconomicsMetrics'" in economics_source
     assert "from './TenderEconomicsSummary'" in economics_source
     assert "from './TenderEconomicsWorkbench'" in economics_source
     assert "from './TenderEconomicsForms'" not in economics_source
@@ -399,6 +414,7 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert "from './TenderEconomicsSuppliers'" in economics_workbench_source
     assert "from './TenderEconomicsAuto'" in economics_workbench_source
     assert "from './TenderEconomicsPositionRail'" in economics_workbench_source
+    assert "from './TenderEconomicsSupplierCatalogs'" in economics_suppliers_source
     assert "function EconomicsSummary" not in economics_source
     assert "export function EconomicsSummary" in economics_summary_source
     assert "function ProductEconomicsForm" not in economics_source
@@ -406,12 +422,17 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert "export function ProductEconomicsAssumptionsForm" in economics_forms_source
     assert "function ProductSupplierOptionsForm" not in economics_source
     assert "export function ProductSupplierOptionsForm" in economics_suppliers_source
+    assert "export function SupplierCatalogPresetControls" in economics_supplier_catalogs_source
+    assert "export function SupplierCatalogHealthPanel" in economics_supplier_catalogs_source
     assert "function ProductAutoEconomicsPanel" not in economics_source
     assert "export function ProductAutoEconomicsPanel" in economics_auto_source
     assert "function EconomicsPositionRail" not in economics_source
     assert "export function EconomicsPositionRail" in economics_position_rail_source
     assert "function TenderEconomicsWorkbench" not in economics_source
     assert "export function TenderEconomicsWorkbench" in economics_workbench_source
+    assert "function TenderEconomicsMetrics" not in economics_source
+    assert "export function TenderEconomicsMetrics" in economics_metrics_source
+    assert "economics-tab-summary" in economics_metrics_source
     assert "economics-workbench" in economics_workbench_source
     assert "<TenderEconomicsTab" in workspaces_source
     assert "function EconomicsTabPanel" not in tender_details_source
@@ -423,9 +444,11 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert find_mojibake(economics_summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
     assert find_mojibake(economics_forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
     assert find_mojibake(economics_suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
+    assert find_mojibake(economics_supplier_catalogs_source, TENDER_ECONOMICS_SUPPLIER_CATALOGS_SOURCE) == []
     assert find_mojibake(economics_auto_source, TENDER_ECONOMICS_AUTO_SOURCE) == []
     assert find_mojibake(economics_position_rail_source, TENDER_ECONOMICS_POSITION_RAIL_SOURCE) == []
     assert find_mojibake(economics_workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
+    assert find_mojibake(economics_metrics_source, TENDER_ECONOMICS_METRICS_SOURCE) == []
 
 
 def test_frontend_uses_dedicated_tender_workflow_tab_module():
@@ -1080,6 +1103,11 @@ def test_product_profile_renders_supplier_option_form():
         if TENDER_ECONOMICS_SUPPLIERS_SOURCE.exists()
         else ""
     )
+    catalogs_source = (
+        TENDER_ECONOMICS_SUPPLIER_CATALOGS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_SUPPLIER_CATALOGS_SOURCE.exists()
+        else ""
+    )
     forms_source = TENDER_ECONOMICS_FORMS_SOURCE.read_text(encoding="utf-8") if TENDER_ECONOMICS_FORMS_SOURCE.exists() else ""
     api_source = API_SOURCE.read_text(encoding="utf-8")
     formatter_source = FORMATTERS_SOURCE.read_text(encoding="utf-8")
@@ -1087,6 +1115,7 @@ def test_product_profile_renders_supplier_option_form():
 
     assert "from './TenderEconomicsSuppliers'" not in tab_source
     assert "from './TenderEconomicsSuppliers'" in workbench_source
+    assert "from './TenderEconomicsSupplierCatalogs'" in source
     assert "export function ProductSupplierOptionsForm" in source
     assert "function ProductSupplierOptionsForm" not in tab_source
     assert "<ProductSupplierOptionsForm" in workbench_source
@@ -1133,11 +1162,11 @@ def test_product_profile_renders_supplier_option_form():
     assert "supplier_discovery" in source
     assert "SupplierSearchPreview" in source
     assert "SupplierCatalogPresetControls" in source
-    assert "SUPPLIER_CATALOG_PRESETS" in source
-    assert "supplier_catalog_preset_ids" in source
+    assert "SUPPLIER_CATALOG_PRESETS" in catalogs_source
+    assert "supplier_catalog_preset_ids" in catalogs_source
     assert "ignoreSupplierActionError" in source
-    assert "onPresetSave(profile, nextPresetIds)" in source
-    assert "onPresetSave(profile, null)" in source
+    assert "onPresetSave(profile, nextPresetIds)" in catalogs_source
+    assert "onPresetSave(profile, null)" in catalogs_source
     assert "SupplierDiscoveryPreview" in source
     assert "SupplierDiscoveryDiagnostics" in source
     assert "discovery?.status === 'no_candidates'" in source
@@ -1188,6 +1217,7 @@ def test_product_profile_renders_supplier_option_form():
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
     assert find_mojibake(source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
+    assert find_mojibake(catalogs_source, TENDER_ECONOMICS_SUPPLIER_CATALOGS_SOURCE) == []
     assert find_mojibake(forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
@@ -1206,6 +1236,11 @@ def test_economics_tab_surfaces_supplier_catalog_health():
     source = (
         TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
         if TENDER_ECONOMICS_SUPPLIERS_SOURCE.exists()
+        else ""
+    )
+    catalogs_source = (
+        TENDER_ECONOMICS_SUPPLIER_CATALOGS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_SUPPLIER_CATALOGS_SOURCE.exists()
         else ""
     )
     api_source = API_SOURCE.read_text(encoding="utf-8")
@@ -1235,27 +1270,30 @@ def test_economics_tab_surfaces_supplier_catalog_health():
     assert "economicsState={economicsState}" in tabs_source
     assert "from './TenderEconomicsSuppliers'" not in tab_source
     assert "from './TenderEconomicsSuppliers'" in workbench_source
+    assert "from './TenderEconomicsSupplierCatalogs'" in source
     assert "SupplierCatalogHealthPanel" in source
-    assert "supplierCatalogHealth?.catalogs" in source
-    assert "supplier-catalog-health" in source
-    assert "supplier-catalog-health-grid" in source
+    assert "export function SupplierCatalogHealthPanel" in catalogs_source
+    assert "supplierCatalogHealth?.catalogs" in catalogs_source
+    assert "supplier-catalog-health" in catalogs_source
+    assert "supplier-catalog-health-grid" in catalogs_source
     assert "onSupplierCatalogHealthRefresh?.(false)" in tab_source
     assert "supplierCatalogHealthLoading || supplierCatalogHealthError" in tab_source
-    assert "catalog.http_status" in source
-    assert "catalog.error_kind" in source
-    assert "catalog.body_preview" in source
-    assert "catalog.sample_url" in source
+    assert "catalog.http_status" in catalogs_source
+    assert "catalog.error_kind" in catalogs_source
+    assert "catalog.body_preview" in catalogs_source
+    assert "catalog.sample_url" in catalogs_source
     assert "onSupplierCatalogHealthRefresh" in source
-    assert "onRefresh?.(true)" in source
-    assert "Статус каталогов" in source
-    assert "Проверить" in source
-    assert "доступен" in source
-    assert "блокировка" in source
-    assert "сеть недоступна" in source
-    assert "ошибка" in source
-    assert "настроен" in source
+    assert "onRefresh?.(true)" in catalogs_source
+    assert "Статус каталогов" in catalogs_source
+    assert "Проверить" in catalogs_source
+    assert "доступен" in catalogs_source
+    assert "блокировка" in catalogs_source
+    assert "сеть недоступна" in catalogs_source
+    assert "ошибка" in catalogs_source
+    assert "настроен" in catalogs_source
     assert "??????" not in api_source
     assert "??????" not in source
+    assert "??????" not in catalogs_source
     assert ".supplier-catalog-health" in styles_source
     assert ".supplier-catalog-health-heading" in styles_source
     assert ".supplier-catalog-health-grid" in styles_source
@@ -1266,6 +1304,7 @@ def test_economics_tab_surfaces_supplier_catalog_health():
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
     assert find_mojibake(source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
+    assert find_mojibake(catalogs_source, TENDER_ECONOMICS_SUPPLIER_CATALOGS_SOURCE) == []
     assert find_mojibake(api_source, API_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
@@ -1897,6 +1936,11 @@ def test_decision_tabs_are_extracted_to_consistent_work_panels():
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    economics_metrics_source = (
+        TENDER_ECONOMICS_METRICS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_METRICS_SOURCE.exists()
+        else ""
+    )
     workflow_source = (
         TENDER_WORKFLOW_TAB_SOURCE.read_text(encoding="utf-8")
         if TENDER_WORKFLOW_TAB_SOURCE.exists()
@@ -1912,7 +1956,7 @@ def test_decision_tabs_are_extracted_to_consistent_work_panels():
     assert "productProfiles={productProfiles}" in workspaces_source
     assert "<WorkflowTabPanel" in panels_source
     assert "analysis-tab-summary" in analysis_source
-    assert "economics-tab-summary" in economics_source
+    assert "economics-tab-summary" in economics_metrics_source
     assert "workflow-compact-row" in workflow_source
     assert "workflow-status-select" in workflow_source
     assert "workflow-note-panel" in workflow_source
@@ -1926,26 +1970,39 @@ def test_decision_tabs_are_extracted_to_consistent_work_panels():
     assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(economics_metrics_source, TENDER_ECONOMICS_METRICS_SOURCE) == []
     assert find_mojibake(workflow_source, TENDER_WORKFLOW_TAB_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 def test_economics_tab_uses_tender_price_before_manual_calculation():
     app_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    metrics_source = (
+        TENDER_ECONOMICS_METRICS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_METRICS_SOURCE.exists()
+        else ""
+    )
     summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
 
     assert "export function TenderEconomicsTab({" in app_source
-    assert "const displayedRevenue = economics?.revenue ?? marketState?.nmc_price ?? tender?.price" in app_source
-    assert "const revenueLabel = economics?.revenue_kind === 'current_offer'" in app_source
-    assert "<SummaryMetric value={formatMoney(displayedRevenue)} label={revenueLabel} />" in app_source
+    assert "from './TenderEconomicsMetrics'" in app_source
+    assert "const displayedRevenue = economics?.revenue ?? marketState?.nmc_price ?? tender?.price" in metrics_source
+    assert "const revenueLabel = economics?.revenue_kind === 'current_offer'" in metrics_source
+    assert "<SummaryMetric value={formatMoney(displayedRevenue)} label={revenueLabel} />" in metrics_source
     assert "НМЦК подтянута из карточки закупки" in summary_source
     assert find_mojibake(app_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(metrics_source, TENDER_ECONOMICS_METRICS_SOURCE) == []
     assert find_mojibake(summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
 
 def test_economics_tab_renders_bid_thresholds():
     app_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    metrics_source = (
+        TENDER_ECONOMICS_METRICS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_METRICS_SOURCE.exists()
+        else ""
+    )
     summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
 
-    assert "economics?.break_even_price" in app_source
+    assert "economics?.break_even_price" in metrics_source
     assert "economics.break_even_price" in summary_source
     assert "economics.minimum_margin_price" in summary_source
     assert "economics.interesting_price" in summary_source
@@ -1953,6 +2010,7 @@ def test_economics_tab_renders_bid_thresholds():
     assert "Минимальная ставка" in summary_source
     assert "Интересная ставка" in summary_source
     assert find_mojibake(app_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(metrics_source, TENDER_ECONOMICS_METRICS_SOURCE) == []
     assert find_mojibake(summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
 
 def test_tender_detail_renders_price_change_banner():
@@ -2023,15 +2081,21 @@ def test_dashboard_surfaces_current_offers_and_saved_economics():
 
 def test_economics_summary_labels_current_offer_revenue():
     source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    metrics_source = (
+        TENDER_ECONOMICS_METRICS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_METRICS_SOURCE.exists()
+        else ""
+    )
     summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
 
-    assert "economics?.revenue_kind === 'current_offer' ? 'Цена участника' : 'НМЦК'" in source
-    assert '<SummaryMetric value={nmcPriceValue(tender, marketState)} label="НМЦК" />' in source
+    assert "economics?.revenue_kind === 'current_offer' ? 'Цена участника' : 'НМЦК'" in metrics_source
+    assert '<SummaryMetric value={nmcPriceValue(tender, marketState)} label="НМЦК" />' in metrics_source
     assert '<Info label="НМЦК" value={nmcPriceValue(tender, marketState)} />' in summary_source
-    assert '<SummaryMetric value={participantBidValue(economics?.market_state || tender?.market_state)} label="ставка участника" />' in source
-    assert "marketStateValue(economics?.market_state || tender?.market_state)" in source
+    assert '<SummaryMetric value={participantBidValue(economics?.market_state || tender?.market_state)} label="ставка участника" />' in metrics_source
+    assert "marketStateValue(economics?.market_state || tender?.market_state)" in metrics_source
     assert "marketStateCaption(economics?.market_state || tender?.market_state)" in summary_source
     assert find_mojibake(source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(metrics_source, TENDER_ECONOMICS_METRICS_SOURCE) == []
     assert find_mojibake(summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
 
 
