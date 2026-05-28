@@ -75,6 +75,7 @@ class TenderPipeline:
                 adapter.source,
                 _max_datetime(previous_published_at, _latest_published_at(tenders)),
             )
+            fetched_identities = {tender.identity for tender in tenders}
             for tender in tenders:
                 result = self.store.upsert_tender(tender)
                 if result.created:
@@ -103,6 +104,7 @@ class TenderPipeline:
                     if self.notify_mode != "preview":
                         self.store.mark_notified(tender)
                     notified += 1
+            self._refresh_saved_active_tenders(adapter, fetched_identities)
 
         return PipelineStats(
             fetched=fetched,
@@ -118,6 +120,27 @@ class TenderPipeline:
             law_counts=_sorted_counts(law_counts),
             region_counts=_sorted_counts(region_counts),
         )
+
+    def _refresh_saved_active_tenders(self, adapter: BaseAdapter, fetched_identities: set[tuple[str, str]]) -> None:
+        if adapter.source != "moscow_supplier_portal":
+            return
+        enrich_payload = getattr(adapter, "enrich_payload", None)
+        if not callable(enrich_payload):
+            return
+        for row in self.store.list_active_tender_payloads(adapter.source):
+            identity = (str(row["source"]), str(row["external_id"]))
+            if identity in fetched_identities:
+                continue
+            raw_payload = row["raw_payload"]
+            if not raw_payload:
+                continue
+            try:
+                refreshed_payload = enrich_payload(raw_payload)
+                refreshed_tender = adapter.normalize_payload(refreshed_payload)
+            except Exception as exc:  # noqa: BLE001 - a stale card must not break source updates.
+                LOGGER.warning("Failed to refresh saved %s tender %s: %s", adapter.source, identity[1], exc)
+                continue
+            self.store.upsert_tender(refreshed_tender)
 
 
 def _latest_published_at(tenders: list) -> datetime | None:

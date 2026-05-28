@@ -138,6 +138,37 @@ def test_moscow_purchase_query_payload_supports_publication_checkpoint():
     assert query["filter"]["publicationDateFrom"] == published_from
 
 
+def test_moscow_adapter_ignores_proxy_environment_for_source_http(monkeypatch):
+    adapter = MoscowSupplierPortalAdapter(enrich_details=True)
+    calls = []
+
+    class Response:
+        text = ""
+
+        def __init__(self, payload):
+            self.payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self.payload
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs))
+        if "Purchase/Query" in url:
+            return Response({"items": [{"auctionId": 10205128, "name": "Кисть", "stateName": "Активная"}]})
+        return Response({"id": 10205128, "startCost": 1000.0})
+
+    monkeypatch.setattr("tender_killer.adapters.moscow.httpx.get", fake_get)
+
+    tenders = adapter.fetch()
+
+    assert tenders[0].external_id == "10205128"
+    assert calls
+    assert all(kwargs["trust_env"] is False for _, kwargs in calls)
+
+
 def test_mosreg_adapter_fetches_active_trades_from_post_endpoint(monkeypatch):
     adapter = MosregMarketAdapter()
 
@@ -208,3 +239,51 @@ def test_mosreg_trade_search_payload_supports_publication_checkpoint():
     )
 
     assert payload["filterDateFrom"] == "2026-05-20T10:30:00+00:00"
+
+
+def test_mosreg_adapter_ignores_proxy_environment_for_source_http(monkeypatch):
+    adapter = MosregMarketAdapter(enrich_documents=True, enrich_html=True)
+    calls = []
+
+    class Response:
+        text = "<html></html>"
+
+        def __init__(self, payload):
+            self.payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self.payload
+
+    def fake_post(url, **kwargs):
+        calls.append(("POST", url, kwargs))
+        return Response(
+            {
+                "totalpages": 1,
+                "invdata": [
+                    {
+                        "Id": 3668200,
+                        "TradeName": "Поставка бумаги",
+                        "InitialPrice": 1000.0,
+                        "TradeStateName": "Прием предложений",
+                    }
+                ],
+            }
+        )
+
+    def fake_get(url, **kwargs):
+        calls.append(("GET", url, kwargs))
+        if url.endswith("GetTradeDocuments"):
+            return Response([])
+        return Response({})
+
+    monkeypatch.setattr("tender_killer.adapters.mosreg.httpx.post", fake_post)
+    monkeypatch.setattr("tender_killer.adapters.mosreg.httpx.get", fake_get)
+
+    tenders = adapter.fetch()
+
+    assert tenders[0].external_id == "3668200"
+    assert calls
+    assert all(kwargs["trust_env"] is False for _, _, kwargs in calls)

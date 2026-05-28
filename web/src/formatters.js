@@ -138,6 +138,60 @@ export function economicsStatusLabel(status) {
   }[status] || status || 'Проверить'
 }
 
+export function economicsDecisionLabel(economics) {
+  if (!economics) return 'нет расчета'
+  if (economics?.participation_decision?.label) return economics.participation_decision.label
+  return economicsStatusLabel(economics?.status)
+}
+
+export function marketStateValue(marketState) {
+  const currentOffer = Number(marketState?.current_offer_price)
+  const bidCount = Number(marketState?.bid_count)
+  const bidText = formatBidCount(bidCount)
+  if (Number.isFinite(currentOffer)) return bidText ? `${formatMoney(currentOffer)} · ${bidText}` : formatMoney(currentOffer)
+  const participantCount = Number(marketState?.participant_count)
+  if (Number.isFinite(bidCount) && bidCount > 0) return `${bidText}, цена скрыта`
+  if (marketState?.status === 'no_participants' || participantCount === 0) return 'участников нет'
+  if (Number.isFinite(participantCount) && participantCount > 0) return `${participantCount} участн., цена скрыта`
+  return 'нет данных'
+}
+
+export function participantBidValue(marketState) {
+  const currentOffer = Number(marketState?.current_offer_price)
+  const bidCount = Number(marketState?.bid_count)
+  const bidText = formatBidCount(bidCount)
+  if (Number.isFinite(currentOffer)) return bidText ? `${formatMoney(currentOffer)} · ${bidText}` : formatMoney(currentOffer)
+  const participantCount = Number(marketState?.participant_count)
+  if (Number.isFinite(bidCount) && bidCount > 0) return `цена скрыта · ${bidText}`
+  if (marketState?.status === 'no_participants' || participantCount === 0) return 'участников нет'
+  if (Number.isFinite(participantCount) && participantCount > 0) return 'цена скрыта'
+  return 'нет данных'
+}
+
+export function marketStateCaption(marketState) {
+  const participantCount = Number(marketState?.participant_count)
+  const bidCount = Number(marketState?.bid_count)
+  if (Number.isFinite(Number(marketState?.current_offer_price))) {
+    if (Number.isFinite(bidCount) && bidCount > 0) {
+      return bidCount > 1 ? `минимальная из ${formatBidCount(bidCount)}` : formatBidCount(bidCount)
+    }
+    return Number.isFinite(participantCount) ? `участников: ${participantCount}` : 'цена участника'
+  }
+  if (marketState?.status === 'no_participants' || participantCount === 0) return 'ставок нет'
+  if (Number.isFinite(participantCount) && participantCount > 0) return 'участники есть, цена не раскрыта'
+  return 'рыночных данных нет'
+}
+
+function formatBidCount(value) {
+  if (!Number.isFinite(value) || value <= 0) return ''
+  const count = Math.round(value)
+  const mod10 = count % 10
+  const mod100 = count % 100
+  if (mod10 === 1 && mod100 !== 11) return `${count} ставка`
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} ставки`
+  return `${count} ставок`
+}
+
 export function tenderDecisionNextStep(tender, economics) {
   if (!economics) return 'обновить детали и цены'
   if (economics.status === 'needs_costs') return 'добавить себестоимость'

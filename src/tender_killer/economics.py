@@ -14,7 +14,12 @@ LOW_MARGIN_PERCENT = 7.0
 
 
 def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
-    revenue = _number(tender.get("price"))
+    market_state = _market_state(tender)
+    nmc_price = _number(market_state.get("nmc_price")) or _number(tender.get("price"))
+    current_offer_price = _number(market_state.get("current_offer_price"))
+    revenue = current_offer_price if current_offer_price is not None else nmc_price
+    revenue_kind = "current_offer" if current_offer_price is not None else "nmc"
+    price_context = _price_context(revenue, revenue_kind, nmc_price, market_state)
     profiles = [profile for profile in tender.get("product_profiles") or [] if isinstance(profile, dict)]
     items: list[dict[str, Any]] = []
     missing_cost_inputs: list[str] = []
@@ -29,17 +34,29 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         supplier_cost += item["estimated_total_cost"]
 
     risk_types = _risk_types(profiles)
-    risk_reserve_rate_percent = _risk_reserve_rate_percent(risk_types)
-    risk_reserve = _round_money(revenue * risk_reserve_rate_percent / 100) if revenue is not None else None
+    execution_risk_reserve_rate_percent = _risk_reserve_rate_percent(risk_types)
+    execution_risk_reserve = (
+        _round_money(revenue * execution_risk_reserve_rate_percent / 100)
+        if revenue is not None
+        else 0.0
+    )
+    position_risk_reserve = _position_risk_reserve_total(items)
+    risk_reserve_rate_percent = _combined_risk_reserve_rate_percent(
+        _position_risk_reserve_rate_percent(items),
+        execution_risk_reserve_rate_percent,
+    )
+    risk_reserve = _round_money(position_risk_reserve + execution_risk_reserve)
 
     if revenue is None:
         return {
             "status": "needs_price",
             "recommendation": "Нужна НМЦК или цена закупки для расчета.",
-            "revenue": None,
+            **price_context,
             "supplier_cost": None,
             "risk_reserve_rate_percent": risk_reserve_rate_percent,
-            "risk_reserve": None,
+            "risk_reserve": risk_reserve if risk_reserve else None,
+            "position_risk_reserve": position_risk_reserve,
+            "execution_risk_reserve": None,
             "estimated_total_cost": None,
             "break_even_price": None,
             "minimum_margin_price": None,
@@ -64,10 +81,12 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         return {
             "status": "needs_costs",
             "recommendation": "Нужно добавить закупочную себестоимость по позициям.",
-            "revenue": _round_money(revenue),
+            **price_context,
             "supplier_cost": None,
             "risk_reserve_rate_percent": risk_reserve_rate_percent,
             "risk_reserve": risk_reserve,
+            "position_risk_reserve": position_risk_reserve,
+            "execution_risk_reserve": execution_risk_reserve,
             "estimated_total_cost": None,
             "break_even_price": None,
             "minimum_margin_price": None,
@@ -89,7 +108,7 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         }
 
     supplier_cost = _round_money(supplier_cost)
-    estimated_total_cost = _round_money(supplier_cost + (risk_reserve or 0.0))
+    estimated_total_cost = _round_money(supplier_cost + execution_risk_reserve)
     break_even_price = estimated_total_cost
     minimum_margin_price = _price_for_margin(estimated_total_cost, LOW_MARGIN_PERCENT)
     interesting_price = _price_for_margin(estimated_total_cost, INTERESTING_MARGIN_PERCENT)
@@ -103,6 +122,7 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         interesting_price,
         target_bid_price,
         target_margin_percent,
+        revenue_kind,
     )
     gross_margin = _round_money(revenue - estimated_total_cost)
     margin_percent = _round_percent((gross_margin / revenue) * 100) if revenue else None
@@ -110,10 +130,12 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
     return {
         "status": status,
         "recommendation": _recommendation_for_status(status),
-        "revenue": _round_money(revenue),
+        **price_context,
         "supplier_cost": supplier_cost,
         "risk_reserve_rate_percent": risk_reserve_rate_percent,
         "risk_reserve": risk_reserve,
+        "position_risk_reserve": position_risk_reserve,
+        "execution_risk_reserve": execution_risk_reserve,
         "estimated_total_cost": estimated_total_cost,
         "break_even_price": break_even_price,
         "minimum_margin_price": minimum_margin_price,
@@ -184,6 +206,33 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _market_state(tender: dict[str, Any]) -> dict[str, Any]:
+    state = tender.get("market_state")
+    market_state = dict(state) if isinstance(state, dict) else {}
+    if "current_offer_price" not in market_state and _number(tender.get("current_offer_price")) is not None:
+        market_state["current_offer_price"] = _number(tender.get("current_offer_price"))
+    if "nmc_price" not in market_state and _number(tender.get("price")) is not None:
+        market_state["nmc_price"] = _number(tender.get("price"))
+    return market_state
+
+
+def _price_context(
+    revenue: float | None,
+    revenue_kind: str,
+    nmc_price: float | None,
+    market_state: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "revenue": _round_money(revenue) if revenue is not None else None,
+        "revenue_kind": revenue_kind,
+        "nmc_price": _round_money(nmc_price) if nmc_price is not None else None,
+        "market_state": {
+            **market_state,
+            "nmc_price": _round_money(nmc_price) if nmc_price is not None else market_state.get("nmc_price"),
+        },
+    }
+
+
 def _economics_payload(profile: dict[str, Any]) -> dict[str, Any]:
     raw_payload = profile.get("raw_payload")
     if isinstance(raw_payload, dict) and isinstance(raw_payload.get("economics"), dict):
@@ -235,6 +284,31 @@ def _target_margin_percent(items: list[dict[str, Any]]) -> float:
     return _round_percent(max(margins))
 
 
+def _position_risk_reserve_total(items: list[dict[str, Any]]) -> float:
+    return _round_money(sum(_number(item.get("position_risk_reserve")) or 0.0 for item in items))
+
+
+def _position_risk_reserve_rate_percent(items: list[dict[str, Any]]) -> float:
+    reserve = _position_risk_reserve_total(items)
+    if not reserve:
+        return 0.0
+    base_cost = sum(
+        _position_risk_reserve_base(item)
+        for item in items
+    )
+    return _round_percent((reserve / base_cost) * 100) if base_cost else 0.0
+
+
+def _position_risk_reserve_base(item: dict[str, Any]) -> float:
+    estimated_total = _number(item.get("estimated_total_cost")) or 0.0
+    reserve = _number(item.get("position_risk_reserve")) or 0.0
+    return max(0.0, estimated_total - reserve)
+
+
+def _combined_risk_reserve_rate_percent(position_rate: float, execution_rate: float) -> float:
+    return _round_percent(position_rate + execution_rate)
+
+
 def _bid_scenarios(
     revenue: float,
     estimated_total_cost: float,
@@ -243,13 +317,16 @@ def _bid_scenarios(
     interesting_price: float,
     target_bid_price: float,
     target_margin_percent: float,
+    revenue_kind: str,
 ) -> list[dict[str, Any]]:
+    current_id = "current_offer" if revenue_kind == "current_offer" else "current_nmc"
+    current_label = "Текущая ставка" if revenue_kind == "current_offer" else "НМЦК"
     scenarios = [
         ("break_even", "Безубыток", break_even_price, 0.0),
         ("minimum_margin", "Минимум", minimum_margin_price, LOW_MARGIN_PERCENT),
         ("target", "Цель", target_bid_price, target_margin_percent),
         ("interesting", "Интересно", interesting_price, INTERESTING_MARGIN_PERCENT),
-        ("current_nmc", "НМЦК", _round_money(revenue), _margin_percent(revenue, estimated_total_cost)),
+        (current_id, current_label, _round_money(revenue), _margin_percent(revenue, estimated_total_cost)),
     ]
     return [
         _bid_scenario(scenario_id, label, price, margin_percent, estimated_total_cost)

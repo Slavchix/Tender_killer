@@ -75,6 +75,7 @@ class MosregMarketAdapter(BaseAdapter):
                 ),
                 headers=headers,
                 timeout=self.timeout_seconds,
+                trust_env=False,
             )
             response.raise_for_status()
             data = response.json()
@@ -111,7 +112,7 @@ class MosregMarketAdapter(BaseAdapter):
             "XXX-TenantId-Header": "2",
         }
         try:
-            response = httpx.get(url, headers=headers, timeout=self.timeout_seconds)
+            response = httpx.get(url, headers=headers, timeout=self.timeout_seconds, trust_env=False)
             response.raise_for_status()
             data = response.json()
         except (httpx.HTTPError, ValueError) as exc:
@@ -128,7 +129,7 @@ class MosregMarketAdapter(BaseAdapter):
             "User-Agent": "TenderKiller/0.1 (+https://github.com/Slavchix/Tender_killer)",
         }
         try:
-            response = httpx.get(url, headers=headers, timeout=self.timeout_seconds)
+            response = httpx.get(url, headers=headers, timeout=self.timeout_seconds, trust_env=False)
             response.raise_for_status()
         except httpx.HTTPError as exc:
             LOGGER.warning("Failed to fetch Mosreg HTML card for %s: %s", trade_id, exc)

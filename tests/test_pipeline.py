@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 
 from tender_killer.filters import FilterProfile, MaterialFilter, TenderFilter
@@ -34,6 +35,40 @@ class CheckpointAdapter:
     def fetch(self):
         self.seen_published_from = self.published_from
         return self.tenders
+
+
+class RefreshingMoscowAdapter:
+    source = "moscow_supplier_portal"
+
+    def fetch(self):
+        return []
+
+    def enrich_payload(self, payload):
+        enriched = dict(payload)
+        enriched["__detail"] = {
+            "id": 10211265,
+            "name": payload.get("name") or payload.get("title") or "ТРУБЫ И ДЕТАЛИ ТРУБОПРОВОДОВ",
+            "state": {"name": "Проведена", "id": 19000004},
+            "startCost": 13560.0,
+            "endDate": "27.05.2026 16:01:12",
+            "lastBetCost": 13492.2,
+            "lastBetSupplier": {"name": "ИП ТИТОВА АНАСТАСИЯ МИХАЙЛОВНА", "id": 28592777},
+            "uniqueSupplierCount": 1,
+            "bets": [{"cost": 13492.2, "supplier": {"name": "Другой участник"}}],
+        }
+        return enriched
+
+    def normalize_payload(self, payload):
+        detail = payload["__detail"]
+        return Tender(
+            source=self.source,
+            external_id=str(payload.get("id") or payload.get("auctionId")),
+            url=f"https://zakupki.mos.ru/auction/{payload.get('auctionId')}",
+            title=detail["name"],
+            price=detail["startCost"],
+            status=detail["state"]["name"],
+            raw_payload=payload,
+        )
 
 
 class SpyNotifier:
@@ -357,3 +392,49 @@ def test_pipeline_does_not_move_source_checkpoint_backwards(tmp_path):
     checkpoint = store.get_source_checkpoint("checkpoint")
 
     assert checkpoint["last_seen_published_at"] == previous_checkpoint
+
+
+def test_pipeline_refreshes_saved_moscow_active_tenders_that_left_active_search(tmp_path):
+    store = TenderStore(tmp_path / "db.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="moscow_supplier_portal",
+            external_id="Auction10211265",
+            url="https://zakupki.mos.ru/auction/10211265",
+            title="ТРУБЫ И ДЕТАЛИ ТРУБОПРОВОДОВ",
+            price=13560.0,
+            status="Активная",
+            raw_payload={
+                "id": "Auction10211265",
+                "auctionId": 10211265,
+                "name": "ТРУБЫ И ДЕТАЛИ ТРУБОПРОВОДОВ",
+                "__detail": {
+                    "state": {"name": "Активная", "id": 19000002},
+                    "startCost": 13560.0,
+                    "lastBetCost": None,
+                    "uniqueSupplierCount": 0,
+                },
+            },
+        )
+    )
+
+    pipeline = TenderPipeline(
+        adapters=[RefreshingMoscowAdapter()],
+        store=store,
+        material_filter=MaterialFilter(),
+        notifier=SpyNotifier(),
+    )
+
+    pipeline.run()
+    with store._connect() as connection:
+        row = connection.execute(
+            "SELECT status, status_normalized, raw_payload_json FROM tenders WHERE source = ? AND external_id = ?",
+            ("moscow_supplier_portal", "Auction10211265"),
+        ).fetchone()
+    raw_payload = json.loads(row["raw_payload_json"])
+
+    assert row["status"] == "Проведена"
+    assert row["status_normalized"] == "completed"
+    assert raw_payload["__detail"]["lastBetCost"] == 13492.2
+    assert raw_payload["__detail"]["uniqueSupplierCount"] == 1

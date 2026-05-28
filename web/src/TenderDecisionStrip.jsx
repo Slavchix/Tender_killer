@@ -1,4 +1,4 @@
-import { documentStatusCounts, economicsStatusLabel, formatMoney, formatPercent } from './formatters'
+import { documentStatusCounts, economicsStatusLabel, formatMoney, formatPercent, participantBidValue } from './formatters'
 import { SummaryMetric } from './TenderDetailsShared'
 
 export function TenderDecisionStrip({ tender, economics, productProfiles = [], documents = [], analysis }) {
@@ -17,6 +17,8 @@ export function TenderDecisionStrip({ tender, economics, productProfiles = [], d
     <section className="decision-strip" aria-label="Решение по закупке">
       <div className="decision-strip-grid">
         <SummaryMetric value={decisionLabel(tender, economics, analysis)} label="решение" />
+        <SummaryMetric value={formatMoney(tender.price)} label="НМЦК" />
+        <SummaryMetric value={participantBidValue(economics?.market_state || tender.market_state)} label="ставка участника" />
         <SummaryMetric value={economics ? marginText : economicsStatusLabel(economics?.status)} label="маржа" />
         <SummaryMetric value={formatMoney(stopPrice)} label="стоп-цена" />
         <SummaryMetric value={`${readyProducts}/${positionTotal}`} label="позиции" />

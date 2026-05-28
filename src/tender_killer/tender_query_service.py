@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from tender_killer.economics import build_economics_summary
 from tender_killer.filter_store import FilterProfileCollection, NamedFilterProfile
 from tender_killer.filters import FilterProfile
+from tender_killer.market_state import extract_market_state
 from tender_killer.quick_search import expand_quick_search_exclude_keywords
 from tender_killer.quick_search import expand_quick_search_keywords
 from tender_killer.schema import ensure_analysis_table
@@ -29,7 +31,8 @@ class TenderListQuery:
 
 
 def list_tenders_payload(database_path: str | Path, query: dict[str, str]) -> dict[str, Any]:
-    TenderStore(database_path).initialize()
+    store = TenderStore(database_path)
+    store.initialize()
     tender_query = build_tender_list_query(query)
     with _connect(database_path) as connection:
         ensure_workflow_table(connection)
@@ -45,7 +48,7 @@ def list_tenders_payload(database_path: str | Path, query: dict[str, str]) -> di
     has_previous = tender_query.offset > 0
     next_offset = tender_query.offset + tender_query.limit
     has_next = next_offset < total
-    items = [_row_to_list_item(row) for row in rows]
+    items = [_row_to_list_item(row, database_path) for row in rows]
     return {
         "total": total,
         "limit": tender_query.limit,
@@ -158,7 +161,7 @@ def _build_filters(query: dict[str, str]) -> tuple[list[str], list[Any]]:
                 + ")"
             )
             params.extend(["active", "%Актив%", "%актив%", "%Прием%", "%Приём%"])
-            filters.append("(tenders.deadline_at IS NULL OR datetime(tenders.deadline_at) >= datetime('now'))")
+            filters.append(_active_deadline_filter())
         else:
             status_filters, status_params = _text_like_any("tenders.status", status)
             filters.append(status_filters)
@@ -387,12 +390,41 @@ def _text_variants(values: str | tuple[str, ...]) -> tuple[str, ...]:
     return tuple(variants)
 
 
-def _row_to_list_item(row: sqlite3.Row) -> dict[str, Any]:
+def _active_deadline_filter() -> str:
+    return """
+        (
+            tenders.deadline_at IS NULL
+            OR (
+                (
+                    tenders.deadline_at LIKE '%+__:__'
+                    OR tenders.deadline_at LIKE '%-__:__'
+                    OR tenders.deadline_at LIKE '%Z'
+                )
+                AND datetime(tenders.deadline_at) >= datetime('now')
+            )
+            OR (
+                tenders.deadline_at NOT LIKE '%+__:__'
+                AND tenders.deadline_at NOT LIKE '%-__:__'
+                AND tenders.deadline_at NOT LIKE '%Z'
+                AND datetime(tenders.deadline_at) >= datetime('now', 'localtime')
+            )
+        )
+    """
+
+
+def _row_to_list_item(row: sqlite3.Row, database_path: str | Path) -> dict[str, Any]:
     payload = dict(row)
     documents = _json_list(payload.pop("documents_json"))
     raw_payload_json = payload.pop("raw_payload_json", None)
     payload["documents_count"] = len(documents)
+    payload["market_state"] = extract_market_state({**payload, "raw_payload_json": raw_payload_json})
     payload["law"] = payload.get("law") or _law_label(raw_payload_json)
+    profiles = TenderStore(database_path).get_product_profiles(payload["source"], payload["external_id"])
+    payload["economics"] = (
+        build_economics_summary({**payload, "raw_payload_json": raw_payload_json, "product_profiles": profiles})
+        if profiles
+        else None
+    )
     return payload
 
 

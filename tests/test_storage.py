@@ -277,7 +277,7 @@ def test_store_empty_product_profile_upsert_deletes_existing_profiles(tmp_path):
     assert store.get_product_profiles("moscow", "abc") == []
 
 
-def test_store_deletes_product_profiles_when_tender_is_refreshed(tmp_path):
+def test_store_preserves_product_profiles_when_tender_is_refreshed(tmp_path):
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()
     store.upsert_tender(
@@ -301,7 +301,9 @@ def test_store_deletes_product_profiles_when_tender_is_refreshed(tmp_path):
         )
     )
 
-    assert store.get_product_profiles("moscow", "abc") == []
+    profiles = store.get_product_profiles("moscow", "abc")
+    assert len(profiles) == 1
+    assert profiles[0]["product_name"] == "Paper"
 
 
 def test_store_migrates_existing_minimal_product_profiles_table(tmp_path):

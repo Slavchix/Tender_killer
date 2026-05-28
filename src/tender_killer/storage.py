@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from tender_killer.models import ProductProfile, Tender, TenderDocument
+from tender_killer.market_state import extract_market_state
 from tender_killer.normalization import parse_datetime
 from tender_killer.schema import initialize_schema
 from tender_killer.tender_metadata import normalize_customer_inn
@@ -83,12 +84,17 @@ class TenderStore:
                 payload,
             )
             self._record_price_snapshot(connection, tender, "nmc", tender.price)
+            market_state = extract_market_state(
+                {
+                    "source": tender.source,
+                    "external_id": tender.external_id,
+                    "price": tender.price,
+                    "raw_payload": tender.raw_payload,
+                }
+            )
+            self._record_price_snapshot(connection, tender, "current_offer", market_state.get("current_offer_price"))
             self._replace_items(connection, tender)
             self._replace_documents(connection, tender)
-            connection.execute(
-                "DELETE FROM product_profiles WHERE tender_source = ? AND tender_external_id = ?",
-                tender.identity,
-            )
             return SaveResult(created=not existed, updated=existed)
 
     def was_notified(self, tender: Tender) -> bool:
@@ -174,6 +180,27 @@ class TenderStore:
                 """,
                 (source, now, error, now),
             )
+
+    def list_active_tender_payloads(self, source: str, limit: int = 50) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT source, external_id, raw_payload_json
+                FROM tenders
+                WHERE source = ? AND status_normalized = 'active'
+                ORDER BY COALESCE(deadline_at, updated_at) ASC, external_id ASC
+                LIMIT ?
+                """,
+                (source, max(1, int(limit))),
+            ).fetchall()
+        return [
+            {
+                "source": row["source"],
+                "external_id": row["external_id"],
+                "raw_payload": _json_object(row["raw_payload_json"]),
+            }
+            for row in rows
+        ]
 
     def upsert_product_profiles(
         self,
@@ -450,6 +477,16 @@ def _deserialize_source_checkpoint(row: sqlite3.Row) -> dict[str, Any]:
         "last_error": row["last_error"],
         "updated_at": parse_datetime(row["updated_at"]),
     }
+
+
+def _json_object(value: Any) -> dict[str, Any]:
+    if not isinstance(value, str) or not value.strip():
+        return {}
+    try:
+        data = json.loads(value)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 _PRODUCT_PROFILE_JSON_FIELDS = (

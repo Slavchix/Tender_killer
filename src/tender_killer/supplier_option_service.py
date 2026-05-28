@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from tender_killer.product_profile_service import ensure_product_profiles
 from tender_killer.storage import TenderStore
 from tender_killer.supplier_price_service import best_supplier_price
 from tender_killer.supplier_price_service import supplier_price_source
@@ -21,9 +22,7 @@ def add_profile_supplier_option(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = store.get_product_profiles(source, external_id)
-    if not profiles:
-        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+    profiles = ensure_product_profiles(database_path, source, external_id)
 
     target = None
     for profile in profiles:
@@ -56,9 +55,7 @@ def select_profile_supplier_option(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = store.get_product_profiles(source, external_id)
-    if not profiles:
-        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+    profiles = ensure_product_profiles(database_path, source, external_id)
 
     target = None
     for profile in profiles:
@@ -107,9 +104,7 @@ def apply_best_profile_supplier_option(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = store.get_product_profiles(source, external_id)
-    if not profiles:
-        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+    profiles = ensure_product_profiles(database_path, source, external_id)
 
     target = None
     for profile in profiles:

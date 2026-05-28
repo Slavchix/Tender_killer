@@ -72,6 +72,7 @@ class MoscowSupplierPortalAdapter(BaseAdapter):
                 params={"queryDto": json.dumps(query, ensure_ascii=False, separators=(",", ":"))},
                 headers=headers,
                 timeout=self.timeout_seconds,
+                trust_env=False,
             )
             response.raise_for_status()
             data = response.json()
@@ -107,6 +108,7 @@ class MoscowSupplierPortalAdapter(BaseAdapter):
                 params={"auctionId": auction_id},
                 headers=headers,
                 timeout=self.timeout_seconds,
+                trust_env=False,
             )
             response.raise_for_status()
             data = response.json()

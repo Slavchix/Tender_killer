@@ -917,6 +917,9 @@ def test_product_profile_renders_supplier_option_form():
     assert "economics_price_source" in source
     assert "EconomicsPriceSource" in source
     assert "unit_price" in source
+    assert 'name="unit_price"' not in source
+    assert "updateField('unit_price'" not in source
+    assert "values.unit_price" not in source
     assert "availability" in source
     assert "Лучший в расчет" in source
     assert "Источник цены" in source
@@ -1372,6 +1375,29 @@ def test_analysis_and_economics_open_in_fullscreen_workspace():
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
+def test_fullscreen_economics_workspace_is_a_dedicated_workbench():
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    fullscreen_rule = _css_rule(styles_source, ".fullscreen-workspace.economics")
+    fullscreen_economics_rule = _css_rule(styles_source, ".fullscreen-workspace-body .economics-workspace-grid")
+    rail_rule = _css_rule(styles_source, ".fullscreen-workspace-body .economics-position-rail")
+    supplier_rule = _css_rule(styles_source, ".fullscreen-workspace-body .economics-supplier-panel")
+    supplier_heading_rule = _css_rule(styles_source, ".fullscreen-workspace-body .supplier-options-block .profile-block-heading")
+    supplier_actions_rule = _css_rule(styles_source, ".fullscreen-workspace-body .supplier-options-block .profile-block-actions")
+
+    assert "width: min(1680px, calc(100vw - 36px))" in fullscreen_rule
+    assert "grid-template-columns: minmax(320px, 0.58fr) minmax(420px, 1fr) minmax(360px, 0.78fr)" in fullscreen_economics_rule
+    assert "position: sticky" in rail_rule
+    assert "top: 0" in rail_rule
+    assert "max-height: calc(100vh - 220px)" in rail_rule
+    assert "position: sticky" in supplier_rule
+    assert "top: 0" in supplier_rule
+    assert "display: grid" in supplier_heading_rule
+    assert "align-items: stretch" in supplier_heading_rule
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in supplier_actions_rule
+    assert "@container (max-width: 1100px)" in styles_source
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_decision_tabs_are_extracted_to_consistent_work_panels():
     app_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
@@ -1409,7 +1435,8 @@ def test_economics_tab_uses_tender_price_before_manual_calculation():
 
     assert "export function TenderEconomicsTab({" in app_source
     assert "const displayedRevenue = economics?.revenue ?? tender?.price" in app_source
-    assert "<SummaryMetric value={formatMoney(displayedRevenue)} label=\"НМЦК\" />" in app_source
+    assert "const revenueLabel = economics?.revenue_kind === 'current_offer'" in app_source
+    assert "<SummaryMetric value={formatMoney(displayedRevenue)} label={revenueLabel} />" in app_source
     assert "НМЦК подтянута из карточки закупки" in app_source
     assert find_mojibake(app_source, TENDER_ECONOMICS_TAB_SOURCE) == []
 
@@ -1442,6 +1469,69 @@ def test_tender_detail_renders_price_change_banner():
     assert find_mojibake(app_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(decision_source, TENDER_DECISION_SUMMARY_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_frontend_formats_market_state_for_tender_surfaces():
+    formatter_source = FORMATTERS_SOURCE.read_text(encoding="utf-8")
+
+    assert "export function marketStateValue" in formatter_source
+    assert "export function participantBidValue" in formatter_source
+    assert "marketState?.bid_count" in formatter_source
+    assert "function formatBidCount" in formatter_source
+    assert "минимальная из ${formatBidCount(bidCount)}" in formatter_source
+    assert "участников нет" in formatter_source
+    assert "цена скрыта" in formatter_source
+    assert "export function economicsDecisionLabel" in formatter_source
+    assert "нет расчета" in formatter_source
+
+
+def test_tender_list_surfaces_market_state_and_economics_decision():
+    source = TENDER_LIST_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "marketStateValue(tender.market_state)" in source
+    assert "economicsDecisionLabel(tender.economics)" in source
+    assert "economics-chip" in source
+    assert ".economics-chip" in styles_source
+    assert find_mojibake(source, TENDER_LIST_SOURCE) == []
+
+
+def test_dashboard_surfaces_current_offers_and_saved_economics():
+    dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "currentOfferCount" in dashboard_source
+    assert "marketMetric" in dashboard_source
+    assert "economicsReadyCount" in dashboard_source
+    assert "economicsDecisionLabel(tender.economics)" in dashboard_source
+    assert "participantBidValue(tender.market_state)" in dashboard_source
+    assert "НМЦК ${formatMoney(tender.price)}" in dashboard_source
+    assert "ставка ${participantBidValue(tender.market_state)}" in dashboard_source
+    assert "repeat(auto-fit, minmax(180px, 1fr))" in styles_source
+    assert find_mojibake(dashboard_source, DASHBOARD_SOURCE) == []
+
+
+def test_economics_summary_labels_current_offer_revenue():
+    source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+
+    assert "economics?.revenue_kind === 'current_offer' ? 'Цена участника' : 'НМЦК'" in source
+    assert '<SummaryMetric value={formatMoney(tender?.price)} label="НМЦК" />' in source
+    assert '<SummaryMetric value={participantBidValue(economics?.market_state || tender?.market_state)} label="ставка участника" />' in source
+    assert "marketStateValue(economics?.market_state || tender?.market_state)" in source
+    assert "marketStateCaption(economics?.market_state || tender?.market_state)" in source
+    assert find_mojibake(source, TENDER_ECONOMICS_TAB_SOURCE) == []
+
+
+def test_tender_card_surfaces_participant_bid_next_to_nmc():
+    summary_source = TENDER_DECISION_SUMMARY_SOURCE.read_text(encoding="utf-8")
+    strip_source = TENDER_DECISION_STRIP_SOURCE.read_text(encoding="utf-8")
+
+    assert 'Info label="НМЦК" value={formatMoney(tender.price)}' in summary_source
+    assert 'Info label="Ставка участника" value={participantBidValue(tender.market_state || economics?.market_state)}' in summary_source
+    assert 'SummaryMetric value={formatMoney(tender.price)} label="НМЦК"' in strip_source
+    assert 'SummaryMetric value={participantBidValue(economics?.market_state || tender.market_state)} label="ставка участника"' in strip_source
+    assert find_mojibake(summary_source, TENDER_DECISION_SUMMARY_SOURCE) == []
+    assert find_mojibake(strip_source, TENDER_DECISION_STRIP_SOURCE) == []
 
 
 def test_tender_detail_visual_density_has_stable_grids_and_no_negative_offsets():

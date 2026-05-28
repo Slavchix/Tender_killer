@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from tender_killer.product_profile_service import ensure_product_profiles
 from tender_killer.storage import TenderStore
 
 
@@ -37,9 +38,7 @@ def stage_profile_supplier_candidates(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = store.get_product_profiles(source, external_id)
-    if not profiles:
-        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+    profiles = ensure_product_profiles(database_path, source, external_id)
 
     target = _find_profile(profiles, position_index)
     if target is None:
@@ -81,9 +80,7 @@ def import_profile_supplier_candidate(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = store.get_product_profiles(source, external_id)
-    if not profiles:
-        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+    profiles = ensure_product_profiles(database_path, source, external_id)
 
     target = _find_profile(profiles, position_index)
     if target is None:

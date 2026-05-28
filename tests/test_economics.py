@@ -71,7 +71,12 @@ def test_build_economics_summary_returns_bid_thresholds():
     summary = build_economics_summary(
         {
             "price": 100000.0,
-            "current_offer_price": 90000.0,
+            "market_state": {
+                "status": "has_current_offer",
+                "participant_count": 2,
+                "current_offer_price": 90000.0,
+                "nmc_price": 100000.0,
+            },
             "product_profiles": [
                 {
                     "product_name": "Fuel",
@@ -82,7 +87,10 @@ def test_build_economics_summary_returns_bid_thresholds():
         }
     )
 
-    assert summary["revenue"] == 100000.0
+    assert summary["revenue"] == 90000.0
+    assert summary["revenue_kind"] == "current_offer"
+    assert summary["nmc_price"] == 100000.0
+    assert summary["market_state"]["participant_count"] == 2
     assert summary["break_even_price"] == 71000.0
     assert summary["minimum_margin_price"] == 76344.09
     assert summary["interesting_price"] == 83529.41
@@ -119,6 +127,8 @@ def test_build_economics_summary_applies_position_assumptions():
     assert item["target_margin_percent"] == 15.0
     assert item["target_price"] == 16305.88
     assert summary["supplier_cost"] == 13860.0
+    assert summary["risk_reserve"] == 660.0
+    assert summary["risk_reserve_rate_percent"] == 5.0
     assert summary["break_even_price"] == 13860.0
 
 

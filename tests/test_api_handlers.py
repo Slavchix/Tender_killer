@@ -1,7 +1,7 @@
 from urllib.parse import quote
 
 from tender_killer.api_handlers import handle_get_request, handle_post_request
-from tender_killer.models import ProductProfile, Tender
+from tender_killer.models import ProductProfile, Tender, TenderItem
 from tender_killer.storage import TenderStore
 
 
@@ -24,6 +24,33 @@ def _store_with_tender(tmp_path):
     return store
 
 
+def _store_with_materializable_tender_item(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="moscow_supplier_portal",
+            external_id="Auction10211242",
+            url="https://zakupki.mos.ru/auction/10211242",
+            title="Battery Delta DTM",
+            customer="School",
+            region="Moscow",
+            price=5080.0,
+            status="Active",
+            items=[
+                TenderItem(
+                    name="Battery Delta DTM",
+                    quantity=4.0,
+                    unit="pcs",
+                    unit_price=1270.0,
+                    total_price=5080.0,
+                )
+            ],
+        )
+    )
+    return store
+
+
 def test_handle_get_request_returns_health_payload(tmp_path) -> None:
     response = handle_get_request(tmp_path / "tenders.sqlite", "/api/health", {})
 
@@ -34,6 +61,7 @@ def test_handle_get_request_returns_health_payload(tmp_path) -> None:
     assert "supplier_catalog_presets" in response.payload["capabilities"]
     assert "supplier_catalog_health" in response.payload["capabilities"]
     assert "supplier_discovery_url" in response.payload["capabilities"]
+    assert "web_auto_search" in response.payload["capabilities"]
 
 
 def test_handle_get_request_routes_supplier_catalog_health(tmp_path) -> None:
@@ -117,6 +145,25 @@ def test_handle_post_request_routes_product_profile_economics_update(tmp_path) -
         "logistics_cost": 5000.0,
     }
     assert response.payload["economics"]["supplier_cost"] == 65000.0
+
+
+def test_handle_post_request_materializes_missing_product_profiles_for_economics_update(tmp_path) -> None:
+    store = _store_with_materializable_tender_item(tmp_path)
+    assert store.get_product_profiles("moscow_supplier_portal", "Auction10211242") == []
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/moscow_supplier_portal/Auction10211242/product-profiles/1/economics",
+        {"unit_cost": "3500", "logistics_cost": "200"},
+    )
+
+    profile = response.payload["product_profiles"][0]
+    assert response.status == 200
+    assert profile["product_name"] == "Battery Delta DTM"
+    assert profile["raw_payload"]["economics"] == {"unit_cost": 3500.0, "logistics_cost": 200.0}
+    assert store.get_product_profiles("moscow_supplier_portal", "Auction10211242")[0]["raw_payload"][
+        "economics"
+    ] == {"unit_cost": 3500.0, "logistics_cost": 200.0}
 
 
 def test_handle_post_request_routes_product_profile_economics_assumptions_update(tmp_path) -> None:
@@ -351,6 +398,25 @@ def test_handle_post_request_routes_product_profile_supplier_search_prepare(tmp_
             },
         ],
     }
+
+
+def test_handle_post_request_materializes_missing_product_profiles_for_supplier_search_prepare(tmp_path) -> None:
+    store = _store_with_materializable_tender_item(tmp_path)
+    assert store.get_product_profiles("moscow_supplier_portal", "Auction10211242") == []
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/moscow_supplier_portal/Auction10211242/product-profiles/1/supplier-search/prepare",
+        {},
+    )
+
+    profile = response.payload["product_profiles"][0]
+    assert response.status == 200
+    assert profile["profile_status"] == "searching"
+    assert profile["raw_payload"]["supplier_search"]["queries"][0]["query"] == "battery delta dtm"
+    assert store.get_product_profiles("moscow_supplier_portal", "Auction10211242")[0]["raw_payload"][
+        "supplier_search"
+    ]["status"] == "ready"
 
 
 def test_handle_post_request_routes_product_profile_supplier_catalog_presets_update(tmp_path) -> None:

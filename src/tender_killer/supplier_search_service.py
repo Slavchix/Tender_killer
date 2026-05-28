@@ -5,6 +5,7 @@ from typing import Any
 from urllib.parse import quote_plus
 from urllib.parse import urlparse
 
+from tender_killer.product_profile_service import ensure_product_profiles
 from tender_killer.storage import TenderStore
 from tender_killer.supplier_catalog_presets import supplier_catalog_presets_for_profile
 
@@ -57,9 +58,7 @@ def prepare_profile_supplier_search(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = store.get_product_profiles(source, external_id)
-    if not profiles:
-        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+    profiles = ensure_product_profiles(database_path, source, external_id)
 
     target = _find_profile(profiles, position_index)
     if target is None:

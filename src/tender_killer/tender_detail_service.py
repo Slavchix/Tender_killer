@@ -9,6 +9,7 @@ from tender_killer.adapters import MoscowSupplierPortalAdapter
 from tender_killer.adapters import MosregMarketAdapter
 from tender_killer.document_service import document_row_to_payload
 from tender_killer.economics import build_economics_summary
+from tender_killer.market_state import extract_market_state
 from tender_killer.price_tracking import latest_price_change
 from tender_killer.product_profile_service import build_profiles
 from tender_killer.product_profile_service import product_profile_summary
@@ -136,6 +137,7 @@ def get_tender_payload(
         product_profiles = []
     payload["product_profiles"] = product_profiles
     payload["product_profile_summary"] = product_profile_summary(product_profiles)
+    payload["market_state"] = extract_market_state(payload)
     payload["economics"] = build_economics_summary(payload)
     payload["price_change"] = latest_price_change(
         database_path, source, external_id, "current_offer"

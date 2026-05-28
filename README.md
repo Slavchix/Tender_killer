@@ -73,6 +73,8 @@ Recent architecture cleanup:
 - Search runs now return readable statistics: new/existing relevant matches plus breakdowns by law, region, and source for Telegram summaries and `/api/search/run`.
 - Local dev startup is guarded by `tender_killer.dev_health`, which checks `/api/health` capabilities plus `/api/sources/status` and supplier catalog health before the frontend starts.
 - The API health payload now advertises required local-dev capabilities, so a stale backend on port 8000 is rejected before Vite proxies product-profile supplier actions to it.
+- The web API now runs an hourly background source refresh through the same search runner as the site `Запустить поиск` button; overlapping manual/auto runs are rejected instead of racing SQLite writes.
+- Public market state now tracks NMC, current/minimum public participant bid, participant count, and bid count where the source exposes them; tender cards, economics, lists, and dashboard surfaces use the same saved state from SQLite.
 - Runtime/UI text encoding is guarded by `tender_killer.encoding_guard`; `dev_smoke` reuses it to catch Cyrillic mojibake regressions.
 - Active tender lists now hide expired purchases by normalized active status plus `deadline_at >= datetime('now')`, so completed/old cards do not dominate the workbench.
 - The React frontend has been decomposed out of the former oversized `App.jsx` / `TenderDetails.jsx` surface. Current extracted modules include `api.js`, `constants.js`, `formatters.js`, `Dashboard.jsx`, `DatabaseView.jsx`, `FiltersPanel.jsx`, `TenderList.jsx`, `PaginationBar.jsx`, `TenderDetailActions.jsx`, `TenderDetailsHeader.jsx`, `TenderDetailsStatusStack.jsx`, `TenderDetailsTabs.jsx`, `TenderDetailsShared.jsx`, `TenderDecisionSummary.jsx`, `TenderOverviewTab.jsx`, `TenderDocumentsTab.jsx`, `TenderAnalysisTab.jsx`, `TenderWorkflowTab.jsx`, `TenderProductsTab.jsx`, and `TenderEconomicsTab.jsx`.
@@ -138,6 +140,7 @@ python -m pip install -e ".[dev]"
 - `TENDER_KILLER_MOSREG_URL` - переопределить URL источника МО.
 - `TENDER_KILLER_FILTERS` - путь к JSON-файлу с профилями поиска.
 - `TENDER_KILLER_AUTO_SEARCH_MINUTES` - интервал авто-поиска в минутах, по умолчанию `30`.
+- `TENDER_KILLER_WEB_AUTO_SEARCH_MINUTES` - интервал фонового обновления источников в web API, по умолчанию `60`; `0` отключает.
 - `TENDER_KILLER_SOURCE_MAX_PAGES` - сколько страниц запрашивать у каждого источника, по умолчанию `1`.
 - `TENDER_KILLER_SOURCE_OVERLAP_MINUTES` - на сколько минут откатывать checkpoint при инкрементальном поиске, по умолчанию `60`.
 

@@ -74,6 +74,83 @@ def test_refresh_tender_detail_payload_saves_detail_and_rebuilds_profiles(tmp_pa
     assert detail["product_profiles"][0]["product_name"] == "Office paper"
 
 
+def test_refresh_tender_detail_payload_preserves_saved_product_economics(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="3668201",
+            url="https://market.mosreg.ru/Trade/ViewTrade/3668201",
+            title="Paper tender",
+            price=100000.0,
+            raw_payload={"Id": 3668201},
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668201",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668201",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+                profile_status="priced",
+                raw_payload={
+                    "economics": {"unit_cost": 6000.0, "logistics_cost": 5000.0},
+                    "economics_assumptions": {"vat_mode": "vat_included", "risk_reserve_percent": 5.0},
+                },
+            )
+        ],
+    )
+
+    class DetailAdapter:
+        source = "mosreg_market"
+
+        def enrich_payload(self, payload):
+            enriched = dict(payload)
+            enriched["__detail"] = {"loaded": True}
+            return enriched
+
+        def normalize_payload(self, payload):
+            return Tender(
+                source="mosreg_market",
+                external_id="3668201",
+                url="https://market.mosreg.ru/Trade/ViewTrade/3668201",
+                title="Paper tender detail",
+                price=100000.0,
+                raw_payload=payload,
+                items=[
+                    TenderItem(
+                        name="Office paper updated",
+                        quantity=10.0,
+                        unit="pack",
+                        okpd2="17.12.14.110",
+                    )
+                ],
+            )
+
+    response = refresh_tender_detail_payload(
+        store.database_path,
+        "mosreg_market",
+        "3668201",
+        adapter=DetailAdapter(),
+    )
+
+    profile = response["tender"]["product_profiles"][0]
+    assert profile["product_name"] == "Office paper updated"
+    assert profile["profile_status"] == "priced"
+    assert profile["raw_payload"]["economics"] == {"unit_cost": 6000.0, "logistics_cost": 5000.0}
+    assert profile["raw_payload"]["economics_assumptions"] == {
+        "vat_mode": "vat_included",
+        "risk_reserve_percent": 5.0,
+    }
+    assert response["tender"]["economics"]["supplier_cost"] == 68250.0
+
+
 def test_get_tender_payload_includes_economics_summary_from_product_profiles(tmp_path):
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()

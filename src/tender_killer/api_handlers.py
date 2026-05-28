@@ -59,12 +59,14 @@ class ApiResponse:
 
 
 SettingsFactory = Callable[[], Settings]
+SearchRunner = Any
 
 API_CAPABILITIES: tuple[str, ...] = (
     "supplier_search_prepare",
     "supplier_catalog_presets",
     "supplier_catalog_health",
     "supplier_discovery_url",
+    "web_auto_search",
 )
 
 
@@ -284,8 +286,14 @@ def handle_post_request(
     path: str,
     body: dict[str, Any],
     settings_factory: SettingsFactory = Settings.from_env,
+    search_runner: SearchRunner | None = None,
 ) -> ApiResponse:
     if path == "/api/search":
+        if search_runner is not None:
+            payload = search_runner.run(filters_payload=body, trigger="manual")
+            if payload.get("status") == "already_running":
+                return ApiResponse({**payload, "error": payload.get("message") or "Search is already running."}, status=409)
+            return ApiResponse(payload)
         return ApiResponse(run_search_payload(settings_factory(), filters_payload=body))
     if path.startswith("/api/tenders/") and path.endswith("/workflow"):
         route = parse_tender_path(path, suffix="workflow")

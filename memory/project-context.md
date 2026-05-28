@@ -742,3 +742,15 @@ Date: 2026-05-26.
   1. Validate real catalog pages and add narrow provider parsing rules where schema.org/anchor discovery is not enough.
   2. Use manual live catalog health diagnostics to decide which remaining providers need narrow parsing fixes first.
   3. Keep Telegram as notifications/quick entry, not the main workbench.
+
+## Web auto refresh and bid state checkpoint
+
+Date: 2026-05-27.
+
+- The Moscow supplier portal can publish many short-lived active auctions during the day, so the local web API now starts an hourly background refresh by default via `src/tender_killer/web_search_runner.py`.
+- The site `Запустить поиск` button and the hourly refresh use the same `WebSearchRunner`, which serializes runs with a lock. If an auto refresh is already running, a manual search receives HTTP `409` with a clear "search already running" message instead of racing SQLite writes.
+- `TENDER_KILLER_WEB_AUTO_SEARCH_MINUTES` controls the web background interval; default is `60`, and `0` disables it.
+- `/api/health` and `tender_killer.dev_health` now advertise/require `web_auto_search`, so stale backend processes are rejected by the dev startup guard.
+- `src/tender_killer/market_state.py` now exposes `bid_count` and uses the minimum public Moscow bid from `__detail.bets` when several bids are present. Single-bid sessions keep the existing `lastBetCost` source semantics.
+- Frontend market-state formatters now include bid count next to the displayed participant price where available, so list rows, decision cards, dashboard previews, and economics summary can show "minimum bid + number of bids" from the same SQLite-backed payload.
+- Source adapters for Moscow and Mosreg pass `trust_env=False` to their public HTTP calls. This prevents local/Codex proxy environment variables such as `HTTP_PROXY=http://127.0.0.1:9` from breaking source refreshes with `WinError 10061`.

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from tender_killer.economics_auto import build_auto_economics_estimate
+from tender_killer.product_profile_service import ensure_product_profiles
 from tender_killer.storage import TenderStore
 
 
@@ -21,9 +22,7 @@ def update_profile_economics(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = store.get_product_profiles(source, external_id)
-    if not profiles:
-        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+    profiles = ensure_product_profiles(database_path, source, external_id)
 
     target = None
     for profile in profiles:
@@ -53,9 +52,7 @@ def update_profile_economics_assumptions(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = store.get_product_profiles(source, external_id)
-    if not profiles:
-        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+    profiles = ensure_product_profiles(database_path, source, external_id)
 
     target = _find_profile(profiles, position_index)
     assumptions = _assumptions_inputs(data)
@@ -76,9 +73,7 @@ def update_profile_auto_economics(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = store.get_product_profiles(source, external_id)
-    if not profiles:
-        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+    profiles = ensure_product_profiles(database_path, source, external_id)
 
     target = None
     for profile in profiles:
@@ -109,9 +104,7 @@ def accept_profile_auto_economics(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = store.get_product_profiles(source, external_id)
-    if not profiles:
-        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+    profiles = ensure_product_profiles(database_path, source, external_id)
 
     target = _find_profile(profiles, position_index)
     estimate = _auto_estimate_payload(target)

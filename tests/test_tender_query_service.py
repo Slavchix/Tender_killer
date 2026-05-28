@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from tender_killer.models import ProductProfile
 from tender_killer.models import Tender
 from tender_killer.storage import TenderStore
 from tender_killer.tender_query_service import list_tenders_payload
@@ -32,6 +33,52 @@ def test_tender_query_service_returns_total_limit_and_offset(tmp_path):
     assert payload["next_offset"] == 2
     assert len(payload["items"]) == 1
     assert payload["items"][0]["external_id"] == "mo-1"
+
+
+def test_tender_query_service_includes_market_state_and_saved_economics(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="moscow_supplier_portal",
+            external_id="Auction10206191",
+            url="https://zakupki.mos.ru/auction/10206191",
+            title="Auction with current offer",
+            price=100000.0,
+            raw_payload={
+                "__detail": {
+                    "startCost": 100000.0,
+                    "lastBetCost": 90000.0,
+                    "uniqueSupplierCount": 2,
+                }
+            },
+        )
+    )
+    store.upsert_product_profiles(
+        "moscow_supplier_portal",
+        "Auction10206191",
+        [
+            ProductProfile(
+                tender_source="moscow_supplier_portal",
+                tender_external_id="Auction10206191",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+                raw_payload={"economics": {"unit_cost": 6000.0, "logistics_cost": 5000.0}},
+            )
+        ],
+    )
+
+    payload = list_tenders_payload(store.database_path, {})
+    item = payload["items"][0]
+
+    assert item["market_state"]["status"] == "has_current_offer"
+    assert item["market_state"]["participant_count"] == 2
+    assert item["market_state"]["current_offer_price"] == 90000.0
+    assert item["economics"]["revenue"] == 90000.0
+    assert item["economics"]["revenue_kind"] == "current_offer"
+    assert item["economics"]["participation_decision"]["status"] == "can_bid"
 
 
 def test_tender_query_service_filters_with_normalized_columns(tmp_path):
@@ -108,6 +155,37 @@ def test_tender_query_service_active_status_hides_expired_deadlines(tmp_path):
 
     assert payload["total"] == 1
     assert payload["items"][0]["external_id"] == "actual"
+
+
+def test_tender_query_service_active_status_hides_expired_moscow_local_deadlines(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    local_now = datetime.now()
+    store.upsert_tender(
+        Tender(
+            source="moscow_supplier_portal",
+            external_id="expired-moscow",
+            url="https://example.test/expired-moscow",
+            title="Expired Moscow tender",
+            status="Активная",
+            deadline_at=local_now - timedelta(hours=1),
+        )
+    )
+    store.upsert_tender(
+        Tender(
+            source="moscow_supplier_portal",
+            external_id="actual-moscow",
+            url="https://example.test/actual-moscow",
+            title="Actual Moscow tender",
+            status="Активная",
+            deadline_at=local_now + timedelta(hours=1),
+        )
+    )
+
+    payload = list_tenders_payload(store.database_path, {"source": "moscow_supplier_portal", "status": "active"})
+
+    assert payload["total"] == 1
+    assert payload["items"][0]["external_id"] == "actual-moscow"
 
 
 def test_tender_query_service_expands_construction_material_search_query(tmp_path):

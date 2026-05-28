@@ -18,6 +18,7 @@ class Settings:
     bot_auto_search_minutes: int
     source_max_pages: int
     source_incremental_overlap_minutes: int
+    web_auto_search_minutes: int = 60
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -44,6 +45,7 @@ class Settings:
             bot_auto_search_minutes=int(_env("TENDER_KILLER_AUTO_SEARCH_MINUTES", dotenv, "0")),
             source_max_pages=max(1, int(_env("TENDER_KILLER_SOURCE_MAX_PAGES", dotenv, "1"))),
             source_incremental_overlap_minutes=max(0, int(_env("TENDER_KILLER_SOURCE_OVERLAP_MINUTES", dotenv, "60"))),
+            web_auto_search_minutes=max(0, int(_env("TENDER_KILLER_WEB_AUTO_SEARCH_MINUTES", dotenv, "60"))),
         )
 
 

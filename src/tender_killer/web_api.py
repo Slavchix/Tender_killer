@@ -2,6 +2,7 @@
 
 import argparse
 import json
+from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -11,10 +12,14 @@ from tender_killer.api_handlers import ApiResponse
 from tender_killer.api_handlers import handle_get_request
 from tender_killer.api_handlers import handle_post_request
 from tender_killer.config import Settings
+from tender_killer.web_search_runner import WebAutoSearchScheduler
+from tender_killer.web_search_runner import WebSearchRunner
 
 
 class TenderApiHandler(BaseHTTPRequestHandler):
     database_path: Path
+    search_runner: WebSearchRunner | None = None
+    settings_factory = staticmethod(Settings.from_env)
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib API name.
         parsed = urlparse(self.path)
@@ -29,7 +34,15 @@ class TenderApiHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 - stdlib API name.
         parsed = urlparse(self.path)
         try:
-            self._send_api_response(handle_post_request(self.database_path, parsed.path, self._read_json_body()))
+            self._send_api_response(
+                handle_post_request(
+                    self.database_path,
+                    parsed.path,
+                    self._read_json_body(),
+                    settings_factory=self.settings_factory,
+                    search_runner=self.search_runner,
+                )
+            )
         except ValueError as exc:
             self._send_json({"error": str(exc)}, status=400)
         except KeyError as exc:
@@ -85,11 +98,32 @@ class TenderApiHandler(BaseHTTPRequestHandler):
 
 
 def run_server(host: str, port: int, database_path: Path) -> None:
-    handler = type("ConfiguredTenderApiHandler", (TenderApiHandler,), {"database_path": database_path})
+    def settings_factory() -> Settings:
+        return replace(Settings.from_env(), database_path=database_path)
+
+    search_runner = WebSearchRunner(settings_factory=settings_factory)
+    auto_search = WebAutoSearchScheduler(
+        search_runner=search_runner,
+        interval_seconds=settings_factory().web_auto_search_minutes * 60,
+    )
+    auto_search.start()
+    handler = type(
+        "ConfiguredTenderApiHandler",
+        (TenderApiHandler,),
+        {
+            "database_path": database_path,
+            "search_runner": search_runner,
+            "settings_factory": staticmethod(settings_factory),
+        },
+    )
     server = ThreadingHTTPServer((host, port), handler)
     print(f"Tender Killer API: http://{host}:{port}")
     print(f"SQLite: {database_path}")
-    server.serve_forever()
+    print(f"Auto search: every {settings_factory().web_auto_search_minutes} minute(s)")
+    try:
+        server.serve_forever()
+    finally:
+        auto_search.stop()
 
 
 def main() -> None:

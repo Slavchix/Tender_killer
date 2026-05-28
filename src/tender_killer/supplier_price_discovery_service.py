@@ -13,6 +13,7 @@ from urllib.parse import urldefrag
 import httpx
 from bs4 import BeautifulSoup
 
+from tender_killer.product_profile_service import ensure_product_profiles
 from tender_killer.storage import TenderStore
 from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
 from tender_killer.supplier_catalog_health_service import http_error_kind
@@ -201,9 +202,7 @@ def run_profile_supplier_price_discovery(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = store.get_product_profiles(source, external_id)
-    if not profiles:
-        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+    profiles = ensure_product_profiles(database_path, source, external_id)
 
     target = _find_profile(profiles, position_index)
     if target is None:
@@ -239,9 +238,7 @@ def run_profile_supplier_url_discovery(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = store.get_product_profiles(source, external_id)
-    if not profiles:
-        raise KeyError(f"Product profiles for {source}/{external_id} not found.")
+    profiles = ensure_product_profiles(database_path, source, external_id)
 
     target = _find_profile(profiles, position_index)
     if target is None:

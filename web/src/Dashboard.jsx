@@ -1,6 +1,6 @@
 import { Bell, FileText, RefreshCcw } from 'lucide-react'
 import { sourceLabels } from './constants'
-import { formatDate, formatDateTime, formatMoney } from './formatters'
+import { economicsDecisionLabel, formatDate, formatDateTime, formatMoney, participantBidValue } from './formatters'
 
 function Metric({ label, value, tone }) {
   return (
@@ -12,6 +12,10 @@ function Metric({ label, value, tone }) {
 }
 
 export function DashboardView({ tenderPage, stats, workflowCounts, sources, sourceStatusError, searchSummary, error, onRefreshSources, onOpenTenders, tenders }) {
+  const currentOfferCount = (tenders || []).filter((tender) => Number.isFinite(Number(tender.market_state?.current_offer_price))).length
+  const noParticipantsCount = (tenders || []).filter((tender) => tender.market_state?.status === 'no_participants').length
+  const economicsReadyCount = (tenders || []).filter((tender) => tender.economics?.participation_decision).length
+  const marketMetric = currentOfferCount ? `${currentOfferCount} с ценой` : (noParticipantsCount ? `${noParticipantsCount} без участников` : 'нет данных')
   const queue = [
     { label: 'Новые', value: workflowCounts.new || 0 },
     { label: 'Интересные', value: workflowCounts.interesting || 0 },
@@ -25,6 +29,8 @@ export function DashboardView({ tenderPage, stats, workflowCounts, sources, sour
         <Metric label="Найдено" value={tenderPage.total} />
         <Metric label="Активные" value={stats.active} />
         <Metric label="Сумма в выдаче" value={formatMoney(stats.totalPrice)} />
+        <Metric label="Ставки" value={marketMetric} />
+        <Metric label="Экономика" value={economicsReadyCount ? `${economicsReadyCount} расчетов` : 'нет расчетов'} />
         <Metric label="API" value={error ? 'ошибка' : 'ok'} tone={error ? 'danger' : 'good'} />
       </section>
       {searchSummary && <div className="run-summary">{searchSummary}</div>}
@@ -97,13 +103,17 @@ function DashboardTenderPreview({ tenders, onOpenTenders }) {
         {previewTenders.map((tender) => (
           <button key={`${tender.source}-${tender.external_id}`} onClick={onOpenTenders} type="button">
             <strong>{tender.title}</strong>
-            <span>{sourceLabels[tender.source] || tender.source} · {formatMoney(tender.price)} · {formatDate(tender.deadline_at)}</span>
+            <span>{dashboardTenderLine(tender)}</span>
           </button>
         ))}
         {!previewTenders.length && <div className="dashboard-empty-note">Запусти поиск, чтобы увидеть свежие закупки</div>}
       </div>
     </section>
   )
+}
+
+function dashboardTenderLine(tender) {
+  return `${sourceLabels[tender.source] || tender.source} · НМЦК ${formatMoney(tender.price)} · ставка ${participantBidValue(tender.market_state)} · ${economicsDecisionLabel(tender.economics)} · ${formatDate(tender.deadline_at)}`
 }
 
 function SourceStatusPanel({ sources, error, onRefresh }) {

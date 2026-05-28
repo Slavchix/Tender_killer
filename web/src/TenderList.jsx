@@ -1,6 +1,6 @@
-import { CalendarClock, CircleDollarSign, FileText, Scale } from 'lucide-react'
+import { CalendarClock, CircleDollarSign, FileText, Scale, Users } from 'lucide-react'
 import { sourceLabels, workflowLabels } from './constants'
-import { formatDate, formatMoney } from './formatters'
+import { economicsDecisionLabel, formatDate, formatMoney, marketStateValue } from './formatters'
 import { PaginationBar } from './PaginationBar'
 
 export function TenderList({
@@ -69,6 +69,8 @@ export function TenderList({
 }
 
 function TenderListItem({ isSelected, onTenderSelect, tender }) {
+  const economicsStatus = tender.economics?.participation_decision?.status || tender.economics?.status || 'idle'
+
   return (
     <button
       className={`tender-row ${isSelected ? 'selected' : ''}`}
@@ -81,12 +83,16 @@ function TenderListItem({ isSelected, onTenderSelect, tender }) {
           <span className={`workflow-chip ${tender.workflow_status || 'new'}`}>
             {workflowLabels[tender.workflow_status] || 'Новая'}
           </span>
+          <span className={`economics-chip ${economicsStatus}`}>
+            {economicsDecisionLabel(tender.economics)}
+          </span>
         </span>
         <strong>{tender.title}</strong>
         <span>{tender.customer || 'Заказчик не указан'}</span>
       </div>
       <div className="row-meta">
         <span><CircleDollarSign size={15} /> {formatMoney(tender.price)}</span>
+        <span><Users size={15} /> {marketStateValue(tender.market_state)}</span>
         <span><Scale size={15} /> {tender.law || 'закон не указан'}</span>
         <span><CalendarClock size={15} /> {formatDate(tender.deadline_at)}</span>
         <span><FileText size={15} /> {tender.documents_count}</span>

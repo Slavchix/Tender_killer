@@ -63,3 +63,35 @@ def test_latest_price_change_reports_decrease(tmp_path):
         "delta": -6_500.0,
         "delta_percent": -6.5,
     }
+
+
+def test_store_records_current_offer_snapshot_from_public_market_state(tmp_path):
+    store = TenderStore(tmp_path / "db.sqlite")
+    store.initialize()
+    tender = Tender(
+        source="moscow_supplier_portal",
+        external_id="offer-1",
+        url="https://zakupki.mos.ru/auction/offer-1",
+        title="Auction with bets",
+        price=100_000,
+        raw_payload={"__detail": {"lastBetCost": 95_000.0, "uniqueSupplierCount": 2}},
+    )
+
+    store.upsert_tender(tender)
+    store.upsert_tender(
+        replace(
+            tender,
+            raw_payload={"__detail": {"lastBetCost": 90_000.0, "uniqueSupplierCount": 3}},
+        )
+    )
+
+    change = latest_price_change(store.database_path, "moscow_supplier_portal", "offer-1", "current_offer")
+
+    assert change == {
+        "price_kind": "current_offer",
+        "direction": "decreased",
+        "previous_price": 95_000.0,
+        "current_price": 90_000.0,
+        "delta": -5_000.0,
+        "delta_percent": -5.26,
+    }

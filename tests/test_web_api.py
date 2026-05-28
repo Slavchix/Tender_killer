@@ -11,6 +11,7 @@ import httpx
 
 from tender_killer.analysis_service import analyze_tender_payload
 from tender_killer.api_handlers import build_tender_report_response
+from tender_killer.api_handlers import handle_post_request
 from tender_killer.api_handlers import rebuild_product_profiles
 from tender_killer.api_handlers import update_tender_workflow
 from tender_killer.database_view_service import get_database_table_payload
@@ -996,6 +997,59 @@ def test_run_search_payload_returns_pipeline_stats_and_notification_state(tmp_pa
         "law_counts": [],
         "region_counts": [],
     }
+
+
+def test_handle_post_request_uses_shared_search_runner_for_site_search(tmp_path):
+    store = _store_with_tenders(tmp_path)
+
+    class FakeSettings:
+        database_path = store.database_path
+        telegram_bot_token = ""
+        telegram_chat_id = ""
+
+    class FakeSearchRunner:
+        def __init__(self) -> None:
+            self.filters_payload = None
+
+        def run(self, filters_payload=None, trigger="manual"):
+            self.filters_payload = filters_payload
+            return {"ok": True, "running": False, "trigger": trigger, "stats": {"fetched": 4}}
+
+    search_runner = FakeSearchRunner()
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/search",
+        {"filters": {"source": "moscow_supplier_portal", "status": "active"}},
+        settings_factory=lambda: FakeSettings(),
+        search_runner=search_runner,
+    )
+
+    assert response.payload == {"ok": True, "running": False, "trigger": "manual", "stats": {"fetched": 4}}
+    assert search_runner.filters_payload == {"filters": {"source": "moscow_supplier_portal", "status": "active"}}
+
+
+def test_handle_post_request_returns_conflict_when_search_is_already_running(tmp_path):
+    store = _store_with_tenders(tmp_path)
+
+    class FakeSearchRunner:
+        def run(self, filters_payload=None, trigger="manual"):
+            return {
+                "ok": False,
+                "running": True,
+                "status": "already_running",
+                "message": "Поиск уже идет. Дождитесь завершения обновления.",
+            }
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/search",
+        {"filters": {"status": "active"}},
+        search_runner=FakeSearchRunner(),
+    )
+
+    assert response.status == 409
+    assert response.payload["error"] == "Поиск уже идет. Дождитесь завершения обновления."
 
 
 def test_build_search_collection_uses_site_filters_for_manual_search():

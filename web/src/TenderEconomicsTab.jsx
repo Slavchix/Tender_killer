@@ -7,6 +7,9 @@ import {
   formatMoney,
   formatPercent,
   formatQuantity,
+  marketStateCaption,
+  marketStateValue,
+  participantBidValue,
   profileStatusLabel,
   supplierAvailabilityLabel,
   supplierConfidenceLabel,
@@ -57,6 +60,8 @@ export function TenderEconomicsTab({
 }) {
   const missingInputs = economics?.missing_cost_inputs?.length || 0
   const displayedRevenue = economics?.revenue ?? tender?.price
+  const marketState = economics?.market_state || tender?.market_state
+  const revenueLabel = economics?.revenue_kind === 'current_offer' ? 'Цена участника' : 'НМЦК'
   const profiles = productProfiles || []
   const selectedEconomicsProfile = profiles[selectedEconomicsProfileIndex] || profiles[0] || null
   const selectedPosition = selectedEconomicsProfile?.position_index
@@ -88,7 +93,10 @@ export function TenderEconomicsTab({
       </div>
       <div className="economics-tab-summary tab-summary-grid" aria-label="Сводка экономики">
         <SummaryMetric value={economics ? economicsStatusLabel(economics.status) : 'не рассчитана'} label="статус" />
-        <SummaryMetric value={formatMoney(displayedRevenue)} label="НМЦК" />
+        <SummaryMetric value={formatMoney(tender?.price)} label="НМЦК" />
+        <SummaryMetric value={participantBidValue(economics?.market_state || tender?.market_state)} label="ставка участника" />
+        <SummaryMetric value={marketStateValue(economics?.market_state || tender?.market_state)} label="рынок" />
+        <SummaryMetric value={formatMoney(displayedRevenue)} label={revenueLabel} />
         <SummaryMetric value={formatMoney(economics?.estimated_total_cost)} label="затраты" />
         <SummaryMetric value={formatMoney(economics?.break_even_price)} label="безубыток" />
         <SummaryMetric value={economics ? formatPercent(economics.margin_percent) : 'нет'} label="маржа" />
@@ -195,6 +203,8 @@ function EconomicsSummary({ economics, tender }) {
   const items = economics.items || []
   const bidScenarios = economics.bid_scenarios || []
   const participationDecision = economics.participation_decision || null
+  const marketState = economics.market_state || tender?.market_state
+  const revenueLabel = economics.revenue_kind === 'current_offer' ? 'Цена участника' : 'НМЦК'
 
   return (
     <div className="economics-card">
@@ -206,7 +216,10 @@ function EconomicsSummary({ economics, tender }) {
       <ParticipationDecisionCard decision={participationDecision} />
       <BidScenarioStrip scenarios={bidScenarios} />
       <div className="economics-grid">
-        <Info label="НМЦК" value={formatMoney(economics.revenue)} />
+        <Info label="НМЦК" value={formatMoney(economics.nmc_price ?? tender?.price)} />
+        <Info label="Ставка участника" value={participantBidValue(marketState)} />
+        <Info label={revenueLabel === 'Цена участника' ? 'Расчет от ставки' : 'Расчет от НМЦК'} value={formatMoney(economics.revenue)} />
+        <Info label="Рынок" value={`${marketStateValue(marketState)} · ${marketStateCaption(economics?.market_state || tender?.market_state)}`} />
         <Info label="Себестоимость" value={formatMoney(economics.supplier_cost)} />
         <Info label="Резерв риска" value={`${formatMoney(economics.risk_reserve)} · ${formatPercent(economics.risk_reserve_rate_percent)}`} />
         <Info label="Итого затраты" value={formatMoney(economics.estimated_total_cost)} />
@@ -646,16 +659,6 @@ function ProductSupplierOptionsForm({
             />
           </label>
           <label>
-            <span>Цена за ед.</span>
-            <input
-              inputMode="decimal"
-              name="unit_price"
-              onChange={(event) => updateField('unit_price', event.target.value)}
-              placeholder="0"
-              value={values.unit_price}
-            />
-          </label>
-          <label>
             <span>Наличие</span>
             <select
               name="availability"
@@ -955,7 +958,6 @@ function supplierOptionFormValues() {
   return {
     name: '',
     url: '',
-    unit_price: '',
     availability: 'unknown',
     status: 'candidate',
     source_query: '',
@@ -982,5 +984,5 @@ function supplierUrlDiscoveryPayload(values, searchQueries = []) {
 }
 
 function hasSupplierOptionInput(values) {
-  return Boolean(values.name || values.url || values.unit_price || values.note)
+  return Boolean(values.name || values.url || values.note)
 }
