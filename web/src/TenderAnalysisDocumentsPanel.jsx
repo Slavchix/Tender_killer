@@ -6,7 +6,7 @@ import {
 } from './formatters'
 import { SummaryMetric } from './TenderDetailsShared'
 
-export function AnalysisDocumentsPanel({ documents = [], downloading, extracting, onDownload, onExtract }) {
+export function AnalysisDocumentsPanel({ documents = [], preparing, downloading, extracting, onDownload, onExtract }) {
   return (
     <section className="analysis-documents-panel" aria-label="Подготовка документов для анализа">
       <div className="section-heading-row">
@@ -17,6 +17,7 @@ export function AnalysisDocumentsPanel({ documents = [], downloading, extracting
       </div>
       <DocumentStatusSummary
         documents={documents}
+        preparing={preparing}
         downloading={downloading}
         extracting={extracting}
         onDownload={onDownload}
@@ -57,8 +58,9 @@ export function AnalysisDocumentsPanel({ documents = [], downloading, extracting
   )
 }
 
-function DocumentStatusSummary({ documents, downloading, extracting, onDownload, onExtract }) {
+function DocumentStatusSummary({ documents, preparing, downloading, extracting, onDownload, onExtract }) {
   const counts = documentStatusCounts(documents)
+  const actionDisabled = preparing || downloading || extracting
 
   return (
     <div className="document-status-summary" aria-label="Сводка документов">
@@ -69,10 +71,10 @@ function DocumentStatusSummary({ documents, downloading, extracting, onDownload,
         <SummaryMetric value={counts.attention} label="проверить" />
       </div>
       <div className="document-status-actions">
-        <button className="secondary-button compact" disabled={downloading} onClick={onDownload} type="button">
+        <button className="secondary-button compact" disabled={actionDisabled} onClick={onDownload} type="button">
           {downloading ? 'Качаю...' : 'Скачать документы'}
         </button>
-        <button className="secondary-button compact" disabled={extracting || !counts.downloaded} onClick={onExtract} type="button">
+        <button className="secondary-button compact" disabled={actionDisabled || !counts.downloaded} onClick={onExtract} type="button">
           {extracting ? 'Читаю...' : 'Извлечь текст'}
         </button>
       </div>

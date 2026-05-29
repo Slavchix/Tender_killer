@@ -1953,6 +1953,7 @@ textarea:focus {
   justify-content: flex-end;
 }
 
+.analysis-actions .primary-button,
 .analysis-actions .secondary-button,
 .analysis-actions .secondary-link-button {
   width: auto;

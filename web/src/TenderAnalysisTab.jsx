@@ -12,9 +12,11 @@ import { AnalysisSummary } from './TenderAnalysisSummary'
 export function TenderAnalysisTab({
   analysis,
   analyzing,
+  preparingAnalysis,
   downloading,
   extracting,
   onAnalyze,
+  onPrepareAnalysis,
   onDownload,
   onExtract,
   reportHref,
@@ -22,6 +24,7 @@ export function TenderAnalysisTab({
 }) {
   const [selectedAnalysisSection, setSelectedAnalysisSection] = useState('blockers')
   const analysisSections = analysisSectionItems(analysis, documents)
+  const analysisActionDisabled = preparingAnalysis || downloading || extracting || analyzing
 
   return (
     <section className="detail-section active analysis-section">
@@ -31,7 +34,10 @@ export function TenderAnalysisTab({
           <p className="muted-text">Риски, требования и доказательства из документов.</p>
         </div>
         <div className="analysis-actions">
-          <button className="secondary-button compact" disabled={analyzing} onClick={onAnalyze} type="button">
+          <button className="primary-button compact" disabled={analysisActionDisabled} onClick={onPrepareAnalysis} type="button">
+            {preparingAnalysis ? 'Готовлю...' : 'Подготовить анализ'}
+          </button>
+          <button className="secondary-button compact" disabled={analysisActionDisabled} onClick={onAnalyze} type="button">
             {analyzing ? 'Анализ...' : 'Проанализировать'}
           </button>
           <a className="secondary-link-button compact" href={reportHref}>
@@ -42,6 +48,7 @@ export function TenderAnalysisTab({
 
       <AnalysisDocumentsPanel
         documents={documents}
+        preparing={preparingAnalysis}
         downloading={downloading}
         extracting={extracting}
         onDownload={onDownload}

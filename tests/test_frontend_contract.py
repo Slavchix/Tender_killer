@@ -5,6 +5,7 @@ from pathlib import Path
 from tender_killer.encoding_guard import find_mojibake
 
 
+GITIGNORE_SOURCE = Path(__file__).resolve().parents[1] / ".gitignore"
 APP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "App.jsx"
 STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css"
 API_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "api.js"
@@ -371,6 +372,43 @@ def test_frontend_embeds_document_preparation_in_analysis_workspace():
     assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
     assert find_mojibake(analysis_documents_source, TENDER_ANALYSIS_DOCUMENTS_SOURCE) == []
+
+
+def test_analysis_workspace_exposes_single_prepare_flow():
+    tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
+    analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    hook_source = USE_TENDER_DOCUMENT_ANALYSIS_SOURCE.read_text(encoding="utf-8")
+
+    assert "const [preparingAnalysis, setPreparingAnalysis]" in hook_source
+    assert "async function prepareTenderAnalysis()" in hook_source
+    assert "await downloadDocuments()" in hook_source
+    assert "await extractDocumentText()" in hook_source
+    assert "await analyzeTender()" in hook_source
+    assert "setPreparingAnalysis(false)" in hook_source
+    assert "preparingAnalysis," in hook_source
+    assert "prepareTenderAnalysis," in hook_source
+    assert "preparingAnalysis," in tender_details_source
+    assert "onPrepareTenderAnalysis: prepareTenderAnalysis" in tender_details_source
+    assert "preparingAnalysis," in workspaces_source
+    assert "onPrepareTenderAnalysis," in workspaces_source
+    assert "preparingAnalysis={preparingAnalysis}" in workspaces_source
+    assert "onPrepareAnalysis={onPrepareTenderAnalysis}" in workspaces_source
+    assert "preparingAnalysis" in analysis_source
+    assert "onPrepareAnalysis" in analysis_source
+    assert "Подготовить анализ" in analysis_source
+    assert "preparingAnalysis || downloading || extracting || analyzing" in analysis_source
+    assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
+    assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
+    assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
+    assert find_mojibake(hook_source, USE_TENDER_DOCUMENT_ANALYSIS_SOURCE) == []
+
+
+def test_local_dev_runtime_logs_are_ignored():
+    gitignore_source = GITIGNORE_SOURCE.read_text(encoding="utf-8")
+
+    assert "api-dev.out.log" in gitignore_source
+    assert "api-dev.err.log" in gitignore_source
 
 
 def test_frontend_uses_dedicated_tender_analysis_tab_module():
@@ -1010,16 +1048,22 @@ def test_document_analysis_hook_ignores_stale_async_results_after_tender_switch(
     assert "downloadRequestRef" in hook_source
     assert "extractRequestRef" in hook_source
     assert "analysisRequestRef" in hook_source
+    assert "prepareRequestRef" in hook_source
     assert "function isCurrentRequest(requestRef, requestId, requestTenderKey, currentTenderKeyRef)" in hook_source
     assert "downloadRequestRef.current = null" in hook_source
     assert "extractRequestRef.current = null" in hook_source
     assert "analysisRequestRef.current = null" in hook_source
+    assert "prepareRequestRef.current = null" in hook_source
     assert "setDownloading(false)" in hook_source
     assert "setExtracting(false)" in hook_source
     assert "setAnalyzing(false)" in hook_source
+    assert "setPreparingAnalysis(false)" in hook_source
     assert "if (!isCurrentRequest(downloadRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return" in hook_source
     assert "if (!isCurrentRequest(extractRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return" in hook_source
     assert "if (!isCurrentRequest(analysisRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return" in hook_source
+    assert hook_source.count(
+        "if (!isCurrentRequest(prepareRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return"
+    ) == 3
     assert find_mojibake(hook_source, USE_TENDER_DOCUMENT_ANALYSIS_SOURCE) == []
 
 

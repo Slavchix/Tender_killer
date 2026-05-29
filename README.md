@@ -82,9 +82,9 @@ Recent architecture cleanup:
 - `scripts/ocr-pdf.ps1` is the local OCR wrapper for scanned PDFs. Configure `TENDER_KILLER_PDF_OCR_COMMAND="powershell -NoProfile -ExecutionPolicy Bypass -File scripts\ocr-pdf.ps1 {path}"`; the wrapper uses OCRmyPDF when available, or Tesseract plus Poppler `pdftoppm`. `scripts/dev-web.ps1` auto-enables this wrapper for local API runs when the env var is not already set.
 - Runtime/UI text encoding is guarded by `tender_killer.encoding_guard`; `dev_smoke` reuses it to catch Cyrillic mojibake regressions.
 - Active tender lists now hide expired purchases by normalized active status plus `deadline_at >= datetime('now')`, so completed/old cards do not dominate the workbench.
-- The React frontend has been decomposed out of the former oversized `App.jsx` / `TenderDetails.jsx` surface. Current extracted modules include `api.js`, `constants.js`, `formatters.js`, `Dashboard.jsx`, `DatabaseView.jsx`, `FiltersPanel.jsx`, `TenderList.jsx`, `PaginationBar.jsx`, `TenderDetailActions.jsx`, `TenderDetailsHeader.jsx`, `TenderDetailsStatusStack.jsx`, `TenderDetailsTabs.jsx`, `TenderDetailsShared.jsx`, `TenderDecisionSummary.jsx`, `TenderOverviewTab.jsx`, `TenderDocumentsTab.jsx`, `TenderAnalysisTab.jsx`, `TenderWorkflowTab.jsx`, `TenderProductsTab.jsx`, and `TenderEconomicsTab.jsx`.
+- The React frontend has been decomposed out of the former oversized `App.jsx` / `TenderDetails.jsx` surface. Current extracted modules include `api.js`, `constants.js`, `formatters.js`, `Dashboard.jsx`, `DatabaseView.jsx`, `FiltersPanel.jsx`, `TenderList.jsx`, `PaginationBar.jsx`, `TenderDetailActions.jsx`, `TenderDetailsHeader.jsx`, `TenderDetailsStatusStack.jsx`, `TenderDetailsTabs.jsx`, `TenderDetailsShared.jsx`, `TenderDecisionSummary.jsx`, `TenderOverviewTab.jsx`, `TenderAnalysisTab.jsx`, `TenderAnalysisDocumentsPanel.jsx`, `TenderWorkflowTab.jsx`, `TenderProductsTab.jsx`, and `TenderEconomicsTab.jsx`.
 - Tender detail behavior is split across focused hooks: `useTenderDetailsUi.js`, `useTenderDocumentAnalysis.js`, `useTenderNotification.js`, `useTenderProductProfiles.js`, `useTenderRefreshDetails.js`, and `useTenderWorkflow.js`.
-- `TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
+- `TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, analysis/document preparation, and economics UI live in dedicated modules.
 - The economics tab owns product cost entry, supplier candidates, assumptions, auto-estimate preview/accept, bid thresholds, and participation decision UI.
 - Decision Engine v1 now lives in `src/tender_killer/decision_service.py`. `get_tender_payload(...)` attaches a stable `decision` object that combines economics, analysis, documents, market state, and product profiles into one status/label/next-step payload for future card, list, dashboard, and report surfaces.
 - The tender card decision strip, tender list badges, and dashboard previews now read the shared backend `tender.decision` payload through frontend formatter helpers, falling back to saved economics only for older payloads.
@@ -126,6 +126,7 @@ Previous next steps:
 - Telegram используется как канал уведомлений: на него можно отправлять найденные/выбранные закупки, но основная работа теперь удобнее на сайте.
 - Детальное обновление карточки: `POST /api/tenders/{source}/{external_id}/details/refresh` добирает документы/позиции, сохраняет их в SQLite и пересобирает товарные профили.
 - Документы закупки: скачивание, извлечение текста из DOCX/PDF/TXT/HTML и отображение статуса по каждому документу.
+- Подготовка анализа в сайте собрана внутри `Анализ ТЗ`: кнопка `Подготовить анализ` запускает скачивание документов, извлечение текста и rule-based анализ одной цепочкой; ручные кнопки документов остаются там же для диагностики.
 - Первый rule-based анализ ТЗ: требования, риски, красные флаги, национальный режим/1875, сертификаты, приемка, обеспечение, штрафы.
 - Товарные профили в SQLite: один тендер может иметь 20-40 отдельных профилей, по одному на позицию закупки.
 - Word-отчет по закупке: паспорт, позиции, документы, выжимка ТЗ, товарные профили и заготовка под будущий расчет экономики.
@@ -293,16 +294,15 @@ The smoke check verifies direct API health, Vite HTML, Vite `/api` proxy health,
 - фильтры по площадке, закону, региону, статусу, ОКПД2/классификатору и цене;
 - ручной запуск поиска;
 - список закупок с количеством документов и позиций;
-- правая карточка с вкладками `Обзор`, `Товары`, `Документы`, `Анализ`, `Статус`;
+- правая карточка с короткой сводкой решения и полноэкранными рабочими режимами `Товары`, `Анализ ТЗ` и `Экономика`;
 - кнопка `Обновить` для добора детальной карточки;
-- скачивание документов и извлечение текста;
-- rule-based анализ ТЗ;
+- скачивание документов, извлечение текста и rule-based анализ ТЗ внутри рабочего режима `Анализ ТЗ`;
 - товарные профили по позициям закупки;
 - скачивание Word-отчета;
 - отправка выбранной закупки в Telegram;
 - SQLite-viewer для локальной диагностики базы.
 
-Правая карточка специально сделана вкладками, чтобы не перегружать интерфейс: сайт должен быть коротким экраном решения, а полный разбор уходит в документы, товарные профили и Word-отчет.
+Правая карточка специально оставлена коротким экраном решения: полный разбор уходит в полноэкранные рабочие режимы анализа, товарных профилей и экономики, а документы живут внутри анализа вместе с извлечением текста и Word-отчетом.
 
 ## Товарные Профили И Анализ
 

@@ -701,14 +701,14 @@ Date: 2026-05-26.
   - `web/src/TenderDetailsShared.jsx`;
   - `web/src/TenderDecisionSummary.jsx`;
   - `web/src/TenderOverviewTab.jsx`;
-  - `web/src/TenderDocumentsTab.jsx`;
+  - `web/src/TenderAnalysisDocumentsPanel.jsx`;
   - `web/src/TenderAnalysisTab.jsx`;
   - `web/src/TenderWorkflowTab.jsx`;
   - `web/src/TenderProductsTab.jsx`;
   - `web/src/TenderEconomicsTab.jsx`.
 - Tender detail hooks now include `web/src/useTenderDetailsUi.js`, `web/src/useTenderDocumentAnalysis.js`, `web/src/useTenderNotification.js`, `web/src/useTenderProductProfiles.js`, `web/src/useTenderRefreshDetails.js`, and `web/src/useTenderWorkflow.js`.
-- `TenderDocumentsTab.jsx` owns document summary, download/extract buttons, document rows, text preview, and document status labels.
-- `TenderAnalysisTab.jsx` owns the TZ analysis panel and checklist. It also exports `AnalysisList`, which is reused by product/economics views.
+- Document preparation now lives in `TenderAnalysisDocumentsPanel.jsx` inside the full-screen `Анализ ТЗ` workspace. The separate `TenderDocumentsTab.jsx` module/workspace is no longer active.
+- `TenderAnalysisTab.jsx` owns the TZ analysis workspace shell, while reusable analysis sections and `AnalysisList` live in `TenderAnalysisSections.jsx` for product/economics reuse.
 - `TenderEconomicsTab.jsx` owns the economics workbench: NMC summary, cost inputs, supplier candidates, selected supplier price source, assumptions, auto-estimate run/accept controls, bid thresholds, and participation decision UI.
 - Supplier search preparation now lives in `src/tender_killer/supplier_search_service.py`. It builds deterministic per-position supplier search queries from normalized product names, search phrases, and classifiers; `POST /api/tenders/{source}/{external_id}/product-profiles/{position}/supplier-search/prepare` persists those queries under `raw_payload.supplier_search`. Prepared queries include manual Google/Yandex links, optional public catalog provider links from `raw_payload.supplier_catalogs`, and matching built-in catalog presets, without running network search or changing economics.
 - Built-in supplier catalog presets live in `src/tender_killer/supplier_catalog_presets.py`. Current first-pass providers are `officemag` and `komus` for office supplies, plus `petrovich` and `vseinstrumenti` for building/tool materials. `raw_payload.supplier_catalog_preset_ids` can select exact preset IDs or disable presets with an empty list, and the economics supplier block now exposes compact controls for auto/select/disable per product profile.
@@ -732,7 +732,7 @@ Date: 2026-05-26.
 - `TenderEconomicsTab.jsx` shows a distinct `Кандидаты не найдены` supplier discovery state when diagnostics exist without staged candidates, with a short pointer to inspect diagnostics below instead of the normal found-candidates heading.
 - `tender_killer.dev_health` now requires `/api/health` capabilities for `supplier_search_prepare`, `supplier_catalog_presets`, and `supplier_catalog_health`, and also checks `/api/supplier-catalogs/health`, so stale backend processes on port 8000 are rejected before Vite proxies newer supplier UI actions to them.
 - The API dispatcher has a regression test for `/api/tenders?status=active&limit=25&offset=0`, covering the tender list route that powers the main workbench.
-- `web/src/TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
+- `web/src/TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, analysis/document preparation, and economics UI live in dedicated modules.
 - Latest local targeted verification after live supplier catalog health UI: `55 passed` for `tests/test_frontend_contract.py`.
 - Latest provider discovery verification: `14 passed` for `tests/test_supplier_price_discovery_service.py`.
 - Latest API handler verification: `20 passed` for `tests/test_api_handlers.py`.
@@ -765,6 +765,15 @@ Date: 2026-05-28.
 - `POST /api/tenders/{source}/{external_id}/market-state/import` stores that sanitized subset under `raw_payload.__market_state_import`, records a `current_offer` price snapshot, refreshes `market_state`, and therefore updates the same tender card, economics, list, and dashboard surfaces that already read SQLite.
 - The import endpoint rejects recursive sensitive keys such as `Authorization`, `Cookie`, `token`, `password`, or `secret` before anything is written.
 - Future SaaS shape: use a separate read-only browser connector/extension or desktop helper that runs in the user's already-authenticated browser context and sends only sanitized `GetBetUpdate` result fields to Tender Killer. The server should never store portal passwords or raw bearer cookies; if an official OAuth/session API appears later, use encrypted short-lived per-user credentials with audit logging, strict endpoint allowlists, tenant isolation, and an explicit no-submit/no-sign/no-legal-action boundary.
+
+## Analysis workspace consolidation checkpoint
+
+Date: 2026-05-29.
+
+- The standalone document workspace was merged into the full-screen `Анализ ТЗ` workspace. Operators now prepare analysis in one place instead of switching between document and analysis surfaces.
+- `web/src/TenderAnalysisTab.jsx` exposes a primary `Подготовить анализ` action that runs the existing sequence: download documents, extract document text, then run TZ analysis. Manual `Скачать документы`, `Извлечь текст`, and `Проанализировать` controls remain available inside the same workspace for diagnostics and reruns.
+- `web/src/useTenderDocumentAnalysis.js` owns the new `prepareTenderAnalysis` chain and `preparingAnalysis` state, keeping `TenderDetails.jsx` as a coordinator.
+- Local development logs `api-dev.out.log` and `api-dev.err.log` are ignored by Git.
 
 ## PDF ToUnicode extraction checkpoint
 

@@ -12,11 +12,13 @@ export function useTenderDocumentAnalysis(tender) {
   const downloadRequestRef = useRef(null)
   const extractRequestRef = useRef(null)
   const analysisRequestRef = useRef(null)
+  const prepareRequestRef = useRef(null)
   const [documentRecords, setDocumentRecords] = useState(documentRecordsForTender(tender))
   const [analysis, setAnalysis] = useState(tender.analysis || null)
   const [downloading, setDownloading] = useState(false)
   const [extracting, setExtracting] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
+  const [preparingAnalysis, setPreparingAnalysis] = useState(false)
   const [downloadStatus, setDownloadStatus] = useState('')
   const [extractStatus, setExtractStatus] = useState('')
 
@@ -26,11 +28,13 @@ export function useTenderDocumentAnalysis(tender) {
     downloadRequestRef.current = null
     extractRequestRef.current = null
     analysisRequestRef.current = null
+    prepareRequestRef.current = null
     setDocumentRecords(documentRecordsForTender(tender))
     setAnalysis(tender.analysis || null)
     setDownloading(false)
     setExtracting(false)
     setAnalyzing(false)
+    setPreparingAnalysis(false)
     setDownloadStatus('')
     setExtractStatus('')
   }, [tender.source, tender.external_id, tender.analysis, tender.document_records, tender.documents])
@@ -117,6 +121,23 @@ export function useTenderDocumentAnalysis(tender) {
       })
   }
 
+  async function prepareTenderAnalysis() {
+    const requestTenderKey = currentTenderKeyRef.current
+    const requestId = Symbol('prepare-analysis')
+    prepareRequestRef.current = requestId
+    setPreparingAnalysis(true)
+    try {
+      await downloadDocuments()
+      if (!isCurrentRequest(prepareRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return
+      await extractDocumentText()
+      if (!isCurrentRequest(prepareRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return
+      await analyzeTender()
+    } finally {
+      if (!isCurrentRequest(prepareRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return
+      setPreparingAnalysis(false)
+    }
+  }
+
   return {
     documentRecords,
     setDocumentRecords,
@@ -125,11 +146,13 @@ export function useTenderDocumentAnalysis(tender) {
     downloading,
     extracting,
     analyzing,
+    preparingAnalysis,
     downloadStatus,
     extractStatus,
     downloadDocuments,
     extractDocumentText,
     analyzeTender,
+    prepareTenderAnalysis,
   }
 }
 

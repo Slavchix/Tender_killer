@@ -24,6 +24,8 @@ web/dist/
 .env
 .env.*
 !.env.example
+api-dev.err.log
+api-dev.out.log
 data/
 filters.json
 *.sqlite

@@ -23,11 +23,13 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     downloading,
     extracting,
     analyzing,
+    preparingAnalysis,
     downloadStatus,
     extractStatus,
     downloadDocuments,
     extractDocumentText,
     analyzeTender,
+    prepareTenderAnalysis,
   } = useTenderDocumentAnalysis(tender)
   const {
     detailStatus,
@@ -116,7 +118,9 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
   const analysisState = {
     analysis,
     analyzing,
+    preparingAnalysis,
     onAnalyzeTender: analyzeTender,
+    onPrepareTenderAnalysis: prepareTenderAnalysis,
   }
   const economicsState = {
     economics,
