@@ -6,6 +6,7 @@ from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from tender_killer.analysis_evidence_service import build_analysis_evidence_items
+from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 
 DocxElement = tuple[str, Any, str]
 
@@ -143,6 +144,7 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
         [
             _p("Решение по анализу ТЗ", "heading"),
             *_analysis_decision_elements(analysis, documents),
+            *_analysis_operator_sections_elements(analysis, documents),
             _p("Выжимка ТЗ", "heading"),
             _p(_value(analysis.get("summary"), "Анализ ТЗ еще не выполнен."), "normal"),
             *_analysis_checklist_elements(analysis),
@@ -231,12 +233,50 @@ def _analysis_decision_elements(analysis: dict[str, Any], documents: list[dict[s
     return elements
 
 
+def _analysis_operator_sections_elements(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[DocxElement]:
+    operator_view = _analysis_operator_view(analysis, documents)
+    sections = operator_view.get("sections") if isinstance(operator_view, dict) else []
+    if not isinstance(sections, list):
+        return []
+
+    rows: list[list[Any]] = [["Section", "Item", "Category", "Severity", "Source", "Impact"]]
+    for section in sections:
+        if not isinstance(section, dict) or section.get("id") not in {"blockers", "price_factors"}:
+            continue
+        title = _value(section.get("title"), _value(section.get("id")))
+        for item in section.get("items") or []:
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                [
+                    title,
+                    _value(item.get("label")),
+                    _value(item.get("category")),
+                    _value(item.get("severity")),
+                    _value(item.get("source")),
+                    _value(item.get("impact") or item.get("description"), ""),
+                ]
+            )
+    if len(rows) <= 1:
+        return []
+    return [_p("Operator analysis sections", "heading2"), _table(rows)]
+
+
 def _analysis_decision(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> dict[str, Any]:
     if not analysis:
         return {
             "title": "Нужен анализ ТЗ",
             "summary": "Сначала извлеките текст документов и запустите анализ.",
             "reasons": [f"Документов в карточке: {len(documents)}"] if documents else [],
+        }
+
+    operator_view = analysis.get("operator_view") if isinstance(analysis, dict) else None
+    decision = operator_view.get("decision_brief") if isinstance(operator_view, dict) else None
+    if isinstance(decision, dict) and any(decision.get(key) for key in ("title", "summary", "reasons")):
+        return {
+            "title": _value(decision.get("title"), "Analysis decision"),
+            "summary": _value(decision.get("summary"), ""),
+            "reasons": _text_list(decision.get("reasons")),
         }
 
     red_flags = _text_list(analysis.get("red_flags"))
@@ -269,6 +309,13 @@ def _analysis_decision(analysis: dict[str, Any], documents: list[dict[str, Any]]
         "summary": f"{status_text}, уверенность {confidence_text}. Можно переходить к экономике и поставщикам.",
         "reasons": [_value(analysis.get("summary"), "Анализ не нашел явных рисков и требований.")],
     }
+
+
+def _analysis_operator_view(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> dict[str, Any]:
+    operator_view = analysis.get("operator_view") if isinstance(analysis, dict) else None
+    if isinstance(operator_view, dict) and operator_view.get("version") == 2:
+        return operator_view
+    return build_analysis_operator_view(analysis, documents)
 
 
 def _analysis_checklist_elements(analysis: dict[str, Any]) -> list[DocxElement]:

@@ -9,6 +9,20 @@ RISK_RESERVE_RATES = {
     "warranty": 1.0,
     "acceptance": 1.0,
 }
+ANALYSIS_COST_DRIVER_SECTIONS = {"blockers", "price_factors"}
+ANALYSIS_COST_DRIVER_CATEGORIES = {
+    "acceptance",
+    "contract",
+    "delivery",
+    "documents",
+    "financial",
+    "standards",
+}
+ANALYSIS_RESERVE_HINT_RATES = {
+    "high": 2.0,
+    "medium": 1.0,
+    "low": 0.5,
+}
 INTERESTING_MARGIN_PERCENT = 15.0
 LOW_MARGIN_PERCENT = 7.0
 
@@ -20,6 +34,11 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
     revenue = current_offer_price if current_offer_price is not None else nmc_price
     revenue_kind = "current_offer" if current_offer_price is not None else "nmc"
     price_context = _price_context(revenue, revenue_kind, nmc_price, market_state)
+    analysis_cost_drivers = _analysis_cost_drivers(tender.get("analysis"))
+    analysis_context = {
+        "analysis_cost_drivers": analysis_cost_drivers,
+        "analysis_reserve_hint": _analysis_reserve_hint(analysis_cost_drivers),
+    }
     profiles = [profile for profile in tender.get("product_profiles") or [] if isinstance(profile, dict)]
     items: list[dict[str, Any]] = []
     missing_cost_inputs: list[str] = []
@@ -52,6 +71,7 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
             "status": "needs_price",
             "recommendation": "Нужна НМЦК или цена закупки для расчета.",
             **price_context,
+            **analysis_context,
             "supplier_cost": None,
             "risk_reserve_rate_percent": risk_reserve_rate_percent,
             "risk_reserve": risk_reserve if risk_reserve else None,
@@ -82,6 +102,7 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
             "status": "needs_costs",
             "recommendation": "Нужно добавить закупочную себестоимость по позициям.",
             **price_context,
+            **analysis_context,
             "supplier_cost": None,
             "risk_reserve_rate_percent": risk_reserve_rate_percent,
             "risk_reserve": risk_reserve,
@@ -131,6 +152,7 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         "status": status,
         "recommendation": _recommendation_for_status(status),
         **price_context,
+        **analysis_context,
         "supplier_cost": supplier_cost,
         "risk_reserve_rate_percent": risk_reserve_rate_percent,
         "risk_reserve": risk_reserve,
@@ -396,6 +418,72 @@ def _risk_types(profiles: list[dict[str, Any]]) -> list[str]:
             if isinstance(requirement, dict) and requirement.get("type"):
                 values.append(str(requirement["type"]))
     return sorted(set(values))
+
+
+def _analysis_cost_drivers(analysis: Any) -> list[dict[str, Any]]:
+    if not isinstance(analysis, dict):
+        return []
+    operator_view = analysis.get("operator_view")
+    if not isinstance(operator_view, dict):
+        return []
+    sections = operator_view.get("sections")
+    if not isinstance(sections, list):
+        return []
+
+    drivers: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for section in sections:
+        if not isinstance(section, dict) or section.get("id") not in ANALYSIS_COST_DRIVER_SECTIONS:
+            continue
+        for item in section.get("items") or []:
+            if not isinstance(item, dict) or not item.get("label"):
+                continue
+            category = str(item.get("category") or "general")
+            severity = str(item.get("severity") or "medium")
+            if category not in ANALYSIS_COST_DRIVER_CATEGORIES and severity != "high":
+                continue
+            key = (str(item["label"]), category)
+            if key in seen:
+                continue
+            seen.add(key)
+            drivers.append(
+                {
+                    "label": str(item["label"]),
+                    "category": category,
+                    "severity": severity,
+                    "source": str(item.get("source") or ""),
+                    "impact": str(item.get("impact") or item.get("description") or ""),
+                    "reserve_hint_percent": _analysis_driver_reserve_hint(severity),
+                }
+            )
+    return drivers
+
+
+def _analysis_reserve_hint(drivers: list[dict[str, Any]]) -> dict[str, Any]:
+    rate = _round_percent(
+        min(
+            8.0,
+            sum(_number(driver.get("reserve_hint_percent")) or 0.0 for driver in drivers),
+        )
+    )
+    severity_values = {str(driver.get("severity") or "") for driver in drivers}
+    if not drivers:
+        level = "none"
+    elif "high" in severity_values or rate >= 4.0:
+        level = "high"
+    elif rate >= 2.0:
+        level = "medium"
+    else:
+        level = "low"
+    return {
+        "driver_count": len(drivers),
+        "level": level,
+        "rate_percent": rate,
+    }
+
+
+def _analysis_driver_reserve_hint(severity: str) -> float:
+    return ANALYSIS_RESERVE_HINT_RATES.get(severity, ANALYSIS_RESERVE_HINT_RATES["medium"])
 
 
 def _risk_reserve_rate_percent(risk_types: list[str]) -> float:

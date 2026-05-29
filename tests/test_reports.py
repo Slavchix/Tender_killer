@@ -228,6 +228,67 @@ def test_build_tender_report_docx_renders_analysis_decision_and_evidence():
     assert "Может повлиять на решение, цену или возможность участия." in document_xml
 
 
+def test_build_tender_report_docx_uses_operator_analysis_contract():
+    payload = {
+        "source": "moscow_supplier_portal",
+        "external_id": "Auction10212588",
+        "title": "Climbing equipment",
+        "document_records": [{"name": "TZ.docx", "text_status": "ok"}],
+        "analysis": {
+            "summary": "legacy summary",
+            "operator_view": {
+                "version": 2,
+                "decision_brief": {
+                    "title": "Operator decision",
+                    "summary": "Use the operator-ready analysis contract.",
+                    "reasons": ["delivery in 3 days", "certificate package"],
+                },
+                "sections": [
+                    {
+                        "id": "blockers",
+                        "title": "Blockers",
+                        "items": [
+                            {
+                                "label": "contract security",
+                                "category": "financial",
+                                "severity": "high",
+                                "description": "Bank guarantee may be required.",
+                                "source": "Contract.pdf",
+                                "impact": "cash gap",
+                            }
+                        ],
+                    },
+                    {
+                        "id": "price_factors",
+                        "title": "Price factors",
+                        "items": [
+                            {
+                                "label": "delivery in 3 days",
+                                "category": "delivery",
+                                "severity": "high",
+                                "description": "Rush logistics.",
+                                "source": "TZ.docx",
+                                "impact": "add delivery reserve",
+                            }
+                        ],
+                    },
+                ],
+            },
+        },
+    }
+
+    content = build_tender_report_docx(payload)
+    document_xml = _document_xml(content)
+
+    assert "Operator decision" in document_xml
+    assert "Use the operator-ready analysis contract." in document_xml
+    assert "Operator analysis sections" in document_xml
+    assert "Price factors" in document_xml
+    assert "delivery in 3 days" in document_xml
+    assert "add delivery reserve" in document_xml
+    assert "contract security" in document_xml
+
+
 def test_build_tender_report_docx_renders_backend_decision_reasons():
     payload = {
         "source": "mosreg_market",

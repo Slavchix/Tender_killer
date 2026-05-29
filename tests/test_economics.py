@@ -96,6 +96,70 @@ def test_build_economics_summary_returns_bid_thresholds():
     assert summary["interesting_price"] == 83529.41
 
 
+def test_build_economics_summary_surfaces_analysis_cost_drivers():
+    summary = build_economics_summary(
+        {
+            "price": 100000.0,
+            "analysis": {
+                "operator_view": {
+                    "sections": [
+                        {
+                            "id": "price_factors",
+                            "items": [
+                                {
+                                    "label": "delivery in 3 working days",
+                                    "category": "delivery",
+                                    "severity": "high",
+                                    "source": "TZ.docx",
+                                    "impact": "rush logistics",
+                                },
+                                {
+                                    "label": "certificate package",
+                                    "category": "documents",
+                                    "severity": "medium",
+                                    "source": "TZ.docx",
+                                },
+                            ],
+                        },
+                        {
+                            "id": "blockers",
+                            "items": [
+                                {
+                                    "label": "contract security",
+                                    "category": "financial",
+                                    "severity": "medium",
+                                    "source": "Contract.pdf",
+                                }
+                            ],
+                        },
+                    ]
+                }
+            },
+            "product_profiles": [
+                {
+                    "product_name": "Fuel",
+                    "quantity": 10,
+                    "raw_payload": {"economics": {"unit_cost": 1000, "logistics_cost": 1000}},
+                }
+            ],
+        }
+    )
+
+    assert [driver["label"] for driver in summary["analysis_cost_drivers"]] == [
+        "delivery in 3 working days",
+        "certificate package",
+        "contract security",
+    ]
+    assert summary["analysis_cost_drivers"][0]["reserve_hint_percent"] == 2.0
+    assert summary["analysis_cost_drivers"][1]["reserve_hint_percent"] == 1.0
+    assert summary["analysis_reserve_hint"] == {
+        "driver_count": 3,
+        "level": "high",
+        "rate_percent": 4.0,
+    }
+    assert summary["risk_reserve_rate_percent"] == 0.0
+
+
 def test_build_economics_summary_applies_position_assumptions():
     summary = build_economics_summary(
         {

@@ -1272,6 +1272,17 @@ def test_tender_details_render_economics_summary():
     assert find_mojibake(economics_summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
     assert find_mojibake(economics_decision_scenarios_source, TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE) == []
 
+def test_economics_summary_surfaces_analysis_cost_drivers():
+    economics_summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "analysis_cost_drivers" in economics_summary_source
+    assert "analysis_reserve_hint" in economics_summary_source
+    assert "analysis-cost-drivers" in economics_summary_source
+    assert "Факторы из ТЗ" in economics_summary_source
+    assert ".analysis-cost-drivers" in styles_source
+    assert find_mojibake(economics_summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
+
 def test_product_profile_renders_economics_input_form():
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     workbench_source = (

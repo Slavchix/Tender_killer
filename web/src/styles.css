@@ -2582,6 +2582,42 @@ textarea:focus {
   font-size: 12px;
 }
 
+.analysis-cost-drivers {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  background: #14241d;
+  border: 1px solid #365443;
+  border-radius: 7px;
+}
+
+.analysis-cost-driver-list {
+  display: grid;
+  gap: 7px;
+}
+
+.analysis-cost-driver {
+  display: grid;
+  gap: 3px;
+  padding: 8px 9px;
+  background: #10201a;
+  border: 1px solid #30493c;
+  border-radius: 7px;
+}
+
+.analysis-cost-driver strong,
+.analysis-cost-driver span,
+.analysis-cost-driver em {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.analysis-cost-driver span,
+.analysis-cost-driver em {
+  color: #b8cbc4;
+}
+
 .economics-items {
   display: grid;
   gap: 7px;

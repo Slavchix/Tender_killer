@@ -25,6 +25,8 @@ export function EconomicsSummary({ economics, tender }) {
   const items = economics.items || []
   const bidScenarios = economics.bid_scenarios || []
   const participationDecision = economics.participation_decision || null
+  const analysisCostDrivers = economics.analysis_cost_drivers || []
+  const analysisReserveHint = economics.analysis_reserve_hint || {}
   const marketState = economics.market_state || tender?.market_state
   const revenueLabel = economics.revenue_kind === 'current_offer' ? 'Цена участника' : 'НМЦК'
 
@@ -55,6 +57,23 @@ export function EconomicsSummary({ economics, tender }) {
         <div className="economics-warning">
           <strong>Нужны цены</strong>
           <p>{missingInputs.join(', ')}</p>
+        </div>
+      )}
+      {analysisCostDrivers.length > 0 && (
+        <div className="analysis-cost-drivers">
+          <div className="analysis-status-row">
+            <strong>Факторы из ТЗ</strong>
+            <span>подсказка резерва: {formatPercent(analysisReserveHint.rate_percent)}</span>
+          </div>
+          <div className="analysis-cost-driver-list">
+            {analysisCostDrivers.slice(0, 5).map((driver, index) => (
+              <div className="analysis-cost-driver" key={`${driver.label}-${index}`}>
+                <strong>{driver.label}</strong>
+                <span>{driver.category || 'general'} · {driver.severity || 'medium'}</span>
+                {(driver.impact || driver.source) && <em>{driver.impact || driver.source}</em>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
       {items.length > 0 && (
