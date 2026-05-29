@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
-import {
-  SupplierCatalogHealthPanel,
-  SupplierCatalogPresetControls,
-} from './TenderEconomicsSupplierCatalogs'
+import { SupplierCatalogPresetControls } from './TenderEconomicsSupplierCatalogs'
+import { SupplierCatalogHealthPanel } from './TenderEconomicsSupplierCatalogHealth'
 import { SupplierActionBar } from './TenderEconomicsSupplierActions'
 import {
   SupplierInputFields,

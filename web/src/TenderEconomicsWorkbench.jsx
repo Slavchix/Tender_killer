@@ -1,8 +1,5 @@
-import { ProductAutoEconomicsPanel } from './TenderEconomicsAuto'
-import { ProductEconomicsForm } from './TenderEconomicsCostForm'
-import { ProductEconomicsAssumptionsForm } from './TenderEconomicsForms'
 import { EconomicsPositionRail } from './TenderEconomicsPositionRail'
-import { ProductSupplierOptionsForm } from './TenderEconomicsSuppliers'
+import { TenderEconomicsProfileWorkspace } from './TenderEconomicsProfileWorkspace'
 
 export function TenderEconomicsWorkbench({
   economics,
@@ -58,51 +55,37 @@ export function TenderEconomicsWorkbench({
       />
       <>
         {selectedEconomicsProfile ? (
-          <>
-            <section className="economics-calculation-panel">
-              <div className="economics-position-heading">
-                <span>Позиция #{selectedEconomicsProfile.position_index || selectedEconomicsProfileIndex + 1}</span>
-                <strong>{selectedEconomicsProfile.product_name || 'Без названия'}</strong>
-              </div>
-              <ProductAutoEconomicsPanel
-                profile={selectedEconomicsProfile}
-                onRun={onAutoEconomicsRun}
-                onAccept={onAutoEconomicsAccept}
-                saving={autoEstimating}
-                accepting={acceptingAutoEconomics}
-              />
-              <ProductEconomicsForm profile={selectedEconomicsProfile} onSave={onEconomicsSave} saving={savingEconomics} />
-              <ProductEconomicsAssumptionsForm
-                item={economics?.items?.[selectedEconomicsProfileIndex]}
-                profile={selectedEconomicsProfile}
-                onSave={onEconomicsAssumptionsSave}
-                saving={savingAssumptions}
-              />
-            </section>
-            <aside className="economics-supplier-panel">
-              <ProductSupplierOptionsForm
-                profile={selectedEconomicsProfile}
-                onSave={onSupplierOptionSave}
-                onSelect={onSupplierOptionSelect}
-                onAutoSelect={onSupplierOptionAutoSelect}
-                onDiscoveryImport={onSupplierDiscoveryImport}
-                onSearchPrepare={onSupplierSearchPrepare}
-                onPresetSave={onSupplierCatalogPresetsSave}
-                onDiscoveryRun={onSupplierDiscoveryRun}
-                onDiscoveryUrlRun={onSupplierUrlDiscoveryRun}
-                supplierCatalogHealth={supplierCatalogHealth}
-                supplierCatalogHealthLoading={supplierCatalogHealthLoading}
-                supplierCatalogHealthError={supplierCatalogHealthError}
-                onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
-                saving={savingSupplierOption}
-                importingDiscovery={importingSupplierCandidate}
-                preparingSearch={preparingSupplierSearch}
-                savingPresets={savingSupplierCatalogPresets}
-                discoveringDiscovery={discoveringDiscovery}
-                autoSelecting={autoSelectingSupplier}
-              />
-            </aside>
-          </>
+          <TenderEconomicsProfileWorkspace
+            economics={economics}
+            selectedEconomicsProfile={selectedEconomicsProfile}
+            selectedEconomicsProfileIndex={selectedEconomicsProfileIndex}
+            onEconomicsSave={onEconomicsSave}
+            onEconomicsAssumptionsSave={onEconomicsAssumptionsSave}
+            onSupplierOptionSave={onSupplierOptionSave}
+            onSupplierOptionSelect={onSupplierOptionSelect}
+            onSupplierOptionAutoSelect={onSupplierOptionAutoSelect}
+            onSupplierDiscoveryImport={onSupplierDiscoveryImport}
+            onSupplierSearchPrepare={onSupplierSearchPrepare}
+            onSupplierCatalogPresetsSave={onSupplierCatalogPresetsSave}
+            onSupplierDiscoveryRun={onSupplierDiscoveryRun}
+            onSupplierUrlDiscoveryRun={onSupplierUrlDiscoveryRun}
+            onAutoEconomicsRun={onAutoEconomicsRun}
+            onAutoEconomicsAccept={onAutoEconomicsAccept}
+            savingEconomics={savingEconomics}
+            savingAssumptions={savingAssumptions}
+            savingSupplierOption={savingSupplierOption}
+            importingSupplierCandidate={importingSupplierCandidate}
+            preparingSupplierSearch={preparingSupplierSearch}
+            savingSupplierCatalogPresets={savingSupplierCatalogPresets}
+            discoveringDiscovery={discoveringDiscovery}
+            autoSelectingSupplier={autoSelectingSupplier}
+            autoEstimating={autoEstimating}
+            acceptingAutoEconomics={acceptingAutoEconomics}
+            supplierCatalogHealth={supplierCatalogHealth}
+            supplierCatalogHealthLoading={supplierCatalogHealthLoading}
+            supplierCatalogHealthError={supplierCatalogHealthError}
+            onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
+          />
         ) : (
           <section className="economics-calculation-panel economics-empty-panel">
             <p className="muted-text">Сначала обнови детали закупки, чтобы появились товарные позиции.</p>

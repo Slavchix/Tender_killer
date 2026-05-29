@@ -37,6 +37,7 @@ class ExtractedDocument:
 
 
 PdfOcrRunner = Callable[[Path], tuple[str, tuple[str, ...]]]
+NO_MACHINE_READABLE_TEXT_WARNING = "No machine-readable text extracted; document may be scanned or unsupported."
 
 
 class DocumentDownloader:
@@ -90,6 +91,8 @@ class DocumentTextExtractor:
             combined_warnings = tuple([*warnings, *ocr_warnings])
             if ocr_cleaned:
                 return ExtractedDocument(document_path, ocr_cleaned, "ok", combined_warnings)
+            if not warnings:
+                warnings.append(NO_MACHINE_READABLE_TEXT_WARNING)
             warnings.extend(ocr_warnings)
         if _is_unsupported_document(warnings):
             return ExtractedDocument(document_path, "", "unsupported", tuple(warnings))
@@ -97,7 +100,7 @@ class DocumentTextExtractor:
             document_path,
             "",
             "empty",
-            tuple(warnings) or ("No machine-readable text extracted; document may be scanned or unsupported.",),
+            tuple(warnings) or (NO_MACHINE_READABLE_TEXT_WARNING,),
         )
 
     def _extract(self, path: Path) -> tuple[str, list[str]]:
