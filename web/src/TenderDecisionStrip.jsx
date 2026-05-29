@@ -15,8 +15,8 @@ export function TenderDecisionStrip({ tender, economics, productProfiles = [], d
   const marginText = Number.isFinite(margin) ? formatPercent(margin) : 'нужны цены'
   const stopPrice = tender.decision?.limit_price ?? economics?.minimum_margin_price ?? economics?.break_even_price ?? economics?.interesting_price
   const documentCounts = documentStatusCounts(documents)
-  const decisionBlockers = Array.isArray(tender.decision?.blockers) ? tender.decision.blockers.length : null
-  const riskCount = decisionBlockers ?? (analysis?.risks?.length || 0) + (analysis?.red_flags?.length || 0)
+  const decisionBlockerCount = Array.isArray(tender.decision?.blockers) ? tender.decision.blockers.length : null
+  const riskCount = decisionBlockerCount ?? (analysis?.risks?.length || 0) + (analysis?.red_flags?.length || 0)
   const positionTotal = numericMetric(decisionMetrics.positions_total, productProfiles.length || tender.items?.length || 0)
   const readyProductsFallback = productProfiles.filter((profile) => {
     const raw = profile.raw_payload || {}
@@ -25,6 +25,9 @@ export function TenderDecisionStrip({ tender, economics, productProfiles = [], d
   const readyProducts = numericMetric(decisionMetrics.positions_priced, readyProductsFallback)
   const documentsReady = numericMetric(decisionMetrics.documents_ready, documentCounts.ok)
   const documentsTotal = numericMetric(decisionMetrics.documents_total, documents.length)
+  const decisionReasons = Array.isArray(tender.decision?.reasons) ? tender.decision.reasons.filter(Boolean).slice(0, 2) : []
+  const decisionBlockers = Array.isArray(tender.decision?.blockers) ? tender.decision.blockers.filter(Boolean).slice(0, 2) : []
+  const hasDecisionExplanation = decisionReasons.length > 0 || decisionBlockers.length > 0
 
   return (
     <section className="decision-strip" aria-label="Решение по закупке">
@@ -38,6 +41,26 @@ export function TenderDecisionStrip({ tender, economics, productProfiles = [], d
         <SummaryMetric value={riskCount} label="риски" />
         <SummaryMetric value={`${documentsReady}/${documentsTotal}`} label="документы" />
       </div>
+      {hasDecisionExplanation && (
+        <div className="decision-strip-explanation" aria-label="Причины решения">
+          {decisionReasons.length > 0 && (
+            <div className="decision-strip-reasons">
+              <span>Почему</span>
+              {decisionReasons.map((reason) => (
+                <p key={reason}>{reason}</p>
+              ))}
+            </div>
+          )}
+          {decisionBlockers.length > 0 && (
+            <div className="decision-strip-blockers">
+              <span>Блокеры</span>
+              {decisionBlockers.map((blocker) => (
+                <p key={blocker}>{blocker}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   )
 }

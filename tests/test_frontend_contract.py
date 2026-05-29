@@ -699,6 +699,7 @@ def test_frontend_uses_dedicated_tender_decision_strip_module():
         if TENDER_DECISION_SUMMARY_SOURCE.exists()
         else ""
     )
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "from './TenderDecisionStrip'" in tender_details_source
     assert "from './TenderDecisionSummary'" in tender_details_source
@@ -707,6 +708,12 @@ def test_frontend_uses_dedicated_tender_decision_strip_module():
     assert "documentStatusCounts" in strip_source
     assert "tenderDecisionLabel" in strip_source
     assert "tender.decision?.metrics" in strip_source
+    assert "tender.decision?.reasons" in strip_source
+    assert "tender.decision?.blockers" in strip_source
+    assert "decision-strip-explanation" in strip_source
+    assert "decision-strip-blockers" in strip_source
+    assert ".decision-strip-explanation" in styles_source
+    assert ".decision-strip-blockers" in styles_source
     assert "function decisionLabel" not in strip_source
     assert "export function PriceChangeBanner" in price_change_source
     assert "price-change-banner" in price_change_source

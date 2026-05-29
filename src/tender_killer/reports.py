@@ -29,6 +29,7 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
                 ["Дедлайн", _value(tender.get("deadline_at"))],
             ]
         ),
+        *_tender_decision_elements(tender.get("decision")),
         _p("Паспорт закупки", "heading"),
         _table(
             [
@@ -184,6 +185,33 @@ def _table(rows: list[list[Any]]) -> DocxElement:
 
 def _list_elements(values: list[Any]) -> list[DocxElement]:
     return [_p(f"- {_value(value)}", "normal") for value in values]
+
+
+def _tender_decision_elements(decision: Any) -> list[DocxElement]:
+    if not isinstance(decision, dict) or not any(
+        decision.get(key) for key in ("label", "summary", "next_step", "reasons", "blockers")
+    ):
+        return []
+
+    elements: list[DocxElement] = [
+        _p("Решение Tender Killer", "heading"),
+        _table(
+            [
+                ["Статус", _value(decision.get("label"))],
+                ["Комментарий", _value(decision.get("summary"))],
+                ["Следующий шаг", _value(decision.get("next_step"))],
+            ]
+        ),
+    ]
+    reasons = _text_list(decision.get("reasons"))
+    blockers = _text_list(decision.get("blockers"))
+    if reasons:
+        elements.append(_p("Причины решения", "heading2"))
+        elements.extend(_list_elements(reasons))
+    if blockers:
+        elements.append(_p("Блокеры", "heading2"))
+        elements.extend(_list_elements(blockers))
+    return elements
 
 
 def _analysis_decision_elements(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[DocxElement]:

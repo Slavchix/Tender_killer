@@ -793,8 +793,11 @@ Date: 2026-05-29.
 - Stable decision fields: `status`, `label`, `tone`, `summary`, `next_step`, `reasons`, `blockers`, `limit_price`, and `metrics`.
 - Initial statuses covered by tests: `missing_prices`, `needs_review`, `with_limit`, `skip`, and `interesting`.
 - The frontend now uses shared formatter helpers `tenderDecisionLabel`, `tenderDecisionStatus`, and `tenderDecisionNextStep` so the tender card decision strip, tender list badge, dashboard preview, and summary next-step read the backend `tender.decision` payload first and only fall back to economics for older payloads.
-- Remaining decision follow-up: surface `decision.reasons` and `decision.blockers` in the card summary/report.
+- The tender card decision strip now renders compact `decision.reasons` and `decision.blockers` blocks below the metrics, preserving the top strip as the primary fast decision surface.
+- Word reports now include a `Решение Tender Killer` section with decision status, summary, next step, reasons, and blockers when `tender.decision` is present.
+- Remaining decision follow-up: feed decision blockers into workflow queues and dashboard attention items.
 - Full verification after Decision Engine v1: `416 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- Full verification after surfacing decision reasons/blockers in card and report: `418 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-decision-reasons`.
 
 ## Analysis evidence backend model checkpoint
 

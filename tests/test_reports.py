@@ -228,6 +228,34 @@ def test_build_tender_report_docx_renders_analysis_decision_and_evidence():
     assert "Может повлиять на решение, цену или возможность участия." in document_xml
 
 
+def test_build_tender_report_docx_renders_backend_decision_reasons():
+    payload = {
+        "source": "mosreg_market",
+        "external_id": "3668201",
+        "title": "Поставка бумаги",
+        "price": 100000,
+        "decision": {
+            "label": "Проверить ТЗ",
+            "summary": "Экономика выглядит рабочей, но есть условия для проверки.",
+            "next_step": "Проверить анализ",
+            "reasons": ["Маржа выше целевого уровня.", "Есть короткий срок поставки."],
+            "blockers": ["Проверить сертификат/декларацию"],
+        },
+    }
+
+    content = build_tender_report_docx(payload)
+    document_xml = _document_xml(content)
+
+    assert "Решение Tender Killer" in document_xml
+    assert "Проверить ТЗ" in document_xml
+    assert "Экономика выглядит рабочей" in document_xml
+    assert "Следующий шаг" in document_xml
+    assert "Причины решения" in document_xml
+    assert "Маржа выше целевого уровня." in document_xml
+    assert "Блокеры" in document_xml
+    assert "Проверить сертификат/декларацию" in document_xml
+
+
 def test_build_tender_report_docx_falls_back_to_card_subject_when_items_missing():
     payload = {
         "source": "mosreg_market",
