@@ -1,4 +1,4 @@
-import { AnalysisList } from './TenderAnalysisTab'
+import { AnalysisList } from './TenderAnalysisSections'
 import {
   formatConfidence,
   formatCostDriver,

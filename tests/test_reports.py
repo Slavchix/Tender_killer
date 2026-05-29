@@ -169,6 +169,65 @@ def test_build_tender_report_docx_contains_key_sections():
     assert "Поставщик предоставляет сертификат соответствия." in document_xml
 
 
+def test_build_tender_report_docx_renders_analysis_decision_and_evidence():
+    payload = {
+        "source": "mosreg_market",
+        "external_id": "3668200",
+        "title": "Поставка огнетушителей",
+        "document_records": [
+            {
+                "name": "ТЗ.docx",
+                "text_status": "ok",
+                "text_content": "Поставщик предоставляет сертификат. Срок поставки 3 дня.",
+            }
+        ],
+        "analysis": {
+            "summary": "поставка огнетушителей",
+            "requirements": ["сертификат/декларация"],
+            "risks": ["короткий срок поставки"],
+            "red_flags": [],
+            "status": "needs_review",
+            "confidence": 0.78,
+            "checklist": [
+                {
+                    "label": "сертификат/декларация",
+                    "category": "documents",
+                    "severity": "medium",
+                    "evidence": "Поставщик предоставляет сертификат.",
+                    "source": "ТЗ.docx",
+                },
+                {
+                    "label": "короткий срок поставки",
+                    "category": "delivery",
+                    "severity": "high",
+                    "evidence": "Срок поставки 3 дня.",
+                    "source": "ТЗ.docx",
+                },
+            ],
+        },
+    }
+
+    content = build_tender_report_docx(payload)
+    document_xml = _document_xml(content)
+
+    assert "Решение по анализу ТЗ" in document_xml
+    assert "Нужна ручная проверка" in document_xml
+    assert "Ключевые причины" in document_xml
+    assert "Риск: короткий срок поставки" in document_xml
+    assert "Требование: сертификат/декларация" in document_xml
+    assert "Доказательства из документов" in document_xml
+    assert "Тип условия" in document_xml
+    assert "Важность" in document_xml
+    assert "Документ" in document_xml
+    assert "Фрагмент" in document_xml
+    assert "Влияние" in document_xml
+    assert "Документы" in document_xml
+    assert "Сроки и поставка" in document_xml
+    assert "важно" in document_xml
+    assert "ТЗ.docx" in document_xml
+    assert "Может повлиять на решение, цену или возможность участия." in document_xml
+
+
 def test_build_tender_report_docx_falls_back_to_card_subject_when_items_missing():
     payload = {
         "source": "mosreg_market",

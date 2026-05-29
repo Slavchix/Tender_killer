@@ -7,7 +7,7 @@ import {
   formatQuantity,
   profileStatusLabel,
 } from './formatters'
-import { AnalysisList } from './TenderAnalysisTab'
+import { AnalysisList } from './TenderAnalysisSections'
 import { Info, SummaryMetric } from './TenderDetailsShared'
 
 export function TenderProductsTab({

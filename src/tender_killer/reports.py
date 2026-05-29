@@ -138,9 +138,12 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
 
     elements.extend(
         [
+            _p("Решение по анализу ТЗ", "heading"),
+            *_analysis_decision_elements(analysis, documents),
             _p("Выжимка ТЗ", "heading"),
             _p(_value(analysis.get("summary"), "Анализ ТЗ еще не выполнен."), "normal"),
             *_analysis_checklist_elements(analysis),
+            *_analysis_evidence_elements(analysis, documents),
             _p("Требования", "heading"),
             *_list_elements(analysis.get("requirements") or ["Требования пока не найдены."]),
             _p("Риски", "heading"),
@@ -181,6 +184,63 @@ def _list_elements(values: list[Any]) -> list[DocxElement]:
     return [_p(f"- {_value(value)}", "normal") for value in values]
 
 
+def _analysis_decision_elements(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[DocxElement]:
+    decision = _analysis_decision(analysis, documents)
+    elements = [
+        _table(
+            [
+                ["Вердикт", decision["title"]],
+                ["Комментарий", decision["summary"]],
+                ["Документов", str(len(documents))],
+            ]
+        )
+    ]
+    if decision["reasons"]:
+        elements.append(_p("Ключевые причины", "heading2"))
+        elements.extend(_list_elements(decision["reasons"][:3]))
+    return elements
+
+
+def _analysis_decision(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> dict[str, Any]:
+    if not analysis:
+        return {
+            "title": "Нужен анализ ТЗ",
+            "summary": "Сначала извлеките текст документов и запустите анализ.",
+            "reasons": [f"Документов в карточке: {len(documents)}"] if documents else [],
+        }
+
+    red_flags = _text_list(analysis.get("red_flags"))
+    risks = _text_list(analysis.get("risks"))
+    requirements = _text_list(analysis.get("requirements"))
+    checklist = [item for item in analysis.get("checklist") or [] if isinstance(item, dict)]
+    has_high_check = any(item.get("severity") == "high" for item in checklist)
+    status_text = _analysis_status(analysis.get("status"))
+    confidence_text = _confidence(analysis.get("confidence"))
+    reasons = [
+        *[f"Красный флаг: {item}" for item in red_flags],
+        *[f"Риск: {item}" for item in risks],
+        *[f"Требование: {item}" for item in requirements],
+    ]
+
+    if red_flags or has_high_check:
+        return {
+            "title": "Нужна ручная проверка",
+            "summary": f"{status_text}, уверенность {confidence_text}. Сначала проверьте критичные условия.",
+            "reasons": reasons,
+        }
+    if risks or requirements:
+        return {
+            "title": "Проверить условия",
+            "summary": f"{status_text}, уверенность {confidence_text}. Существенных блокеров нет, но условия надо сверить.",
+            "reasons": reasons,
+        }
+    return {
+        "title": "Критичных рисков не видно",
+        "summary": f"{status_text}, уверенность {confidence_text}. Можно переходить к экономике и поставщикам.",
+        "reasons": [_value(analysis.get("summary"), "Анализ не нашел явных рисков и требований.")],
+    }
+
+
 def _analysis_checklist_elements(analysis: dict[str, Any]) -> list[DocxElement]:
     checklist = analysis.get("checklist") or []
     if not isinstance(checklist, list) or not checklist:
@@ -200,6 +260,99 @@ def _analysis_checklist_elements(analysis: dict[str, Any]) -> list[DocxElement]:
     if len(rows) == 1:
         return []
     return [_p("Проверочный список", "heading"), _table(rows)]
+
+
+def _analysis_evidence_elements(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[DocxElement]:
+    evidence_items = _analysis_evidence_items(analysis, documents)
+    if not evidence_items:
+        return []
+    rows = [["Тип условия", "Проверка", "Важность", "Документ", "Фрагмент", "Влияние"]]
+    for item in evidence_items:
+        rows.append(
+            [
+                item["type_label"],
+                item["label"],
+                item["importance_label"],
+                item["document_name"],
+                item["fragment"],
+                item["impact"],
+            ]
+        )
+    return [_p("Доказательства из документов", "heading"), _table(rows)]
+
+
+def _analysis_evidence_items(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[dict[str, str]]:
+    checklist = analysis.get("checklist") or []
+    if not isinstance(checklist, list):
+        return []
+    items: list[dict[str, str]] = []
+    for item in checklist:
+        if not isinstance(item, dict) or not item.get("evidence"):
+            continue
+        items.append(
+            {
+                "label": _value(item.get("label"), "Фрагмент документа"),
+                "type_label": _evidence_type_label(item.get("category")),
+                "importance_label": _evidence_importance_label(item.get("severity")),
+                "document_name": _resolve_evidence_document_name(item, documents),
+                "fragment": _value(item.get("evidence"), ""),
+                "impact": _evidence_impact_label(item),
+            }
+        )
+    return items
+
+
+def _evidence_type_label(category: Any) -> str:
+    return {
+        "documents": "Документы",
+        "delivery": "Сроки и поставка",
+        "acceptance": "Приемка",
+        "standards": "ГОСТ/ТУ",
+        "contract": "Контракт",
+        "financial": "Финансы",
+        "national_regime": "Нацрежим",
+        "legal": "Юридическое",
+    }.get(str(category or ""), "Условие")
+
+
+def _evidence_importance_label(severity: Any) -> str:
+    return {
+        "high": "важно",
+        "medium": "проверить",
+        "low": "к сведению",
+    }.get(str(severity or ""), "проверить")
+
+
+def _evidence_impact_label(item: dict[str, Any]) -> str:
+    if item.get("severity") == "high":
+        return "Может повлиять на решение, цену или возможность участия."
+    return {
+        "documents": "Проверьте, какие документы нужно приложить или получить у поставщика.",
+        "delivery": "Сверьте сроки с доступностью товара и логистикой.",
+        "acceptance": "Учтите порядок приемки при оценке исполнения.",
+        "standards": "Сверьте соответствие товара стандартам до расчета экономики.",
+        "contract": "Учтите условие в рисках исполнения и договорной подготовке.",
+        "financial": "Учтите в стоп-цене, резерве и решении по участию.",
+        "national_regime": "Проверьте ограничения происхождения и реестровые требования.",
+        "legal": "Проверьте допуски, лицензии или ограничения до участия.",
+    }.get(str(item.get("category") or ""), "Проверьте фрагмент перед принятием решения.")
+
+
+def _resolve_evidence_document_name(item: dict[str, Any], documents: list[dict[str, Any]]) -> str:
+    if item.get("document_name"):
+        return _value(item.get("document_name"))
+    if item.get("source"):
+        return _value(item.get("source"))
+    ready_documents = [document for document in documents if document.get("text_status") == "ok"]
+    if len(ready_documents) == 1:
+        return _value(ready_documents[0].get("name") or ready_documents[0].get("url"), "Документ")
+    return "Документ не привязан"
+
+
+def _text_list(values: Any) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    return [_value(value, "").strip() for value in values if _value(value, "").strip()]
 
 
 def _economics_elements(economics: dict[str, Any]) -> list[DocxElement]:

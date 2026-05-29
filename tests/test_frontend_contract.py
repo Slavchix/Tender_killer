@@ -1678,6 +1678,21 @@ def test_economics_tab_renders_auto_estimate_panel():
     assert find_mojibake(source, TENDER_ECONOMICS_AUTO_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
+
+def test_shared_analysis_list_imports_from_sections_module():
+    economics_auto_source = TENDER_ECONOMICS_AUTO_SOURCE.read_text(encoding="utf-8")
+    products_source = TENDER_PRODUCTS_TAB_SOURCE.read_text(encoding="utf-8")
+    analysis_tab_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    analysis_sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+
+    assert "export function AnalysisList" in analysis_sections_source
+    assert "export function AnalysisList" not in analysis_tab_source
+    assert "import { AnalysisList } from './TenderAnalysisSections'" in economics_auto_source
+    assert "import { AnalysisList } from './TenderAnalysisSections'" in products_source
+    assert "import { AnalysisList } from './TenderAnalysisTab'" not in economics_auto_source
+    assert "import { AnalysisList } from './TenderAnalysisTab'" not in products_source
+
+
 def test_economics_tab_renders_assumptions_form():
     details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
