@@ -5,6 +5,7 @@ import {
   documentStatusCounts,
   documentStatusLabel,
 } from './formatters'
+import { buildDocumentEvidenceItems } from './TenderAnalysisEvidenceModel'
 
 export function analysisSectionItems(analysis, documents = []) {
   const requirementsCount = analysis?.requirements?.length || 0
@@ -38,6 +39,7 @@ export function AnalysisSectionRail({ sections, selectedSection, onSelectSection
 
 export function AnalysisSectionBody({ sectionId, analysis, documents = [] }) {
   const documentCounts = documentStatusCounts(documents)
+  const evidenceItems = buildDocumentEvidenceItems(analysis, documents)
 
   if (sectionId === 'risks') {
     return (
@@ -62,6 +64,7 @@ export function AnalysisSectionBody({ sectionId, analysis, documents = [] }) {
     return (
       <div className="analysis-card">
         <p>Текст извлечен у {documentCounts.ok} из {documents.length} документов.</p>
+        <AnalysisDocumentEvidenceList evidenceItems={evidenceItems} />
         <AnalysisDocumentList documents={documents} />
       </div>
     )
@@ -71,6 +74,33 @@ export function AnalysisSectionBody({ sectionId, analysis, documents = [] }) {
     <div className="analysis-card">
       <p>{analysis.summary}</p>
       <AnalysisChecklist items={analysis.checklist} />
+    </div>
+  )
+}
+
+function AnalysisDocumentEvidenceList({ evidenceItems = [] }) {
+  if (!evidenceItems.length) {
+    return (
+      <div className="analysis-document-evidence-grid">
+        <p className="muted-text">Фрагменты с влиянием на решение появятся после анализа документов.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="analysis-document-evidence-grid">
+      {evidenceItems.map((item) => (
+        <article className="analysis-evidence-card analysis-evidence-item" key={item.id}>
+          <div className="analysis-evidence-meta">
+            <span>{item.typeLabel}</span>
+            <span>{item.importanceLabel}</span>
+          </div>
+          <strong>{item.label}</strong>
+          <p>{item.fragment}</p>
+          <em className="analysis-evidence-impact">{item.impact}</em>
+          <small>{item.documentName}</small>
+        </article>
+      ))}
     </div>
   )
 }

@@ -2014,7 +2014,9 @@ textarea:focus {
 .analysis-checklist,
 .analysis-checklist-row,
 .analysis-checklist-main,
-.analysis-evidence-card {
+.analysis-evidence-card,
+.analysis-evidence-item,
+.analysis-document-evidence-grid {
   min-width: 0;
 }
 
@@ -2214,6 +2216,48 @@ textarea:focus {
   background: #202b27;
   border: 1px solid #304039;
   border-radius: 7px;
+}
+
+.analysis-document-evidence-grid {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.analysis-evidence-item {
+  border-left: 3px solid #70df64;
+}
+
+.analysis-evidence-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.analysis-evidence-meta span {
+  padding: 3px 7px;
+  color: #b9cdc5;
+  background: #26342f;
+  border: 1px solid #3a4d45;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.analysis-evidence-impact {
+  color: #9fe29a;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.analysis-evidence-item small {
+  color: #9bb2aa;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .analysis-evidence-card strong {

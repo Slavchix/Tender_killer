@@ -33,6 +33,9 @@ TENDER_ANALYSIS_SECTIONS_SOURCE = Path(__file__).resolve().parents[1] / "web" / 
 TENDER_ANALYSIS_EVIDENCE_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisEvidencePanel.jsx"
 )
+TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisEvidenceModel.js"
+)
 TENDER_ANALYSIS_DECISION_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisDecisionBrief.jsx"
 TENDER_DECISION_STRIP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDecisionStrip.jsx"
 TENDER_DECISION_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDecisionSummary.jsx"
@@ -1969,6 +1972,7 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     analysis_sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
     analysis_evidence_source = TENDER_ANALYSIS_EVIDENCE_SOURCE.read_text(encoding="utf-8")
+    analysis_evidence_model_source = TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "reportHref" in workspaces_source
@@ -1987,6 +1991,9 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     assert "onClick={() => onSelectSection(section.id)}" in analysis_sections_source
     assert "aria-pressed={active}" in analysis_sections_source
     assert "analysis-evidence-panel" in analysis_evidence_source
+    assert "from './TenderAnalysisEvidenceModel'" in analysis_evidence_source
+    assert "from './TenderAnalysisEvidenceModel'" in analysis_sections_source
+    assert "export function buildDocumentEvidenceItems" in analysis_evidence_model_source
     assert ".analysis-workspace" in styles_source
     assert ".analysis-evidence-panel" in styles_source
     assert ".analysis-section-item:hover" in styles_source
@@ -1994,6 +2001,7 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
     assert find_mojibake(analysis_sections_source, TENDER_ANALYSIS_SECTIONS_SOURCE) == []
     assert find_mojibake(analysis_evidence_source, TENDER_ANALYSIS_EVIDENCE_SOURCE) == []
+    assert find_mojibake(analysis_evidence_model_source, TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
@@ -2017,6 +2025,36 @@ def test_analysis_tab_renders_decision_first_brief():
     assert ".analysis-reason-list" in styles_source
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
     assert find_mojibake(decision_source, TENDER_ANALYSIS_DECISION_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_analysis_documents_render_structured_evidence_model():
+    sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+    evidence_source = TENDER_ANALYSIS_EVIDENCE_SOURCE.read_text(encoding="utf-8")
+    model_source = TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "buildDocumentEvidenceItems(analysis, documents)" in sections_source
+    assert "buildDocumentEvidenceItems(analysis, documents)" in evidence_source
+    assert "analysis-document-evidence-grid" in sections_source
+    assert "analysis-evidence-item" in evidence_source
+    assert "analysis-evidence-item" in sections_source
+    assert "item.typeLabel" in evidence_source
+    assert "item.importanceLabel" in evidence_source
+    assert "item.documentName" in evidence_source
+    assert "item.fragment" in evidence_source
+    assert "item.impact" in evidence_source
+    assert "category: item.category || 'general'" in model_source
+    assert "importanceLabel: evidenceImportanceLabel(item.severity)" in model_source
+    assert "typeLabel: evidenceTypeLabel(item.category)" in model_source
+    assert "impact: evidenceImpactLabel(item)" in model_source
+    assert "documentName: resolveEvidenceDocumentName(item, documents)" in model_source
+    assert ".analysis-document-evidence-grid" in styles_source
+    assert ".analysis-evidence-meta" in styles_source
+    assert ".analysis-evidence-impact" in styles_source
+    assert find_mojibake(sections_source, TENDER_ANALYSIS_SECTIONS_SOURCE) == []
+    assert find_mojibake(evidence_source, TENDER_ANALYSIS_EVIDENCE_SOURCE) == []
+    assert find_mojibake(model_source, TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
