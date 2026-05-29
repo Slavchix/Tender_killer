@@ -705,6 +705,9 @@ def test_frontend_uses_dedicated_tender_decision_strip_module():
     assert "export function TenderDecisionStrip" in strip_source
     assert "decision-strip-grid" in strip_source
     assert "documentStatusCounts" in strip_source
+    assert "tenderDecisionLabel" in strip_source
+    assert "tender.decision?.metrics" in strip_source
+    assert "function decisionLabel" not in strip_source
     assert "export function PriceChangeBanner" in price_change_source
     assert "price-change-banner" in price_change_source
     assert "formatPriceChangeDirection" in price_change_source
@@ -2495,30 +2498,40 @@ def test_frontend_formats_market_state_for_tender_surfaces():
     assert "участников нет" in formatter_source
     assert "цена скрыта" in formatter_source
     assert "export function economicsDecisionLabel" in formatter_source
+    assert "export function tenderDecisionLabel" in formatter_source
+    assert "export function tenderDecisionStatus" in formatter_source
+    assert "tender?.decision?.label" in formatter_source
+    assert "tender?.decision?.next_step" in formatter_source
     assert "нет расчета" in formatter_source
 
 
-def test_tender_list_surfaces_market_state_and_economics_decision():
+def test_tender_list_surfaces_market_state_and_backend_decision():
     source = TENDER_LIST_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "nmcPriceValue" in source
     assert "marketStateValue(tender.market_state)" in source
-    assert "economicsDecisionLabel(tender.economics)" in source
+    assert "tenderDecisionLabel(tender)" in source
+    assert "tenderDecisionStatus(tender)" in source
+    assert "economicsDecisionLabel(tender.economics)" not in source
     assert "economics-chip" in source
     assert ".economics-chip" in styles_source
+    assert ".economics-chip.missing_prices" in styles_source
+    assert ".economics-chip.with_limit" in styles_source
+    assert ".economics-chip.skip" in styles_source
     assert find_mojibake(source, TENDER_LIST_SOURCE) == []
 
 
-def test_dashboard_surfaces_current_offers_and_saved_economics():
+def test_dashboard_surfaces_current_offers_and_backend_decisions():
     dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "currentOfferCount" in dashboard_source
     assert "hasParticipantBid(tender.market_state)" in dashboard_source
     assert "marketMetric" in dashboard_source
-    assert "economicsReadyCount" in dashboard_source
-    assert "economicsDecisionLabel(tender.economics)" in dashboard_source
+    assert "decisionReadyCount" in dashboard_source
+    assert "tenderDecisionLabel(tender)" in dashboard_source
+    assert "economicsDecisionLabel(tender.economics)" not in dashboard_source
     assert "participantBidValue(tender.market_state)" in dashboard_source
     assert "НМЦК ${nmcPriceValue(tender)}" in dashboard_source
     assert "ставка ${participantBidValue(tender.market_state)}" in dashboard_source

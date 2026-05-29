@@ -1079,13 +1079,17 @@ textarea:focus {
 
 .economics-chip.guarded_bid,
 .economics-chip.manual_review,
-.economics-chip.low_margin {
+.economics-chip.low_margin,
+.economics-chip.missing_prices,
+.economics-chip.needs_review,
+.economics-chip.with_limit {
   color: #1b1609;
   background: #e0b95b;
   border-color: #e0b95b;
 }
 
-.economics-chip.do_not_bid {
+.economics-chip.do_not_bid,
+.economics-chip.skip {
   color: #f2d7d7;
   background: #3a2020;
   border-color: #754242;

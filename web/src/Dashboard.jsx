@@ -1,6 +1,6 @@
 import { Bell, FileText, RefreshCcw } from 'lucide-react'
 import { sourceLabels } from './constants'
-import { economicsDecisionLabel, formatDate, formatDateTime, formatMoney, hasParticipantBid, nmcPriceValue, participantBidValue } from './formatters'
+import { formatDate, formatDateTime, formatMoney, hasParticipantBid, nmcPriceValue, participantBidValue, tenderDecisionLabel } from './formatters'
 
 function Metric({ label, value, tone }) {
   return (
@@ -14,7 +14,7 @@ function Metric({ label, value, tone }) {
 export function DashboardView({ tenderPage, stats, workflowCounts, sources, sourceStatusError, searchSummary, error, onRefreshSources, onOpenTenders, tenders }) {
   const currentOfferCount = (tenders || []).filter((tender) => hasParticipantBid(tender.market_state)).length
   const noParticipantsCount = (tenders || []).filter((tender) => tender.market_state?.status === 'no_participants').length
-  const economicsReadyCount = (tenders || []).filter((tender) => tender.economics?.participation_decision).length
+  const decisionReadyCount = (tenders || []).filter((tender) => tender.decision).length
   const marketMetric = currentOfferCount ? `${currentOfferCount} с ценой` : (noParticipantsCount ? `${noParticipantsCount} без участников` : 'нет данных')
   const queue = [
     { label: 'Новые', value: workflowCounts.new || 0 },
@@ -30,7 +30,7 @@ export function DashboardView({ tenderPage, stats, workflowCounts, sources, sour
         <Metric label="Активные" value={stats.active} />
         <Metric label="Сумма в выдаче" value={formatMoney(stats.totalPrice)} />
         <Metric label="Ставки" value={marketMetric} />
-        <Metric label="Экономика" value={economicsReadyCount ? `${economicsReadyCount} расчетов` : 'нет расчетов'} />
+        <Metric label="Решения" value={decisionReadyCount ? `${decisionReadyCount} готово` : 'нет решений'} />
         <Metric label="API" value={error ? 'ошибка' : 'ok'} tone={error ? 'danger' : 'good'} />
       </section>
       {searchSummary && <div className="run-summary">{searchSummary}</div>}
@@ -113,7 +113,7 @@ function DashboardTenderPreview({ tenders, onOpenTenders }) {
 }
 
 function dashboardTenderLine(tender) {
-  return `${sourceLabels[tender.source] || tender.source} · НМЦК ${nmcPriceValue(tender)} · ставка ${participantBidValue(tender.market_state)} · ${economicsDecisionLabel(tender.economics)} · ${formatDate(tender.deadline_at)}`
+  return `${sourceLabels[tender.source] || tender.source} · НМЦК ${nmcPriceValue(tender)} · ставка ${participantBidValue(tender.market_state)} · ${tenderDecisionLabel(tender)} · ${formatDate(tender.deadline_at)}`
 }
 
 function SourceStatusPanel({ sources, error, onRefresh }) {

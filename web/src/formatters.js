@@ -156,6 +156,16 @@ export function economicsDecisionLabel(economics) {
   return economicsStatusLabel(economics?.status)
 }
 
+export function tenderDecisionLabel(tender, economics = tender?.economics) {
+  if (tender?.decision?.label) return tender.decision.label
+  return economicsDecisionLabel(economics)
+}
+
+export function tenderDecisionStatus(tender, economics = tender?.economics) {
+  if (tender?.decision?.status) return tender.decision.status
+  return economics?.participation_decision?.status || economics?.status || 'idle'
+}
+
 export function marketStateValue(marketState) {
   const currentOffer = positiveNumber(marketState?.current_offer_price)
   const bidCount = Number(marketState?.bid_count)
@@ -213,6 +223,7 @@ function formatBidCount(value) {
 }
 
 export function tenderDecisionNextStep(tender, economics) {
+  if (tender?.decision?.next_step) return tender.decision.next_step
   if (!economics) return 'обновить детали и цены'
   if (economics.status === 'needs_costs') return 'добавить себестоимость'
   if (economics.status === 'needs_price') return 'проверить НМЦК'

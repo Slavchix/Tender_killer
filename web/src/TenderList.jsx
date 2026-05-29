@@ -1,6 +1,6 @@
 import { CalendarClock, CircleDollarSign, FileText, Scale, Users } from 'lucide-react'
 import { sourceLabels, workflowLabels } from './constants'
-import { economicsDecisionLabel, formatDate, marketStateValue, nmcPriceValue } from './formatters'
+import { formatDate, marketStateValue, nmcPriceValue, tenderDecisionLabel, tenderDecisionStatus } from './formatters'
 import { PaginationBar } from './PaginationBar'
 
 export function TenderList({
@@ -69,7 +69,7 @@ export function TenderList({
 }
 
 function TenderListItem({ isSelected, onTenderSelect, tender }) {
-  const economicsStatus = tender.economics?.participation_decision?.status || tender.economics?.status || 'idle'
+  const economicsStatus = tenderDecisionStatus(tender)
 
   return (
     <button
@@ -84,7 +84,7 @@ function TenderListItem({ isSelected, onTenderSelect, tender }) {
             {workflowLabels[tender.workflow_status] || 'Новая'}
           </span>
           <span className={`economics-chip ${economicsStatus}`}>
-            {economicsDecisionLabel(tender.economics)}
+            {tenderDecisionLabel(tender)}
           </span>
         </span>
         <strong>{tender.title}</strong>

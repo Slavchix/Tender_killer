@@ -86,6 +86,7 @@ Recent architecture cleanup:
 - `TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
 - The economics tab owns product cost entry, supplier candidates, assumptions, auto-estimate preview/accept, bid thresholds, and participation decision UI.
 - Decision Engine v1 now lives in `src/tender_killer/decision_service.py`. `get_tender_payload(...)` attaches a stable `decision` object that combines economics, analysis, documents, market state, and product profiles into one status/label/next-step payload for future card, list, dashboard, and report surfaces.
+- The tender card decision strip, tender list badges, and dashboard previews now read the shared backend `tender.decision` payload through frontend formatter helpers, falling back to saved economics only for older payloads.
 
 Current verification command:
 
@@ -97,8 +98,8 @@ Latest verified result after Decision Engine v1: `416 passed`.
 
 Good next steps:
 
-1. Wire `tender.decision` into the right-side tender card, tender list badges, and dashboard queues so all visible decisions come from one backend payload.
-2. Move the frontend-only analysis evidence heuristics into backend analysis payloads so Word, UI, and future agents share the same evidence model.
+1. Move the frontend-only analysis evidence heuristics into backend analysis payloads so Word, UI, and future agents share the same evidence model.
+2. Surface decision reasons/blockers in the card summary so the operator sees why the backend recommended the next step.
 3. Continue economics automation: import reviewed supplier candidates into per-position cost inputs and recalculate the decision automatically.
 
 Previous next steps:

@@ -792,5 +792,6 @@ Date: 2026-05-29.
 - The decision payload combines economics, analysis, document extraction status, market state, and product profile readiness into one backend-owned operator decision.
 - Stable decision fields: `status`, `label`, `tone`, `summary`, `next_step`, `reasons`, `blockers`, `limit_price`, and `metrics`.
 - Initial statuses covered by tests: `missing_prices`, `needs_review`, `with_limit`, `skip`, and `interesting`.
-- This is the backend foundation for the next UI slice: tender card, tender list badges, dashboard queues, and Word reports should read one shared `tender.decision` payload instead of rebuilding decision text separately.
+- The frontend now uses shared formatter helpers `tenderDecisionLabel`, `tenderDecisionStatus`, and `tenderDecisionNextStep` so the tender card decision strip, tender list badge, dashboard preview, and summary next-step read the backend `tender.decision` payload first and only fall back to economics for older payloads.
+- Remaining decision follow-up: surface `decision.reasons` and `decision.blockers` in the card summary/report, then move frontend-only analysis evidence heuristics into backend analysis payloads.
 - Full verification after Decision Engine v1: `416 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
