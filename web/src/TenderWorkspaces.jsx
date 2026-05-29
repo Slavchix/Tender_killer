@@ -1,5 +1,4 @@
 import { TenderAnalysisTab } from './TenderAnalysisTab'
-import { TenderDocumentsTab } from './TenderDocumentsTab'
 import { TenderEconomicsTab } from './TenderEconomicsTab'
 import { TenderFullscreenWorkspace } from './TenderFullscreenWorkspace'
 import { TenderProductsTab } from './TenderProductsTab'
@@ -85,20 +84,14 @@ export function TenderWorkspaces({
         />
       )}
 
-      {mode === 'documents' && (
-        <TenderDocumentsTab
-          documents={documentRecords}
-          downloading={downloading}
-          extracting={extracting}
-          onDownload={onDownloadDocuments}
-          onExtract={onExtractDocumentText}
-        />
-      )}
-
       {mode === 'analysis' && (
         <TenderAnalysisTab
           analysis={analysis}
           analyzing={analyzing}
+          downloading={downloading}
+          extracting={extracting}
+          onDownload={onDownloadDocuments}
+          onExtract={onExtractDocumentText}
           onAnalyze={onAnalyzeTender}
           reportHref={reportHref}
           documents={documentRecords}
@@ -148,7 +141,6 @@ export function TenderWorkspaces({
 
 function workspaceTitle(mode) {
   if (mode === 'products') return 'Товары'
-  if (mode === 'documents') return 'Документы'
   if (mode === 'analysis') return 'Анализ ТЗ'
   return 'Экономика'
 }

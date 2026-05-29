@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from tender_killer.analysis_operator_view_service import build_analysis_operator_view
+from tender_killer.decision_service import build_tender_decision
 from tender_killer.economics import build_economics_summary
 from tender_killer.filter_store import FilterProfileCollection, NamedFilterProfile
 from tender_killer.filters import FilterProfile
@@ -66,16 +68,26 @@ def build_tender_list_query(query: dict[str, str]) -> TenderListQuery:
     from_sql = (
         "FROM tenders "
         "LEFT JOIN tender_workflow AS workflow "
-        "ON tenders.source = workflow.source AND tenders.external_id = workflow.external_id"
+        "ON tenders.source = workflow.source AND tenders.external_id = workflow.external_id "
+        "LEFT JOIN tender_analysis AS analysis "
+        "ON tenders.source = analysis.source AND tenders.external_id = analysis.external_id"
     )
     where_sql = f" WHERE {' AND '.join(filters)}" if filters else ""
     select_sql = (
         "SELECT tenders.source, tenders.external_id, url, title, customer, region, price, currency, status, "
         "status_normalized, law, region_code, source_family, procedure_type, customer_inn, "
         "published_at, deadline_at, delivery_place, category, okpd2, "
-        "documents_json, raw_payload_json, "
+        "documents_json, tenders.raw_payload_json AS raw_payload_json, "
         "tenders.updated_at, COALESCE(workflow.workflow_status, 'new') AS workflow_status, "
         "COALESCE(workflow.workflow_note, '') AS workflow_note, "
+        "analysis.summary AS analysis_summary, "
+        "analysis.requirements_json AS analysis_requirements_json, "
+        "analysis.risks_json AS analysis_risks_json, "
+        "analysis.red_flags_json AS analysis_red_flags_json, "
+        "analysis.recommended_status AS analysis_recommended_status, "
+        "analysis.confidence AS analysis_confidence, "
+        "analysis.raw_payload_json AS analysis_raw_payload_json, "
+        "analysis.analyzed_at AS analysis_analyzed_at, "
         "(SELECT COUNT(*) FROM tender_items AS item_count "
         "WHERE item_count.source = tenders.source AND item_count.external_id = tenders.external_id) AS items_count "
     )
@@ -416,16 +428,71 @@ def _row_to_list_item(row: sqlite3.Row, database_path: str | Path) -> dict[str, 
     payload = dict(row)
     documents = _json_list(payload.pop("documents_json"))
     raw_payload_json = payload.pop("raw_payload_json", None)
+    analysis = _analysis_from_list_row(payload)
     payload["documents_count"] = len(documents)
     payload["market_state"] = extract_market_state({**payload, "raw_payload_json": raw_payload_json})
     payload["law"] = payload.get("law") or _law_label(raw_payload_json)
     profiles = TenderStore(database_path).get_product_profiles(payload["source"], payload["external_id"])
     payload["economics"] = (
-        build_economics_summary({**payload, "raw_payload_json": raw_payload_json, "product_profiles": profiles})
+        build_economics_summary(
+            {
+                **payload,
+                "raw_payload_json": raw_payload_json,
+                "product_profiles": profiles,
+                "analysis": analysis,
+            }
+        )
         if profiles
         else None
     )
+    payload["analysis"] = analysis
+    payload["decision"] = (
+        build_tender_decision(
+            {
+                **payload,
+                "analysis": analysis,
+                "document_records": [],
+                "product_profiles": profiles,
+            }
+        )
+        if analysis or payload["economics"]
+        else None
+    )
     return payload
+
+
+def _analysis_from_list_row(payload: dict[str, Any]) -> dict[str, Any] | None:
+    summary = payload.pop("analysis_summary", None)
+    requirements_json = payload.pop("analysis_requirements_json", None)
+    risks_json = payload.pop("analysis_risks_json", None)
+    red_flags_json = payload.pop("analysis_red_flags_json", None)
+    status = payload.pop("analysis_recommended_status", None)
+    confidence = payload.pop("analysis_confidence", None)
+    raw_payload = _json_object(payload.pop("analysis_raw_payload_json", None))
+    analyzed_at = payload.pop("analysis_analyzed_at", None)
+
+    if summary is None and status is None and not raw_payload:
+        return None
+
+    analysis = {
+        "summary": summary or "",
+        "requirements": _json_list(requirements_json),
+        "risks": _json_list(risks_json),
+        "red_flags": _json_list(red_flags_json),
+        "status": status or "",
+        "confidence": confidence,
+        "raw_payload": raw_payload,
+        "checklist": raw_payload.get("checklist", []),
+        "analyzed_at": analyzed_at,
+    }
+    evidence_items = raw_payload.get("evidence_items")
+    analysis["evidence_items"] = evidence_items if isinstance(evidence_items, list) else []
+    operator_view = raw_payload.get("operator_view")
+    analysis["operator_view"] = (
+        operator_view if isinstance(operator_view, dict) and operator_view.get("version") == 2
+        else build_analysis_operator_view(analysis, [])
+    )
+    return analysis
 
 
 def _json_list(value: str | None) -> list[Any]:

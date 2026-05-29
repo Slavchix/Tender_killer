@@ -67,9 +67,9 @@ export function TenderSummaryTab({
 
         <SummaryCard
           title="Документы"
-          action="Открыть документы"
+          action="Открыть анализ"
           variant="documents"
-          onClick={() => onOpenTab?.('documents')}
+          onClick={() => onOpenTab?.('analysis')}
         >
           <p>Извлечено текстов: {documentCounts.ok} из {documents.length}.</p>
           {documentCounts.attention > 0 && <em>{documentCounts.attention} документов требуют внимания</em>}

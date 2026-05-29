@@ -11,7 +11,7 @@ export function TenderDetailsTabs({
   workflowState,
 }) {
   const [workspaceMode, setWorkspaceMode] = useState(null)
-  const workspaceModes = new Set(['products', 'documents', 'analysis', 'economics'])
+  const workspaceModes = new Set(['products', 'analysis', 'economics'])
 
   function openWorkspace(mode) {
     setWorkspaceMode(mode)

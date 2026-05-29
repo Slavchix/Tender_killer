@@ -72,3 +72,49 @@ def test_decision_requires_analysis_review_for_red_flags():
     assert decision["label"] == "Проверить ТЗ"
     assert "лицензия/СРО" in decision["blockers"]
     assert decision["next_step"] == "Проверить анализ"
+
+
+def test_decision_uses_operator_view_blockers_when_legacy_flags_are_empty():
+    decision = build_tender_decision(
+        {
+            "economics": {
+                "status": "interesting",
+                "margin_percent": 18,
+                "participation_decision": {"status": "can_bid", "label": "Можно заходить"},
+            },
+            "analysis": {
+                "status": "ok",
+                "risks": [],
+                "red_flags": [],
+                "requirements": [],
+                "operator_view": {
+                    "version": 2,
+                    "decision_brief": {
+                        "status": "manual_review",
+                        "summary": "Нужна ручная проверка ТЗ.",
+                        "next_step": "Разобрать блокеры",
+                        "reasons": ["сертификат/декларация"],
+                    },
+                    "sections": [
+                        {
+                            "id": "blockers",
+                            "items": [
+                                {
+                                    "label": "сертификат/декларация",
+                                    "description": "Нужны документы подтверждения.",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            },
+            "document_records": [{"text_status": "ok"}],
+        }
+    )
+
+    assert decision["status"] == "needs_review"
+    assert decision["label"] == "Проверить ТЗ"
+    assert decision["summary"] == "Нужна ручная проверка ТЗ."
+    assert decision["next_step"] == "Разобрать блокеры"
+    assert "сертификат/декларация" in decision["blockers"]
+    assert "сертификат/декларация" in decision["reasons"]

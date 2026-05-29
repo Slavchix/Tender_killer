@@ -60,6 +60,7 @@ export function DashboardView({ tenderPage, stats, workflowCounts, sources, sour
           error={error}
           onOpenTenders={onOpenTenders}
           sources={sources}
+          tenders={tenders}
           workflowCounts={workflowCounts}
         />
         <DashboardTenderPreview onOpenTenders={onOpenTenders} tenders={tenders} />
@@ -68,7 +69,7 @@ export function DashboardView({ tenderPage, stats, workflowCounts, sources, sour
   )
 }
 
-function DashboardAttentionPanel({ error, sources, workflowCounts, onOpenTenders }) {
+function DashboardAttentionPanel({ error, sources, tenders, workflowCounts, onOpenTenders }) {
   const sourceErrors = (sources || []).filter((source) => source.last_error)
   const attentionItems = []
 
@@ -76,13 +77,14 @@ function DashboardAttentionPanel({ error, sources, workflowCounts, onOpenTenders
   if (sourceErrors.length) attentionItems.push({ label: 'Источники', value: `${sourceErrors.length} требуют проверки` })
   if (workflowCounts.new) attentionItems.push({ label: 'Новые закупки', value: `${workflowCounts.new} еще не разобраны` })
   if (workflowCounts.interesting) attentionItems.push({ label: 'Интересные', value: `${workflowCounts.interesting} ждут решения` })
+  attentionItems.push(...decisionAttentionItems(tenders))
 
   return (
     <section className="dashboard-panel">
       <div className="panel-title"><Bell size={18} /> Требует внимания</div>
       <div className="dashboard-attention-list">
         {attentionItems.map((item) => (
-          <button key={item.label} onClick={onOpenTenders} type="button">
+          <button key={item.key || item.label} onClick={onOpenTenders} type="button">
             <span>{item.label}</span>
             <strong>{item.value}</strong>
           </button>
@@ -91,6 +93,17 @@ function DashboardAttentionPanel({ error, sources, workflowCounts, onOpenTenders
       </div>
     </section>
   )
+}
+
+function decisionAttentionItems(tenders) {
+  return (tenders || [])
+    .filter((tender) => tender.decision?.blockers?.length)
+    .slice(0, 3)
+    .map((tender) => ({
+      key: `${tender.source}-${tender.external_id}-decision`,
+      label: 'ТЗ/решение',
+      value: `${tenderDecisionLabel(tender)}: ${tender.decision.blockers[0]}`,
+    }))
 }
 
 function DashboardTenderPreview({ tenders, onOpenTenders }) {

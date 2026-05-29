@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 
 from tender_killer.models import ProductProfile
@@ -33,6 +34,7 @@ def test_tender_query_service_returns_total_limit_and_offset(tmp_path):
     assert payload["next_offset"] == 2
     assert len(payload["items"]) == 1
     assert payload["items"][0]["external_id"] == "mo-1"
+    assert payload["items"][0]["decision"] is None
 
 
 def test_tender_query_service_includes_market_state_and_saved_economics(tmp_path):
@@ -79,6 +81,66 @@ def test_tender_query_service_includes_market_state_and_saved_economics(tmp_path
     assert item["economics"]["revenue"] == 90000.0
     assert item["economics"]["revenue_kind"] == "current_offer"
     assert item["economics"]["participation_decision"]["status"] == "can_bid"
+    assert item["decision"]["status"] == "interesting"
+
+
+def test_tender_query_service_includes_operator_decision_for_dashboard_attention(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="moscow_supplier_portal",
+            external_id="Auction10220001",
+            url="https://zakupki.mos.ru/auction/10220001",
+            title="Tender with operator blockers",
+            price=50000.0,
+        )
+    )
+    raw_payload = {
+        "operator_view": {
+            "version": 2,
+            "decision_brief": {
+                "status": "manual_review",
+                "summary": "Нужна ручная проверка ТЗ.",
+                "next_step": "Разобрать блокеры",
+                "reasons": ["сертификат/декларация"],
+            },
+            "sections": [
+                {
+                    "id": "blockers",
+                    "items": [{"label": "сертификат/декларация"}],
+                }
+            ],
+        }
+    }
+    with store._connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO tender_analysis (
+                source, external_id, summary, requirements_json, risks_json,
+                red_flags_json, recommended_status, confidence, raw_payload_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "moscow_supplier_portal",
+                "Auction10220001",
+                "Analysis summary",
+                "[]",
+                "[]",
+                "[]",
+                "needs_review",
+                0.9,
+                json.dumps(raw_payload, ensure_ascii=False),
+            ),
+        )
+
+    payload = list_tenders_payload(store.database_path, {})
+    item = payload["items"][0]
+
+    assert item["analysis"]["operator_view"]["version"] == 2
+    assert item["decision"]["status"] == "needs_review"
+    assert item["decision"]["blockers"] == ["сертификат/декларация"]
 
 
 def test_tender_query_service_filters_with_normalized_columns(tmp_path):

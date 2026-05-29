@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AnalysisDecisionBrief } from './TenderAnalysisDecisionBrief'
+import { AnalysisDocumentsPanel } from './TenderAnalysisDocumentsPanel'
 import { AnalysisEvidencePanel } from './TenderAnalysisEvidencePanel'
 import {
   AnalysisSectionBody,
@@ -8,7 +9,17 @@ import {
 } from './TenderAnalysisSections'
 import { AnalysisSummary } from './TenderAnalysisSummary'
 
-export function TenderAnalysisTab({ analysis, analyzing, onAnalyze, reportHref, documents = [] }) {
+export function TenderAnalysisTab({
+  analysis,
+  analyzing,
+  downloading,
+  extracting,
+  onAnalyze,
+  onDownload,
+  onExtract,
+  reportHref,
+  documents = [],
+}) {
   const [selectedAnalysisSection, setSelectedAnalysisSection] = useState('blockers')
   const analysisSections = analysisSectionItems(analysis, documents)
 
@@ -29,6 +40,13 @@ export function TenderAnalysisTab({ analysis, analyzing, onAnalyze, reportHref, 
         </div>
       </div>
 
+      <AnalysisDocumentsPanel
+        documents={documents}
+        downloading={downloading}
+        extracting={extracting}
+        onDownload={onDownload}
+        onExtract={onExtract}
+      />
       <AnalysisSummary analysis={analysis} documents={documents} />
       <AnalysisDecisionBrief
         analysis={analysis}

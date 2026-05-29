@@ -6,11 +6,14 @@ import {
 } from './formatters'
 import { SummaryMetric } from './TenderDetailsShared'
 
-export function TenderDocumentsTab({ documents = [], downloading, extracting, onDownload, onExtract }) {
+export function AnalysisDocumentsPanel({ documents = [], downloading, extracting, onDownload, onExtract }) {
   return (
-    <section className="detail-section active">
+    <section className="analysis-documents-panel" aria-label="Подготовка документов для анализа">
       <div className="section-heading-row">
-        <h3>Документы</h3>
+        <div>
+          <h4>Документы для анализа</h4>
+          <p className="muted-text">Скачивание, извлечение текста и проверка файлов перед анализом ТЗ.</p>
+        </div>
       </div>
       <DocumentStatusSummary
         documents={documents}
@@ -20,7 +23,7 @@ export function TenderDocumentsTab({ documents = [], downloading, extracting, on
         onExtract={onExtract}
       />
       {documents.length ? (
-        <div className="document-table">
+        <div className="document-table compact">
           {documents.map((document) => (
             <div className="document-row" key={document.url}>
               <div>
@@ -48,7 +51,7 @@ export function TenderDocumentsTab({ documents = [], downloading, extracting, on
           ))}
         </div>
       ) : (
-        <p>Документы пока не найдены в карточке.</p>
+        <p className="muted-text">Документы пока не найдены в карточке.</p>
       )}
     </section>
   )
@@ -67,7 +70,7 @@ function DocumentStatusSummary({ documents, downloading, extracting, onDownload,
       </div>
       <div className="document-status-actions">
         <button className="secondary-button compact" disabled={downloading} onClick={onDownload} type="button">
-          {downloading ? 'Качаю...' : 'Скачать'}
+          {downloading ? 'Качаю...' : 'Скачать документы'}
         </button>
         <button className="secondary-button compact" disabled={extracting || !counts.downloaded} onClick={onExtract} type="button">
           {extracting ? 'Читаю...' : 'Извлечь текст'}
