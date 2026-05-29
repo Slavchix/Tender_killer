@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import { SupplierCatalogPresetControls } from './TenderEconomicsSupplierCatalogs'
 import { SupplierCatalogHealthPanel } from './TenderEconomicsSupplierCatalogHealth'
 import { SupplierActionBar } from './TenderEconomicsSupplierActions'
+import { SupplierInputFields } from './TenderEconomicsSupplierFields'
 import {
-  SupplierInputFields,
   hasSupplierOptionInput,
   supplierOptionFormValues,
   supplierOptionPayload,
-} from './TenderEconomicsSupplierFields'
+} from './TenderEconomicsSupplierPayloads'
 
 export function SupplierInputForm({
   profile,

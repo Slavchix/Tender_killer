@@ -57,6 +57,9 @@ TENDER_ECONOMICS_SUPPLIER_ACTIONS_SOURCE = (
 TENDER_ECONOMICS_SUPPLIER_FIELDS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSupplierFields.jsx"
 )
+TENDER_ECONOMICS_SUPPLIER_PAYLOADS_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSupplierPayloads.js"
+)
 TENDER_ECONOMICS_AUTO_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsAuto.jsx"
 TENDER_ECONOMICS_POSITION_RAIL_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPositionRail.jsx"
 TENDER_ECONOMICS_WORKBENCH_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsWorkbench.jsx"
@@ -435,6 +438,11 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
         if TENDER_ECONOMICS_SUPPLIER_FIELDS_SOURCE.exists()
         else ""
     )
+    economics_supplier_payloads_source = (
+        TENDER_ECONOMICS_SUPPLIER_PAYLOADS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_SUPPLIER_PAYLOADS_SOURCE.exists()
+        else ""
+    )
     economics_auto_source = (
         TENDER_ECONOMICS_AUTO_SOURCE.read_text(encoding="utf-8")
         if TENDER_ECONOMICS_AUTO_SOURCE.exists()
@@ -487,6 +495,8 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert "from './TenderEconomicsSupplierCatalogHealth'" in economics_supplier_input_source
     assert "from './TenderEconomicsSupplierActions'" in economics_supplier_input_source
     assert "from './TenderEconomicsSupplierFields'" in economics_supplier_input_source
+    assert "from './TenderEconomicsSupplierPayloads'" in economics_supplier_input_source
+    assert "from './TenderEconomicsSupplierPayloads'" in economics_supplier_actions_source
     assert "function EconomicsSummary" not in economics_source
     assert "export function EconomicsSummary" in economics_summary_source
     assert "function ProductEconomicsForm" not in economics_source
@@ -504,6 +514,11 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert "export function SupplierInputForm" in economics_supplier_input_source
     assert "export function SupplierActionBar" in economics_supplier_actions_source
     assert "export function SupplierInputFields" in economics_supplier_fields_source
+    assert "export function supplierOptionPayload" not in economics_supplier_fields_source
+    assert "export function supplierOptionPayload" in economics_supplier_payloads_source
+    assert "export function supplierUrlDiscoveryPayload" in economics_supplier_payloads_source
+    assert "export function supplierSourceKind" in economics_supplier_payloads_source
+    assert "export function hasSupplierOptionInput" in economics_supplier_payloads_source
     assert "function SupplierActionBar" not in economics_supplier_input_source
     assert "function SupplierInputFields" not in economics_supplier_input_source
     assert "function ProductAutoEconomicsPanel" not in economics_source
@@ -535,6 +550,7 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert find_mojibake(economics_supplier_input_source, TENDER_ECONOMICS_SUPPLIER_INPUT_SOURCE) == []
     assert find_mojibake(economics_supplier_actions_source, TENDER_ECONOMICS_SUPPLIER_ACTIONS_SOURCE) == []
     assert find_mojibake(economics_supplier_fields_source, TENDER_ECONOMICS_SUPPLIER_FIELDS_SOURCE) == []
+    assert find_mojibake(economics_supplier_payloads_source, TENDER_ECONOMICS_SUPPLIER_PAYLOADS_SOURCE) == []
     assert find_mojibake(economics_auto_source, TENDER_ECONOMICS_AUTO_SOURCE) == []
     assert find_mojibake(economics_position_rail_source, TENDER_ECONOMICS_POSITION_RAIL_SOURCE) == []
     assert find_mojibake(economics_workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
@@ -1255,6 +1271,11 @@ def test_product_profile_renders_supplier_option_form():
         if TENDER_ECONOMICS_SUPPLIER_FIELDS_SOURCE.exists()
         else ""
     )
+    payloads_source = (
+        TENDER_ECONOMICS_SUPPLIER_PAYLOADS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_SUPPLIER_PAYLOADS_SOURCE.exists()
+        else ""
+    )
     forms_source = TENDER_ECONOMICS_FORMS_SOURCE.read_text(encoding="utf-8") if TENDER_ECONOMICS_FORMS_SOURCE.exists() else ""
     cost_form_source = TENDER_ECONOMICS_COST_FORM_SOURCE.read_text(encoding="utf-8") if TENDER_ECONOMICS_COST_FORM_SOURCE.exists() else ""
     api_source = API_SOURCE.read_text(encoding="utf-8")
@@ -1271,6 +1292,8 @@ def test_product_profile_renders_supplier_option_form():
     assert "from './TenderEconomicsSupplierCatalogHealth'" in input_source
     assert "from './TenderEconomicsSupplierActions'" in input_source
     assert "from './TenderEconomicsSupplierFields'" in input_source
+    assert "from './TenderEconomicsSupplierPayloads'" in input_source
+    assert "from './TenderEconomicsSupplierPayloads'" in actions_source
     assert "export function ProductSupplierOptionsForm" in source
     assert "function ProductSupplierOptionsForm" not in tab_source
     assert "<ProductSupplierOptionsForm" in profile_workspace_source
@@ -1330,11 +1353,16 @@ def test_product_profile_renders_supplier_option_form():
     assert "SupplierCatalogHealthPanel" in input_source
     assert "supplierOptionPayload(values, supplierSearchQueries)" in input_source
     assert "supplierUrlDiscoveryPayload(values, supplierSearchQueries)" in actions_source
-    assert "export function supplierOptionPayload" in fields_source
-    assert "export function supplierUrlDiscoveryPayload" in fields_source
-    assert "export function supplierSourceKind" in fields_source
-    assert "export function hasSupplierOptionInput" in fields_source
-    assert "source_kind" in fields_source
+    assert "export function supplierOptionPayload" not in fields_source
+    assert "export function supplierUrlDiscoveryPayload" not in fields_source
+    assert "export function supplierSourceKind" not in fields_source
+    assert "export function hasSupplierOptionInput" not in fields_source
+    assert "export function supplierOptionFormValues" in payloads_source
+    assert "export function supplierOptionPayload" in payloads_source
+    assert "export function supplierUrlDiscoveryPayload" in payloads_source
+    assert "export function supplierSourceKind" in payloads_source
+    assert "export function hasSupplierOptionInput" in payloads_source
+    assert "source_kind" in payloads_source
     assert "source_query" in fields_source
     assert "availability" in fields_source
     assert "SUPPLIER_CATALOG_PRESETS" in catalogs_source
@@ -1365,8 +1393,8 @@ def test_product_profile_renders_supplier_option_form():
     assert "Проверить ссылку" in actions_source
     assert "supplierUrlDiscoveryPayload(values, supplierSearchQueries)" in actions_source
     assert "source_query" in fields_source
-    assert "source_kind" in fields_source
-    assert "supplierOptionPayload" in fields_source
+    assert "source_kind" in payloads_source
+    assert "supplierOptionPayload" in payloads_source
     assert "review_status" in discovery_source
     assert "economics_price_source" in cost_form_source
     assert "EconomicsPriceSource" in cost_form_source
@@ -1410,6 +1438,7 @@ def test_product_profile_renders_supplier_option_form():
     assert find_mojibake(catalog_health_source, TENDER_ECONOMICS_SUPPLIER_CATALOG_HEALTH_SOURCE) == []
     assert find_mojibake(actions_source, TENDER_ECONOMICS_SUPPLIER_ACTIONS_SOURCE) == []
     assert find_mojibake(fields_source, TENDER_ECONOMICS_SUPPLIER_FIELDS_SOURCE) == []
+    assert find_mojibake(payloads_source, TENDER_ECONOMICS_SUPPLIER_PAYLOADS_SOURCE) == []
     assert find_mojibake(forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
     assert find_mojibake(cost_form_source, TENDER_ECONOMICS_COST_FORM_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []

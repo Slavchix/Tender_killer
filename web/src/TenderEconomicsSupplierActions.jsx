@@ -1,4 +1,4 @@
-import { supplierUrlDiscoveryPayload } from './TenderEconomicsSupplierFields'
+import { supplierUrlDiscoveryPayload } from './TenderEconomicsSupplierPayloads'
 
 export function SupplierActionBar({
   profile,
