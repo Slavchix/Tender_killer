@@ -1,94 +1,6 @@
 import { useEffect, useState } from 'react'
-import { formatMoney, supplierConfidenceLabel } from './formatters'
+import { formatMoney } from './formatters'
 import { Info } from './TenderDetailsShared'
-
-export function ProductEconomicsForm({ profile, onSave, saving = false }) {
-  const economics = profile?.raw_payload?.economics || {}
-  const priceSource = profile?.raw_payload?.economics_price_source || null
-  const [values, setValues] = useState(() => economicsFormValues(economics))
-
-  useEffect(() => {
-    setValues(economicsFormValues(economics))
-  }, [profile?.position_index, profile?.raw_payload])
-
-  function updateField(name, value) {
-    setValues((current) => ({ ...current, [name]: value }))
-  }
-
-  function submitEconomics(event) {
-    event.preventDefault()
-    if (!onSave) return
-    onSave(profile, values)
-  }
-
-  return (
-    <form className="economics-input-form" onSubmit={submitEconomics}>
-      <div className="profile-block-heading">
-        <h5>Себестоимость</h5>
-        <button className="secondary-button compact" disabled={saving || !onSave} type="submit">
-          {saving ? 'Сохраняю...' : 'Сохранить'}
-        </button>
-      </div>
-      <EconomicsPriceSource source={priceSource} />
-      <div className="economics-input-grid">
-        <label>
-          <span>За единицу</span>
-          <input
-            inputMode="decimal"
-            name="unit_cost"
-            onChange={(event) => updateField('unit_cost', event.target.value)}
-            placeholder="0"
-            value={values.unit_cost}
-          />
-        </label>
-        <label>
-          <span>Логистика</span>
-          <input
-            inputMode="decimal"
-            name="logistics_cost"
-            onChange={(event) => updateField('logistics_cost', event.target.value)}
-            placeholder="0"
-            value={values.logistics_cost}
-          />
-        </label>
-        <label>
-          <span>Документы</span>
-          <input
-            inputMode="decimal"
-            name="documents_cost"
-            onChange={(event) => updateField('documents_cost', event.target.value)}
-            placeholder="0"
-            value={values.documents_cost}
-          />
-        </label>
-        <label>
-          <span>Прочее</span>
-          <input
-            inputMode="decimal"
-            name="other_costs"
-            onChange={(event) => updateField('other_costs', event.target.value)}
-            placeholder="0"
-            value={values.other_costs}
-          />
-        </label>
-      </div>
-    </form>
-  )
-}
-
-function EconomicsPriceSource({ source }) {
-  if (!source) return null
-  const supplier = source.supplier_name || source.supplier_url || 'поставщик'
-  const mode = source.selection === 'manual_selected' ? 'выбран вручную' : 'выбран автоматически'
-
-  return (
-    <div className={`price-source-note ${source.confidence || 'needs_review'}`}>
-      <span>Источник цены</span>
-      <strong>{supplier} · {formatMoney(source.unit_price)}</strong>
-      <em>{mode} · {supplierConfidenceLabel(source.confidence)}</em>
-    </div>
-  )
-}
 
 export function ProductEconomicsAssumptionsForm({ profile, item, onSave, saving = false }) {
   const assumptions = profile?.raw_payload?.economics_assumptions || {}
@@ -165,15 +77,6 @@ export function ProductEconomicsAssumptionsForm({ profile, item, onSave, saving 
       </div>
     </form>
   )
-}
-
-function economicsFormValues(economics = {}) {
-  return {
-    unit_cost: economics.unit_cost ?? '',
-    logistics_cost: economics.logistics_cost ?? '',
-    documents_cost: economics.documents_cost ?? '',
-    other_costs: economics.other_costs ?? '',
-  }
 }
 
 function economicsAssumptionsFormValues(assumptions = {}) {

@@ -1,8 +1,6 @@
 import { ProductAutoEconomicsPanel } from './TenderEconomicsAuto'
-import {
-  ProductEconomicsAssumptionsForm,
-  ProductEconomicsForm,
-} from './TenderEconomicsForms'
+import { ProductEconomicsForm } from './TenderEconomicsCostForm'
+import { ProductEconomicsAssumptionsForm } from './TenderEconomicsForms'
 import { EconomicsPositionRail } from './TenderEconomicsPositionRail'
 import { ProductSupplierOptionsForm } from './TenderEconomicsSuppliers'
 
