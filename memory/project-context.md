@@ -809,3 +809,14 @@ Date: 2026-05-29.
 - Word report evidence and the React document evidence model now consume the same backend `analysis.evidence_items` contract instead of duplicating label/impact/document-name heuristics on the frontend or inside report rendering.
 - This keeps the next agent/LLM analysis layer clean: future document-aware prompts can replace or enrich evidence generation without changing the UI/report contract.
 - Full verification after backend analysis evidence model: `417 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-evidence`.
+
+## Bulk supplier price selection checkpoint
+
+Date: 2026-05-29.
+
+- Added tender-level bulk supplier selection through `apply_best_profile_supplier_options(...)` and `POST /api/tenders/{source}/{external_id}/product-profiles/supplier-options/best/select`.
+- The bulk action loops over all product profiles, applies `best_supplier_price(...)` where an eligible supplier option with price exists, writes `raw_payload.economics.unit_cost`, attaches `economics_price_source`, marks selected options, and skips positions without usable prices.
+- Existing manual selections are preserved when `selected_supplier_option_index` points to a priced supplier option; otherwise the lowest eligible candidate is selected.
+- The React economics workspace now exposes a `Лучшие цены в расчет` button in the full-screen economics header, so many-position tenders can fill reviewed supplier prices without clicking each row.
+- The refreshed tender payload includes `supplier_selection` counts plus recalculated economics and backend decision, so the card/list/dashboard can immediately reflect the new status.
+- Full verification after bulk supplier price selection: `421 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-bulk-best`.

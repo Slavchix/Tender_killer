@@ -118,6 +118,48 @@ def apply_best_profile_supplier_option(
     if price_source is None:
         raise ValueError("No eligible supplier option with price.")
 
+    _apply_supplier_price_source(target, price_source)
+
+    store.upsert_product_profiles(source, external_id, profiles)
+    return {
+        "ok": True,
+        "selected_index": int(price_source["option_index"]),
+        "selection_reason": price_source["selection"],
+        "price_source": price_source,
+    }
+
+
+def apply_best_profile_supplier_options(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+) -> dict[str, Any]:
+    store = TenderStore(database_path)
+    store.initialize()
+    profiles = ensure_product_profiles(database_path, source, external_id)
+
+    selected_positions: list[int] = []
+    skipped_positions: list[int] = []
+    for profile in profiles:
+        position_index = int(profile.get("position_index") or 0)
+        price_source = best_supplier_price(profile)
+        if price_source is None:
+            skipped_positions.append(position_index)
+            continue
+        _apply_supplier_price_source(profile, price_source)
+        selected_positions.append(position_index)
+
+    store.upsert_product_profiles(source, external_id, profiles)
+    return {
+        "ok": True,
+        "selected_count": len(selected_positions),
+        "skipped_count": len(skipped_positions),
+        "selected_positions": selected_positions,
+        "skipped_positions": skipped_positions,
+    }
+
+
+def _apply_supplier_price_source(target: dict[str, Any], price_source: dict[str, Any]) -> None:
     option_index = int(price_source["option_index"])
     raw_payload = dict(target.get("raw_payload") or {})
     supplier_options = _supplier_options(raw_payload.get("supplier_options"))
@@ -135,14 +177,6 @@ def apply_best_profile_supplier_option(
     raw_payload["economics"] = economics
     target["raw_payload"] = raw_payload
     target["profile_status"] = "priced"
-
-    store.upsert_product_profiles(source, external_id, profiles)
-    return {
-        "ok": True,
-        "selected_index": option_index,
-        "selection_reason": price_source["selection"],
-        "price_source": price_source,
-    }
 
 
 def _supplier_option(data: dict[str, Any]) -> dict[str, Any]:

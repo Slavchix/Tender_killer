@@ -2532,6 +2532,26 @@ def test_tender_list_surfaces_market_state_and_backend_decision():
     assert find_mojibake(source, TENDER_LIST_SOURCE) == []
 
 
+def test_economics_tab_supports_bulk_best_supplier_selection():
+    api_source = API_SOURCE.read_text(encoding="utf-8")
+    hook_source = USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
+    details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+
+    assert "export function autoSelectTenderSupplierOptions" in api_source
+    assert "product-profiles/supplier-options/best/select" in api_source
+    assert "autoSelectTenderSupplierOptions as autoSelectTenderSupplierOptionsRequest" in hook_source
+    assert "autoSelectingAllSuppliers" in hook_source
+    assert "function autoSelectAllSupplierOptions" in hook_source
+    assert "onSupplierOptionAutoSelectAll" in details_source
+    assert "onSupplierOptionAutoSelectAll" in economics_source
+    assert "autoSelectingAllSuppliers" in economics_source
+    assert "Лучшие цены в расчет" in economics_source
+    assert find_mojibake(api_source, API_SOURCE) == []
+    assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
+    assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+
+
 def test_dashboard_surfaces_current_offers_and_backend_decisions():
     dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")

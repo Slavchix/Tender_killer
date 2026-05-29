@@ -40,6 +40,7 @@ from tender_killer.supplier_catalog_health_service import get_supplier_catalog_h
 from tender_killer.supplier_catalog_preset_service import update_profile_supplier_catalog_presets
 from tender_killer.supplier_discovery_service import import_profile_supplier_candidate
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
+from tender_killer.supplier_option_service import apply_best_profile_supplier_options
 from tender_killer.supplier_option_service import apply_best_profile_supplier_option
 from tender_killer.supplier_option_service import add_profile_supplier_option
 from tender_killer.supplier_option_service import select_profile_supplier_option
@@ -171,6 +172,17 @@ def select_best_product_profile_supplier_option(
 ) -> dict[str, Any]:
     apply_best_profile_supplier_option(database_path, source, external_id, position_index)
     return get_tender_payload(database_path, source, external_id)
+
+
+def select_best_product_profile_supplier_options(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+) -> dict[str, Any]:
+    selection = apply_best_profile_supplier_options(database_path, source, external_id)
+    payload = get_tender_payload(database_path, source, external_id)
+    payload["supplier_selection"] = selection
+    return payload
 
 
 def prepare_product_profile_supplier_search(
@@ -410,7 +422,16 @@ def handle_post_request(
     if path.startswith("/api/tenders/") and path.endswith("/supplier-options/best/select"):
         route = parse_product_profile_supplier_option_best_select_path(path)
         if route is None:
-            return ApiResponse({"error": "invalid product profile supplier option best select path"}, status=400)
+            tender_route = parse_tender_path(path, suffix="product-profiles/supplier-options/best/select")
+            if tender_route is None:
+                return ApiResponse({"error": "invalid product profile supplier option best select path"}, status=400)
+            return ApiResponse(
+                select_best_product_profile_supplier_options(
+                    database_path,
+                    tender_route.source,
+                    tender_route.external_id,
+                )
+            )
         return ApiResponse(
             select_best_product_profile_supplier_option(
                 database_path,

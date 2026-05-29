@@ -14,6 +14,7 @@ export function TenderEconomicsTab({
   onSupplierOptionSave,
   onSupplierOptionSelect,
   onSupplierOptionAutoSelect,
+  onSupplierOptionAutoSelectAll,
   onSupplierDiscoveryImport,
   onSupplierSearchPrepare,
   onSupplierCatalogPresetsSave,
@@ -29,6 +30,7 @@ export function TenderEconomicsTab({
   savingSupplierCatalogPresetPosition = null,
   discoveringSupplierPosition = null,
   autoSelectingSupplierPosition = null,
+  autoSelectingAllSuppliers = false,
   autoEstimatingPosition = null,
   acceptingAutoEconomicsPosition = null,
   supplierCatalogHealth = null,
@@ -37,6 +39,10 @@ export function TenderEconomicsTab({
   onSupplierCatalogHealthRefresh,
 }) {
   const profiles = productProfiles || []
+  const hasSupplierOptions = profiles.some((profile) => {
+    const supplierOptions = profile?.raw_payload?.supplier_options
+    return Array.isArray(supplierOptions) && supplierOptions.length > 0
+  })
 
   useEffect(() => {
     if (supplierCatalogHealth || supplierCatalogHealthLoading || supplierCatalogHealthError) return
@@ -52,6 +58,14 @@ export function TenderEconomicsTab({
     <section className="detail-section active economics-section">
       <div className="section-heading-row">
         <h3>Экономика</h3>
+        <button
+          className="secondary-button compact"
+          disabled={autoSelectingAllSuppliers || !onSupplierOptionAutoSelectAll || !hasSupplierOptions}
+          onClick={() => ignoreEconomicsActionError(onSupplierOptionAutoSelectAll?.())}
+          type="button"
+        >
+          {autoSelectingAllSuppliers ? 'Выбираю...' : 'Лучшие цены в расчет'}
+        </button>
       </div>
       <TenderEconomicsMetrics economics={economics} tender={tender} />
       <EconomicsSummary economics={economics} tender={tender} />
@@ -80,6 +94,7 @@ export function TenderEconomicsTab({
         savingSupplierCatalogPresetPosition={savingSupplierCatalogPresetPosition}
         discoveringSupplierPosition={discoveringSupplierPosition}
         autoSelectingSupplierPosition={autoSelectingSupplierPosition}
+        autoSelectingAllSuppliers={autoSelectingAllSuppliers}
         autoEstimatingPosition={autoEstimatingPosition}
         acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
         supplierCatalogHealth={supplierCatalogHealth}
@@ -89,4 +104,10 @@ export function TenderEconomicsTab({
       />
     </section>
   )
+}
+
+function ignoreEconomicsActionError(result) {
+  if (result?.catch) {
+    result.catch(() => {})
+  }
 }

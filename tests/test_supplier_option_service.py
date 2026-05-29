@@ -5,6 +5,7 @@ import pytest
 from tender_killer.models import ProductProfile
 from tender_killer.models import Tender
 from tender_killer.storage import TenderStore
+from tender_killer.supplier_option_service import apply_best_profile_supplier_options
 from tender_killer.supplier_option_service import apply_best_profile_supplier_option
 from tender_killer.supplier_option_service import add_profile_supplier_option
 from tender_killer.supplier_option_service import select_profile_supplier_option
@@ -279,3 +280,79 @@ def test_apply_best_profile_supplier_option_keeps_existing_manual_selection(tmp_
     assert profile["raw_payload"]["supplier_options"][0]["status"] == "selected"
     assert profile["raw_payload"]["supplier_options"][1]["status"] == "candidate"
     assert profile["raw_payload"]["economics"]["unit_cost"] == 1100.0
+
+
+def test_apply_best_profile_supplier_options_updates_all_priced_candidates(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-bulk-select",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-bulk-select",
+            title="Paper tender",
+            price=100000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-bulk-select",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-bulk-select",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+                raw_payload={
+                    "supplier_options": [
+                        {"name": "Expensive paper", "unit_price": 1200.0, "status": "candidate", "availability": "in_stock"},
+                        {"name": "Best paper", "unit_price": 900.0, "status": "candidate", "availability": "in_stock"},
+                    ]
+                },
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-bulk-select",
+                position_index=2,
+                product_name="Pens",
+                quantity=5,
+                unit="pack",
+                raw_payload={
+                    "selected_supplier_option_index": 0,
+                    "supplier_options": [
+                        {"name": "Manual pens", "unit_price": 300.0, "status": "selected", "availability": "in_stock"},
+                        {"name": "Cheaper pens", "unit_price": 200.0, "status": "candidate", "availability": "in_stock"},
+                    ]
+                },
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-bulk-select",
+                position_index=3,
+                product_name="Folders",
+                quantity=3,
+                unit="pack",
+                raw_payload={"supplier_options": [{"name": "No price", "status": "candidate"}]},
+            ),
+        ],
+    )
+
+    payload = apply_best_profile_supplier_options(store.database_path, "mosreg_market", "supplier-bulk-select")
+
+    assert payload["ok"] is True
+    assert payload["selected_count"] == 2
+    assert payload["skipped_count"] == 1
+    assert payload["selected_positions"] == [1, 2]
+    detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-bulk-select")
+    profiles = {profile["position_index"]: profile for profile in detail["product_profiles"]}
+    assert profiles[1]["raw_payload"]["selected_supplier_option_index"] == 1
+    assert profiles[1]["raw_payload"]["economics"]["unit_cost"] == 900.0
+    assert profiles[1]["raw_payload"]["economics_price_source"]["selection"] == "auto_best"
+    assert profiles[2]["raw_payload"]["selected_supplier_option_index"] == 0
+    assert profiles[2]["raw_payload"]["economics"]["unit_cost"] == 300.0
+    assert profiles[2]["raw_payload"]["economics_price_source"]["selection"] == "manual_selected"
+    assert "economics" not in profiles[3]["raw_payload"]
+    assert [item["total_cost"] for item in detail["economics"]["items"][:2]] == [9000.0, 1500.0]
+    assert detail["economics"]["missing_cost_inputs"] == ["Folders"]

@@ -168,6 +168,13 @@ export function autoSelectProfileSupplierOption(tender, profile) {
   })
 }
 
+export function autoSelectTenderSupplierOptions(tender) {
+  return apiJson(`${tenderPath(tender)}/product-profiles/supplier-options/best/select`, {
+    method: 'POST',
+    errorMessage: 'Не удалось выбрать лучшие цены поставщиков',
+  })
+}
+
 export function importProfileSupplierDiscoveryCandidate(tender, profile, candidateIndex) {
   return apiJson(`${productProfilePath(tender, profile)}/supplier-discovery/candidates/${candidateIndex}/import`, {
     method: 'POST',

@@ -49,6 +49,7 @@ Recent architecture cleanup:
 - Built-in supplier catalog presets currently cover first-pass office supplies (`officemag`, `komus`) and building/tool materials (`petrovich`, `vseinstrumenti`). The economics supplier block can switch each product profile between auto matching, exact preset IDs, or disabled presets through `raw_payload.supplier_catalog_preset_ids`; changing presets clears stale prepared supplier search queries.
 - Manual supplier candidates can keep the prepared search query that led to them (`source_query` / `source_kind`), preserving review evidence before any price is selected for economics.
 - The site can run a schema.org public supplier discovery pass from prepared quick links: search-engine links are ignored, public catalog pages can lead to same-site product pages, public product pages are parsed for Product/Offer JSON-LD, and candidates stay review-only until imported.
+- The economics workspace can apply the best available supplier prices across all product positions in one action. `POST /api/tenders/{source}/{external_id}/product-profiles/supplier-options/best/select` fills per-position `raw_payload.economics.unit_cost` where eligible supplier candidates exist, preserves manual selections, skips positions without prices, and returns a refreshed tender decision.
 - Public supplier discovery now tries built-in catalog collectors for `officemag`, `komus`, `petrovich`, and `vseinstrumenti` before the generic schema.org fallback. Built-in catalog links get provider-specific diagnostics and candidates, while manual/unknown catalog links still use the generic public schema.org path.
 - Built-in catalog collectors can fall back to visible product-page text for OfficeMag, Komus, Petrovich, and Vseinstrumenti when schema.org offers are missing, extracting the product heading, visible ruble price, and availability without treating category pages as supplier candidates.
 - The API exposes public supplier catalog health at `/api/supplier-catalogs/health`: by default it reports configured providers without network access, and `?live=1` records per-provider HTTP diagnostics for real public catalog search pages.
@@ -96,12 +97,12 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after decision reasons in card/report: `418 passed`.
+Latest verified result after bulk supplier price selection: `421 passed`.
 
 Good next steps:
 
-1. Continue economics automation: import reviewed supplier candidates into per-position cost inputs and recalculate the decision automatically.
-2. Improve the analysis engine from rule-based checklist extraction toward document-aware agent prompts while preserving the backend `analysis.evidence_items` contract.
+1. Improve the analysis engine from rule-based checklist extraction toward document-aware agent prompts while preserving the backend `analysis.evidence_items` contract.
+2. Feed decision blockers into workflow queues and dashboard attention items.
 3. Add tighter visual verification for the decision card and modal workspaces after each major frontend slice.
 
 Previous next steps:

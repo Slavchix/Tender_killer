@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   acceptProfileAutoEconomics as acceptProfileAutoEconomicsRequest,
   addProfileSupplierOption,
+  autoSelectTenderSupplierOptions as autoSelectTenderSupplierOptionsRequest,
   autoSelectProfileSupplierOption,
   fetchSupplierCatalogHealth,
   importProfileSupplierDiscoveryCandidate,
@@ -30,6 +31,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
   const [savingSupplierCatalogPresetPosition, setSavingSupplierCatalogPresetPosition] = useState(null)
   const [discoveringSupplierPosition, setDiscoveringSupplierPosition] = useState(null)
   const [autoSelectingSupplierPosition, setAutoSelectingSupplierPosition] = useState(null)
+  const [autoSelectingAllSuppliers, setAutoSelectingAllSuppliers] = useState(false)
   const [autoEstimatingPosition, setAutoEstimatingPosition] = useState(null)
   const [acceptingAutoEconomicsPosition, setAcceptingAutoEconomicsPosition] = useState(null)
   const [supplierCatalogHealth, setSupplierCatalogHealth] = useState(null)
@@ -46,6 +48,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     setSavingSupplierCatalogPresetPosition(null)
     setDiscoveringSupplierPosition(null)
     setAutoSelectingSupplierPosition(null)
+    setAutoSelectingAllSuppliers(false)
     setAutoEstimatingPosition(null)
     setAcceptingAutoEconomicsPosition(null)
   }, [tender.source, tender.external_id, tender.product_profiles, tender.product_profile_summary, tender.economics])
@@ -154,6 +157,23 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
         throw err
       })
       .finally(() => setAutoSelectingSupplierPosition(null))
+  }
+
+  function autoSelectAllSupplierOptions() {
+    setAutoSelectingAllSuppliers(true)
+    setDetailStatus('')
+    return autoSelectTenderSupplierOptionsRequest(tender)
+      .then((nextTender) => {
+        const selection = nextTender.supplier_selection || {}
+        const selected = Number(selection.selected_count || 0)
+        const skipped = Number(selection.skipped_count || 0)
+        return updateFromNextTender(nextTender, `Лучшие цены в расчете: ${selected}, пропущено: ${skipped}`)
+      })
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setAutoSelectingAllSuppliers(false))
   }
 
   function importSupplierDiscoveryCandidate(profile, candidateIndex) {
@@ -270,6 +290,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     savingSupplierCatalogPresetPosition,
     discoveringSupplierPosition,
     autoSelectingSupplierPosition,
+    autoSelectingAllSuppliers,
     autoEstimatingPosition,
     acceptingAutoEconomicsPosition,
     supplierCatalogHealth,
@@ -283,6 +304,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     saveSupplierOption,
     selectSupplierOption,
     autoSelectSupplierOption,
+    autoSelectAllSupplierOptions,
     importSupplierDiscoveryCandidate,
     prepareSupplierSearch,
     saveSupplierCatalogPresets,
