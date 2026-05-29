@@ -2062,11 +2062,14 @@ def test_analysis_documents_render_structured_evidence_model():
     assert "item.documentName" in evidence_source
     assert "item.fragment" in evidence_source
     assert "item.impact" in evidence_source
-    assert "category: item.category || 'general'" in model_source
-    assert "importanceLabel: evidenceImportanceLabel(item.severity)" in model_source
-    assert "typeLabel: evidenceTypeLabel(item.category)" in model_source
-    assert "impact: evidenceImpactLabel(item)" in model_source
-    assert "documentName: resolveEvidenceDocumentName(item, documents)" in model_source
+    assert "analysis?.evidence_items" in model_source
+    assert "item.type_label" in model_source
+    assert "item.importance_label" in model_source
+    assert "item.document_name" in model_source
+    assert "function evidenceTypeLabel" not in model_source
+    assert "function evidenceImportanceLabel" not in model_source
+    assert "function evidenceImpactLabel" not in model_source
+    assert "function resolveEvidenceDocumentName" not in model_source
     assert ".analysis-document-evidence-grid" in styles_source
     assert ".analysis-evidence-meta" in styles_source
     assert ".analysis-evidence-impact" in styles_source

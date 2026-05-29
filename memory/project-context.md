@@ -793,5 +793,16 @@ Date: 2026-05-29.
 - Stable decision fields: `status`, `label`, `tone`, `summary`, `next_step`, `reasons`, `blockers`, `limit_price`, and `metrics`.
 - Initial statuses covered by tests: `missing_prices`, `needs_review`, `with_limit`, `skip`, and `interesting`.
 - The frontend now uses shared formatter helpers `tenderDecisionLabel`, `tenderDecisionStatus`, and `tenderDecisionNextStep` so the tender card decision strip, tender list badge, dashboard preview, and summary next-step read the backend `tender.decision` payload first and only fall back to economics for older payloads.
-- Remaining decision follow-up: surface `decision.reasons` and `decision.blockers` in the card summary/report, then move frontend-only analysis evidence heuristics into backend analysis payloads.
+- Remaining decision follow-up: surface `decision.reasons` and `decision.blockers` in the card summary/report.
 - Full verification after Decision Engine v1: `416 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Analysis evidence backend model checkpoint
+
+Date: 2026-05-29.
+
+- Added `src/tender_killer/analysis_evidence_service.py` as the single place that turns rule-based analysis checklist rows into operator evidence items.
+- Backend analysis payloads now expose `analysis.evidence_items` with stable fields: `id`, `label`, `category`, `severity`, `type_label`, `importance_label`, `document_name`, `fragment`, and `impact`.
+- `analyze_tender_payload(...)` stores those evidence items in `raw_payload_json`; `get_tender_payload(...)` also builds them for older saved analysis rows that only have a checklist.
+- Word report evidence and the React document evidence model now consume the same backend `analysis.evidence_items` contract instead of duplicating label/impact/document-name heuristics on the frontend or inside report rendering.
+- This keeps the next agent/LLM analysis layer clean: future document-aware prompts can replace or enrich evidence generation without changing the UI/report contract.
+- Full verification after backend analysis evidence model: `417 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-evidence`.

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from tender_killer.analysis import analyze_tender_texts
+from tender_killer.analysis_evidence_service import build_analysis_evidence_items
 from tender_killer.schema import ensure_analysis_table
 from tender_killer.schema import ensure_documents_table
 from tender_killer.tender_detail_service import get_tender_payload
@@ -24,15 +25,17 @@ def analyze_tender_payload(database_path: str | Path, source: str, external_id: 
             raise KeyError(f"Tender {source}/{external_id} not found.")
         rows = connection.execute(
             """
-            SELECT text_content
+            SELECT name, url, text_status, text_content
             FROM tender_documents
             WHERE source = ? AND external_id = ? AND text_status = 'ok'
             ORDER BY document_index
             """,
             (source, external_id),
         ).fetchall()
+        documents = [dict(row) for row in rows]
         result = analyze_tender_texts([str(row["text_content"] or "") for row in rows])
         raw_payload = result.to_dict()
+        raw_payload["evidence_items"] = build_analysis_evidence_items(raw_payload, documents)
         connection.execute(
             """
             INSERT INTO tender_analysis (

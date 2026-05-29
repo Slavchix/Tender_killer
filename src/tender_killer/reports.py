@@ -5,6 +5,8 @@ from io import BytesIO
 from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile
 
+from tender_killer.analysis_evidence_service import build_analysis_evidence_items
+
 DocxElement = tuple[str, Any, str]
 
 
@@ -282,71 +284,7 @@ def _analysis_evidence_elements(analysis: dict[str, Any], documents: list[dict[s
 
 
 def _analysis_evidence_items(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[dict[str, str]]:
-    checklist = analysis.get("checklist") or []
-    if not isinstance(checklist, list):
-        return []
-    items: list[dict[str, str]] = []
-    for item in checklist:
-        if not isinstance(item, dict) or not item.get("evidence"):
-            continue
-        items.append(
-            {
-                "label": _value(item.get("label"), "Фрагмент документа"),
-                "type_label": _evidence_type_label(item.get("category")),
-                "importance_label": _evidence_importance_label(item.get("severity")),
-                "document_name": _resolve_evidence_document_name(item, documents),
-                "fragment": _value(item.get("evidence"), ""),
-                "impact": _evidence_impact_label(item),
-            }
-        )
-    return items
-
-
-def _evidence_type_label(category: Any) -> str:
-    return {
-        "documents": "Документы",
-        "delivery": "Сроки и поставка",
-        "acceptance": "Приемка",
-        "standards": "ГОСТ/ТУ",
-        "contract": "Контракт",
-        "financial": "Финансы",
-        "national_regime": "Нацрежим",
-        "legal": "Юридическое",
-    }.get(str(category or ""), "Условие")
-
-
-def _evidence_importance_label(severity: Any) -> str:
-    return {
-        "high": "важно",
-        "medium": "проверить",
-        "low": "к сведению",
-    }.get(str(severity or ""), "проверить")
-
-
-def _evidence_impact_label(item: dict[str, Any]) -> str:
-    if item.get("severity") == "high":
-        return "Может повлиять на решение, цену или возможность участия."
-    return {
-        "documents": "Проверьте, какие документы нужно приложить или получить у поставщика.",
-        "delivery": "Сверьте сроки с доступностью товара и логистикой.",
-        "acceptance": "Учтите порядок приемки при оценке исполнения.",
-        "standards": "Сверьте соответствие товара стандартам до расчета экономики.",
-        "contract": "Учтите условие в рисках исполнения и договорной подготовке.",
-        "financial": "Учтите в стоп-цене, резерве и решении по участию.",
-        "national_regime": "Проверьте ограничения происхождения и реестровые требования.",
-        "legal": "Проверьте допуски, лицензии или ограничения до участия.",
-    }.get(str(item.get("category") or ""), "Проверьте фрагмент перед принятием решения.")
-
-
-def _resolve_evidence_document_name(item: dict[str, Any], documents: list[dict[str, Any]]) -> str:
-    if item.get("document_name"):
-        return _value(item.get("document_name"))
-    if item.get("source"):
-        return _value(item.get("source"))
-    ready_documents = [document for document in documents if document.get("text_status") == "ok"]
-    if len(ready_documents) == 1:
-        return _value(ready_documents[0].get("name") or ready_documents[0].get("url"), "Документ")
-    return "Документ не привязан"
+    return build_analysis_evidence_items(analysis, documents)
 
 
 def _text_list(values: Any) -> list[str]:

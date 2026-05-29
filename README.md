@@ -87,6 +87,7 @@ Recent architecture cleanup:
 - The economics tab owns product cost entry, supplier candidates, assumptions, auto-estimate preview/accept, bid thresholds, and participation decision UI.
 - Decision Engine v1 now lives in `src/tender_killer/decision_service.py`. `get_tender_payload(...)` attaches a stable `decision` object that combines economics, analysis, documents, market state, and product profiles into one status/label/next-step payload for future card, list, dashboard, and report surfaces.
 - The tender card decision strip, tender list badges, and dashboard previews now read the shared backend `tender.decision` payload through frontend formatter helpers, falling back to saved economics only for older payloads.
+- Analysis document evidence now has one backend-owned model in `src/tender_killer/analysis_evidence_service.py`. Analysis runs, detail payloads, Word reports, and the React evidence view all read `analysis.evidence_items`, so labels, importance, document names, fragments, and impact text stay consistent for future agents.
 
 Current verification command:
 
@@ -94,13 +95,13 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after Decision Engine v1: `416 passed`.
+Latest verified result after backend analysis evidence model: `417 passed`.
 
 Good next steps:
 
-1. Move the frontend-only analysis evidence heuristics into backend analysis payloads so Word, UI, and future agents share the same evidence model.
-2. Surface decision reasons/blockers in the card summary so the operator sees why the backend recommended the next step.
-3. Continue economics automation: import reviewed supplier candidates into per-position cost inputs and recalculate the decision automatically.
+1. Surface decision reasons/blockers in the card summary so the operator sees why the backend recommended the next step.
+2. Continue economics automation: import reviewed supplier candidates into per-position cost inputs and recalculate the decision automatically.
+3. Improve the analysis engine from rule-based checklist extraction toward document-aware agent prompts while preserving the backend `analysis.evidence_items` contract.
 
 Previous next steps:
 
