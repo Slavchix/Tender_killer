@@ -910,8 +910,12 @@ def test_analyze_tender_payload_saves_structured_summary_from_extracted_text(tmp
     assert "сертификат/декларация" in payload["analysis"]["requirements"]
     assert "обеспечение исполнения контракта" in payload["analysis"]["risks"]
     assert "национальный режим/страна происхождения" in payload["analysis"]["red_flags"]
+    assert payload["analysis"]["operator_view"]["version"] == 2
+    assert payload["analysis"]["operator_view"]["decision_brief"]["primary_section"] == "blockers"
+    assert payload["analysis"]["operator_view"]["metrics"]["documents_ready"] == 1
     detail = get_tender_payload(store.database_path, "mosreg_market", "3668200")
     assert detail["analysis"]["summary"] == payload["analysis"]["summary"]
+    assert detail["analysis"]["operator_view"]["version"] == 2
 
 
 def test_build_tender_report_response_returns_docx_bytes(tmp_path):

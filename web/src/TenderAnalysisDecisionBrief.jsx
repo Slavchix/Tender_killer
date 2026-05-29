@@ -1,10 +1,12 @@
 import { analysisStatusLabel, formatConfidence } from './formatters'
 
 export function AnalysisDecisionBrief({ analysis, documents = [], onOpenSection }) {
-  const decision = buildAnalysisDecision(analysis, documents)
+  const operatorView = analysis?.operator_view
+  const decision = operatorView?.decision_brief || fallbackAnalysisDecision(analysis, documents)
+  const primarySection = decision.primary_section || 'blockers'
 
   return (
-    <section className={`analysis-decision-brief ${decision.tone}`} aria-label="Короткое решение по анализу ТЗ">
+    <section className={`analysis-decision-brief ${decision.tone || 'pending'}`} aria-label="Короткое решение по анализу ТЗ">
       <div className="analysis-decision-head">
         <span>Короткое решение</span>
         <strong>{decision.title}</strong>
@@ -13,7 +15,7 @@ export function AnalysisDecisionBrief({ analysis, documents = [], onOpenSection 
 
       <div className="analysis-reason-list">
         <span>Ключевые причины</span>
-        {decision.reasons.length ? (
+        {decision.reasons?.length ? (
           <ol>
             {decision.reasons.slice(0, 3).map((reason) => (
               <li key={reason}>{reason}</li>
@@ -25,26 +27,25 @@ export function AnalysisDecisionBrief({ analysis, documents = [], onOpenSection 
       </div>
 
       <div className="analysis-decision-actions">
-        <button className="secondary-button compact" onClick={() => onOpenSection?.('risks')} type="button">
-          Открыть риски
+        <button className="secondary-button compact" onClick={() => onOpenSection?.(primarySection)} type="button">
+          Открыть главное
         </button>
-        <button className="secondary-button compact" onClick={() => onOpenSection?.('requirements')} type="button">
-          Открыть требования
+        <button className="secondary-button compact" onClick={() => onOpenSection?.('evidence')} type="button">
+          Открыть доказательства
         </button>
       </div>
     </section>
   )
 }
 
-export function buildAnalysisDecision(analysis, documents = []) {
+function fallbackAnalysisDecision(analysis, documents = []) {
   if (!analysis) {
     return {
       tone: 'pending',
       title: 'Нужен анализ ТЗ',
-      summary: 'Сначала извлеки текст документов и запусти анализ, чтобы получить решение.',
-      reasons: documents.length
-        ? [`Документов в карточке: ${documents.length}`]
-        : [],
+      summary: 'Сначала извлеки текст документов и запусти анализ.',
+      reasons: documents.length ? [`Документов в карточке: ${documents.length}`] : [],
+      primary_section: 'documents',
     }
   }
 
@@ -68,6 +69,7 @@ export function buildAnalysisDecision(analysis, documents = []) {
       title: 'Нужна ручная проверка',
       summary: `${statusText}, уверенность ${confidenceText}. Сначала проверь критичные условия.`,
       reasons,
+      primary_section: 'blockers',
     }
   }
 
@@ -77,6 +79,7 @@ export function buildAnalysisDecision(analysis, documents = []) {
       title: 'Проверить условия',
       summary: `${statusText}, уверенность ${confidenceText}. Существенных блокеров нет, но условия надо сверить.`,
       reasons,
+      primary_section: 'requirements',
     }
   }
 
@@ -85,6 +88,7 @@ export function buildAnalysisDecision(analysis, documents = []) {
     title: 'Критичных рисков не видно',
     summary: `${statusText}, уверенность ${confidenceText}. Можно переходить к экономике и поставщикам.`,
     reasons: analysis.summary ? [analysis.summary] : ['Анализ не нашел явных рисков и требований.'],
+    primary_section: 'price_factors',
   }
 }
 

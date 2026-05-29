@@ -429,6 +429,23 @@ def test_frontend_uses_dedicated_tender_analysis_tab_module():
     assert find_mojibake(analysis_decision_source, TENDER_ANALYSIS_DECISION_SOURCE) == []
 
 
+def test_frontend_analysis_reads_backend_operator_view_contract():
+    analysis_summary_source = TENDER_ANALYSIS_SUMMARY_SOURCE.read_text(encoding="utf-8")
+    analysis_sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+    analysis_decision_source = TENDER_ANALYSIS_DECISION_SOURCE.read_text(encoding="utf-8")
+
+    assert "analysis?.operator_view" in analysis_summary_source
+    assert "analysis?.operator_view" in analysis_sections_source
+    assert "analysis?.operator_view" in analysis_decision_source
+    assert "decision_brief" in analysis_decision_source
+    assert "operatorView?.sections" in analysis_sections_source
+    assert "operatorView?.metrics" in analysis_summary_source
+    assert "buildAnalysisDecision" not in analysis_decision_source
+    assert find_mojibake(analysis_summary_source, TENDER_ANALYSIS_SUMMARY_SOURCE) == []
+    assert find_mojibake(analysis_sections_source, TENDER_ANALYSIS_SECTIONS_SOURCE) == []
+    assert find_mojibake(analysis_decision_source, TENDER_ANALYSIS_DECISION_SOURCE) == []
+
+
 def test_frontend_uses_dedicated_tender_economics_tab_module():
     tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     workspaces_source = (
@@ -2039,13 +2056,15 @@ def test_analysis_tab_renders_decision_first_brief():
     assert "<AnalysisDecisionBrief" in analysis_source
     assert "onOpenSection={setSelectedAnalysisSection}" in analysis_source
     assert "export function AnalysisDecisionBrief" in decision_source
-    assert "export function buildAnalysisDecision" in decision_source
+    assert "analysis?.operator_view" in decision_source
+    assert "operatorView?.decision_brief" in decision_source
+    assert "fallbackAnalysisDecision" in decision_source
     assert "analysis-decision-brief" in decision_source
     assert "Короткое решение" in decision_source
     assert "Ключевые причины" in decision_source
     assert "reasons.slice(0, 3)" in decision_source
-    assert "onOpenSection?.('risks')" in decision_source
-    assert "onOpenSection?.('requirements')" in decision_source
+    assert "onOpenSection?.(primarySection)" in decision_source
+    assert "onOpenSection?.('evidence')" in decision_source
     assert ".analysis-decision-brief" in styles_source
     assert ".analysis-reason-list" in styles_source
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []

@@ -8,6 +8,7 @@ from typing import Any
 from tender_killer.adapters import MoscowSupplierPortalAdapter
 from tender_killer.adapters import MosregMarketAdapter
 from tender_killer.analysis_evidence_service import build_analysis_evidence_items
+from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 from tender_killer.decision_service import build_tender_decision
 from tender_killer.document_service import document_row_to_payload
 from tender_killer.economics import build_economics_summary
@@ -212,6 +213,11 @@ def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) 
     payload["checklist"] = payload["raw_payload"].get("checklist", [])
     evidence_items = payload["raw_payload"].get("evidence_items")
     payload["evidence_items"] = evidence_items if isinstance(evidence_items, list) else build_analysis_evidence_items(payload, documents)
+    operator_view = payload["raw_payload"].get("operator_view")
+    payload["operator_view"] = (
+        operator_view if isinstance(operator_view, dict) and operator_view.get("version") == 2
+        else build_analysis_operator_view(payload, documents)
+    )
     payload["status"] = payload.pop("recommended_status")
     return payload
 

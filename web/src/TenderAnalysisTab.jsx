@@ -9,7 +9,7 @@ import {
 import { AnalysisSummary } from './TenderAnalysisSummary'
 
 export function TenderAnalysisTab({ analysis, analyzing, onAnalyze, reportHref, documents = [] }) {
-  const [selectedAnalysisSection, setSelectedAnalysisSection] = useState('checklist')
+  const [selectedAnalysisSection, setSelectedAnalysisSection] = useState('blockers')
   const analysisSections = analysisSectionItems(analysis, documents)
 
   return (

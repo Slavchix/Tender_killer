@@ -6,10 +6,14 @@ import {
 import { SummaryMetric } from './TenderDetailsShared'
 
 export function AnalysisSummary({ analysis, documents = [] }) {
-  const requirementsCount = analysis?.requirements?.length || 0
-  const risksCount = (analysis?.risks?.length || 0) + (analysis?.red_flags?.length || 0)
-  const checklistCount = analysis?.checklist?.length || 0
+  const operatorView = analysis?.operator_view
+  const operatorMetrics = operatorView?.metrics
+  const requirementsCount = operatorMetrics?.requirements ?? analysis?.requirements?.length ?? 0
+  const risksCount = operatorMetrics?.risks ?? ((analysis?.risks?.length || 0) + (analysis?.red_flags?.length || 0))
+  const checklistCount = operatorMetrics?.checklist ?? analysis?.checklist?.length ?? 0
   const documentCounts = documentStatusCounts(documents)
+  const readyDocuments = operatorMetrics?.documents_ready ?? documentCounts.ok
+  const totalDocuments = operatorMetrics?.documents_total ?? documents.length
 
   return (
     <div className="analysis-tab-summary tab-summary-grid" aria-label="Сводка анализа ТЗ">
@@ -18,7 +22,7 @@ export function AnalysisSummary({ analysis, documents = [] }) {
       <SummaryMetric value={requirementsCount} label="требований" />
       <SummaryMetric value={risksCount} label="рисков" />
       <SummaryMetric value={checklistCount} label="пунктов" />
-      <SummaryMetric value={`${documentCounts.ok}/${documents.length}`} label="документов" />
+      <SummaryMetric value={`${readyDocuments}/${totalDocuments}`} label="документов" />
     </div>
   )
 }

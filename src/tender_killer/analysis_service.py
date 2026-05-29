@@ -8,6 +8,7 @@ from typing import Any
 
 from tender_killer.analysis import analyze_tender_texts
 from tender_killer.analysis_evidence_service import build_analysis_evidence_items
+from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 from tender_killer.schema import ensure_analysis_table
 from tender_killer.schema import ensure_documents_table
 from tender_killer.tender_detail_service import get_tender_payload
@@ -36,6 +37,7 @@ def analyze_tender_payload(database_path: str | Path, source: str, external_id: 
         result = analyze_tender_texts([str(row["text_content"] or "") for row in rows])
         raw_payload = result.to_dict()
         raw_payload["evidence_items"] = build_analysis_evidence_items(raw_payload, documents)
+        raw_payload["operator_view"] = build_analysis_operator_view(raw_payload, documents)
         connection.execute(
             """
             INSERT INTO tender_analysis (

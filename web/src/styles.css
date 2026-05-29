@@ -2222,6 +2222,13 @@ textarea:focus {
   word-break: break-word;
 }
 
+.analysis-checklist-row small {
+  color: #9bb2aa;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .analysis-checklist-main {
   display: grid;
   gap: 6px;

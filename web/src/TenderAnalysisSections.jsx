@@ -8,6 +8,16 @@ import {
 import { buildDocumentEvidenceItems } from './TenderAnalysisEvidenceModel'
 
 export function analysisSectionItems(analysis, documents = []) {
+  const operatorView = analysis?.operator_view
+  const operatorSections = Array.isArray(operatorView?.sections) ? operatorView.sections : []
+  if (operatorSections.length) {
+    return operatorSections.map((section) => ({
+      id: section.id,
+      title: section.title,
+      value: section.count ?? section.items?.length ?? 0,
+    }))
+  }
+
   const requirementsCount = analysis?.requirements?.length || 0
   const risksCount = (analysis?.risks?.length || 0) + (analysis?.red_flags?.length || 0)
   const checklistCount = analysis?.checklist?.length || 0
@@ -38,6 +48,12 @@ export function AnalysisSectionRail({ sections, selectedSection, onSelectSection
 }
 
 export function AnalysisSectionBody({ sectionId, analysis, documents = [] }) {
+  const operatorView = analysis?.operator_view
+  const operatorSection = operatorView?.sections?.find((section) => section.id === sectionId)
+  if (operatorSection) {
+    return <AnalysisOperatorSection section={operatorSection} />
+  }
+
   const documentCounts = documentStatusCounts(documents)
   const evidenceItems = buildDocumentEvidenceItems(analysis, documents)
 
@@ -76,6 +92,45 @@ export function AnalysisSectionBody({ sectionId, analysis, documents = [] }) {
       <AnalysisChecklist items={analysis.checklist} />
     </div>
   )
+}
+
+function AnalysisOperatorSection({ section }) {
+  const items = Array.isArray(section.items) ? section.items : []
+
+  return (
+    <div className={`analysis-card operator-section ${section.tone || 'default'}`}>
+      <div className="analysis-checklist-header">
+        <span>{section.title}</span>
+        <strong>{section.count ?? items.length}</strong>
+      </div>
+      {items.length ? (
+        <div className="analysis-checklist-list">
+          {items.map((item, index) => (
+            <article className={`analysis-checklist-row severity-${item.severity || 'medium'}`} key={item.id || `${item.label}-${index}`}>
+              <div className="analysis-checklist-main">
+                <strong>{item.label}</strong>
+                <div className="analysis-checklist-tags">
+                  <span>{analysisCategoryLabel(item.category)}</span>
+                  <span>{analysisSeverityLabel(item.severity)}</span>
+                  {item.status && <span>{operatorStatusLabel(item.status)}</span>}
+                </div>
+              </div>
+              {item.description && <p>{item.description}</p>}
+              {item.impact && <em className="analysis-evidence-impact">{item.impact}</em>}
+              {item.source && <small>{item.source}</small>}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="muted-text">{section.empty}</p>
+      )}
+    </div>
+  )
+}
+
+function operatorStatusLabel(status) {
+  if (status === 'attention') return 'проверить'
+  return documentStatusLabel(status)
 }
 
 function AnalysisDocumentEvidenceList({ evidenceItems = [] }) {
