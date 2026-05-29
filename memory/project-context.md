@@ -782,3 +782,15 @@ Date: 2026-05-28.
 - This desktop now has Tesseract 5.5, Poppler 25.07, and `rus.traineddata` installed through local tools; `scripts/ocr-pdf.ps1` smoke-tested a PDF render through `pdftoppm -> tesseract` and returned `OCR TEST 123`.
 - No OCR engine is bundled or required in git. This keeps the repo light and SaaS-safe; a future production shape should run OCR in a separate worker/container with per-tenant file isolation and no portal auth material.
 - Full verification after real local OCR setup: `400 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-real-ocr-elevated`.
+
+## Decision Engine v1 checkpoint
+
+Date: 2026-05-29.
+
+- Added `src/tender_killer/decision_service.py` with a pure `build_tender_decision(tender)` contract.
+- `get_tender_payload(...)` now attaches `tender["decision"]` after `market_state` and `economics` are built.
+- The decision payload combines economics, analysis, document extraction status, market state, and product profile readiness into one backend-owned operator decision.
+- Stable decision fields: `status`, `label`, `tone`, `summary`, `next_step`, `reasons`, `blockers`, `limit_price`, and `metrics`.
+- Initial statuses covered by tests: `missing_prices`, `needs_review`, `with_limit`, `skip`, and `interesting`.
+- This is the backend foundation for the next UI slice: tender card, tender list badges, dashboard queues, and Word reports should read one shared `tender.decision` payload instead of rebuilding decision text separately.
+- Full verification after Decision Engine v1: `416 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.

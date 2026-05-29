@@ -188,6 +188,43 @@ def test_get_tender_payload_includes_economics_summary_from_product_profiles(tmp
     assert detail["economics"]["gross_margin"] == 33500.0
 
 
+def test_get_tender_payload_includes_decision_summary(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="decision-1",
+            url="https://market.mosreg.ru/Trade/ViewTrade/decision-1",
+            title="Paper tender",
+            price=100000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "decision-1",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="decision-1",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+                profile_status="priced",
+                raw_payload={"economics": {"unit_cost": 6000, "logistics_cost": 5000}},
+            )
+        ],
+    )
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "decision-1")
+
+    assert detail["decision"]["status"] == "interesting"
+    assert detail["decision"]["label"] == "Интересно"
+    assert detail["decision"]["metrics"]["nmc_price"] == 100000.0
+    assert detail["decision"]["metrics"]["positions_priced"] == 1
+
+
 def test_get_tender_payload_includes_latest_price_change(tmp_path):
     from dataclasses import replace
 

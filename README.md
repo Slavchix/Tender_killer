@@ -2,7 +2,7 @@
 
 ## Current Handoff Snapshot
 
-Date: 2026-05-28.
+Date: 2026-05-29.
 
 Current branch: `codex/moscow-mo-parser`.
 
@@ -85,6 +85,7 @@ Recent architecture cleanup:
 - Tender detail behavior is split across focused hooks: `useTenderDetailsUi.js`, `useTenderDocumentAnalysis.js`, `useTenderNotification.js`, `useTenderProductProfiles.js`, `useTenderRefreshDetails.js`, and `useTenderWorkflow.js`.
 - `TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, document, analysis, and economics UI live in dedicated modules.
 - The economics tab owns product cost entry, supplier candidates, assumptions, auto-estimate preview/accept, bid thresholds, and participation decision UI.
+- Decision Engine v1 now lives in `src/tender_killer/decision_service.py`. `get_tender_payload(...)` attaches a stable `decision` object that combines economics, analysis, documents, market state, and product profiles into one status/label/next-step payload for future card, list, dashboard, and report surfaces.
 
 Current verification command:
 
@@ -92,9 +93,15 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after bid-state UX and optional PDF OCR fallback: `400 passed`.
+Latest verified result after Decision Engine v1: `416 passed`.
 
 Good next steps:
+
+1. Wire `tender.decision` into the right-side tender card, tender list badges, and dashboard queues so all visible decisions come from one backend payload.
+2. Move the frontend-only analysis evidence heuristics into backend analysis payloads so Word, UI, and future agents share the same evidence model.
+3. Continue economics automation: import reviewed supplier candidates into per-position cost inputs and recalculate the decision automatically.
+
+Previous next steps:
 
 1. Run `Извлечь текст` on real scanned Moscow/MO PDFs and tune OCR settings (`Dpi`, `Language`, `--psm`) if the output is noisy.
 2. Continue the workbench split: keep the tender card as the decision summary and use full-screen analysis/economics modes for deeper work.
