@@ -32,6 +32,9 @@ TENDER_DECISION_STRIP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "sr
 TENDER_DECISION_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDecisionSummary.jsx"
 TENDER_DOCUMENTS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDocumentsTab.jsx"
 TENDER_ECONOMICS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsTab.jsx"
+TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsDecisionScenarios.jsx"
+)
 TENDER_ECONOMICS_FORMS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsForms.jsx"
 TENDER_ECONOMICS_COST_FORM_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsCostForm.jsx"
 TENDER_ECONOMICS_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSummary.jsx"
@@ -94,10 +97,19 @@ def test_tender_cockpit_exposes_normalized_metadata_filters():
 
     for key in ("source_family", "procedure_type", "customer_inn"):
         assert f"{key}: ''" in constants_source
-        assert f"onUpdateFilter('{key}'" in filters_source
 
-    assert "procedureTypeOptions" in filters_source
-    assert "sourceFamilyOptions" in filters_source
+    assert "export const regionOptions" in constants_source
+    assert "value: 'Краснодарский край'" in constants_source
+    assert "value: 'Республика Татарстан'" in constants_source
+    assert "regionOptions.map" in filters_source
+    assert "name=\"region\"" in filters_source
+    assert "onUpdateFilter('region'" in filters_source
+    assert "onUpdateFilter('customer_inn'" in filters_source
+    assert "onUpdateFilter('source_family'" not in filters_source
+    assert "onUpdateFilter('procedure_type'" not in filters_source
+    assert "procedureTypeOptions" not in filters_source
+    assert "sourceFamilyOptions" not in filters_source
+    assert "quickRegionOptions" not in filters_source
 
 
 def test_frontend_uses_dedicated_api_client():
@@ -243,7 +255,8 @@ def test_frontend_uses_dedicated_filters_panel_module():
     assert "export function FiltersPanel" in filters_source
     assert "filters-panel" in filters_source
     assert "sourceOptions.map" in filters_source
-    assert "procedureTypeOptions.map" in filters_source
+    assert "regionOptions.map" in filters_source
+    assert "procedureTypeOptions.map" not in filters_source
     assert "onToggleMultiFilter('source'" in filters_source
     assert "function FiltersPanel" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
@@ -310,7 +323,8 @@ def test_frontend_uses_dedicated_tender_summary_tab_module():
 
     assert "from './TenderSummaryTab'" in panels_source
     assert "export function TenderSummaryTab" in summary_source
-    assert "summary-decision-grid" in summary_source
+    assert "summary-decision-grid" not in summary_source
+    assert "SummaryMetric" not in summary_source
     assert "summary-next-action" in summary_source
     assert "<TenderSummaryTab" in panels_source
     assert "function TenderSummaryTab" not in tender_details_source
@@ -386,6 +400,11 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     economics_summary_source = (
         TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
         if TENDER_ECONOMICS_SUMMARY_SOURCE.exists()
+        else ""
+    )
+    economics_decision_scenarios_source = (
+        TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE.exists()
         else ""
     )
     economics_forms_source = (
@@ -499,6 +518,11 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert "from './TenderEconomicsSupplierPayloads'" in economics_supplier_actions_source
     assert "function EconomicsSummary" not in economics_source
     assert "export function EconomicsSummary" in economics_summary_source
+    assert "from './TenderEconomicsDecisionScenarios'" in economics_summary_source
+    assert "function BidScenarioStrip" not in economics_summary_source
+    assert "function ParticipationDecisionCard" not in economics_summary_source
+    assert "export function BidScenarioStrip" in economics_decision_scenarios_source
+    assert "export function ParticipationDecisionCard" in economics_decision_scenarios_source
     assert "function ProductEconomicsForm" not in economics_source
     assert "export function ProductEconomicsForm" not in economics_forms_source
     assert "export function ProductEconomicsForm" in economics_cost_form_source
@@ -540,6 +564,7 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(economics_summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
+    assert find_mojibake(economics_decision_scenarios_source, TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE) == []
     assert find_mojibake(economics_forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
     assert find_mojibake(economics_cost_form_source, TENDER_ECONOMICS_COST_FORM_SOURCE) == []
     assert find_mojibake(economics_suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
@@ -1149,6 +1174,11 @@ def test_tender_details_render_economics_summary():
         if TENDER_ECONOMICS_SUMMARY_SOURCE.exists()
         else ""
     )
+    economics_decision_scenarios_source = (
+        TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE.exists()
+        else ""
+    )
 
     assert "const workspaceModes = new Set([" in tabs_source
     assert "'economics'" in tabs_source
@@ -1158,14 +1188,18 @@ def test_tender_details_render_economics_summary():
     assert "<EconomicsSummary economics={economics} tender={tender} />" in source
     assert "function EconomicsSummary" not in source
     assert "export function EconomicsSummary" in economics_summary_source
-    assert "function ParticipationDecisionCard" in economics_summary_source
-    assert "function BidScenarioStrip" in economics_summary_source
+    assert "from './TenderEconomicsDecisionScenarios'" in economics_summary_source
+    assert "function ParticipationDecisionCard" not in economics_summary_source
+    assert "function BidScenarioStrip" not in economics_summary_source
+    assert "export function ParticipationDecisionCard" in economics_decision_scenarios_source
+    assert "export function BidScenarioStrip" in economics_decision_scenarios_source
     assert "economicsStatusLabel" in economics_summary_source
     assert "Маржа" in economics_summary_source
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
     assert find_mojibake(summary_source, TENDER_SUMMARY_TAB_SOURCE) == []
     assert find_mojibake(source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(economics_summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
+    assert find_mojibake(economics_decision_scenarios_source, TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE) == []
 
 def test_product_profile_renders_economics_input_form():
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
@@ -1627,27 +1661,45 @@ def test_economics_tab_renders_assumptions_form():
 
 def test_economics_tab_renders_bid_scenarios():
     source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
+    scenarios_source = (
+        TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE.exists()
+        else ""
+    )
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
+    assert "from './TenderEconomicsDecisionScenarios'" in source
     assert "BidScenarioStrip" in source
     assert "economics.bid_scenarios" in source
-    assert "Сценарии цены" in source
-    assert "bid-scenario-grid" in source
+    assert "function BidScenarioStrip" not in source
+    assert "export function BidScenarioStrip" in scenarios_source
+    assert "Сценарии цены" in scenarios_source
+    assert "bid-scenario-grid" in scenarios_source
     assert ".bid-scenario-grid" in styles_source
     assert find_mojibake(source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
+    assert find_mojibake(scenarios_source, TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 def test_economics_tab_renders_participation_decision():
     source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
+    scenarios_source = (
+        TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE.exists()
+        else ""
+    )
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
+    assert "from './TenderEconomicsDecisionScenarios'" in source
     assert "ParticipationDecisionCard" in source
     assert "economics.participation_decision" in source
-    assert "Решение по участию" in source
-    assert "Лимит" in source
-    assert "participation-decision" in source
+    assert "function ParticipationDecisionCard" not in source
+    assert "export function ParticipationDecisionCard" in scenarios_source
+    assert "Решение по участию" in scenarios_source
+    assert "Лимит" in scenarios_source
+    assert "participation-decision" in scenarios_source
     assert ".participation-decision" in styles_source
     assert find_mojibake(source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
+    assert find_mojibake(scenarios_source, TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 def test_economics_tab_owns_product_costs_and_suppliers():
@@ -1725,11 +1777,12 @@ def test_tender_workbench_uses_decision_first_summary_shell():
     assert "setActiveTab('summary')" not in ui_source
     assert "{ id: 'summary', label: 'Сводка' }" not in tabs_source
     assert "<WorkflowTabPanel" in panels_source
-    assert "summary-decision-grid" in summary_source
+    assert "summary-decision-grid" not in summary_source
+    assert "SummaryMetric" not in summary_source
     assert "summary-next-action" in summary_source
     assert "decision-strip-grid" in strip_source
     assert ".decision-strip" in styles_source
-    assert ".summary-decision-grid" in styles_source
+    assert ".summary-decision-grid" not in styles_source
     assert find_mojibake(details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
     assert find_mojibake(strip_source, TENDER_DECISION_STRIP_SOURCE) == []
@@ -1762,7 +1815,8 @@ def test_tender_workbench_v1_reduces_detail_panel_overload():
     assert "<TenderDecisionStrip" in tender_details_source
     assert "decision-strip-grid" in strip_source
     assert "export function TenderSummaryTab" in summary_source
-    assert "summary-decision-grid" in summary_source
+    assert "summary-decision-grid" not in summary_source
+    assert "SummaryMetric" not in summary_source
     assert "product-detail-tabs" in products_source
     assert "export const productDetailModes" in constants_source
     assert "ТЗ" in constants_source
@@ -1852,11 +1906,12 @@ def test_tender_detail_tabs_have_scannable_work_areas():
     assert "<TenderProductsTab" in workspaces_source
     assert "<ProductTabSummary" in products_source
     assert "<TenderDocumentsTab" in workspaces_source
-    assert "summary-decision-grid" in summary_source
+    assert "summary-decision-grid" not in summary_source
+    assert "SummaryMetric" not in summary_source
     assert "summary-work-grid" in summary_source
     assert "document-status-summary" in documents_source
     assert "product-tab-summary" in products_source
-    assert ".summary-decision-grid" in styles_source
+    assert ".summary-decision-grid" not in styles_source
     assert ".summary-work-grid" in styles_source
     assert ".document-status-summary" in styles_source
     assert ".product-tab-summary" in styles_source

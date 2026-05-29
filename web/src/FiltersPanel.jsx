@@ -1,9 +1,7 @@
 import { ChevronLeft, ChevronRight, Filter, Search } from 'lucide-react'
 import {
   lawOptions,
-  procedureTypeOptions,
-  quickRegionOptions,
-  sourceFamilyOptions,
+  regionOptions,
   sourceOptions,
   statusOptions,
 } from './constants'
@@ -89,23 +87,17 @@ export function FiltersPanel({
 
             <div className="filter-group">
               Регион
-              <div className="segmented-control wrap">
-                {quickRegionOptions.map((option) => (
-                  <button
-                    className={filters.region === option.value ? 'selected' : ''}
-                    key={option.value}
-                    onClick={() => onUpdateFilter('region', option.value)}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <input
+              <select
+                name="region"
                 onChange={(event) => onUpdateFilter('region', event.target.value)}
-                placeholder="Москва, Московская область"
                 value={filters.region}
-              />
+              >
+                {regionOptions.map((option) => (
+                  <option key={option.value || 'all-regions'} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="filter-group">
@@ -132,38 +124,6 @@ export function FiltersPanel({
                 value={filters.okpd2}
               />
             </label>
-
-            <div className="filter-group">
-              Тип источника
-              <div className="segmented-control">
-                {sourceFamilyOptions.map((option) => (
-                  <button
-                    className={filters.source_family === option.value ? 'selected' : ''}
-                    key={option.label}
-                    onClick={() => onUpdateFilter('source_family', option.value)}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="filter-group">
-              Тип процедуры
-              <div className="segmented-control wrap procedure-control">
-                {procedureTypeOptions.map((option) => (
-                  <button
-                    className={filters.procedure_type === option.value ? 'selected' : ''}
-                    key={option.label}
-                    onClick={() => onUpdateFilter('procedure_type', option.value)}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             <label>
               ИНН заказчика

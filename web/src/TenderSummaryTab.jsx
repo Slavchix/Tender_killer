@@ -1,5 +1,4 @@
-import { documentStatusCounts, formatMoney, formatPercent, nmcPriceValue, participantBidValue, tenderDecisionNextStep } from './formatters'
-import { SummaryMetric } from './TenderDetailsShared'
+import { documentStatusCounts, formatPercent, tenderDecisionNextStep } from './formatters'
 
 export function TenderSummaryTab({
   tender,
@@ -19,8 +18,6 @@ export function TenderSummaryTab({
     return raw.economics || raw.selected_supplier_option != null
   }).length
   const missingCostInputs = economics?.missing_cost_inputs?.length || 0
-  const stopPrice = economics?.minimum_margin_price ?? economics?.break_even_price
-  const marketState = economics?.market_state || tender.market_state
 
   return (
     <section className="detail-section active summary-section">
@@ -29,16 +26,6 @@ export function TenderSummaryTab({
           <h3>Сводка решения</h3>
           <p className="muted-text">Короткий ответ по тендеру и следующий шаг.</p>
         </div>
-      </div>
-
-      <div className="summary-decision-grid" aria-label="Сводка решения по тендеру">
-        <SummaryMetric value={nmcPriceValue(tender, marketState)} label="НМЦК" />
-        <SummaryMetric value={participantBidValue(marketState)} label="ставка участника" />
-        <SummaryMetric value={marginText} label="маржа" />
-        <SummaryMetric value={formatMoney(stopPrice)} label="стоп-цена" />
-        <SummaryMetric value={positionCount} label="позиции" />
-        <SummaryMetric value={riskCount} label="риски" />
-        <SummaryMetric value={`${documentCounts.ok}/${documents.length}`} label="документы" />
       </div>
 
       <div className="summary-work-grid">

@@ -1685,16 +1685,6 @@ textarea:focus {
   gap: 9px;
 }
 
-.summary-decision-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
-  gap: 8px;
-  padding: 10px;
-  background: #1b2622;
-  border: 1px solid #33443d;
-  border-radius: 7px;
-}
-
 .summary-work-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -3641,7 +3631,6 @@ textarea:focus {
   .profile-detail-grid,
   .decision-summary-grid,
   .decision-strip-grid,
-  .summary-decision-grid,
   .supplier-input-grid,
   .economics-input-grid {
     grid-template-columns: 1fr;
