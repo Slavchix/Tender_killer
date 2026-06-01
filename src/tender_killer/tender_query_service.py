@@ -483,6 +483,11 @@ def _analysis_from_list_row(payload: dict[str, Any]) -> dict[str, Any] | None:
         "confidence": confidence,
         "raw_payload": raw_payload,
         "checklist": raw_payload.get("checklist", []),
+        "execution_terms": (
+            raw_payload.get("execution_terms", [])
+            if isinstance(raw_payload.get("execution_terms"), list)
+            else []
+        ),
         "analyzed_at": analyzed_at,
     }
     evidence_items = raw_payload.get("evidence_items")

@@ -211,6 +211,8 @@ def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) 
     payload["red_flags"] = _json_list(payload.pop("red_flags_json"))
     payload["raw_payload"] = _json_object(payload.pop("raw_payload_json"))
     payload["checklist"] = payload["raw_payload"].get("checklist", [])
+    execution_terms = payload["raw_payload"].get("execution_terms")
+    payload["execution_terms"] = execution_terms if isinstance(execution_terms, list) else []
     evidence_items = payload["raw_payload"].get("evidence_items")
     payload["evidence_items"] = evidence_items if isinstance(evidence_items, list) else build_analysis_evidence_items(payload, documents)
     operator_view = payload["raw_payload"].get("operator_view")

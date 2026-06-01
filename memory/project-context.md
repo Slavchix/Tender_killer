@@ -831,6 +831,17 @@ Date: 2026-06-01.
 - Targeted verification after this checkpoint: `11 passed` for `tests/test_analysis.py tests/test_analysis_operator_view_service.py tests/test_analysis_service.py` when run outside the sandbox due local pytest temp permissions.
 - Full verification after this checkpoint: `433 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-execution-terms`.
 
+## Analysis source binding checkpoint
+
+Date: 2026-06-01.
+
+- `analyze_tender_payload(...)` now matches checklist evidence and execution term fragments back to the extracted source document text before saving analysis.
+- Matched rows receive `document_name` and `source`, which lets `analysis.evidence_items` and `operator_view.sections[].items[].source` show whether a condition came from the ТЗ, contract draft, or another document.
+- `get_tender_payload(...)` and list payloads now expose saved `analysis.execution_terms` from `raw_payload_json`; previously the field was saved but not lifted back into the public analysis payload.
+- Regression coverage: `tests/test_analysis_service.py::test_analyze_tender_payload_binds_execution_terms_to_source_documents` uses two documents and verifies that certificate evidence binds to `spec.docx`, while delivery/security execution terms bind to `contract.docx`.
+- Targeted verification after this checkpoint: `22 passed` for `tests/test_analysis.py tests/test_analysis_service.py tests/test_analysis_operator_view_service.py tests/test_tender_query_service.py`.
+- Full verification after this checkpoint: `434 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-source-binding`.
+
 ## Bulk supplier price selection checkpoint
 
 Date: 2026-05-29.
