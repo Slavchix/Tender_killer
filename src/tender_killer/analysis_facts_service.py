@@ -164,18 +164,34 @@ def _metrics(items: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def _dedupe_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    seen: set[tuple[str, str]] = set()
+    seen: list[tuple[str, str, str]] = []
     unique: list[dict[str, Any]] = []
     for item in items:
         if item.get("kind") == "subject":
             unique.append(item)
             continue
-        key = (_dedupe_text(item.get("fragment") or item.get("value")), _text(item.get("category")))
-        if key[0] and key in seen:
+        label_key = _dedupe_text(item.get("label"))
+        fragment_key = _dedupe_text(item.get("fragment") or item.get("value"))
+        category_key = _text(item.get("category"))
+        if _seen_equivalent_fact(seen, label_key, fragment_key, category_key):
             continue
-        seen.add(key)
+        seen.append((label_key, fragment_key, category_key))
         unique.append(item)
     return unique
+
+
+def _seen_equivalent_fact(
+    seen: list[tuple[str, str, str]],
+    label: str,
+    fragment: str,
+    category: str,
+) -> bool:
+    for seen_label, seen_fragment, seen_category in seen:
+        if not fragment or fragment != seen_fragment or category != seen_category:
+            continue
+        if label == seen_label or label in seen_label or seen_label in label:
+            return True
+    return False
 
 
 def _impact(category: str, severity: str) -> str:

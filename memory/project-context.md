@@ -936,3 +936,16 @@ Date: 2026-06-01.
 - `build_analysis_operator_view(...)` now propagates these fields and sorts fact-backed sections by priority.
 - Targeted verification after this checkpoint: `32 passed` for facts, operator view, analysis service, tender query, economics, and analysis benchmark tests.
 - Full verification after this checkpoint: `449 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-operator-routing`.
+
+## Analysis domain rules checkpoint
+
+Date: 2026-06-01.
+
+- Expanded the pre-agent rule-based analysis benchmark from 3 to 5 real-ish cases.
+- Medical/regulated goods now detect `температурный режим хранения` and `стерильность` in addition to registration certificate, declaration, passport quality, and shelf-life requirements.
+- Construction/equipment ТЗ now detect `монтаж/пусконаладка` and `инструктаж заказчика`.
+- Electronics/equipment ТЗ now detect `эквивалент` and `совместимость`.
+- Service/work ТЗ now detect `квалифицированный персонал` and `акт выполненных работ`.
+- Fact dedupe now keeps different facts from the same sentence, such as `эквивалент` and `совместимость`, while still collapsing near-duplicate execution/checklist facts like `Обеспечение исполнения` versus `обеспечение исполнения контракта`.
+- Targeted verification after this checkpoint: `43 passed` for analysis, benchmark, facts, operator view, analysis service, query, and economics tests.
+- Full verification after this checkpoint: `452 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-domain-rules`.

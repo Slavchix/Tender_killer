@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from tender_killer.analysis import analyze_tender_texts
 from tender_killer.analysis_facts_service import build_analysis_facts
 
 
@@ -103,3 +104,30 @@ def test_build_analysis_facts_marks_unbound_evidence_for_operator_review():
     assert license_fact["operator_action"] == "Проверить источник факта вручную."
     assert license_fact["priority"] == 95
     assert facts["metrics"]["unbound"] == 1
+
+
+def test_build_analysis_facts_routes_domain_specific_requirements_to_operator_tasks():
+    text = """
+    Техническое задание: поставка аккумуляторных батарей с монтажом.
+    Допускается эквивалент при полной совместимости с имеющимся оборудованием.
+    Поставщик выполняет монтаж и пусконаладочные работы.
+    У исполнителя должен быть квалифицированный персонал.
+    Работы закрываются актом выполненных работ.
+    """
+    analysis = analyze_tender_texts([text]).to_dict()
+
+    facts = build_analysis_facts(
+        analysis,
+        [{"name": "tz.docx", "text_status": "ok", "text_content": text}],
+    )
+    by_label = {item["label"]: item for item in facts["items"]}
+
+    assert by_label["эквивалент"]["operator_group"] == "prepare"
+    assert by_label["эквивалент"]["price_impact"] == "compliance"
+    assert by_label["совместимость"]["operator_group"] == "prepare"
+    assert by_label["совместимость"]["price_impact"] == "compliance"
+    assert by_label["монтаж/пусконаладка"]["is_price_factor"] is True
+    assert by_label["монтаж/пусконаладка"]["price_impact"] == "logistics"
+    assert by_label["квалифицированный персонал"]["operator_group"] == "prepare"
+    assert by_label["квалифицированный персонал"]["is_blocker"] is False
+    assert by_label["акт выполненных работ"]["price_impact"] == "working_capital"

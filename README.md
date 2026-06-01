@@ -99,7 +99,7 @@ Recent architecture cleanup:
 - Operator analysis sections sort fact-backed items by priority, so manually questionable or blocking facts rise above ordinary preparation tasks.
 - Rule-based analysis now applies context filters for noisy matches such as storage/confidentiality terms that mention `в течение 3 лет` and licensing-agreement text that is not a supplier license/SRO requirement.
 - Economics now reads `analysis.analysis_facts` blockers and price factors first, then falls back to `analysis.tz_passport` and `operator_view`, so delivery, security, payment, compliance, and manually reviewable facts can influence the reserve hint and participation decision from one source contract.
-- Rule-based analysis now includes a small benchmark suite for realistic pre-agent ТЗ cases, including medical registration certificates, shelf-life requirements, SRO/service risks, and known noisy text that must not trigger false risks.
+- Rule-based analysis now includes a small benchmark suite for realistic pre-agent ТЗ cases, including medical registration certificates, shelf-life/storage/sterility requirements, installation/commissioning, equivalents/compatibility, SRO/service risks, staff/acceptance acts, and known noisy text that must not trigger false risks.
 - Word reports now use one compact operator report mode: ТЗ passport, decision, documents, positions, and economics summary stay in Word, while raw analysis sections, long extracted text, search phrases, and full product-profile detail stay on the site.
 - Decision Engine now reads ТЗ passport blockers and price factors as decision inputs, so the tender card/list/dashboard status follows the same analysis contract as the full-screen workspace.
 
@@ -109,7 +109,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest full verified result after analysis facts/economics linkage and the benchmark suite: `449 passed`.
+Latest full verified result after analysis domain rules expansion: `452 passed`.
 
 Good next steps:
 
@@ -139,12 +139,12 @@ Previous next steps:
 - Детальное обновление карточки: `POST /api/tenders/{source}/{external_id}/details/refresh` добирает документы/позиции, сохраняет их в SQLite и пересобирает товарные профили.
 - Документы закупки: скачивание, извлечение текста из DOCX/PDF/TXT/HTML и отображение статуса по каждому документу.
 - Подготовка анализа в сайте собрана внутри `Анализ ТЗ`: кнопка `Подготовить анализ` запускает скачивание документов, извлечение текста и rule-based анализ одной цепочкой; ручные кнопки документов остаются там же для диагностики.
-- Первый rule-based анализ ТЗ: требования, риски, красные флаги, национальный режим/1875, сертификаты, приемка, обеспечение, штрафы.
+- Первый rule-based анализ ТЗ: требования, риски, красные флаги, национальный режим/1875, сертификаты, приемка, обеспечение, штрафы, хранение/стерильность, монтаж, эквивалентность, совместимость, персонал и акты.
 - Анализ ТЗ отдельно выделяет условия исполнения (`analysis.execution_terms`): срок поставки, оплату, аванс, гарантию, обеспечение исполнения и штрафы/пени; в полноэкранном анализе они отображаются отдельной секцией `Условия исполнения`.
 - Анализ ТЗ сохраняет единый слой фактов `analysis.analysis_facts` v1: предмет, документы поставщика, условия исполнения, блокеры и факторы цены с привязкой к документу, фрагменту, rule id, уверенности и влиянию на решение.
 - Каждый факт анализа дополнительно содержит операторские поля: группу, действие, тип влияния на цену и приоритет. Это будущий контракт для агента: агент должен улучшать эти же поля, а не придумывать новый формат.
 - Экономика использует `analysis.analysis_facts` как первый источник блокеров и факторов цены для `analysis_cost_drivers` / `analysis_reserve_hint`; старые `tz_passport` и `operator_view` остаются fallback.
-- До подключения агентов есть мини-бенчмарк rule-based анализа: медицинские документы/срок годности, СРО/услуги и шумовые фразы без ложных рисков.
+- До подключения агентов есть мини-бенчмарк rule-based анализа: медицинские документы/срок годности/хранение, монтаж, эквиваленты, СРО/услуги, персонал, акты и шумовые фразы без ложных рисков.
 - Товарные профили в SQLite: один тендер может иметь 20-40 отдельных профилей, по одному на позицию закупки.
 - Word-отчет по закупке теперь один и короткий: паспорт, позиции, документы, паспорт ТЗ, решение по анализу и компактная экономика без сырого текста, поисковых фраз и полного разворота товарных профилей.
 - CLI-команда `tender-killer` для dry-run и отладки.
