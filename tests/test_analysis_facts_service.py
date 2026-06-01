@@ -57,12 +57,24 @@ def test_build_analysis_facts_binds_each_fact_to_document_evidence():
     assert by_label["сертификат/декларация"]["document_name"] == "spec.docx"
     assert by_label["сертификат/декларация"]["fragment"] == "Поставщик обязан предоставить сертификат соответствия."
     assert by_label["сертификат/декларация"]["rule_id"] == "checklist:сертификат/декларация"
+    assert by_label["сертификат/декларация"]["operator_group"] == "prepare"
+    assert by_label["сертификат/декларация"]["operator_action"] == "Подготовить подтверждающие документы."
+    assert by_label["сертификат/декларация"]["price_impact"] == "documents"
+    assert by_label["сертификат/декларация"]["priority"] == 50
     assert by_label["Срок поставки"]["kind"] == "execution_term"
     assert by_label["Срок поставки"]["document_name"] == "contract.docx"
     assert by_label["Срок поставки"]["is_price_factor"] is True
+    assert by_label["Срок поставки"]["operator_group"] == "execution"
+    assert by_label["Срок поставки"]["operator_action"] == "Проверить срок исполнения и заложить логистику."
+    assert by_label["Срок поставки"]["price_impact"] == "logistics"
+    assert by_label["Срок поставки"]["priority"] == 60
     assert by_label["национальный режим/страна происхождения"]["kind"] == "blocker"
     assert by_label["национальный режим/страна происхождения"]["document_name"] == "contract.docx"
     assert by_label["национальный режим/страна происхождения"]["is_blocker"] is True
+    assert by_label["национальный режим/страна происхождения"]["operator_group"] == "blocker"
+    assert by_label["национальный режим/страна происхождения"]["operator_action"] == "Проверить допустимость участия до расчета."
+    assert by_label["национальный режим/страна происхождения"]["price_impact"] == "compliance"
+    assert by_label["национальный режим/страна происхождения"]["priority"] == 90
     assert all(item["document_name"] != "Документ не привязан" for item in items if item["kind"] != "subject")
 
 
@@ -87,4 +99,7 @@ def test_build_analysis_facts_marks_unbound_evidence_for_operator_review():
 
     assert license_fact["document_name"] == "Документ не привязан"
     assert license_fact["needs_review"] is True
+    assert license_fact["operator_group"] == "manual_review"
+    assert license_fact["operator_action"] == "Проверить источник факта вручную."
+    assert license_fact["priority"] == 95
     assert facts["metrics"]["unbound"] == 1

@@ -105,15 +105,15 @@ def _facts_view(
 ) -> dict[str, Any]:
     facts = _fact_items(facts_contract.get("items"))
     document_items = [_document_item(document, index) for index, document in enumerate(documents)]
-    blockers = [item for item in facts if item.get("kind") != "subject" and item.get("is_blocker")]
-    requirements = [
+    blockers = _sort_operator_items([item for item in facts if item.get("kind") != "subject" and item.get("is_blocker")])
+    requirements = _sort_operator_items([
         item
         for item in facts
         if item.get("kind") in {"supplier_document", "requirement"} and not item.get("is_blocker")
-    ]
-    execution_terms = [item for item in facts if item.get("kind") == "execution_term"]
-    price_factors = [item for item in facts if item.get("is_price_factor")]
-    manual_review = [item for item in facts if item.get("needs_review")]
+    ])
+    execution_terms = _sort_operator_items([item for item in facts if item.get("kind") == "execution_term"])
+    price_factors = _sort_operator_items([item for item in facts if item.get("is_price_factor")])
+    manual_review = _sort_operator_items([item for item in facts if item.get("needs_review")])
     evidence = [item for item in facts if item.get("fragment")]
     fact_metrics = facts_contract.get("metrics") if isinstance(facts_contract.get("metrics"), dict) else {}
 
@@ -428,6 +428,10 @@ def _fact_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         "description": str(raw_item.get("value") or raw_item.get("fragment") or ""),
         "source": str(raw_item.get("document_name") or raw_item.get("source") or ""),
         "impact": str(raw_item.get("impact") or ""),
+        "operator_group": str(raw_item.get("operator_group") or _fallback_operator_group(raw_item)),
+        "operator_action": str(raw_item.get("operator_action") or ""),
+        "price_impact": str(raw_item.get("price_impact") or "none"),
+        "priority": _fact_priority(raw_item),
         "fragment": str(raw_item.get("fragment") or ""),
         "rule_id": str(raw_item.get("rule_id") or ""),
         "is_blocker": bool(raw_item.get("is_blocker")),
@@ -494,6 +498,38 @@ def _unique_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         seen.add(key)
         unique.append(item)
     return unique
+
+
+def _sort_operator_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(items, key=lambda item: (-_int_metric(item.get("priority"), 0), item.get("label", "")))
+
+
+def _fact_priority(item: dict[str, Any]) -> int:
+    if item.get("priority") not in (None, ""):
+        return _int_metric(item.get("priority"), 0)
+    if item.get("needs_review"):
+        return 95
+    if item.get("is_blocker"):
+        return 90 if item.get("severity") == "high" else 80
+    if item.get("kind") == "execution_term":
+        return 60
+    if item.get("kind") in {"supplier_document", "requirement"}:
+        return 50
+    return 40
+
+
+def _fallback_operator_group(item: dict[str, Any]) -> str:
+    if item.get("needs_review"):
+        return "manual_review"
+    if item.get("is_blocker"):
+        return "blocker"
+    if item.get("kind") == "execution_term":
+        return "execution"
+    if item.get("kind") in {"supplier_document", "requirement"}:
+        return "prepare"
+    if item.get("is_price_factor"):
+        return "price"
+    return "review"
 
 
 def _number_or_none(value: Any) -> float | None:

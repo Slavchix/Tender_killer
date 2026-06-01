@@ -924,3 +924,15 @@ Date: 2026-06-01.
 - Added `tests/test_analysis_benchmark.py` as a small benchmark suite with real-ish cases: medical goods, known noise-only text, and service/SRO work.
 - Targeted verification after this checkpoint: `28 passed` for economics, analysis benchmark, analysis, facts, and operator view tests.
 - Full verification after this checkpoint: `449 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-economics-benchmark`.
+
+## Analysis operator routing checkpoint
+
+Date: 2026-06-01.
+
+- `analysis.analysis_facts` v1 now includes operator routing fields on every fact: `operator_group`, `operator_action`, `price_impact`, and `priority`.
+- Groups currently map facts into `overview`, `blocker`, `prepare`, `execution`, `price`, `manual_review`, or `review`; this is intentionally agent-ready so future LLM analysis can enrich the same shape.
+- `price_impact` currently normalizes categories into `logistics`, `working_capital`, `documents`, `reserve`, `compliance`, or `none`, giving economics/report layers a stable vocabulary before agents.
+- Unbound evidence receives `operator_group="manual_review"` and high priority, so questionable facts surface above ordinary blockers and cannot quietly look confirmed.
+- `build_analysis_operator_view(...)` now propagates these fields and sorts fact-backed sections by priority.
+- Targeted verification after this checkpoint: `32 passed` for facts, operator view, analysis service, tender query, economics, and analysis benchmark tests.
+- Full verification after this checkpoint: `449 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-operator-routing`.

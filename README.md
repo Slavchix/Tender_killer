@@ -94,7 +94,9 @@ Recent architecture cleanup:
 - Analysis runs bind checklist evidence and execution terms back to the source document when the fragment can be matched to extracted document text, so multi-document tenders can show whether a condition came from the ТЗ, contract draft, or another file.
 - Analysis runs now build `analysis.tz_passport`, a compact backend-owned ТЗ passport with subject, execution terms, supplier documents/compliance, blockers, and price factors. The full-screen analysis workspace renders this passport above the detailed evidence workspace.
 - Analysis runs now also build `analysis.analysis_facts` v1, a single fact layer for subject, supplier-document requirements, execution terms, blockers, and price factors. Every actionable fact carries rule id, document binding, evidence fragment, confidence, and operator impact.
+- Analysis facts now also carry operator routing fields: `operator_group`, `operator_action`, `price_impact`, and `priority`. This gives the UI, economics layer, reports, and future agents one shared contract for "what to do with this fact".
 - Operator analysis sections now prefer `analysis.analysis_facts` when present, grouping the same facts into `Блокеры участия`, `Что подготовить`, `Исполнение договора`, `Влияние на цену`, and `Проверить руками`.
+- Operator analysis sections sort fact-backed items by priority, so manually questionable or blocking facts rise above ordinary preparation tasks.
 - Rule-based analysis now applies context filters for noisy matches such as storage/confidentiality terms that mention `в течение 3 лет` and licensing-agreement text that is not a supplier license/SRO requirement.
 - Economics now reads `analysis.analysis_facts` blockers and price factors first, then falls back to `analysis.tz_passport` and `operator_view`, so delivery, security, payment, compliance, and manually reviewable facts can influence the reserve hint and participation decision from one source contract.
 - Rule-based analysis now includes a small benchmark suite for realistic pre-agent ТЗ cases, including medical registration certificates, shelf-life requirements, SRO/service risks, and known noisy text that must not trigger false risks.
@@ -140,6 +142,7 @@ Previous next steps:
 - Первый rule-based анализ ТЗ: требования, риски, красные флаги, национальный режим/1875, сертификаты, приемка, обеспечение, штрафы.
 - Анализ ТЗ отдельно выделяет условия исполнения (`analysis.execution_terms`): срок поставки, оплату, аванс, гарантию, обеспечение исполнения и штрафы/пени; в полноэкранном анализе они отображаются отдельной секцией `Условия исполнения`.
 - Анализ ТЗ сохраняет единый слой фактов `analysis.analysis_facts` v1: предмет, документы поставщика, условия исполнения, блокеры и факторы цены с привязкой к документу, фрагменту, rule id, уверенности и влиянию на решение.
+- Каждый факт анализа дополнительно содержит операторские поля: группу, действие, тип влияния на цену и приоритет. Это будущий контракт для агента: агент должен улучшать эти же поля, а не придумывать новый формат.
 - Экономика использует `analysis.analysis_facts` как первый источник блокеров и факторов цены для `analysis_cost_drivers` / `analysis_reserve_hint`; старые `tz_passport` и `operator_view` остаются fallback.
 - До подключения агентов есть мини-бенчмарк rule-based анализа: медицинские документы/срок годности, СРО/услуги и шумовые фразы без ложных рисков.
 - Товарные профили в SQLite: один тендер может иметь 20-40 отдельных профилей, по одному на позицию закупки.

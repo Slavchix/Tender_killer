@@ -172,6 +172,10 @@ def test_build_analysis_operator_view_groups_analysis_facts_into_operator_blocks
                     "document_name": "spec.docx",
                     "fragment": "Указывается страна происхождения товара.",
                     "impact": "Проверить до участия.",
+                    "operator_group": "blocker",
+                    "operator_action": "Проверить допустимость участия до расчета.",
+                    "price_impact": "compliance",
+                    "priority": 90,
                     "is_blocker": True,
                     "is_price_factor": False,
                 },
@@ -185,6 +189,10 @@ def test_build_analysis_operator_view_groups_analysis_facts_into_operator_blocks
                     "document_name": "spec.docx",
                     "fragment": "Поставщик предоставляет сертификат.",
                     "impact": "Подготовить документ.",
+                    "operator_group": "prepare",
+                    "operator_action": "Подготовить подтверждающие документы.",
+                    "price_impact": "documents",
+                    "priority": 50,
                     "is_blocker": False,
                     "is_price_factor": False,
                 },
@@ -198,6 +206,10 @@ def test_build_analysis_operator_view_groups_analysis_facts_into_operator_blocks
                     "document_name": "contract.docx",
                     "fragment": "Срок поставки 5 рабочих дней.",
                     "impact": "Учесть в логистике.",
+                    "operator_group": "execution",
+                    "operator_action": "Проверить срок исполнения и заложить логистику.",
+                    "price_impact": "logistics",
+                    "priority": 60,
                     "is_blocker": False,
                     "is_price_factor": True,
                 },
@@ -211,6 +223,10 @@ def test_build_analysis_operator_view_groups_analysis_facts_into_operator_blocks
                     "document_name": "Документ не привязан",
                     "fragment": "Нужна лицензия на работы.",
                     "impact": "Проверить источник.",
+                    "operator_group": "manual_review",
+                    "operator_action": "Проверить источник факта вручную.",
+                    "price_impact": "none",
+                    "priority": 95,
                     "needs_review": True,
                     "is_blocker": True,
                     "is_price_factor": False,
@@ -231,12 +247,14 @@ def test_build_analysis_operator_view_groups_analysis_facts_into_operator_blocks
     assert sections["price_factors"]["title"] == "Влияние на цену"
     assert sections["manual_review"]["title"] == "Проверить руками"
     assert [item["label"] for item in sections["blockers"]["items"]] == [
-        "национальный режим",
         "лицензия/СРО",
+        "национальный режим",
     ]
     assert [item["label"] for item in sections["requirements"]["items"]] == ["сертификат/декларация"]
     assert [item["label"] for item in sections["execution_terms"]["items"]] == ["Срок поставки"]
     assert [item["label"] for item in sections["price_factors"]["items"]] == ["Срок поставки"]
+    assert sections["blockers"]["items"][0]["operator_action"] == "Проверить источник факта вручную."
+    assert sections["requirements"]["items"][0]["price_impact"] == "documents"
     assert sections["manual_review"]["items"][0]["source"] == "Документ не привязан"
 
 

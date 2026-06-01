@@ -118,6 +118,7 @@ def _fact(
     needs_review = bool(fragment and not bound_document)
     if needs_review:
         bound_document = "Документ не привязан"
+    operator = _operator_metadata(kind, category, severity, is_blocker, is_price_factor, needs_review)
     return {
         "id": f"{kind}:{_slug(label)}",
         "kind": kind,
@@ -134,6 +135,7 @@ def _fact(
         "is_price_factor": is_price_factor,
         "needs_review": needs_review,
         "impact": impact,
+        **operator,
     }
 
 
@@ -186,6 +188,98 @@ def _impact(category: str, severity: str) -> str:
     if category in PRICE_FACTOR_CATEGORIES:
         return "Учесть в сроках, резерве, стоп-цене или договорной подготовке."
     return "Проверить перед принятием решения."
+
+
+def _operator_metadata(
+    kind: str,
+    category: str,
+    severity: str,
+    is_blocker: bool,
+    is_price_factor: bool,
+    needs_review: bool,
+) -> dict[str, Any]:
+    if needs_review:
+        return {
+            "operator_group": "manual_review",
+            "operator_action": "Проверить источник факта вручную.",
+            "price_impact": _price_impact(category),
+            "priority": 95,
+        }
+    if kind == "subject":
+        return {
+            "operator_group": "overview",
+            "operator_action": "Сверить предмет закупки.",
+            "price_impact": "none",
+            "priority": 10,
+        }
+    if is_blocker:
+        return {
+            "operator_group": "blocker",
+            "operator_action": "Проверить допустимость участия до расчета.",
+            "price_impact": _price_impact(category),
+            "priority": 90 if severity == "high" else 80,
+        }
+    if kind == "execution_term":
+        return {
+            "operator_group": "execution",
+            "operator_action": _execution_action(category),
+            "price_impact": _price_impact(category),
+            "priority": 60 if is_price_factor else 45,
+        }
+    if kind in {"supplier_document", "requirement"}:
+        return {
+            "operator_group": "prepare",
+            "operator_action": _prepare_action(category),
+            "price_impact": _price_impact(category),
+            "priority": 50 if category in SUPPLIER_DOCUMENT_CATEGORIES else 45,
+        }
+    if is_price_factor:
+        return {
+            "operator_group": "price",
+            "operator_action": "Заложить условие в экономику.",
+            "price_impact": _price_impact(category),
+            "priority": 55,
+        }
+    return {
+        "operator_group": "review",
+        "operator_action": "Проверить факт перед решением.",
+        "price_impact": _price_impact(category),
+        "priority": 40,
+    }
+
+
+def _execution_action(category: str) -> str:
+    if category == "delivery":
+        return "Проверить срок исполнения и заложить логистику."
+    if category in {"financial", "payment"}:
+        return "Проверить денежные условия и нагрузку на оборотку."
+    if category == "acceptance":
+        return "Проверить приемку и закрывающие документы."
+    if category == "contract":
+        return "Проверить договорные обязательства."
+    return "Проверить условие исполнения договора."
+
+
+def _prepare_action(category: str) -> str:
+    if category in SUPPLIER_DOCUMENT_CATEGORIES:
+        return "Подготовить подтверждающие документы."
+    if category in BLOCKER_CATEGORIES:
+        return "Проверить требование до участия."
+    return "Подготовить ответ по требованию ТЗ."
+
+
+def _price_impact(category: str) -> str:
+    if category == "delivery":
+        return "logistics"
+    if category in {"financial", "payment", "acceptance"}:
+        return "working_capital"
+    if category == "documents":
+        return "documents"
+    if category == "contract":
+        return "reserve"
+    if category in {"legal", "national_regime", "standards"}:
+        return "compliance"
+    return "none"
 
 
 def _dict_items(value: Any) -> list[dict[str, Any]]:
