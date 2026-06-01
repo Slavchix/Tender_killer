@@ -103,3 +103,41 @@ def test_analyze_tender_texts_flags_registry_and_quality_documents():
     assert "паспорт качества" in result.requirements
     assert "реестр российской продукции" in result.red_flags
     assert "национальный режим/страна происхождения" in result.red_flags
+
+
+def test_analyze_tender_texts_extracts_execution_terms_for_operator_view():
+    result = analyze_tender_texts(
+        [
+            """
+            Техническое задание: поставка хозяйственных товаров.
+            Срок поставки товара: в течение 5 рабочих дней с даты заключения контракта.
+            Оплата производится в течение 7 рабочих дней после подписания документа о приемке.
+            Авансирование не предусмотрено.
+            Гарантийный срок на товар составляет 12 месяцев.
+            Обеспечение исполнения контракта составляет 5 процентов от цены контракта.
+            За просрочку поставки начисляется пеня.
+            """
+        ]
+    )
+
+    terms = {term["type"]: term for term in result.execution_terms}
+
+    assert "delivery_deadline" in terms
+    assert "5 рабочих дней" in terms["delivery_deadline"]["value"]
+    assert terms["delivery_deadline"]["category"] == "delivery"
+
+    assert "payment_terms" in terms
+    assert "7 рабочих дней" in terms["payment_terms"]["value"]
+    assert terms["payment_terms"]["category"] == "financial"
+
+    assert "advance_payment" in terms
+    assert "не предусмотрено" in terms["advance_payment"]["value"]
+
+    assert "warranty_period" in terms
+    assert "12 месяцев" in terms["warranty_period"]["value"]
+
+    assert "contract_security" in terms
+    assert terms["contract_security"]["severity"] == "high"
+
+    assert "penalties" in terms
+    assert terms["penalties"]["category"] == "financial"

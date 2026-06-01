@@ -90,6 +90,7 @@ Recent architecture cleanup:
 - The tender card decision strip, tender list badges, and dashboard previews now read the shared backend `tender.decision` payload through frontend formatter helpers, falling back to saved economics only for older payloads.
 - The tender card decision strip and Word report now surface backend decision reasons and blockers, so the operator can see why the current status/next step was recommended.
 - Analysis document evidence now has one backend-owned model in `src/tender_killer/analysis_evidence_service.py`. Analysis runs, detail payloads, Word reports, and the React evidence view all read `analysis.evidence_items`, so labels, importance, document names, fragments, and impact text stay consistent for future agents.
+- TZ analysis now also emits `analysis.execution_terms`: normalized delivery, payment, advance, warranty, contract security, and penalty conditions. `operator_view` surfaces them as the dedicated `Условия исполнения` section between requirements and price factors, giving the operator a faster route from documents to economics.
 
 Current verification command:
 
@@ -97,11 +98,11 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after bulk supplier price selection: `421 passed`.
+Latest verified result after analysis execution terms: `433 passed`.
 
 Good next steps:
 
-1. Improve the analysis engine from rule-based checklist extraction toward document-aware agent prompts while preserving the backend `analysis.evidence_items` contract.
+1. Improve the analysis engine from rule-based extraction toward document-aware agent prompts while preserving the backend `analysis.evidence_items` and `analysis.execution_terms` contracts.
 2. Feed decision blockers into workflow queues and dashboard attention items.
 3. Add tighter visual verification for the decision card and modal workspaces after each major frontend slice.
 
@@ -128,6 +129,7 @@ Previous next steps:
 - Документы закупки: скачивание, извлечение текста из DOCX/PDF/TXT/HTML и отображение статуса по каждому документу.
 - Подготовка анализа в сайте собрана внутри `Анализ ТЗ`: кнопка `Подготовить анализ` запускает скачивание документов, извлечение текста и rule-based анализ одной цепочкой; ручные кнопки документов остаются там же для диагностики.
 - Первый rule-based анализ ТЗ: требования, риски, красные флаги, национальный режим/1875, сертификаты, приемка, обеспечение, штрафы.
+- Анализ ТЗ отдельно выделяет условия исполнения (`analysis.execution_terms`): срок поставки, оплату, аванс, гарантию, обеспечение исполнения и штрафы/пени; в полноэкранном анализе они отображаются отдельной секцией `Условия исполнения`.
 - Товарные профили в SQLite: один тендер может иметь 20-40 отдельных профилей, по одному на позицию закупки.
 - Word-отчет по закупке: паспорт, позиции, документы, выжимка ТЗ, товарные профили и заготовка под будущий расчет экономики.
 - CLI-команда `tender-killer` для dry-run и отладки.

@@ -17,6 +17,7 @@ class TenderAnalysisResult:
     confidence: float = 0.1
     matches: dict[str, list[str]] = field(default_factory=dict)
     checklist: list[dict[str, str]] = field(default_factory=list)
+    execution_terms: list[dict[str, str]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -56,6 +57,70 @@ RULE_METADATA: dict[str, tuple[str, str]] = {
     "лицензия/СРО": ("legal", "high"),
 }
 
+EXECUTION_TERM_PATTERNS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
+    (
+        "delivery_deadline",
+        "Срок поставки",
+        "delivery",
+        "medium",
+        (
+            r"срок поставк[иаи][^.?!]{0,180}",
+            r"поставк[аи][^.?!]{0,100}в течение\s+\d+[^.?!]{0,80}",
+        ),
+    ),
+    (
+        "payment_terms",
+        "Оплата",
+        "financial",
+        "medium",
+        (
+            r"оплат[аы][^.?!]{0,220}",
+            r"расчет[ыа]?[^.?!]{0,160}",
+        ),
+    ),
+    (
+        "advance_payment",
+        "Аванс",
+        "financial",
+        "medium",
+        (
+            r"авансировани[ея][^.?!]{0,140}",
+            r"аванс[^.?!]{0,140}",
+            r"предварительная оплат[аы][^.?!]{0,140}",
+        ),
+    ),
+    (
+        "warranty_period",
+        "Гарантия",
+        "contract",
+        "medium",
+        (
+            r"гарантийн\w*\s+(?:срок|период)[^.?!]{0,160}",
+            r"гарантия[^.?!]{0,160}",
+        ),
+    ),
+    (
+        "contract_security",
+        "Обеспечение исполнения",
+        "financial",
+        "high",
+        (
+            r"обеспечение исполнения контракта[^.?!]{0,180}",
+            r"независимая гарантия[^.?!]{0,180}",
+        ),
+    ),
+    (
+        "penalties",
+        "Штрафы и пени",
+        "financial",
+        "medium",
+        (
+            r"[^.?!]{0,100}(?:штраф|пен[яи])[^.?!]{0,120}",
+            r"ответственност[ьи][^.?!]{0,160}",
+        ),
+    ),
+)
+
 
 def analyze_tender_texts(texts: list[str]) -> TenderAnalysisResult:
     text = _clean_text("\n".join(texts))
@@ -72,6 +137,7 @@ def analyze_tender_texts(texts: list[str]) -> TenderAnalysisResult:
     red_flags: list[str] = []
     matches: dict[str, list[str]] = {}
     checklist: list[dict[str, str]] = []
+    execution_terms = _execution_terms_from_text(text)
 
     for bucket, label, needles in RULES:
         found = [needle for needle in needles if needle in lower_text]
@@ -97,6 +163,7 @@ def analyze_tender_texts(texts: list[str]) -> TenderAnalysisResult:
         confidence=confidence,
         matches=matches,
         checklist=checklist,
+        execution_terms=execution_terms,
     )
 
 
@@ -142,6 +209,34 @@ def _append_checklist_item(values: list[dict[str, str]], label: str, evidence: s
             "evidence": evidence,
         }
     )
+
+
+def _execution_terms_from_text(text: str) -> list[dict[str, str]]:
+    terms: list[dict[str, str]] = []
+    for term_type, label, category, severity, patterns in EXECUTION_TERM_PATTERNS:
+        evidence = _first_pattern_evidence(text, patterns)
+        if not evidence:
+            continue
+        terms.append(
+            {
+                "type": term_type,
+                "label": label,
+                "value": evidence,
+                "category": category,
+                "severity": severity,
+                "evidence": evidence,
+            }
+        )
+    return terms
+
+
+def _first_pattern_evidence(text: str, patterns: tuple[str, ...]) -> str:
+    for sentence in _sentences(text):
+        for pattern in patterns:
+            match = re.search(pattern, sentence, flags=re.IGNORECASE)
+            if match:
+                return _trim(match.group(0), 260)
+    return ""
 
 
 def _evidence_for_needles(text: str, needles: list[str]) -> str:

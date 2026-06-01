@@ -819,6 +819,18 @@ Date: 2026-05-29.
 - This keeps the next agent/LLM analysis layer clean: future document-aware prompts can replace or enrich evidence generation without changing the UI/report contract.
 - Full verification after backend analysis evidence model: `417 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-evidence`.
 
+## Analysis execution terms checkpoint
+
+Date: 2026-06-01.
+
+- Rule-based TZ analysis now emits `analysis.execution_terms` as a normalized backend contract for operator-critical execution conditions.
+- Covered term types: `delivery_deadline`, `payment_terms`, `advance_payment`, `warranty_period`, `contract_security`, and `penalties`.
+- Each term carries stable `type`, `label`, `value`, `category`, `severity`, and `evidence` fields so future document-aware agents can enrich the same shape instead of forcing frontend/report changes.
+- `src/tender_killer/analysis_operator_view_service.py` now adds an `execution_terms` metric and a dedicated `Условия исполнения` section between requirements and price factors.
+- The intent is to make the analysis workspace answer "what must we price/check before bidding" faster: delivery/payment/guarantee/security terms are no longer buried only in generic checklist/evidence rows.
+- Targeted verification after this checkpoint: `11 passed` for `tests/test_analysis.py tests/test_analysis_operator_view_service.py tests/test_analysis_service.py` when run outside the sandbox due local pytest temp permissions.
+- Full verification after this checkpoint: `433 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-execution-terms`.
+
 ## Bulk supplier price selection checkpoint
 
 Date: 2026-05-29.
