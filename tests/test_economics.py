@@ -220,6 +220,92 @@ def test_build_economics_summary_uses_tz_passport_cost_drivers():
     }
 
 
+def test_build_economics_summary_prefers_analysis_facts_cost_drivers():
+    summary = build_economics_summary(
+        {
+            "price": 100000.0,
+            "analysis": {
+                "analysis_facts": {
+                    "version": 1,
+                    "items": [
+                        {
+                            "label": "национальный режим",
+                            "category": "national_regime",
+                            "kind": "restriction",
+                            "severity": "high",
+                            "is_blocker": True,
+                            "is_price_factor": False,
+                            "impact": "Проверить документы происхождения товара.",
+                            "document_name": "ТЗ.docx",
+                        },
+                        {
+                            "label": "срочная поставка",
+                            "category": "delivery",
+                            "kind": "execution_term",
+                            "severity": "medium",
+                            "is_blocker": False,
+                            "is_price_factor": True,
+                            "impact": "Заложить резерв на логистику.",
+                            "document_name": "Контракт.pdf",
+                        },
+                        {
+                            "label": "сертификат/декларация",
+                            "category": "documents",
+                            "kind": "supplier_document",
+                            "severity": "medium",
+                            "is_blocker": False,
+                            "is_price_factor": False,
+                            "impact": "Подготовить комплект документов.",
+                            "document_name": "ТЗ.docx",
+                        },
+                    ],
+                },
+                "tz_passport": {
+                    "version": 1,
+                    "sections": [
+                        {
+                            "id": "price_factors",
+                            "items": [
+                                {
+                                    "label": "legacy price factor",
+                                    "category": "delivery",
+                                    "severity": "high",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            },
+            "product_profiles": [
+                {
+                    "product_name": "Fuel",
+                    "quantity": 10,
+                    "raw_payload": {"economics": {"unit_cost": 1000, "logistics_cost": 1000}},
+                }
+            ],
+        }
+    )
+
+    assert [driver["label"] for driver in summary["analysis_cost_drivers"]] == [
+        "национальный режим",
+        "срочная поставка",
+    ]
+    assert summary["analysis_cost_drivers"][0] == {
+        "label": "национальный режим",
+        "category": "national_regime",
+        "severity": "high",
+        "source": "ТЗ.docx",
+        "impact": "Проверить документы происхождения товара.",
+        "reserve_hint_percent": 2.0,
+    }
+    assert summary["analysis_cost_drivers"][1]["source"] == "Контракт.pdf"
+    assert summary["analysis_reserve_hint"] == {
+        "driver_count": 2,
+        "level": "high",
+        "rate_percent": 3.0,
+    }
+
+
 def test_build_economics_summary_applies_position_assumptions():
     summary = build_economics_summary(
         {

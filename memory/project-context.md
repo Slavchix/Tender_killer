@@ -912,3 +912,15 @@ Date: 2026-05-29.
 - The React economics workspace now exposes a `Лучшие цены в расчет` button in the full-screen economics header, so many-position tenders can fill reviewed supplier prices without clicking each row.
 - The refreshed tender payload includes `supplier_selection` counts plus recalculated economics and backend decision, so the card/list/dashboard can immediately reflect the new status.
 - Full verification after bulk supplier price selection: `421 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-bulk-best`.
+
+## Analysis facts economics benchmark checkpoint
+
+Date: 2026-06-01.
+
+- `build_economics_summary(...)` now reads `analysis.analysis_facts` v1 before `analysis.tz_passport` and legacy `operator_view`.
+- Only facts marked `is_blocker` or `is_price_factor` become `analysis_cost_drivers`, preserving supplier-document facts for analysis UI while keeping economics focused on decision/price impact.
+- Fact-backed cost drivers keep label, category, severity, source document, impact, and reserve hint, so the same backend fact contract can drive the analysis workspace, economics reserve hint, and future agents.
+- Rule-based analysis now recognizes `регистрационное удостоверение` / Росздравнадзор and `срок годности` as explicit requirements for pre-agent medical/regulated goods checks.
+- Added `tests/test_analysis_benchmark.py` as a small benchmark suite with real-ish cases: medical goods, known noise-only text, and service/SRO work.
+- Targeted verification after this checkpoint: `28 passed` for economics, analysis benchmark, analysis, facts, and operator view tests.
+- Full verification after this checkpoint: `449 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-economics-benchmark`.

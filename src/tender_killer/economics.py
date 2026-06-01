@@ -423,6 +423,9 @@ def _risk_types(profiles: list[dict[str, Any]]) -> list[str]:
 def _analysis_cost_drivers(analysis: Any) -> list[dict[str, Any]]:
     if not isinstance(analysis, dict):
         return []
+    fact_drivers = _analysis_fact_cost_drivers(analysis)
+    if fact_drivers:
+        return fact_drivers
     sections = _analysis_cost_driver_sections(analysis)
     if not sections:
         return []
@@ -453,6 +456,40 @@ def _analysis_cost_drivers(analysis: Any) -> list[dict[str, Any]]:
                     "reserve_hint_percent": _analysis_driver_reserve_hint(severity),
                 }
             )
+    return drivers
+
+
+def _analysis_fact_cost_drivers(analysis: dict[str, Any]) -> list[dict[str, Any]]:
+    facts = analysis.get("analysis_facts")
+    fact_items = facts.get("items") if isinstance(facts, dict) and facts.get("version") == 1 else None
+    if not isinstance(fact_items, list):
+        return []
+
+    drivers: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in fact_items:
+        if not isinstance(item, dict) or not item.get("label"):
+            continue
+        if not item.get("is_blocker") and not item.get("is_price_factor"):
+            continue
+        category = str(item.get("category") or "general")
+        severity = str(item.get("severity") or "medium")
+        if category not in ANALYSIS_COST_DRIVER_CATEGORIES and severity != "high":
+            continue
+        key = (str(item["label"]), category)
+        if key in seen:
+            continue
+        seen.add(key)
+        drivers.append(
+            {
+                "label": str(item["label"]),
+                "category": category,
+                "severity": severity,
+                "source": str(item.get("document_name") or item.get("source") or ""),
+                "impact": str(item.get("impact") or item.get("fragment") or ""),
+                "reserve_hint_percent": _analysis_driver_reserve_hint(severity),
+            }
+        )
     return drivers
 
 

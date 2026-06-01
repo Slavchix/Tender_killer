@@ -25,7 +25,9 @@ class TenderAnalysisResult:
 
 RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("requirements", "сертификат/декларация", ("сертификат", "деклараци")),
+    ("requirements", "регистрационное удостоверение", ("регистрационное удостоверение", "росздравнадзор")),
     ("requirements", "паспорт качества", ("паспорт качества",)),
+    ("requirements", "срок годности", ("срок годности", "остаточный срок годности", "годности товара")),
     ("requirements", "срок поставки", ("срок постав",)),
     ("requirements", "приемка через ЕИС", ("приемка", "еис")),
     ("requirements", "ГОСТ/ТУ", ("гост", "технические условия", " ту ")),
@@ -44,7 +46,9 @@ RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 
 RULE_METADATA: dict[str, tuple[str, str]] = {
     "сертификат/декларация": ("documents", "medium"),
+    "регистрационное удостоверение": ("documents", "medium"),
     "паспорт качества": ("documents", "medium"),
+    "срок годности": ("standards", "medium"),
     "срок поставки": ("delivery", "medium"),
     "приемка через ЕИС": ("acceptance", "medium"),
     "ГОСТ/ТУ": ("standards", "medium"),
