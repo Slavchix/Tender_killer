@@ -1996,6 +1996,8 @@ textarea:focus {
 
 .analysis-decision-head,
 .analysis-reason-list,
+.analysis-action-plan,
+.analysis-document-state,
 .analysis-decision-actions {
   min-width: 0;
 }
@@ -2042,6 +2044,74 @@ textarea:focus {
   color: #dbe8e2;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.analysis-action-plan {
+  display: grid;
+  grid-column: 1 / 3;
+  gap: 8px;
+}
+
+.analysis-action-plan > span,
+.analysis-document-state span {
+  color: #9bb2aa;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.analysis-action-card {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 10px;
+  text-align: left;
+  background: #1e2c27;
+  border: 1px solid #3b5148;
+  border-radius: 7px;
+}
+
+.analysis-action-card:hover {
+  border-color: #70df64;
+}
+
+.analysis-action-card strong,
+.analysis-action-card em,
+.analysis-action-card small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.analysis-action-card strong {
+  color: #eef8f2;
+}
+
+.analysis-action-card em,
+.analysis-action-card small {
+  color: #b9cdc5;
+  font-style: normal;
+}
+
+.analysis-document-state {
+  display: grid;
+  grid-column: 1 / 3;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 10px;
+  background: #15221e;
+  border: 1px solid #33443d;
+  border-radius: 7px;
+}
+
+.analysis-document-state strong {
+  color: #eef8f2;
+  font-size: 18px;
+}
+
+.analysis-document-state p {
+  margin: 0;
+  color: #b9cdc5;
+  overflow-wrap: anywhere;
 }
 
 .analysis-decision-actions {

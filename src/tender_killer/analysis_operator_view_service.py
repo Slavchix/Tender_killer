@@ -18,9 +18,10 @@ def build_analysis_operator_view(
     if not isinstance(analysis, dict):
         return _pending_view(document_rows)
 
+    document_state = _document_state(document_rows)
     facts_contract = _analysis_facts(analysis.get("analysis_facts"))
     if facts_contract is not None:
-        return _facts_view(analysis, document_rows, facts_contract)
+        return _facts_view(analysis, document_rows, facts_contract, document_state)
 
     checklist = _checklist_items(analysis.get("checklist"))
     requirements = _text_list(analysis.get("requirements"))
@@ -37,9 +38,19 @@ def build_analysis_operator_view(
         if item["category"] in PRICE_FACTOR_CATEGORIES
     ]
     document_items = [_document_item(document, index) for index, document in enumerate(document_rows)]
+    action_plan = _action_plan(
+        blockers=blockers,
+        requirements=requirement_items,
+        execution_terms=execution_term_items,
+        price_factors=price_factor_items,
+        manual_review=[],
+        document_state=document_state,
+    )
 
     return {
         "version": 2,
+        "document_state": document_state,
+        "action_plan": action_plan,
         "decision_brief": _decision_brief(
             analysis=analysis,
             blockers=blockers,
@@ -102,6 +113,7 @@ def _facts_view(
     analysis: dict[str, Any],
     documents: list[dict[str, Any]],
     facts_contract: dict[str, Any],
+    document_state: dict[str, Any],
 ) -> dict[str, Any]:
     facts = _fact_items(facts_contract.get("items"))
     document_items = [_document_item(document, index) for index, document in enumerate(documents)]
@@ -116,6 +128,14 @@ def _facts_view(
     manual_review = _sort_operator_items([item for item in facts if item.get("needs_review")])
     evidence = [item for item in facts if item.get("fragment")]
     fact_metrics = facts_contract.get("metrics") if isinstance(facts_contract.get("metrics"), dict) else {}
+    action_plan = _action_plan(
+        blockers=blockers,
+        requirements=requirements,
+        execution_terms=execution_terms,
+        price_factors=price_factors,
+        manual_review=manual_review,
+        document_state=document_state,
+    )
 
     metrics = {
         "requirements": len(requirements),
@@ -132,6 +152,8 @@ def _facts_view(
 
     return {
         "version": 2,
+        "document_state": document_state,
+        "action_plan": action_plan,
         "decision_brief": _decision_brief(
             analysis=analysis,
             blockers=blockers,
@@ -190,8 +212,18 @@ def _facts_view(
 
 def _pending_view(documents: list[dict[str, Any]]) -> dict[str, Any]:
     document_items = [_document_item(document, index) for index, document in enumerate(documents)]
+    document_state = _document_state(documents)
     return {
         "version": 2,
+        "document_state": document_state,
+        "action_plan": _action_plan(
+            blockers=[],
+            requirements=[],
+            execution_terms=[],
+            price_factors=[],
+            manual_review=[],
+            document_state=document_state,
+        ),
         "decision_brief": {
             "status": "pending",
             "tone": "pending",
@@ -399,6 +431,131 @@ def _document_description(status: str) -> str:
     if status == "pending":
         return "Документ еще нужно скачать или извлечь текст."
     return "Документ требует внимания перед анализом."
+
+
+def _document_state(documents: list[dict[str, Any]]) -> dict[str, Any]:
+    total = len(documents)
+    downloaded = sum(1 for document in documents if document.get("local_path"))
+    text_ready = sum(1 for document in documents if document.get("text_status") == "ok")
+    missing_download = sum(1 for document in documents if not document.get("local_path"))
+    missing_text = total - text_ready
+    attention = missing_text
+    if total == 0:
+        status = "no_documents"
+        summary = "Документы по закупке пока не найдены."
+        next_step = "Обновить карточку закупки или открыть источник."
+    elif text_ready == total:
+        status = "ready"
+        summary = "Текст извлечен по всем документам."
+        next_step = "Переходить к анализу фактов и экономике."
+    elif downloaded == 0:
+        status = "needs_download"
+        summary = "Документы нужно скачать перед анализом."
+        next_step = "Скачать документы и извлечь текст."
+    else:
+        status = "needs_text"
+        summary = "Текст извлечен не по всем документам."
+        next_step = "Извлечь текст и проверить проблемные файлы."
+    return {
+        "status": status,
+        "summary": summary,
+        "next_step": next_step,
+        "total": total,
+        "downloaded": downloaded,
+        "text_ready": text_ready,
+        "attention": attention,
+        "missing_download": missing_download,
+        "missing_text": missing_text,
+    }
+
+
+def _action_plan(
+    *,
+    blockers: list[dict[str, Any]],
+    requirements: list[dict[str, Any]],
+    execution_terms: list[dict[str, Any]],
+    price_factors: list[dict[str, Any]],
+    manual_review: list[dict[str, Any]],
+    document_state: dict[str, Any],
+) -> list[dict[str, Any]]:
+    plan: list[dict[str, Any]] = []
+    if manual_review:
+        plan.append(
+            _action_plan_item(
+                "manual_review",
+                "Проверить вручную",
+                "manual_review",
+                "Сверить непривязанные факты с документами.",
+                manual_review,
+            )
+        )
+    if blockers:
+        plan.append(
+            _action_plan_item(
+                "blockers",
+                "Проверить блокеры",
+                "manual_review",
+                "Проверить допустимость участия до расчета.",
+                blockers,
+            )
+        )
+    if price_factors or execution_terms:
+        plan.append(
+            _action_plan_item(
+                "price_factors",
+                "Заложить в экономику",
+                "needs_price_review",
+                "Учесть в сроках, резерве и стоп-цене.",
+                price_factors or execution_terms,
+            )
+        )
+    if not blockers and requirements:
+        plan.append(
+            _action_plan_item(
+                "requirements",
+                "Подготовить документы",
+                "needs_preparation",
+                "Собрать подтверждения и ответы по требованиям ТЗ.",
+                requirements,
+            )
+        )
+    if document_state.get("status") != "ready":
+        plan.append(
+            {
+                "id": "documents",
+                "title": "Подготовить документы",
+                "status": document_state.get("status"),
+                "next_step": document_state.get("next_step"),
+                "items": [document_state.get("summary")],
+            }
+        )
+    if not plan:
+        plan.append(
+            {
+                "id": "economics",
+                "title": "Переходить к экономике",
+                "status": "ready",
+                "next_step": "Проверить себестоимость, поставщиков и стоп-цену.",
+                "items": [],
+            }
+        )
+    return plan[:4]
+
+
+def _action_plan_item(
+    item_id: str,
+    title: str,
+    status: str,
+    next_step: str,
+    items: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "id": item_id,
+        "title": title,
+        "status": status,
+        "next_step": next_step,
+        "items": [str(item.get("label") or "").strip() for item in items[:3] if str(item.get("label") or "").strip()],
+    }
 
 
 def _analysis_facts(value: Any) -> dict[str, Any] | None:

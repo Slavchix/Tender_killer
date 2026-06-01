@@ -258,6 +258,92 @@ def test_build_analysis_operator_view_groups_analysis_facts_into_operator_blocks
     assert sections["manual_review"]["items"][0]["source"] == "Документ не привязан"
 
 
+def test_build_analysis_operator_view_builds_decision_action_plan_and_document_state():
+    analysis = {
+        "summary": "Supply office paper.",
+        "confidence": 0.81,
+        "analysis_facts": {
+            "version": 1,
+            "metrics": {"total": 4, "blockers": 1, "price_factors": 1, "unbound": 0},
+            "items": [
+                {
+                    "id": "blocker:national-regime",
+                    "kind": "blocker",
+                    "label": "национальный режим",
+                    "value": "страна происхождения товара",
+                    "category": "national_regime",
+                    "severity": "high",
+                    "document_name": "spec.docx",
+                    "fragment": "Указывается страна происхождения товара.",
+                    "operator_group": "blocker",
+                    "operator_action": "Проверить допустимость участия до расчета.",
+                    "price_impact": "compliance",
+                    "priority": 90,
+                    "is_blocker": True,
+                    "is_price_factor": False,
+                },
+                {
+                    "id": "execution_term:delivery",
+                    "kind": "execution_term",
+                    "label": "Срок поставки",
+                    "value": "5 рабочих дней",
+                    "category": "delivery",
+                    "severity": "medium",
+                    "document_name": "contract.docx",
+                    "fragment": "Срок поставки 5 рабочих дней.",
+                    "operator_group": "execution",
+                    "operator_action": "Проверить срок исполнения и заложить логистику.",
+                    "price_impact": "logistics",
+                    "priority": 60,
+                    "is_blocker": False,
+                    "is_price_factor": True,
+                },
+                {
+                    "id": "supplier_document:certificate",
+                    "kind": "supplier_document",
+                    "label": "сертификат/декларация",
+                    "value": "сертификат соответствия",
+                    "category": "documents",
+                    "severity": "medium",
+                    "document_name": "spec.docx",
+                    "fragment": "Поставщик предоставляет сертификат.",
+                    "operator_group": "prepare",
+                    "operator_action": "Подготовить подтверждающие документы.",
+                    "price_impact": "documents",
+                    "priority": 50,
+                    "is_blocker": False,
+                    "is_price_factor": False,
+                },
+            ],
+        },
+    }
+    documents = [
+        {"name": "spec.docx", "local_path": "data/spec.docx", "text_status": "ok", "text_content": "text"},
+        {"name": "contract.pdf", "local_path": "data/contract.pdf", "text_status": "empty"},
+        {"name": "appendix.docx", "text_status": "pending"},
+    ]
+
+    view = build_analysis_operator_view(analysis, documents)
+
+    assert view["document_state"] == {
+        "status": "needs_text",
+        "summary": "Текст извлечен не по всем документам.",
+        "next_step": "Извлечь текст и проверить проблемные файлы.",
+        "total": 3,
+        "downloaded": 2,
+        "text_ready": 1,
+        "attention": 2,
+        "missing_download": 1,
+        "missing_text": 2,
+    }
+    assert [item["id"] for item in view["action_plan"]] == ["blockers", "price_factors", "documents"]
+    assert view["action_plan"][0]["title"] == "Проверить блокеры"
+    assert view["action_plan"][0]["items"] == ["национальный режим"]
+    assert view["action_plan"][1]["title"] == "Заложить в экономику"
+    assert view["action_plan"][1]["items"] == ["Срок поставки"]
+    assert view["action_plan"][2]["status"] == "needs_text"
+
+
 def test_build_analysis_operator_view_returns_pending_contract_without_analysis():
     view = build_analysis_operator_view(None, [{"name": "Spec.docx", "text_status": "pending"}])
 

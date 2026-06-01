@@ -172,6 +172,7 @@ def _tender_decision_elements(decision: Any) -> list[DocxElement]:
 
 def _analysis_decision_elements(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[DocxElement]:
     decision = _analysis_decision(analysis, documents)
+    operator_view = _analysis_operator_view(analysis, documents)
     elements = [
         _table(
             [
@@ -184,7 +185,51 @@ def _analysis_decision_elements(analysis: dict[str, Any], documents: list[dict[s
     if decision["reasons"]:
         elements.append(_p("Ключевые причины", "heading2"))
         elements.extend(_list_elements(decision["reasons"][:3]))
+    elements.extend(_analysis_action_plan_elements(operator_view))
+    elements.extend(_analysis_document_state_elements(operator_view, documents))
     return elements
+
+
+def _analysis_action_plan_elements(operator_view: dict[str, Any]) -> list[DocxElement]:
+    action_plan = operator_view.get("action_plan") if isinstance(operator_view, dict) else None
+    if not isinstance(action_plan, list) or not action_plan:
+        return []
+    rows: list[list[Any]] = [["Шаг", "Что сделать", "Пункты"]]
+    for item in action_plan[:4]:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            [
+                _value(item.get("title")),
+                _value(item.get("next_step")),
+                ", ".join(_text_list(item.get("items"))[:3]),
+            ]
+        )
+    if len(rows) <= 1:
+        return []
+    return [_p("План проверки ТЗ", "heading2"), _table(rows)]
+
+
+def _analysis_document_state_elements(
+    operator_view: dict[str, Any],
+    documents: list[dict[str, Any]],
+) -> list[DocxElement]:
+    state = operator_view.get("document_state") if isinstance(operator_view, dict) else None
+    if not isinstance(state, dict):
+        return []
+    problem_documents = [
+        _value(document.get("name") or document.get("url"))
+        for document in documents
+        if document.get("text_status") != "ok"
+    ]
+    rows = [
+        ["Статус", _value(state.get("summary"))],
+        ["Тексты", f"{_value(state.get('text_ready'), '0')}/{_value(state.get('total'), '0')}"],
+        ["Следующий шаг", _value(state.get("next_step"))],
+    ]
+    if problem_documents:
+        rows.append(["Проверить файлы", ", ".join(problem_documents[:3])])
+    return [_p("Состояние документов", "heading2"), _table(rows)]
 
 
 def _analysis_operator_sections_elements(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[DocxElement]:

@@ -11,9 +11,10 @@ export function AnalysisSummary({ analysis, documents = [] }) {
   const requirementsCount = operatorMetrics?.requirements ?? analysis?.requirements?.length ?? 0
   const risksCount = operatorMetrics?.risks ?? ((analysis?.risks?.length || 0) + (analysis?.red_flags?.length || 0))
   const checklistCount = operatorMetrics?.checklist ?? analysis?.checklist?.length ?? 0
+  const documentState = operatorView?.document_state
   const documentCounts = documentStatusCounts(documents)
-  const readyDocuments = operatorMetrics?.documents_ready ?? documentCounts.ok
-  const totalDocuments = operatorMetrics?.documents_total ?? documents.length
+  const readyDocuments = documentState?.text_ready ?? operatorMetrics?.documents_ready ?? documentCounts.ok
+  const totalDocuments = documentState?.total ?? operatorMetrics?.documents_total ?? documents.length
 
   return (
     <div className="analysis-tab-summary tab-summary-grid" aria-label="Сводка анализа ТЗ">

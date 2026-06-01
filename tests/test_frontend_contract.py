@@ -483,6 +483,9 @@ def test_frontend_analysis_reads_backend_operator_view_contract():
     assert "analysis?.operator_view" in analysis_sections_source
     assert "analysis?.operator_view" in analysis_decision_source
     assert "decision_brief" in analysis_decision_source
+    assert "operatorView?.action_plan" in analysis_decision_source
+    assert "operatorView?.document_state" in analysis_decision_source
+    assert "documentState?.text_ready" in analysis_summary_source
     assert "operatorView?.sections" in analysis_sections_source
     assert "operatorView?.metrics" in analysis_summary_source
     assert "buildAnalysisDecision" not in analysis_decision_source

@@ -291,6 +291,70 @@ def test_build_tender_report_docx_uses_operator_analysis_contract():
     assert "contract security" not in document_xml
 
 
+def test_build_tender_report_docx_renders_operator_action_plan_and_document_state():
+    payload = {
+        "source": "mosreg_market",
+        "external_id": "3675299",
+        "title": "Поставка оборудования",
+        "document_records": [
+            {"name": "ТЗ.docx", "local_path": "data/tz.docx", "text_status": "ok", "text_content": "text"},
+            {"name": "Контракт.pdf", "local_path": "data/contract.pdf", "text_status": "empty"},
+        ],
+        "analysis": {
+            "summary": "Поставка оборудования.",
+            "operator_view": {
+                "version": 2,
+                "decision_brief": {
+                    "title": "Нужна ручная проверка",
+                    "summary": "Есть блокеры и условия для экономики.",
+                    "reasons": ["национальный режим", "Срок поставки"],
+                },
+                "document_state": {
+                    "status": "needs_text",
+                    "summary": "Текст извлечен не по всем документам.",
+                    "next_step": "Извлечь текст и проверить проблемные файлы.",
+                    "total": 2,
+                    "downloaded": 2,
+                    "text_ready": 1,
+                    "attention": 1,
+                    "missing_download": 0,
+                    "missing_text": 1,
+                },
+                "action_plan": [
+                    {
+                        "id": "blockers",
+                        "title": "Проверить блокеры",
+                        "status": "manual_review",
+                        "next_step": "Проверить допустимость участия до расчета.",
+                        "items": ["национальный режим"],
+                    },
+                    {
+                        "id": "price_factors",
+                        "title": "Заложить в экономику",
+                        "status": "needs_price_review",
+                        "next_step": "Учесть в сроках, резерве и стоп-цене.",
+                        "items": ["Срок поставки"],
+                    },
+                ],
+                "sections": [],
+            },
+        },
+    }
+
+    content = build_tender_report_docx(payload)
+    document_xml = _document_xml(content)
+
+    assert "План проверки ТЗ" in document_xml
+    assert "Проверить блокеры" in document_xml
+    assert "Проверить допустимость участия до расчета." in document_xml
+    assert "Заложить в экономику" in document_xml
+    assert "Состояние документов" in document_xml
+    assert "Текст извлечен не по всем документам." in document_xml
+    assert "1/2" in document_xml
+    assert "Контракт.pdf" in document_xml
+    assert "Очень длинный извлеченный текст" not in document_xml
+
+
 def test_build_tender_report_docx_renders_tz_passport_before_raw_analysis():
     payload = {
         "source": "moscow_supplier_portal",

@@ -949,3 +949,15 @@ Date: 2026-06-01.
 - Fact dedupe now keeps different facts from the same sentence, such as `эквивалент` and `совместимость`, while still collapsing near-duplicate execution/checklist facts like `Обеспечение исполнения` versus `обеспечение исполнения контракта`.
 - Targeted verification after this checkpoint: `43 passed` for analysis, benchmark, facts, operator view, analysis service, query, and economics tests.
 - Full verification after this checkpoint: `452 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-domain-rules`.
+
+## Analysis decision workflow checkpoint
+
+Date: 2026-06-01.
+
+- `build_analysis_operator_view(...)` now returns `document_state` with document readiness counts, status, summary, and next step.
+- `build_analysis_operator_view(...)` also returns `action_plan`, a compact ordered workflow built from manual-review facts, blockers, price factors/execution terms, requirements, and document readiness.
+- The React analysis decision brief renders the backend action plan as compact cards and shows the backend document state summary; `AnalysisSummary` uses `document_state.text_ready/total` when available.
+- Word reports now include `План проверки ТЗ` and `Состояние документов`, using the same backend `operator_view` contract instead of raw extracted text or long checklist sections.
+- Targeted verification after this checkpoint: `135 passed` for analysis, reports, frontend contract, detail/query, and related tests.
+- Vite build verification after this checkpoint: direct bundled Node invocation of `node_modules\vite\bin\vite.js build` completed successfully.
+- Full verification after this checkpoint: `454 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-decision-workflow`.
