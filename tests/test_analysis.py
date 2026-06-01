@@ -105,6 +105,24 @@ def test_analyze_tender_texts_flags_registry_and_quality_documents():
     assert "национальный режим/страна происхождения" in result.red_flags
 
 
+def test_analyze_tender_texts_ignores_short_delivery_and_license_noise():
+    result = analyze_tender_texts(
+        [
+            """
+            Техническое задание: поставка учебных материалов.
+            Срок хранения документов и конфиденциальность действуют в течение 3 лет.
+            Пользователь принимает условия лицензионного соглашения производителя.
+            """
+        ]
+    )
+
+    labels = [item["label"] for item in result.checklist]
+    assert "короткий срок поставки" not in result.risks
+    assert "короткий срок поставки" not in labels
+    assert "лицензия/СРО" not in result.red_flags
+    assert "лицензия/СРО" not in labels
+
+
 def test_analyze_tender_texts_extracts_execution_terms_for_operator_view():
     result = analyze_tender_texts(
         [

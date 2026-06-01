@@ -18,6 +18,10 @@ def build_analysis_operator_view(
     if not isinstance(analysis, dict):
         return _pending_view(document_rows)
 
+    facts_contract = _analysis_facts(analysis.get("analysis_facts"))
+    if facts_contract is not None:
+        return _facts_view(analysis, document_rows, facts_contract)
+
     checklist = _checklist_items(analysis.get("checklist"))
     requirements = _text_list(analysis.get("requirements"))
     risks = _text_list(analysis.get("risks"))
@@ -88,6 +92,96 @@ def build_analysis_operator_view(
                 "evidence",
                 "Доказательства",
                 [_evidence_item(item, index) for index, item in enumerate(evidence_items)],
+                "Фрагменты из документов появятся после анализа.",
+            ),
+        ],
+    }
+
+
+def _facts_view(
+    analysis: dict[str, Any],
+    documents: list[dict[str, Any]],
+    facts_contract: dict[str, Any],
+) -> dict[str, Any]:
+    facts = _fact_items(facts_contract.get("items"))
+    document_items = [_document_item(document, index) for index, document in enumerate(documents)]
+    blockers = [item for item in facts if item.get("kind") != "subject" and item.get("is_blocker")]
+    requirements = [
+        item
+        for item in facts
+        if item.get("kind") in {"supplier_document", "requirement"} and not item.get("is_blocker")
+    ]
+    execution_terms = [item for item in facts if item.get("kind") == "execution_term"]
+    price_factors = [item for item in facts if item.get("is_price_factor")]
+    manual_review = [item for item in facts if item.get("needs_review")]
+    evidence = [item for item in facts if item.get("fragment")]
+    fact_metrics = facts_contract.get("metrics") if isinstance(facts_contract.get("metrics"), dict) else {}
+
+    metrics = {
+        "requirements": len(requirements),
+        "risks": len(blockers),
+        "blockers": len(blockers),
+        "checklist": len(_checklist_items(analysis.get("checklist"))),
+        "execution_terms": len(execution_terms),
+        "evidence": len(evidence),
+        "documents_ready": sum(1 for document in documents if document.get("text_status") == "ok"),
+        "documents_total": len(documents),
+        "facts": len(facts),
+        "unbound_facts": _int_metric(fact_metrics.get("unbound"), len(manual_review)),
+    }
+
+    return {
+        "version": 2,
+        "decision_brief": _decision_brief(
+            analysis=analysis,
+            blockers=blockers,
+            requirements=requirements,
+            risks=[],
+        ),
+        "metrics": metrics,
+        "sections": [
+            _section(
+                "blockers",
+                "Блокеры участия",
+                blockers,
+                "Критичных блокеров в ТЗ не найдено.",
+                tone="danger" if blockers else "ok",
+            ),
+            _section(
+                "requirements",
+                "Что подготовить",
+                requirements,
+                "Явные документы и требования поставщика пока не найдены.",
+            ),
+            _section(
+                "execution_terms",
+                "Исполнение договора",
+                execution_terms,
+                "Сроки, оплата, гарантия и обеспечение пока не найдены.",
+            ),
+            _section(
+                "price_factors",
+                "Влияние на цену",
+                price_factors,
+                "Условий, которые прямо влияют на цену, пока не найдено.",
+            ),
+            _section(
+                "manual_review",
+                "Проверить руками",
+                manual_review,
+                "Непривязанных или сомнительных фрагментов нет.",
+                tone="review" if manual_review else "ok",
+            ),
+            _section(
+                "documents",
+                "Документы",
+                document_items,
+                "Документы по закупке пока не загружены.",
+            ),
+            _section(
+                "evidence",
+                "Доказательства",
+                evidence,
                 "Фрагменты из документов появятся после анализа.",
             ),
         ],
@@ -307,6 +401,41 @@ def _document_description(status: str) -> str:
     return "Документ требует внимания перед анализом."
 
 
+def _analysis_facts(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, dict) and value.get("version") == 1:
+        return value
+    return None
+
+
+def _fact_items(value: Any) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for index, raw_item in enumerate(value if isinstance(value, list) else []):
+        if not isinstance(raw_item, dict) or not raw_item.get("label"):
+            continue
+        items.append(_fact_item(raw_item, index))
+    return items
+
+
+def _fact_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
+    label = str(raw_item.get("label") or f"Факт {index + 1}")
+    return {
+        "id": str(raw_item.get("id") or f"fact:{index + 1}"),
+        "type": str(raw_item.get("kind") or "fact"),
+        "kind": str(raw_item.get("kind") or "fact"),
+        "label": label,
+        "category": str(raw_item.get("category") or "general"),
+        "severity": str(raw_item.get("severity") or "medium"),
+        "description": str(raw_item.get("value") or raw_item.get("fragment") or ""),
+        "source": str(raw_item.get("document_name") or raw_item.get("source") or ""),
+        "impact": str(raw_item.get("impact") or ""),
+        "fragment": str(raw_item.get("fragment") or ""),
+        "rule_id": str(raw_item.get("rule_id") or ""),
+        "is_blocker": bool(raw_item.get("is_blocker")),
+        "is_price_factor": bool(raw_item.get("is_price_factor")),
+        "needs_review": bool(raw_item.get("needs_review")),
+    }
+
+
 def _checklist_items(value: Any) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for raw_item in value if isinstance(value, list) else []:
@@ -373,3 +502,10 @@ def _number_or_none(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number
+
+
+def _int_metric(value: Any, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback

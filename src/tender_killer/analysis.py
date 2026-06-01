@@ -131,7 +131,6 @@ def analyze_tender_texts(texts: list[str]) -> TenderAnalysisResult:
             matches={"missing_text": []},
         )
 
-    lower_text = text.lower()
     requirements: list[str] = []
     risks: list[str] = []
     red_flags: list[str] = []
@@ -140,11 +139,11 @@ def analyze_tender_texts(texts: list[str]) -> TenderAnalysisResult:
     execution_terms = _execution_terms_from_text(text)
 
     for bucket, label, needles in RULES:
-        found = [needle for needle in needles if needle in lower_text]
-        if not found:
+        evidence, found = _rule_evidence(text, label, needles)
+        if not evidence:
             continue
         matches[label] = found
-        _append_checklist_item(checklist, label, _evidence_for_needles(text, found))
+        _append_checklist_item(checklist, label, evidence)
         if bucket == "requirements":
             _append_unique(requirements, label)
         elif bucket == "risks":
@@ -246,6 +245,33 @@ def _evidence_for_needles(text: str, needles: list[str]) -> str:
         if any(needle in normalized for needle in lower_needles):
             return _trim(sentence, 260)
     return ""
+
+
+def _rule_evidence(text: str, label: str, needles: tuple[str, ...]) -> tuple[str, list[str]]:
+    lower_needles = [needle.casefold() for needle in needles]
+    for sentence in _sentences(text):
+        normalized = sentence.casefold()
+        found = [needle for needle in lower_needles if needle in normalized]
+        if found and _sentence_allowed_for_label(label, normalized):
+            return _trim(sentence, 260), found
+    return "", []
+
+
+def _sentence_allowed_for_label(label: str, normalized_sentence: str) -> bool:
+    if label == "короткий срок поставки":
+        if any(noise in normalized_sentence for noise in ("хранени", "конфиденциаль", "архив", "документ")):
+            return False
+        return any(context in normalized_sentence for context in ("постав", "товар", "работ", "услуг", "исполн"))
+    if label == "лицензия/СРО":
+        if "лицензионн" in normalized_sentence:
+            return False
+        if any(context in normalized_sentence for context in ("сро", "саморегулируем")):
+            return True
+        return "лиценз" in normalized_sentence and any(
+            context in normalized_sentence
+            for context in ("налич", "предостав", "треб", "участник", "поставщик", "исполнитель")
+        )
+    return True
 
 
 def _sentences(text: str) -> list[str]:

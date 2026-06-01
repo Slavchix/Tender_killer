@@ -93,8 +93,11 @@ Recent architecture cleanup:
 - TZ analysis now also emits `analysis.execution_terms`: normalized delivery, payment, advance, warranty, contract security, and penalty conditions. `operator_view` surfaces them as the dedicated `Условия исполнения` section between requirements and price factors, giving the operator a faster route from documents to economics.
 - Analysis runs bind checklist evidence and execution terms back to the source document when the fragment can be matched to extracted document text, so multi-document tenders can show whether a condition came from the ТЗ, contract draft, or another file.
 - Analysis runs now build `analysis.tz_passport`, a compact backend-owned ТЗ passport with subject, execution terms, supplier documents/compliance, blockers, and price factors. The full-screen analysis workspace renders this passport above the detailed evidence workspace.
+- Analysis runs now also build `analysis.analysis_facts` v1, a single fact layer for subject, supplier-document requirements, execution terms, blockers, and price factors. Every actionable fact carries rule id, document binding, evidence fragment, confidence, and operator impact.
+- Operator analysis sections now prefer `analysis.analysis_facts` when present, grouping the same facts into `Блокеры участия`, `Что подготовить`, `Исполнение договора`, `Влияние на цену`, and `Проверить руками`.
+- Rule-based analysis now applies context filters for noisy matches such as storage/confidentiality terms that mention `в течение 3 лет` and licensing-agreement text that is not a supplier license/SRO requirement.
 - Economics now reads `analysis.tz_passport` blockers and price factors before falling back to `operator_view`, so delivery, security, payment, and compliance conditions can influence the reserve hint and participation decision.
-- Word reports now render the ТЗ passport near the top of the document, before raw analysis sections, with each condition tied to source and expected economic impact.
+- Word reports now use one compact operator report mode: ТЗ passport, decision, documents, positions, and economics summary stay in Word, while raw analysis sections, long extracted text, search phrases, and full product-profile detail stay on the site.
 - Decision Engine now reads ТЗ passport blockers and price factors as decision inputs, so the tender card/list/dashboard status follows the same analysis contract as the full-screen workspace.
 
 Current verification command:
@@ -103,7 +106,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after TZ passport decision wiring: `440 passed`.
+Latest full verified result after operator blocks and anti-noise rules: `445 passed`.
 
 Good next steps:
 
@@ -135,8 +138,9 @@ Previous next steps:
 - Подготовка анализа в сайте собрана внутри `Анализ ТЗ`: кнопка `Подготовить анализ` запускает скачивание документов, извлечение текста и rule-based анализ одной цепочкой; ручные кнопки документов остаются там же для диагностики.
 - Первый rule-based анализ ТЗ: требования, риски, красные флаги, национальный режим/1875, сертификаты, приемка, обеспечение, штрафы.
 - Анализ ТЗ отдельно выделяет условия исполнения (`analysis.execution_terms`): срок поставки, оплату, аванс, гарантию, обеспечение исполнения и штрафы/пени; в полноэкранном анализе они отображаются отдельной секцией `Условия исполнения`.
+- Анализ ТЗ сохраняет единый слой фактов `analysis.analysis_facts` v1: предмет, документы поставщика, условия исполнения, блокеры и факторы цены с привязкой к документу, фрагменту, rule id, уверенности и влиянию на решение.
 - Товарные профили в SQLite: один тендер может иметь 20-40 отдельных профилей, по одному на позицию закупки.
-- Word-отчет по закупке: паспорт, позиции, документы, выжимка ТЗ, товарные профили и заготовка под будущий расчет экономики.
+- Word-отчет по закупке теперь один и короткий: паспорт, позиции, документы, паспорт ТЗ, решение по анализу и компактная экономика без сырого текста, поисковых фраз и полного разворота товарных профилей.
 - CLI-команда `tender-killer` для dry-run и отладки.
 
 Важно: для МО подключен рабочий публичный endpoint `https://api.market.mosreg.ru/api/Trade/GetTradesForParticipantOrAnonymous`, документы добираются через `GET https://api.market.mosreg.ru/api/Trade/{Id}/GetTradeDocuments`. Для Москвы используется list endpoint `https://old.zakupki.mos.ru/api/Cssp/Purchase/Query`, а детальная карточка добирается через `https://zakupki.mos.ru/newapi/api/Auction/Get?auctionId=...`.

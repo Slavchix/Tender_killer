@@ -97,6 +97,19 @@ def test_tender_query_service_includes_operator_decision_for_dashboard_attention
         )
     )
     raw_payload = {
+        "analysis_facts": {
+            "version": 1,
+            "items": [
+                {
+                    "id": "blocker:certificate",
+                    "kind": "blocker",
+                    "label": "сертификат/декларация",
+                    "is_blocker": True,
+                    "is_price_factor": False,
+                }
+            ],
+            "metrics": {"total": 1, "blockers": 1, "price_factors": 0, "unbound": 0},
+        },
         "operator_view": {
             "version": 2,
             "decision_brief": {
@@ -139,6 +152,8 @@ def test_tender_query_service_includes_operator_decision_for_dashboard_attention
     item = payload["items"][0]
 
     assert item["analysis"]["operator_view"]["version"] == 2
+    assert item["analysis"]["analysis_facts"]["version"] == 1
+    assert item["analysis"]["analysis_facts"]["metrics"]["blockers"] == 1
     assert item["decision"]["status"] == "needs_review"
     assert item["decision"]["blockers"] == ["сертификат/декларация"]
 

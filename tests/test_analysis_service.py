@@ -62,11 +62,24 @@ def test_analyze_tender_payload_saves_structured_summary_from_extracted_text(tmp
     assert payload["analysis"]["evidence_items"][0]["type_label"] == "Документы"
     assert payload["analysis"]["evidence_items"][0]["document_name"] == "tz.docx"
     assert "Поставщик обязан предоставить сертификат" in payload["analysis"]["evidence_items"][0]["fragment"]
+    assert payload["analysis"]["analysis_facts"]["version"] == 1
+    assert payload["analysis"]["analysis_facts"]["metrics"]["blockers"] == 2
+    certificate_fact = next(
+        fact for fact in payload["analysis"]["analysis_facts"]["items"] if fact["label"] == "сертификат/декларация"
+    )
+    national_regime_fact = next(
+        fact for fact in payload["analysis"]["analysis_facts"]["items"] if fact["label"] == "национальный режим/страна происхождения"
+    )
+    assert certificate_fact["document_name"] == "tz.docx"
+    assert "Поставщик обязан предоставить сертификат" in certificate_fact["fragment"]
+    assert national_regime_fact["kind"] == "blocker"
+    assert national_regime_fact["is_blocker"] is True
 
     detail = get_tender_payload(store.database_path, "mosreg_market", "3668200")
     assert detail["analysis"]["summary"] == payload["analysis"]["summary"]
     assert detail["analysis"]["checklist"] == payload["analysis"]["checklist"]
     assert detail["analysis"]["evidence_items"] == payload["analysis"]["evidence_items"]
+    assert detail["analysis"]["analysis_facts"] == payload["analysis"]["analysis_facts"]
 
 
 def test_analyze_tender_payload_binds_execution_terms_to_source_documents(tmp_path):
@@ -143,3 +156,13 @@ def test_analyze_tender_payload_binds_execution_terms_to_source_documents(tmp_pa
     assert execution_section["items"][0]["source"] == "contract.docx"
     assert passport_sections["execution"]["items"][0]["source"] == "contract.docx"
     assert passport_sections["supplier_documents"]["items"][0]["source"] == "spec.docx"
+    delivery_fact = next(
+        fact for fact in payload["analysis"]["analysis_facts"]["items"] if fact["label"] == "Срок поставки"
+    )
+    security_fact = next(
+        fact for fact in payload["analysis"]["analysis_facts"]["items"] if fact["label"] == "Обеспечение исполнения"
+    )
+    assert delivery_fact["document_name"] == "contract.docx"
+    assert delivery_fact["is_price_factor"] is True
+    assert security_fact["document_name"] == "contract.docx"
+    assert security_fact["is_blocker"] is True

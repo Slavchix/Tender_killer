@@ -146,6 +146,100 @@ def test_build_analysis_operator_view_surfaces_execution_terms_between_core_sect
     assert execution_section["items"][1]["severity"] == "high"
 
 
+def test_build_analysis_operator_view_groups_analysis_facts_into_operator_blocks():
+    analysis = {
+        "summary": "Supply office paper.",
+        "confidence": 0.81,
+        "analysis_facts": {
+            "version": 1,
+            "metrics": {"total": 5, "blockers": 1, "price_factors": 1, "unbound": 1},
+            "items": [
+                {
+                    "id": "subject:paper",
+                    "kind": "subject",
+                    "label": "Предмет",
+                    "value": "Supply office paper.",
+                    "category": "subject",
+                    "severity": "medium",
+                },
+                {
+                    "id": "blocker:national-regime",
+                    "kind": "blocker",
+                    "label": "национальный режим",
+                    "value": "страна происхождения товара",
+                    "category": "national_regime",
+                    "severity": "high",
+                    "document_name": "spec.docx",
+                    "fragment": "Указывается страна происхождения товара.",
+                    "impact": "Проверить до участия.",
+                    "is_blocker": True,
+                    "is_price_factor": False,
+                },
+                {
+                    "id": "supplier_document:certificate",
+                    "kind": "supplier_document",
+                    "label": "сертификат/декларация",
+                    "value": "сертификат соответствия",
+                    "category": "documents",
+                    "severity": "medium",
+                    "document_name": "spec.docx",
+                    "fragment": "Поставщик предоставляет сертификат.",
+                    "impact": "Подготовить документ.",
+                    "is_blocker": False,
+                    "is_price_factor": False,
+                },
+                {
+                    "id": "execution_term:delivery",
+                    "kind": "execution_term",
+                    "label": "Срок поставки",
+                    "value": "5 рабочих дней",
+                    "category": "delivery",
+                    "severity": "medium",
+                    "document_name": "contract.docx",
+                    "fragment": "Срок поставки 5 рабочих дней.",
+                    "impact": "Учесть в логистике.",
+                    "is_blocker": False,
+                    "is_price_factor": True,
+                },
+                {
+                    "id": "requirement:license",
+                    "kind": "requirement",
+                    "label": "лицензия/СРО",
+                    "value": "Нужна лицензия на работы.",
+                    "category": "legal",
+                    "severity": "high",
+                    "document_name": "Документ не привязан",
+                    "fragment": "Нужна лицензия на работы.",
+                    "impact": "Проверить источник.",
+                    "needs_review": True,
+                    "is_blocker": True,
+                    "is_price_factor": False,
+                },
+            ],
+        },
+    }
+
+    view = build_analysis_operator_view(analysis, [])
+    sections = {section["id"]: section for section in view["sections"]}
+
+    assert view["decision_brief"]["primary_section"] == "blockers"
+    assert view["metrics"]["facts"] == 5
+    assert view["metrics"]["unbound_facts"] == 1
+    assert sections["blockers"]["title"] == "Блокеры участия"
+    assert sections["requirements"]["title"] == "Что подготовить"
+    assert sections["execution_terms"]["title"] == "Исполнение договора"
+    assert sections["price_factors"]["title"] == "Влияние на цену"
+    assert sections["manual_review"]["title"] == "Проверить руками"
+    assert [item["label"] for item in sections["blockers"]["items"]] == [
+        "национальный режим",
+        "лицензия/СРО",
+    ]
+    assert [item["label"] for item in sections["requirements"]["items"]] == ["сертификат/декларация"]
+    assert [item["label"] for item in sections["execution_terms"]["items"]] == ["Срок поставки"]
+    assert [item["label"] for item in sections["price_factors"]["items"]] == ["Срок поставки"]
+    assert sections["manual_review"]["items"][0]["source"] == "Документ не привязан"
+
+
 def test_build_analysis_operator_view_returns_pending_contract_without_analysis():
     view = build_analysis_operator_view(None, [{"name": "Spec.docx", "text_status": "pending"}])
 

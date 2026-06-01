@@ -877,6 +877,31 @@ Date: 2026-06-01.
 - Targeted verification after this checkpoint: `37 passed` for decision, query, detail, economics, and report tests.
 - Full verification after this checkpoint: `440 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-tz-passport-decision`.
 
+## Analysis facts checkpoint
+
+Date: 2026-06-01.
+
+- Added `src/tender_killer/analysis_facts_service.py` with `build_analysis_facts(...)`.
+- `analysis.analysis_facts` is a v1 backend-owned fact layer for the next pre-agent analysis stage.
+- Facts normalize the tender subject, supplier-document requirements, execution terms, blockers, and price factors into one list with `kind`, `label`, `value`, `category`, `severity`, `confidence`, `rule_id`, `document_name`, `fragment`, `impact`, `is_blocker`, `is_price_factor`, and `needs_review`.
+- Fact evidence is resolved against extracted document text; unbound evidence is explicit through `document_name="Документ не привязан"` and `needs_review=true`, instead of being silently treated as reliable.
+- Duplicate facts from checklist and execution-term extraction are deduped by normalized fragment/category, with structured execution terms taking precedence.
+- `analyze_tender_payload(...)` stores `analysis_facts` in analysis `raw_payload_json`; detail and list payload readers expose saved facts and rebuild them for older rows.
+- Targeted verification after this checkpoint: `14 passed` for `tests/test_analysis_facts_service.py tests/test_analysis_service.py tests/test_tender_query_service.py`.
+- Full verification after this checkpoint: `443 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-facts`.
+
+## Analysis operator blocks and anti-noise checkpoint
+
+Date: 2026-06-01.
+
+- `build_analysis_operator_view(...)` now prefers `analysis.analysis_facts` v1 when present.
+- Fact-backed operator sections group analysis into `Блокеры участия`, `Что подготовить`, `Исполнение договора`, `Влияние на цену`, `Проверить руками`, `Документы`, and `Доказательства`.
+- The `manual_review` section is populated from facts with `needs_review=true`, so unbound evidence is visible as an operator task instead of being mixed into ordinary requirements.
+- Operator metrics now include `facts` and `unbound_facts` when the fact contract is present, while legacy checklist/execution/evidence contracts remain supported for older saved analyses.
+- Rule-based analysis now filters known noisy contexts: storage/confidentiality phrases with `в течение 3 лет` no longer become `короткий срок поставки`, and `лицензионное соглашение` no longer becomes `лицензия/СРО`.
+- Targeted verification after this checkpoint: `49 passed` for analysis, facts, service, operator view, passport, detail/query, decision, and economics tests.
+- Full verification after this checkpoint: `445 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-blocks`.
+
 ## Bulk supplier price selection checkpoint
 
 Date: 2026-05-29.
