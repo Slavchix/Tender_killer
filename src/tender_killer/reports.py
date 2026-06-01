@@ -7,6 +7,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from tender_killer.analysis_evidence_service import build_analysis_evidence_items
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
+from tender_killer.analysis_passport_service import build_analysis_tz_passport
 
 DocxElement = tuple[str, Any, str]
 
@@ -31,6 +32,7 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
             ]
         ),
         *_tender_decision_elements(tender.get("decision")),
+        *_analysis_tz_passport_elements(analysis, documents),
         _p("Паспорт закупки", "heading"),
         _table(
             [
@@ -260,6 +262,53 @@ def _analysis_operator_sections_elements(analysis: dict[str, Any], documents: li
     if len(rows) <= 1:
         return []
     return [_p("Operator analysis sections", "heading2"), _table(rows)]
+
+
+def _analysis_tz_passport_elements(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[DocxElement]:
+    if not isinstance(analysis, dict) or not analysis:
+        return []
+    passport = _analysis_tz_passport(analysis, documents)
+    sections = passport.get("sections") if isinstance(passport, dict) else []
+    if not isinstance(sections, list):
+        return []
+
+    rows: list[list[Any]] = [["Раздел", "Условие", "Значение", "Источник", "Влияние"]]
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        title = _value(section.get("title"), _value(section.get("id")))
+        for item in section.get("items") or []:
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                [
+                    title,
+                    _value(item.get("label")),
+                    _value(item.get("value"), ""),
+                    _value(item.get("source"), ""),
+                    _value(item.get("impact") or item.get("description"), ""),
+                ]
+            )
+    if len(rows) <= 1:
+        return []
+    return [
+        _p("Паспорт ТЗ", "heading"),
+        _table(
+            [
+                ["Предмет", _value(passport.get("title"))],
+                ["Статус", _analysis_status(passport.get("status"))],
+                ["Уверенность", _confidence(passport.get("confidence"))],
+            ]
+        ),
+        _table(rows),
+    ]
+
+
+def _analysis_tz_passport(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> dict[str, Any]:
+    passport = analysis.get("tz_passport") if isinstance(analysis, dict) else None
+    if isinstance(passport, dict) and passport.get("version") == 1:
+        return passport
+    return build_analysis_tz_passport(analysis, documents)
 
 
 def _analysis_decision(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> dict[str, Any]:

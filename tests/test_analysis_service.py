@@ -133,8 +133,13 @@ def test_analyze_tender_payload_binds_execution_terms_to_source_documents(tmp_pa
     execution_section = next(
         section for section in payload["analysis"]["operator_view"]["sections"] if section["id"] == "execution_terms"
     )
+    passport_sections = {
+        section["id"]: section for section in payload["analysis"]["tz_passport"]["sections"]
+    }
 
     assert delivery_term["document_name"] == "contract.docx"
     assert security_term["document_name"] == "contract.docx"
     assert certificate_evidence["document_name"] == "spec.docx"
     assert execution_section["items"][0]["source"] == "contract.docx"
+    assert passport_sections["execution"]["items"][0]["source"] == "contract.docx"
+    assert passport_sections["supplier_documents"]["items"][0]["source"] == "spec.docx"

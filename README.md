@@ -92,6 +92,9 @@ Recent architecture cleanup:
 - Analysis document evidence now has one backend-owned model in `src/tender_killer/analysis_evidence_service.py`. Analysis runs, detail payloads, Word reports, and the React evidence view all read `analysis.evidence_items`, so labels, importance, document names, fragments, and impact text stay consistent for future agents.
 - TZ analysis now also emits `analysis.execution_terms`: normalized delivery, payment, advance, warranty, contract security, and penalty conditions. `operator_view` surfaces them as the dedicated `Условия исполнения` section between requirements and price factors, giving the operator a faster route from documents to economics.
 - Analysis runs bind checklist evidence and execution terms back to the source document when the fragment can be matched to extracted document text, so multi-document tenders can show whether a condition came from the ТЗ, contract draft, or another file.
+- Analysis runs now build `analysis.tz_passport`, a compact backend-owned ТЗ passport with subject, execution terms, supplier documents/compliance, blockers, and price factors. The full-screen analysis workspace renders this passport above the detailed evidence workspace.
+- Economics now reads `analysis.tz_passport` blockers and price factors before falling back to `operator_view`, so delivery, security, payment, and compliance conditions can influence the reserve hint and participation decision.
+- Word reports now render the ТЗ passport near the top of the document, before raw analysis sections, with each condition tied to source and expected economic impact.
 
 Current verification command:
 
@@ -99,7 +102,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after analysis source binding: `434 passed`.
+Latest verified result after TZ passport economics/report wiring: `439 passed`.
 
 Good next steps:
 

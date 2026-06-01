@@ -289,6 +289,78 @@ def test_build_tender_report_docx_uses_operator_analysis_contract():
     assert "contract security" in document_xml
 
 
+def test_build_tender_report_docx_renders_tz_passport_before_raw_analysis():
+    payload = {
+        "source": "moscow_supplier_portal",
+        "external_id": "Auction10212588",
+        "title": "Climbing equipment",
+        "document_records": [{"name": "TZ.docx", "text_status": "ok"}],
+        "analysis": {
+            "summary": "legacy summary",
+            "tz_passport": {
+                "version": 1,
+                "title": "Climbing equipment",
+                "status": "needs_review",
+                "confidence": 0.75,
+                "sections": [
+                    {
+                        "id": "execution",
+                        "title": "Execution",
+                        "items": [
+                            {
+                                "label": "delivery term",
+                                "value": "5 working days",
+                                "source": "TZ.docx",
+                                "impact": "rush logistics",
+                            }
+                        ],
+                    },
+                    {
+                        "id": "price_factors",
+                        "title": "Price factors",
+                        "items": [
+                            {
+                                "label": "contract security",
+                                "value": "5%",
+                                "source": "Contract.pdf",
+                                "impact": "cash reserve",
+                            }
+                        ],
+                    },
+                ],
+            },
+            "operator_view": {
+                "version": 2,
+                "sections": [
+                    {
+                        "id": "price_factors",
+                        "title": "Operator price factors",
+                        "items": [
+                            {
+                                "label": "operator-only cost factor",
+                                "category": "delivery",
+                                "severity": "high",
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+    }
+
+    content = build_tender_report_docx(payload)
+    document_xml = _document_xml(content)
+
+    assert "Паспорт ТЗ" in document_xml
+    assert "Execution" in document_xml
+    assert "delivery term" in document_xml
+    assert "5 working days" in document_xml
+    assert "TZ.docx" in document_xml
+    assert "cash reserve" in document_xml
+    assert document_xml.index("Паспорт ТЗ") < document_xml.index("Operator analysis sections")
+    assert document_xml.index("Паспорт ТЗ") < document_xml.index("Выжимка ТЗ")
+
+
 def test_build_tender_report_docx_renders_backend_decision_reasons():
     payload = {
         "source": "mosreg_market",

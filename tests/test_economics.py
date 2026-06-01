@@ -160,6 +160,66 @@ def test_build_economics_summary_surfaces_analysis_cost_drivers():
     assert summary["risk_reserve_rate_percent"] == 0.0
 
 
+def test_build_economics_summary_uses_tz_passport_cost_drivers():
+    summary = build_economics_summary(
+        {
+            "price": 100000.0,
+            "analysis": {
+                "tz_passport": {
+                    "version": 1,
+                    "sections": [
+                        {
+                            "id": "price_factors",
+                            "title": "Price impact",
+                            "items": [
+                                {
+                                    "label": "urgent delivery window",
+                                    "category": "delivery",
+                                    "severity": "high",
+                                    "source": "TZ.docx",
+                                    "value": "5 working days",
+                                    "impact": "add logistics reserve",
+                                }
+                            ],
+                        },
+                        {
+                            "id": "blockers",
+                            "title": "Blockers",
+                            "items": [
+                                {
+                                    "label": "contract security",
+                                    "category": "financial",
+                                    "severity": "high",
+                                    "source": "Contract.pdf",
+                                    "value": "5%",
+                                }
+                            ],
+                        },
+                    ],
+                }
+            },
+            "product_profiles": [
+                {
+                    "product_name": "Fuel",
+                    "quantity": 10,
+                    "raw_payload": {"economics": {"unit_cost": 1000, "logistics_cost": 1000}},
+                }
+            ],
+        }
+    )
+
+    assert [driver["label"] for driver in summary["analysis_cost_drivers"]] == [
+        "urgent delivery window",
+        "contract security",
+    ]
+    assert summary["analysis_cost_drivers"][1]["impact"] == "5%"
+    assert summary["analysis_reserve_hint"] == {
+        "driver_count": 2,
+        "level": "high",
+        "rate_percent": 4.0,
+    }
+
+
 def test_build_economics_summary_applies_position_assumptions():
     summary = build_economics_summary(
         {

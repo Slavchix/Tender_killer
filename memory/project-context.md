@@ -842,6 +842,30 @@ Date: 2026-06-01.
 - Targeted verification after this checkpoint: `22 passed` for `tests/test_analysis.py tests/test_analysis_service.py tests/test_analysis_operator_view_service.py tests/test_tender_query_service.py`.
 - Full verification after this checkpoint: `434 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-source-binding`.
 
+## TZ passport checkpoint
+
+Date: 2026-06-01.
+
+- Added `src/tender_killer/analysis_passport_service.py` with `build_analysis_tz_passport(...)`.
+- `analysis.tz_passport` is a compact backend-owned contract for the full-screen analysis workspace: subject, execution terms, supplier documents/compliance, blockers, and price factors.
+- `analyze_tender_payload(...)` stores the passport in analysis `raw_payload_json`; detail/list payload readers expose it and rebuild it for older analysis rows that only have checklist/execution term data.
+- The React analysis workspace now renders `web/src/TenderAnalysisPassport.jsx` above the detailed section/evidence workspace, so operators see the main ТЗ answer before drilling into fragments.
+- TDD coverage added in `tests/test_analysis_passport_service.py`, `tests/test_analysis_service.py`, and `tests/test_frontend_contract.py`.
+- Targeted verification after this checkpoint: `112 passed` for the analysis and frontend contract slice.
+- Vite build was verified through direct Node invocation because the local `npm.cmd` wrapper returned `Access is denied`: `node node_modules\vite\bin\vite.js build`.
+- Full verification after this checkpoint: `437 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-tz-passport-final`.
+
+## TZ passport economics/report checkpoint
+
+Date: 2026-06-01.
+
+- Economics now treats `analysis.tz_passport` as the first source for analysis cost drivers, then falls back to `analysis.operator_view` for older payloads.
+- Passport `blockers` and `price_factors` feed `analysis_cost_drivers` and `analysis_reserve_hint`, so security, urgent delivery, payment/compliance, and other ТЗ conditions are visible to the reserve/decision layer.
+- Word reports now render a `Паспорт ТЗ` section near the top of the report, before raw operator sections and the long ТЗ digest.
+- The Word passport table keeps condition section, label, value, source document, and economic impact together for fast review and future agent output.
+- Targeted verification after this checkpoint: `36 passed` for economics, reports, passport, analysis service, detail service, and query service tests.
+- Full verification after this checkpoint: `439 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-tz-passport-economics-report`.
+
 ## Bulk supplier price selection checkpoint
 
 Date: 2026-05-29.

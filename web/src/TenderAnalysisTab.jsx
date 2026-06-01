@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AnalysisDecisionBrief } from './TenderAnalysisDecisionBrief'
 import { AnalysisDocumentsPanel } from './TenderAnalysisDocumentsPanel'
 import { AnalysisEvidencePanel } from './TenderAnalysisEvidencePanel'
+import { AnalysisPassport } from './TenderAnalysisPassport'
 import {
   AnalysisSectionBody,
   AnalysisSectionRail,
@@ -54,6 +55,7 @@ export function TenderAnalysisTab({
         onDownload={onDownload}
         onExtract={onExtract}
       />
+      <AnalysisPassport analysis={analysis} />
       <AnalysisSummary analysis={analysis} documents={documents} />
       <AnalysisDecisionBrief
         analysis={analysis}

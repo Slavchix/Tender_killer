@@ -423,11 +423,8 @@ def _risk_types(profiles: list[dict[str, Any]]) -> list[str]:
 def _analysis_cost_drivers(analysis: Any) -> list[dict[str, Any]]:
     if not isinstance(analysis, dict):
         return []
-    operator_view = analysis.get("operator_view")
-    if not isinstance(operator_view, dict):
-        return []
-    sections = operator_view.get("sections")
-    if not isinstance(sections, list):
+    sections = _analysis_cost_driver_sections(analysis)
+    if not sections:
         return []
 
     drivers: list[dict[str, Any]] = []
@@ -452,11 +449,27 @@ def _analysis_cost_drivers(analysis: Any) -> list[dict[str, Any]]:
                     "category": category,
                     "severity": severity,
                     "source": str(item.get("source") or ""),
-                    "impact": str(item.get("impact") or item.get("description") or ""),
+                    "impact": str(item.get("impact") or item.get("description") or item.get("value") or ""),
                     "reserve_hint_percent": _analysis_driver_reserve_hint(severity),
                 }
             )
     return drivers
+
+
+def _analysis_cost_driver_sections(analysis: dict[str, Any]) -> list[dict[str, Any]]:
+    sections: list[dict[str, Any]] = []
+
+    passport = analysis.get("tz_passport")
+    passport_sections = passport.get("sections") if isinstance(passport, dict) and passport.get("version") == 1 else None
+    if isinstance(passport_sections, list):
+        sections.extend(section for section in passport_sections if isinstance(section, dict))
+
+    operator_view = analysis.get("operator_view")
+    operator_sections = operator_view.get("sections") if isinstance(operator_view, dict) else None
+    if isinstance(operator_sections, list):
+        sections.extend(section for section in operator_sections if isinstance(section, dict))
+
+    return sections
 
 
 def _analysis_reserve_hint(drivers: list[dict[str, Any]]) -> dict[str, Any]:

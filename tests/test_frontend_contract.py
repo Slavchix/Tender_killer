@@ -39,6 +39,7 @@ TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE = (
 )
 TENDER_ANALYSIS_DECISION_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisDecisionBrief.jsx"
 TENDER_ANALYSIS_DOCUMENTS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisDocumentsPanel.jsx"
+TENDER_ANALYSIS_PASSPORT_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisPassport.jsx"
 TENDER_DECISION_STRIP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDecisionStrip.jsx"
 TENDER_DECISION_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDecisionSummary.jsx"
 TENDER_ECONOMICS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsTab.jsx"
@@ -2141,6 +2142,22 @@ def test_analysis_tab_renders_decision_first_brief():
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
     assert find_mojibake(decision_source, TENDER_ANALYSIS_DECISION_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_analysis_tab_renders_backend_tz_passport():
+    analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    passport_source = TENDER_ANALYSIS_PASSPORT_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "from './TenderAnalysisPassport'" in analysis_source
+    assert "<AnalysisPassport analysis={analysis} />" in analysis_source
+    assert "export function AnalysisPassport" in passport_source
+    assert "analysis?.tz_passport" in passport_source
+    assert "passport.sections" in passport_source
+    assert "analysis-passport" in passport_source
+    assert ".analysis-passport" in styles_source
+    assert ".analysis-passport-grid" in styles_source
+    assert find_mojibake(passport_source, TENDER_ANALYSIS_PASSPORT_SOURCE) == []
 
 
 def test_analysis_documents_render_structured_evidence_model():

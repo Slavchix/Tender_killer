@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
+from tender_killer.analysis_passport_service import build_analysis_tz_passport
 from tender_killer.decision_service import build_tender_decision
 from tender_killer.economics import build_economics_summary
 from tender_killer.filter_store import FilterProfileCollection, NamedFilterProfile
@@ -492,6 +493,11 @@ def _analysis_from_list_row(payload: dict[str, Any]) -> dict[str, Any] | None:
     }
     evidence_items = raw_payload.get("evidence_items")
     analysis["evidence_items"] = evidence_items if isinstance(evidence_items, list) else []
+    tz_passport = raw_payload.get("tz_passport")
+    analysis["tz_passport"] = (
+        tz_passport if isinstance(tz_passport, dict) and tz_passport.get("version") == 1
+        else build_analysis_tz_passport(analysis, [])
+    )
     operator_view = raw_payload.get("operator_view")
     analysis["operator_view"] = (
         operator_view if isinstance(operator_view, dict) and operator_view.get("version") == 2
