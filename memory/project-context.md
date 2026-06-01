@@ -866,6 +866,17 @@ Date: 2026-06-01.
 - Targeted verification after this checkpoint: `36 passed` for economics, reports, passport, analysis service, detail service, and query service tests.
 - Full verification after this checkpoint: `439 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-tz-passport-economics-report`.
 
+## TZ passport decision checkpoint
+
+Date: 2026-06-01.
+
+- `build_tender_decision(...)` now reads `analysis.tz_passport.sections`.
+- Passport `blockers` are treated as analysis blockers alongside legacy red flags and `operator_view` blockers, so they can move a tender into `needs_review`.
+- Passport `price_factors` are included in decision reasons, making urgent delivery, security, payment, and compliance price-impact conditions visible in the tender card/list/dashboard decision payload.
+- The old `operator_view` path remains as fallback/compatibility for saved analysis payloads that do not yet contain `tz_passport`.
+- Targeted verification after this checkpoint: `37 passed` for decision, query, detail, economics, and report tests.
+- Full verification after this checkpoint: `440 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-tz-passport-decision`.
+
 ## Bulk supplier price selection checkpoint
 
 Date: 2026-05-29.

@@ -2243,17 +2243,21 @@ def test_tender_summary_cards_wrap_without_clipping_actions():
 
     assert 'variant="economics"' in summary_source
     assert 'variant="analysis"' in summary_source
-    assert 'variant="products"' in summary_source
-    assert 'variant="documents"' in summary_source
+    assert 'variant="products"' not in summary_source
+    assert 'variant="documents"' not in summary_source
     assert "action=\"Открыть анализ\"" in summary_source
+    assert "action=\"Открыть товары\"" not in summary_source
     assert "onClick={() => onOpenTab?.('documents')}" not in summary_source
-    assert 'className="summary-next-action summary-card secondary"' in summary_source
+    assert "onClick={() => onOpenTab?.('products')}" not in summary_source
+    assert 'className="summary-next-action summary-card"' in summary_source
     assert summary_source.index('variant="economics"') < summary_source.index('variant="analysis"')
     assert summary_source.index('variant="analysis"') < summary_source.index('summary-next-action')
-    assert "grid-template-columns: repeat(6, minmax(0, 1fr))" in summary_grid_rule
-    assert "grid-auto-rows: minmax(172px, 1fr)" in summary_grid_rule
-    assert "grid-column: span 3" in primary_card_rule
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in summary_grid_rule
+    assert "grid-auto-rows: auto" in summary_grid_rule
+    assert "min-height: 172px" in primary_card_rule
     assert "grid-column: span 2" in secondary_card_rule
+    assert ".summary-next-action.summary-card {\n  grid-column: 1 / -1" in styles_source
+    assert "grid-template-columns: minmax(120px, 0.6fr) minmax(190px, 0.9fr) minmax(0, 1.5fr)" in styles_source
     assert "height: auto" in compact_button_rule
     assert "min-height: 38px" in compact_button_rule
     assert "white-space: normal" in compact_button_rule
@@ -2307,7 +2311,7 @@ def test_products_analysis_and_economics_open_in_fullscreen_workspace():
     assert "<TenderWorkspaces" in tabs_source
     assert "const workspaceModes = new Set([" in tabs_source
     assert "workspaceActions" not in tabs_source
-    assert "onClick={() => onOpenTab?.('products')}" in summary_source
+    assert "onClick={() => onOpenTab?.('products')}" not in summary_source
     assert "onClick={() => onOpenTab?.('analysis')}" in summary_source
     assert "onClick={() => onOpenTab?.('economics')}" in summary_source
     assert "onOpenTab?.('documents')" not in summary_source
@@ -2342,7 +2346,7 @@ def test_products_analysis_and_economics_are_workspace_launchers_not_inline_tabs
 
     assert "const workspaceActions = [" not in tabs_source
     assert "<TenderDetailsNavigation" not in tabs_source
-    assert "onClick={() => onOpenTab?.('products')}" in summary_source
+    assert "onClick={() => onOpenTab?.('products')}" not in summary_source
     assert "'products'" in tabs_source
     assert "'documents'" not in tabs_source
     assert "activeTab === 'products'" not in tabs_source
@@ -2440,7 +2444,7 @@ def test_tender_details_uses_summary_cards_as_workspace_launchers():
     assert "onWorkspaceOpen(action.id)" not in navigation_source
     assert "onOpenTab?.('economics')" in summary_source
     assert "onOpenTab?.('analysis')" in summary_source
-    assert "onOpenTab?.('products')" in summary_source
+    assert "onOpenTab?.('products')" not in summary_source
     assert "onOpenTab?.('documents')" not in summary_source
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
     assert find_mojibake(navigation_source, TENDER_DETAILS_NAVIGATION_SOURCE) == []

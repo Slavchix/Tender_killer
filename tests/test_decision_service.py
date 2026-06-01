@@ -118,3 +118,49 @@ def test_decision_uses_operator_view_blockers_when_legacy_flags_are_empty():
     assert decision["next_step"] == "Разобрать блокеры"
     assert "сертификат/декларация" in decision["blockers"]
     assert "сертификат/декларация" in decision["reasons"]
+
+
+def test_decision_uses_tz_passport_blockers_and_price_factors():
+    decision = build_tender_decision(
+        {
+            "economics": {
+                "status": "interesting",
+                "margin_percent": 18,
+                "participation_decision": {"status": "can_bid", "label": "Можно заходить"},
+            },
+            "analysis": {
+                "status": "ok",
+                "risks": [],
+                "red_flags": [],
+                "requirements": [],
+                "tz_passport": {
+                    "version": 1,
+                    "sections": [
+                        {
+                            "id": "blockers",
+                            "items": [
+                                {
+                                    "label": "обеспечение исполнения контракта",
+                                    "severity": "high",
+                                }
+                            ],
+                        },
+                        {
+                            "id": "price_factors",
+                            "items": [
+                                {
+                                    "label": "срочная поставка",
+                                    "severity": "high",
+                                }
+                            ],
+                        },
+                    ],
+                },
+            },
+            "document_records": [{"text_status": "ok"}],
+        }
+    )
+
+    assert decision["status"] == "needs_review"
+    assert "обеспечение исполнения контракта" in decision["blockers"]
+    assert "срочная поставка" in decision["reasons"]

@@ -95,6 +95,7 @@ Recent architecture cleanup:
 - Analysis runs now build `analysis.tz_passport`, a compact backend-owned ТЗ passport with subject, execution terms, supplier documents/compliance, blockers, and price factors. The full-screen analysis workspace renders this passport above the detailed evidence workspace.
 - Economics now reads `analysis.tz_passport` blockers and price factors before falling back to `operator_view`, so delivery, security, payment, and compliance conditions can influence the reserve hint and participation decision.
 - Word reports now render the ТЗ passport near the top of the document, before raw analysis sections, with each condition tied to source and expected economic impact.
+- Decision Engine now reads ТЗ passport blockers and price factors as decision inputs, so the tender card/list/dashboard status follows the same analysis contract as the full-screen workspace.
 
 Current verification command:
 
@@ -102,7 +103,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest verified result after TZ passport economics/report wiring: `439 passed`.
+Latest verified result after TZ passport decision wiring: `440 passed`.
 
 Good next steps:
 

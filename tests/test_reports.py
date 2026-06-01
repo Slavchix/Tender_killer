@@ -35,10 +35,13 @@ def test_build_tender_report_docx_includes_product_profile_summary_for_many_prof
     document_xml = _document_xml(content)
 
     assert "Сводка товарных профилей" in document_xml
-    assert "Товарные профили: 40" in document_xml
-    assert "Готовы к поиску: 35" in document_xml
-    assert "Требуют проверки: 5" in document_xml
-    assert "Материал 40" in document_xml
+    assert "Товарные профили" in document_xml
+    assert "Готовы к поиску" in document_xml
+    assert "Требуют проверки" in document_xml
+    assert "Товарный профиль для поиска" not in document_xml
+    assert "Поисковые фразы" not in document_xml
+    assert "Стоп-слова для товарного поиска" not in document_xml
+    assert "Материал 40" not in document_xml
 
 
 def test_build_tender_report_docx_contains_key_sections():
@@ -149,24 +152,23 @@ def test_build_tender_report_docx_contains_key_sections():
     assert "Паспорт закупки" in document_xml
     assert "Поставка огнетушителей" in document_xml
     assert "28.29.22.110" in document_xml
-    assert "Товарный профиль для поиска" in document_xml
+    assert "Товарный профиль для поиска" not in document_xml
     assert "КОЗ-2" in document_xml
-    assert "Огнетушитель порошковый 28.29.22.110" in document_xml
+    assert "Огнетушитель порошковый 28.29.22.110" not in document_xml
     assert "сертификат/декларация" in document_xml
-    assert "Проверочный список" in document_xml
-    assert "documents" in document_xml
-    assert "medium" in document_xml
+    assert "Проверочный список" not in document_xml
+    assert "Operator analysis sections" not in document_xml
+    assert "Приложение: фрагменты извлеченного текста" not in document_xml
     assert "Поставщик предоставляет сертификат соответствия." in document_xml
     assert "короткий срок поставки" in document_xml
-    assert "Черновик экономики" in document_xml
+    assert "Экономика" in document_xml
     assert "Маржа" in document_xml
     assert "30.82%" in document_xml
     assert "Маржа выглядит интересной" in document_xml
     assert "<w:tbl>" in document_xml
     assert "Краткое решение" in document_xml
     assert "Документы и ТЗ" in document_xml
-    assert "Подтверждения из ТЗ" in document_xml
-    assert "Поставщик предоставляет сертификат соответствия." in document_xml
+    assert "Подтверждения из ТЗ" not in document_xml
 
 
 def test_build_tender_report_docx_renders_analysis_decision_and_evidence():
@@ -215,17 +217,17 @@ def test_build_tender_report_docx_renders_analysis_decision_and_evidence():
     assert "Ключевые причины" in document_xml
     assert "Риск: короткий срок поставки" in document_xml
     assert "Требование: сертификат/декларация" in document_xml
-    assert "Доказательства из документов" in document_xml
-    assert "Тип условия" in document_xml
-    assert "Важность" in document_xml
+    assert "Доказательства из документов" not in document_xml
+    assert "Проверочный список" not in document_xml
+    assert "Тип условия" not in document_xml
+    assert "Важность" not in document_xml
     assert "Документ" in document_xml
-    assert "Фрагмент" in document_xml
     assert "Влияние" in document_xml
     assert "Документы" in document_xml
-    assert "Сроки и поставка" in document_xml
-    assert "важно" in document_xml
     assert "ТЗ.docx" in document_xml
-    assert "Может повлиять на решение, цену или возможность участия." in document_xml
+    assert "Срок поставки 3 дня." in document_xml
+    assert "Может повлиять на возможность участия." in document_xml
+    assert "Приложение: фрагменты извлеченного текста" not in document_xml
 
 
 def test_build_tender_report_docx_uses_operator_analysis_contract():
@@ -282,11 +284,11 @@ def test_build_tender_report_docx_uses_operator_analysis_contract():
 
     assert "Operator decision" in document_xml
     assert "Use the operator-ready analysis contract." in document_xml
-    assert "Operator analysis sections" in document_xml
-    assert "Price factors" in document_xml
+    assert "Operator analysis sections" not in document_xml
+    assert "Price factors" not in document_xml
     assert "delivery in 3 days" in document_xml
-    assert "add delivery reserve" in document_xml
-    assert "contract security" in document_xml
+    assert "add delivery reserve" not in document_xml
+    assert "contract security" not in document_xml
 
 
 def test_build_tender_report_docx_renders_tz_passport_before_raw_analysis():
@@ -357,7 +359,7 @@ def test_build_tender_report_docx_renders_tz_passport_before_raw_analysis():
     assert "5 working days" in document_xml
     assert "TZ.docx" in document_xml
     assert "cash reserve" in document_xml
-    assert document_xml.index("Паспорт ТЗ") < document_xml.index("Operator analysis sections")
+    assert "Operator analysis sections" not in document_xml
     assert document_xml.index("Паспорт ТЗ") < document_xml.index("Выжимка ТЗ")
 
 
@@ -410,6 +412,66 @@ def test_build_tender_report_docx_falls_back_to_card_subject_when_items_missing(
     assert "Хозяйственные товары" in document_xml
     assert "25.73.10" in document_xml
     assert "Позиции пока не найдены" not in document_xml
+
+
+def test_build_tender_report_docx_keeps_word_report_compact():
+    payload = {
+        "source": "mosreg_market",
+        "external_id": "3675299",
+        "title": "Поставка товаров для оборудования медицинских кабинетов ДОУ",
+        "price": 238933.0,
+        "product_profile_summary": {"total": 39, "ready": 39, "needs_review": 0, "matched": 0, "priced": 0, "rejected": 0},
+        "product_profiles": [
+            {
+                "position_index": index,
+                "product_name": f"Позиция {index}",
+                "profile_status": "ready",
+                "search_phrases": [f"Позиция {index} купить", f"Позиция {index} поставщик"],
+                "stop_words": ["б/у", "ремонт"],
+            }
+            for index in range(1, 40)
+        ],
+        "document_records": [
+            {
+                "name": "ТЗ.docx",
+                "text_status": "ok",
+                "text_content": "Очень длинный извлеченный текст, который должен оставаться на сайте, а не в Word. " * 80,
+            }
+        ],
+        "analysis": {
+            "summary": "Поставка оборудования для медицинских кабинетов.",
+            "requirements": ["сертификат/декларация", "гарантия"],
+            "risks": ["короткий срок поставки"],
+            "red_flags": [],
+            "status": "needs_review",
+            "confidence": 0.8,
+        },
+        "economics": {
+            "status": "missing_prices",
+            "revenue": 238933.0,
+            "supplier_cost": 0,
+            "estimated_total_cost": 0,
+            "gross_margin": 0,
+            "margin_percent": 0,
+            "missing_cost_inputs": [f"Позиция {index}" for index in range(1, 13)],
+            "items": [{"product_name": f"Позиция {index}", "quantity": 1, "unit": "шт"} for index in range(1, 40)],
+        },
+    }
+
+    content = build_tender_report_docx(payload)
+    document_xml = _document_xml(content)
+
+    assert "Сводка товарных профилей" in document_xml
+    assert "39" in document_xml
+    assert "Не хватает цен" in document_xml
+    assert "12 позиций" in document_xml
+    assert "Позиция 12" not in document_xml
+    assert "Товарный профиль для поиска" not in document_xml
+    assert "Поисковые фразы" not in document_xml
+    assert "Стоп-слова для товарного поиска" not in document_xml
+    assert "Позиции расчета" not in document_xml
+    assert "Приложение: фрагменты извлеченного текста" not in document_xml
+    assert "Очень длинный извлеченный текст" not in document_xml
 
 
 def _document_xml(content: bytes) -> str:

@@ -1,22 +1,14 @@
-import { documentStatusCounts, formatPercent, tenderDecisionNextStep } from './formatters'
+import { formatPercent, tenderDecisionNextStep } from './formatters'
 
 export function TenderSummaryTab({
   tender,
   economics,
   analysis,
-  productProfiles = [],
-  documents = [],
   onOpenTab,
 }) {
-  const documentCounts = documentStatusCounts(documents)
   const margin = Number(economics?.margin_percent)
   const marginText = Number.isFinite(margin) ? formatPercent(margin) : 'нужны цены'
   const riskCount = (analysis?.risks?.length || 0) + (analysis?.red_flags?.length || 0)
-  const positionCount = productProfiles.length || tender.items?.length || 0
-  const readyProducts = productProfiles.filter((profile) => {
-    const raw = profile.raw_payload || {}
-    return raw.economics || raw.selected_supplier_option != null
-  }).length
   const missingCostInputs = economics?.missing_cost_inputs?.length || 0
 
   return (
@@ -49,31 +41,11 @@ export function TenderSummaryTab({
           {analysis?.summary && <em>{analysis.summary}</em>}
         </SummaryCard>
 
-        <article className="summary-next-action summary-card secondary">
+        <article className="summary-next-action summary-card">
           <span>Следующий шаг</span>
           <strong>{tenderDecisionNextStep(tender, economics)}</strong>
           <p>{missingCostInputs ? 'Закрыть недостающие цены в экономике.' : 'Проверить риски и документы перед финальным решением.'}</p>
         </article>
-
-        <SummaryCard
-          title="Товары"
-          action="Открыть товары"
-          variant="products"
-          onClick={() => onOpenTab?.('products')}
-        >
-          <p>{positionCount ? `${positionCount} позиций, к расчету готово ${readyProducts}.` : 'Позиции еще не сформированы.'}</p>
-          {missingCostInputs > 0 && <em>{missingCostInputs} позиций без себестоимости</em>}
-        </SummaryCard>
-
-        <SummaryCard
-          title="Документы"
-          action="Открыть анализ"
-          variant="documents"
-          onClick={() => onOpenTab?.('analysis')}
-        >
-          <p>Извлечено текстов: {documentCounts.ok} из {documents.length}.</p>
-          {documentCounts.attention > 0 && <em>{documentCounts.attention} документов требуют внимания</em>}
-        </SummaryCard>
       </div>
     </section>
   )

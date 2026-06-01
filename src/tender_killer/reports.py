@@ -93,43 +93,8 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
                     ["Отклонены", str(product_profile_summary["rejected"])],
                 ]
             ),
-            _p(f"Товарные профили: {product_profile_summary['total']}", "normal"),
-            _p(f"Готовы к поиску: {product_profile_summary['ready']}", "normal"),
-            _p(f"Требуют проверки: {product_profile_summary['needs_review']}", "normal"),
-            _p("Товарный профиль для поиска", "heading"),
         ]
     )
-    if product_profiles:
-        for profile in product_profiles:
-            elements.extend(
-                [
-                    _p(f"Профиль №{_value(profile.get('position_index'))}: {_value(profile.get('product_name'))}", "heading2"),
-                    _table(
-                        [
-                            ["Категория", _value(profile.get("category"))],
-                            ["ОКПД2", _value(profile.get("okpd2"))],
-                            ["Код классификатора", _value(profile.get("classifier_code"))],
-                            ["Тип классификатора", _value(profile.get("classifier_type"))],
-                            ["Количество", f"{_value(profile.get('quantity'))} {_value(profile.get('unit'), '')}".strip()],
-                            ["Источник профиля", _value(profile.get("source"))],
-                            ["Детали", _value(profile.get("details"))],
-                        ]
-                    ),
-                    _p("Поисковые фразы", "heading2"),
-                    *_list_elements(profile.get("search_phrases") or []),
-                    _p("Требования из карточки и ТЗ", "heading2"),
-                    *_list_elements(profile.get("required_characteristics") or ["Пока не найдены."]),
-                    *_profile_evidence_elements(profile),
-                    _p("Документы/сертификаты", "heading2"),
-                    *_list_elements(profile.get("cert_documents") or ["Пока не найдены."]),
-                    _p("Стандарты", "heading2"),
-                    *_list_elements(profile.get("standards") or ["Пока не найдены."]),
-                    _p("Стоп-слова для товарного поиска", "heading2"),
-                    *_list_elements(profile.get("stop_words") or []),
-                ]
-            )
-    else:
-        elements.append(_p("Товарный профиль пока не сформирован.", "normal"))
 
     elements.append(_p("Документы и ТЗ", "heading"))
     if documents:
@@ -146,30 +111,17 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
         [
             _p("Решение по анализу ТЗ", "heading"),
             *_analysis_decision_elements(analysis, documents),
-            *_analysis_operator_sections_elements(analysis, documents),
             _p("Выжимка ТЗ", "heading"),
             _p(_value(analysis.get("summary"), "Анализ ТЗ еще не выполнен."), "normal"),
-            *_analysis_checklist_elements(analysis),
-            *_analysis_evidence_elements(analysis, documents),
             _p("Требования", "heading"),
-            *_list_elements(analysis.get("requirements") or ["Требования пока не найдены."]),
+            *_list_elements(_limited_text_list(analysis.get("requirements"), fallback="Требования пока не найдены.")),
             _p("Риски", "heading"),
-            *_list_elements(analysis.get("risks") or ["Риски пока не найдены."]),
+            *_list_elements(_limited_text_list(analysis.get("risks"), fallback="Риски пока не найдены.")),
             _p("Красные флаги", "heading"),
-            *_list_elements(analysis.get("red_flags") or ["Красные флаги пока не найдены."]),
+            *_list_elements(_limited_text_list(analysis.get("red_flags"), fallback="Красные флаги пока не найдены.")),
             *_economics_elements(economics),
         ]
     )
-
-    text_samples = [
-        document.get("text_content")
-        for document in documents
-        if isinstance(document.get("text_content"), str) and document.get("text_content").strip()
-    ]
-    if text_samples:
-        elements.append(_p("Приложение: фрагменты извлеченного текста", "heading"))
-        for index, text in enumerate(text_samples[:3], start=1):
-            elements.append(_p(f"Фрагмент {index}: {_trim_text(text, 900)}", "normal"))
 
     return _docx_bytes(elements)
 
@@ -417,12 +369,29 @@ def _text_list(values: Any) -> list[str]:
     return [_value(value, "").strip() for value in values if _value(value, "").strip()]
 
 
+def _limited_text_list(values: Any, *, fallback: str, limit: int = 8) -> list[str]:
+    items = _text_list(values)
+    if not items:
+        return [fallback]
+    if len(items) <= limit:
+        return items
+    return [*items[:limit], f"и еще {len(items) - limit} пунктов"]
+
+
+def _missing_costs_summary(values: Any) -> str:
+    missing = _text_list(values)
+    if not missing:
+        return "нет"
+    return f"{len(missing)} позиций"
+
+
 def _economics_elements(economics: dict[str, Any]) -> list[DocxElement]:
     if not economics:
         return [
-            _p("Будущий расчет экономики", "heading"),
-            _p("Минимальная возможная цена, найденные товары, поставщики, доставка, налоги, маржа и ставка будут добавлены после подключения товарного поиска и аналитиков.", "normal"),
+            _p("Экономика", "heading"),
+            _p("Расчет экономики еще не подготовлен.", "normal"),
         ]
+    missing_cost_inputs = _text_list(economics.get("missing_cost_inputs"))
     rows = [
         ["Статус", _economics_status(economics.get("status"))],
         ["НМЦК/выручка", _money(economics.get("revenue"))],
@@ -430,26 +399,15 @@ def _economics_elements(economics: dict[str, Any]) -> list[DocxElement]:
         ["Резерв риска", f"{_money(economics.get('risk_reserve'))} / {_percent(economics.get('risk_reserve_rate_percent'))}"],
         ["Итого затраты", _money(economics.get("estimated_total_cost"))],
         ["Маржа", f"{_money(economics.get('gross_margin'))} / {_percent(economics.get('margin_percent'))}"],
-        ["Не хватает цен", ", ".join(economics.get("missing_cost_inputs") or []) or "нет"],
-        ["Риски исполнения", ", ".join(economics.get("risk_types") or []) or "нет"],
+        ["Не хватает цен", _missing_costs_summary(missing_cost_inputs)],
+        ["Риски исполнения", ", ".join(_limited_text_list(economics.get("risk_types"), fallback="нет", limit=5))],
     ]
-    elements = [_p("Черновик экономики", "heading"), _table(rows)]
+    elements = [_p("Экономика", "heading"), _table(rows)]
     if economics.get("recommendation"):
         elements.append(_p(_value(economics.get("recommendation")), "normal"))
-    item_rows = [["Товар", "Кол-во", "Себестоимость", "Доп. расходы"]]
-    for item in economics.get("items") or []:
-        if not isinstance(item, dict):
-            continue
-        item_rows.append(
-            [
-                _value(item.get("product_name")),
-                f"{_value(item.get('quantity'))} {_value(item.get('unit'), '')}".strip(),
-                _money(item.get("total_cost")),
-                _money(item.get("extra_costs")),
-            ]
-        )
-    if len(item_rows) > 1:
-        elements.extend([_p("Позиции расчета", "heading2"), _table(item_rows)])
+    if missing_cost_inputs:
+        elements.append(_p("Первые позиции без себестоимости", "heading2"))
+        elements.extend(_list_elements(_limited_text_list(missing_cost_inputs, fallback="нет", limit=5)))
     return elements
 
 

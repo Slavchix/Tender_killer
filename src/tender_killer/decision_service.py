@@ -20,8 +20,11 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
     requirements = _text_list(analysis.get("requirements"))
     operator_decision = _operator_decision(analysis)
     operator_blockers = _operator_section_labels(analysis, "blockers")
-    analysis_blockers = _compact_reasons([*red_flags, *operator_blockers])
+    passport_blockers = _passport_section_labels(analysis, "blockers")
+    passport_price_factors = _passport_section_labels(analysis, "price_factors")
+    analysis_blockers = _compact_reasons([*red_flags, *passport_blockers, *operator_blockers])
     operator_reasons = _operator_decision_reasons(operator_decision)
+    passport_reasons = _compact_reasons([*passport_blockers, *passport_price_factors])
     economics_status = str(economics.get("status") or "")
     participation_status = str(participation.get("status") or "")
 
@@ -46,7 +49,7 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
             tone="danger",
             summary=_text(participation.get("recommendation"), "Экономика указывает на убыточное участие."),
             next_step="Не участвовать",
-            reasons=_compact_reasons([participation.get("recommendation"), *operator_reasons, *analysis_blockers, *risks]),
+            reasons=_compact_reasons([participation.get("recommendation"), *operator_reasons, *passport_reasons, *analysis_blockers, *risks]),
             blockers=_compact_reasons([participation.get("label"), *analysis_blockers]),
             limit_price=participation.get("limit_price"),
             metrics=metrics,
@@ -62,7 +65,7 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
                 "В документах есть условия, которые могут повлиять на возможность участия или цену.",
             ),
             next_step=_text(operator_decision.get("next_step"), "Проверить анализ"),
-            reasons=_compact_reasons([*operator_reasons, *analysis_blockers, *risks, *requirements]),
+            reasons=_compact_reasons([*operator_reasons, *passport_reasons, *analysis_blockers, *risks, *requirements]),
             blockers=analysis_blockers,
             limit_price=participation.get("limit_price"),
             metrics=metrics,
@@ -75,7 +78,7 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
             tone="warning",
             summary=_text(participation.get("recommendation"), "Участвовать можно только с жестким ценовым лимитом."),
             next_step="Проверить лимит ставки",
-            reasons=_compact_reasons([participation.get("recommendation"), *operator_reasons, *risks, *requirements]),
+            reasons=_compact_reasons([participation.get("recommendation"), *operator_reasons, *passport_reasons, *risks, *requirements]),
             blockers=risks,
             limit_price=participation.get("limit_price"),
             metrics=metrics,
@@ -88,7 +91,7 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
             tone="success",
             summary=_text(participation.get("recommendation"), "Экономика выглядит пригодной для участия."),
             next_step="Проверить поставщика и документы",
-            reasons=_compact_reasons([participation.get("recommendation"), *operator_reasons, *requirements]),
+            reasons=_compact_reasons([participation.get("recommendation"), *operator_reasons, *passport_reasons, *requirements]),
             blockers=[],
             limit_price=participation.get("limit_price"),
             metrics=metrics,
@@ -100,7 +103,7 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
         tone="warning",
         summary=_text(economics.get("recommendation"), "Нужно сверить экономику, документы и условия поставки."),
         next_step="Проверить карточку",
-        reasons=_compact_reasons([economics.get("recommendation"), *operator_reasons, *risks, *requirements, *_document_reasons(metrics)]),
+        reasons=_compact_reasons([economics.get("recommendation"), *operator_reasons, *passport_reasons, *risks, *requirements, *_document_reasons(metrics)]),
         blockers=risks,
         limit_price=participation.get("limit_price"),
         metrics=metrics,
@@ -182,6 +185,30 @@ def _operator_section_labels(analysis: dict[str, Any], section_id: str) -> list[
     if operator_view.get("version") != 2:
         return []
     sections = operator_view.get("sections")
+    if not isinstance(sections, list):
+        return []
+
+    labels: list[str] = []
+    for section in sections:
+        if not isinstance(section, dict) or section.get("id") != section_id:
+            continue
+        items = section.get("items")
+        if not isinstance(items, list):
+            return []
+        for item in items:
+            if isinstance(item, dict):
+                labels.append(_text(item.get("label"), ""))
+            else:
+                labels.append(_text(item, ""))
+        return _compact_reasons(labels)
+    return []
+
+
+def _passport_section_labels(analysis: dict[str, Any], section_id: str) -> list[str]:
+    passport = _dict(analysis.get("tz_passport"))
+    if passport.get("version") != 1:
+        return []
+    sections = passport.get("sections")
     if not isinstance(sections, list):
         return []
 
