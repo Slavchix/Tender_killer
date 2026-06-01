@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Bell,
-  Building2,
   ChevronLeft,
   ChevronRight,
   PlayCircle,
@@ -99,7 +98,7 @@ function App() {
           const stillVisible = current && items.some((item) => (
             item.source === current.source && item.external_id === current.external_id
           ))
-          return stillVisible ? current : items[0] || null
+          return stillVisible ? current : null
         })
       })
       .catch((err) => setError(err.message))
@@ -132,16 +131,6 @@ function App() {
 
   function updateFilter(name, value) {
     setFilters((current) => ({ ...current, [name]: value }))
-  }
-
-  function toggleMultiFilter(name, value) {
-    setFilters((current) => {
-      const values = splitFilterValues(current[name])
-      const nextValues = values.includes(value)
-        ? values.filter((item) => item !== value)
-        : [...values, value]
-      return { ...current, [name]: nextValues.join(',') }
-    })
   }
 
   function applyFilters(event) {
@@ -181,8 +170,30 @@ function App() {
     setPageLimit(normalizedLimit)
   }
 
+  function openTenderDetails(tender) {
+    setError('')
+    setSelected(tender)
+  }
+
+  function closeTenderDetails() {
+    setSelected(null)
+    setDetails(null)
+  }
+
+  function changeView(nextView) {
+    setView(nextView)
+    if (nextView !== 'tenders') {
+      closeTenderDetails()
+    }
+  }
+
   function updateTenderWorkflow(updatedTender) {
     setDetails(updatedTender)
+    setSelected((current) => (
+      current?.source === updatedTender.source && current?.external_id === updatedTender.external_id
+        ? { ...current, workflow_status: updatedTender.workflow_status, workflow_note: updatedTender.workflow_note }
+        : current
+    ))
     setTenders((current) => current.map((item) => (
       item.source === updatedTender.source && item.external_id === updatedTender.external_id
         ? {
@@ -196,6 +207,26 @@ function App() {
 
   function updateTenderDetails(updatedTender) {
     setDetails(updatedTender)
+    setSelected((current) => (
+      current?.source === updatedTender.source && current?.external_id === updatedTender.external_id
+        ? {
+            ...current,
+            title: updatedTender.title,
+            customer: updatedTender.customer,
+            price: updatedTender.price,
+            status: updatedTender.status,
+            deadline_at: updatedTender.deadline_at,
+            documents_count: updatedTender.document_records?.length || updatedTender.documents?.length || 0,
+            items_count: updatedTender.items?.length || 0,
+            workflow_status: updatedTender.workflow_status,
+            workflow_note: updatedTender.workflow_note,
+            market_state: updatedTender.market_state,
+            economics: updatedTender.economics,
+            analysis: updatedTender.analysis,
+            decision: updatedTender.decision,
+          }
+        : current
+    ))
     setTenders((current) => current.map((item) => (
       item.source === updatedTender.source && item.external_id === updatedTender.external_id
         ? {
@@ -209,6 +240,10 @@ function App() {
             items_count: updatedTender.items?.length || 0,
             workflow_status: updatedTender.workflow_status,
             workflow_note: updatedTender.workflow_note,
+            market_state: updatedTender.market_state,
+            economics: updatedTender.economics,
+            analysis: updatedTender.analysis,
+            decision: updatedTender.decision,
           }
         : item
     )))
@@ -261,7 +296,7 @@ function App() {
                 <button
                   className={view === item.id ? 'active' : ''}
                   key={item.id}
-                  onClick={() => setView(item.id)}
+                  onClick={() => changeView(item.id)}
                   title={item.label}
                   type="button"
                 >
@@ -295,7 +330,7 @@ function App() {
           {view === 'dashboard' && (
             <DashboardView
               error={error}
-              onOpenTenders={() => setView('tenders')}
+              onOpenTenders={() => changeView('tenders')}
               onRefreshSources={loadSourceStatus}
               searchSummary={searchSummary}
               sourceStatusError={sourceStatusError}
@@ -308,47 +343,66 @@ function App() {
           )}
 
           {view === 'database' && (
-        <DatabaseView />
-      )}
+            <DatabaseView />
+          )}
 
           {view === 'tenders' && (
-      <section className={filtersCollapsed ? 'workspace workbench-layout filters-collapsed' : 'workspace workbench-layout'}>
-        <FiltersPanel
-          activeFilterChips={activeFilterChips}
-          filters={filters}
-          filtersCollapsed={filtersCollapsed}
-          onApplyFilters={applyFilters}
-          onClearFilters={clearFilters}
-          onToggleCollapsed={() => setFiltersCollapsed((current) => !current)}
-          onToggleMultiFilter={toggleMultiFilter}
-          onUpdateFilter={updateFilter}
-        />
+            <section className={selected ? 'workspace tender-detail-screen' : 'workspace tender-list-screen'}>
+              {selected ? (
+                <>
+                  <div className="detail-screen-toolbar">
+                    <button className="secondary-button compact detail-back-button" onClick={closeTenderDetails} type="button">
+                      <ChevronLeft size={16} />
+                      <span>Назад</span>
+                    </button>
+                    <div className="detail-screen-heading">
+                      <span>Карточка закупки</span>
+                      <strong>{selected.title}</strong>
+                    </div>
+                  </div>
+                  <section className="tender-detail-card">
+                    {details ? (
+                      <TenderDetails tender={details} onTenderRefresh={updateTenderDetails} onWorkflowUpdate={updateTenderWorkflow} />
+                    ) : error ? (
+                      <div className="error-box">{error}</div>
+                    ) : (
+                      <div className="empty-state">Загружаю карточку закупки...</div>
+                    )}
+                  </section>
+                </>
+              ) : (
+                <>
+                  <FiltersPanel
+                    activeFilterChips={activeFilterChips}
+                    collapsed={filtersCollapsed}
+                    filters={filters}
+                    onApplyFilters={applyFilters}
+                    onClearFilters={clearFilters}
+                    onToggleCollapsed={() => setFiltersCollapsed((current) => !current)}
+                    onUpdateFilter={updateFilter}
+                    variant="top"
+                  />
 
-        <TenderList
-          error={error}
-          loading={loading}
-          onNextPage={() => goToOffset(tenderPage.next_offset)}
-          onPageLimitChange={changePageLimit}
-          onPreviousPage={() => goToOffset(tenderPage.previous_offset)}
-          onTenderSelect={setSelected}
-          onWorkflowFilterChange={setWorkflowFilter}
-          page={tenderPage}
-          pageLimit={pageLimit}
-          pageLimitOptions={tenderPageLimitOptions}
-          selectedTender={selected}
-          tenders={tenders}
-          workflowStatus={filters.workflow_status}
-        />
+                  <TenderList
+                    error={error}
+                    loading={loading}
+                    onNextPage={() => goToOffset(tenderPage.next_offset)}
+                    onPageLimitChange={changePageLimit}
+                    onPreviousPage={() => goToOffset(tenderPage.previous_offset)}
+                    onTenderSelect={openTenderDetails}
+                    onWorkflowFilterChange={setWorkflowFilter}
+                    page={tenderPage}
+                    pageLimit={pageLimit}
+                    pageLimitOptions={tenderPageLimitOptions}
+                    selectedTender={selected}
+                    tenders={tenders}
+                    workflowStatus={filters.workflow_status}
+                  />
 
-        <aside className="details-panel">
-          {details ? (
-            <TenderDetails tender={details} onTenderRefresh={updateTenderDetails} onWorkflowUpdate={updateTenderWorkflow} />
-          ) : (
-            <div className="empty-state">Выбери закупку из списка</div>
+                </>
+              )}
+            </section>
           )}
-        </aside>
-      </section>
-      )}
         </section>
       </div>
     </main>

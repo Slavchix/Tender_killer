@@ -1,6 +1,16 @@
-import { CalendarClock, CircleDollarSign, FileText, Scale, Users } from 'lucide-react'
+import { CalendarClock, CircleDollarSign, FileText, Scale, TrendingUp, Users } from 'lucide-react'
 import { sourceLabels, workflowLabels } from './constants'
-import { formatDate, marketStateValue, nmcPriceValue, tenderDecisionLabel, tenderDecisionStatus } from './formatters'
+import {
+  analysisStatusLabel,
+  economicsStatusLabel,
+  formatDate,
+  formatPercent,
+  marketStateValue,
+  nmcPriceValue,
+  tenderDecisionLabel,
+  tenderDecisionNextStep,
+  tenderDecisionStatus,
+} from './formatters'
 import { PaginationBar } from './PaginationBar'
 
 export function TenderList({
@@ -89,6 +99,7 @@ function TenderListItem({ isSelected, onTenderSelect, tender }) {
         </span>
         <strong>{tender.title}</strong>
         <span>{tender.customer || 'Заказчик не указан'}</span>
+        <TenderListDecisionCues tender={tender} />
       </div>
       <div className="row-meta">
         <span><CircleDollarSign size={15} /> {nmcPriceValue(tender)}</span>
@@ -100,4 +111,31 @@ function TenderListItem({ isSelected, onTenderSelect, tender }) {
       </div>
     </button>
   )
+}
+
+function TenderListDecisionCues({ tender }) {
+  return (
+    <div className="row-insights">
+      <span><TrendingUp size={14} /> {economicsInsight(tender)}</span>
+      <span><FileText size={14} /> {analysisInsight(tender)}</span>
+    </div>
+  )
+}
+
+function economicsInsight(tender) {
+  const economics = tender.economics
+  const margin = Number(economics?.margin_percent)
+  if (economics) {
+    const marginText = Number.isFinite(margin) ? `маржа ${formatPercent(margin)}` : economicsStatusLabel(economics.status)
+    return `Экономика: ${marginText}`
+  }
+  return `Экономика: ${tenderDecisionNextStep(tender, economics)}`
+}
+
+function analysisInsight(tender) {
+  const analysis = tender.analysis
+  if (!analysis) return 'Анализ: не запускался'
+  const metrics = analysis.operator_view?.metrics || {}
+  const risksCount = metrics.risks ?? ((analysis.risks?.length || 0) + (analysis.red_flags?.length || 0))
+  return `Анализ: ${analysisStatusLabel(analysis.status)} · рисков ${risksCount}`
 }

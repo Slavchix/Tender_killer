@@ -265,13 +265,48 @@ def test_frontend_uses_dedicated_filters_panel_module():
     assert "from './FiltersPanel'" in app_source
     assert "export function FiltersPanel" in filters_source
     assert "filters-panel" in filters_source
+    assert "top-filters-panel" in filters_source
+    assert "top-filter-form" in filters_source
+    assert "is-collapsed" in filters_source
+    assert "aria-expanded={!collapsed}" in filters_source
+    assert "onToggleCollapsed" in filters_source
     assert "sourceOptions.map" in filters_source
     assert "regionOptions.map" in filters_source
     assert "procedureTypeOptions.map" not in filters_source
-    assert "onToggleMultiFilter('source'" in filters_source
+    assert "sourceSelectValue(filters.source)" in filters_source
+    assert "onUpdateFilter('source'" in filters_source
     assert "function FiltersPanel" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(filters_source, FILTERS_PANEL_SOURCE) == []
+
+
+def test_tender_workbench_is_list_first_with_fullscreen_detail_view():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    back_button_rule = _css_rule(styles_source, ".detail-screen-toolbar .detail-back-button")
+    heading_title_rule = _css_rule(styles_source, ".detail-screen-heading strong")
+
+    assert "tender-list-screen" in app_source
+    assert "tender-detail-screen" in app_source
+    assert "detail-screen-toolbar" in app_source
+    assert "detail-back-button" in app_source
+    assert "openTenderDetails" in app_source
+    assert "closeTenderDetails" in app_source
+    assert "collapsed={filtersCollapsed}" in app_source
+    assert "variant=\"top\"" in app_source
+    assert "className=\"details-panel\"" not in app_source
+    assert "<TenderDetails tender={details}" in app_source
+    assert ".tender-list-screen" in styles_source
+    assert ".tender-detail-screen" in styles_source
+    assert ".tender-detail-card" in styles_source
+    assert ".detail-screen-toolbar" in styles_source
+    assert ".detail-screen-toolbar .detail-back-button" in styles_source
+    assert "width: auto" in back_button_rule
+    assert "flex: 0 0 auto" in back_button_rule
+    assert "font-size: 22px" in heading_title_rule
+    assert "white-space: normal" in heading_title_rule
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
 def test_frontend_uses_dedicated_tender_list_module():
@@ -288,6 +323,10 @@ def test_frontend_uses_dedicated_tender_list_module():
     assert "tender-list" in tender_list_source
     assert "PaginationBar" in tender_list_source
     assert "onTenderSelect(tender)" in tender_list_source
+    assert "TenderListDecisionCues" in tender_list_source
+    assert "row-insights" in tender_list_source
+    assert "economicsStatusLabel" in tender_list_source
+    assert "analysisStatusLabel" in tender_list_source
     assert "function TenderList" not in app_source
     assert "className=\"tender-list\"" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
@@ -316,7 +355,7 @@ def test_frontend_uses_dedicated_tender_details_module():
     assert "from './useTenderNotification'" in tender_details_source
     assert "from './useTenderRefreshDetails'" in tender_details_source
     assert "from './useTenderDetailsUi'" in tender_details_source
-    assert "details-panel" in app_source
+    assert "tender-detail-card" in app_source
     assert "<TenderDetails tender={details}" in app_source
     assert "function TenderDetails" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
@@ -1966,7 +2005,8 @@ def test_tender_workbench_v1_reduces_detail_panel_overload():
     )
     constants_source = CONSTANTS_SOURCE.read_text(encoding="utf-8")
 
-    assert "workspace workbench-layout" in app_source
+    assert "workspace tender-list-screen" in app_source
+    assert "workspace tender-detail-screen" in app_source
     assert "export function TenderDecisionStrip" in strip_source
     assert "<TenderDecisionStrip" in tender_details_source
     assert "decision-strip-grid" in strip_source
@@ -1991,22 +2031,28 @@ def test_tender_workbench_v1_reduces_detail_panel_overload():
     assert find_mojibake(economics_workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
     assert find_mojibake(products_source, TENDER_PRODUCTS_TAB_SOURCE) == []
 
-def test_tender_workbench_has_collapsible_filters_and_wider_list():
+def test_tender_workbench_has_top_filters_and_list_first_layout():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     filters_source = FILTERS_PANEL_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "const [filtersCollapsed, setFiltersCollapsed]" in app_source
-    assert "filtersCollapsed ? 'workspace workbench-layout filters-collapsed' : 'workspace workbench-layout'" in app_source
-    assert "filter-collapse-button" in filters_source
-    assert "Свернуть фильтры" in filters_source
-    assert "Развернуть фильтры" in filters_source
-    assert ".workbench-layout.filters-collapsed" in styles_source
-    assert "grid-template-columns: 260px minmax(360px, 1fr) minmax(0, 1.35fr)" in styles_source
-    assert "grid-template-columns: 58px minmax(360px, 1.1fr) minmax(0, 1.25fr)" in styles_source
+    assert "onToggleCollapsed={() => setFiltersCollapsed" in app_source
+    assert "onToggleMultiFilter" not in app_source
+    assert "variant=\"top\"" in app_source
+    assert "top-filters-panel" in filters_source
+    assert "top-filter-form" in filters_source
+    assert "is-collapsed" in filters_source
+    assert "aria-expanded={!collapsed}" in filters_source
+    assert "filter-collapse-button" not in filters_source
+    assert ".tender-list-screen" in styles_source
+    assert ".tender-detail-screen" in styles_source
+    assert ".top-filters-panel" in styles_source
+    assert ".top-filters-panel.is-collapsed" in styles_source
+    assert "grid-template-columns: minmax(240px, 1.4fr) repeat(5, minmax(128px, 0.72fr)) minmax(220px, 0.8fr) auto" in styles_source
     assert "overflow-x: hidden" in styles_source
-    assert ".filters-panel.collapsed" in styles_source
     assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(filters_source, FILTERS_PANEL_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
@@ -2783,7 +2829,7 @@ def test_global_shell_exposes_dashboard_and_side_navigation():
     assert "app-frame" in app_source
     assert "app-sidebar" in app_source
     assert "className=\"side-nav\"" in app_source
-    assert "setView(item.id)" in app_source
+    assert "changeView(item.id)" in app_source
     assert "export function DashboardView" in dashboard_source
     assert "<DashboardView" in app_source
     assert "view === 'dashboard'" in app_source
