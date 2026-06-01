@@ -589,7 +589,15 @@ def _decode_utf16_codepoint(value: int, width: int) -> str:
 
 def _text_from_xml(raw: bytes) -> str:
     root = ET.fromstring(raw)
-    return "\n".join(text for text in root.itertext() if text.strip())
+    parts: list[str] = []
+    for element in root.iter():
+        if element.text and element.text.strip():
+            parts.append(element.text)
+        if _local_name(element.tag) == "br" and _xml_attr(element, "type") == "page":
+            parts.append("\f")
+        if element.tail and element.tail.strip():
+            parts.append(element.tail)
+    return "\n".join(parts)
 
 
 def _decode_text(data: bytes) -> str:
@@ -622,7 +630,10 @@ def _printable_text(text: str) -> str:
 
 
 def _clean_text(text: str) -> str:
-    return clean_machine_text(text)
+    if "\f" not in text:
+        return clean_machine_text(text)
+    pages = [clean_machine_text(page) for page in text.split("\f")]
+    return "\f".join(page for page in pages if page)
 
 
 def _is_unsupported_document(warnings: list[str]) -> bool:
@@ -631,3 +642,10 @@ def _is_unsupported_document(warnings: list[str]) -> bool:
 
 def _local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
+
+
+def _xml_attr(element: ET.Element, name: str) -> str:
+    for key, value in element.attrib.items():
+        if _local_name(key) == name:
+            return value
+    return ""

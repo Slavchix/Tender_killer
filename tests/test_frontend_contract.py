@@ -449,7 +449,7 @@ def test_frontend_uses_dedicated_tender_analysis_tab_module():
     assert "export function TenderAnalysisTab" in analysis_source
     assert "from './TenderAnalysisSummary'" in analysis_source
     assert "from './TenderAnalysisSections'" in analysis_source
-    assert "from './TenderAnalysisEvidencePanel'" in analysis_source
+    assert "from './TenderAnalysisEvidencePanel'" not in analysis_source
     assert "from './TenderAnalysisDecisionBrief'" in analysis_source
     assert "export function AnalysisSummary" in analysis_summary_source
     assert "export function AnalysisSectionRail" in analysis_sections_source
@@ -1252,8 +1252,13 @@ def test_tender_analysis_renders_actionable_checklist():
     assert "export function AnalysisChecklist" in source
     assert "Проверочный список" in source
     assert "analysis-checklist" in source
-    assert "grid-template-columns: minmax(120px, 0.34fr) minmax(0, 1.4fr) minmax(190px, 0.58fr)" in styles
+    assert "grid-template-columns: 1fr" in styles
     assert ".analysis-card," in styles
+    assert "item.source_label || item.source" in source
+    assert "item.source_context" in source
+    assert "analysis-source-context" in source
+    assert ".analysis-source-context" in styles
+    assert "Источник" in source
     row_text_rule = styles[
         styles.index(".analysis-checklist-row p"):styles.index("}", styles.index(".analysis-checklist-row p"))
     ]
@@ -2099,19 +2104,21 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     assert "analysis-section-rail" in analysis_sections_source
     assert "const [selectedAnalysisSection, setSelectedAnalysisSection]" in analysis_source
     assert "analysisSectionItems(analysis, documents)" in analysis_source
-    assert "<AnalysisSectionRail" in analysis_source
+    assert "<AnalysisSectionRail" not in analysis_source
+    assert "sections={analysisSections}" in analysis_source
     assert "onSelectSection={setSelectedAnalysisSection}" in analysis_source
     assert "<AnalysisSectionBody" in analysis_source
-    assert "<AnalysisEvidencePanel" in analysis_source
+    assert "TenderAnalysisEvidencePanel" not in analysis_source
+    assert "<AnalysisEvidencePanel" not in analysis_source
     assert "sections.map" in analysis_sections_source
     assert "onClick={() => onSelectSection(section.id)}" in analysis_sections_source
     assert "aria-pressed={active}" in analysis_sections_source
-    assert "analysis-evidence-panel" in analysis_evidence_source
+    assert "analysis-evidence-panel" not in analysis_source
     assert "from './TenderAnalysisEvidenceModel'" in analysis_evidence_source
     assert "from './TenderAnalysisEvidenceModel'" in analysis_sections_source
     assert "export function buildDocumentEvidenceItems" in analysis_evidence_model_source
     assert ".analysis-workspace" in styles_source
-    assert ".analysis-evidence-panel" in styles_source
+    assert "grid-template-columns: 1fr" in styles_source
     assert ".analysis-section-item:hover" in styles_source
     assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
@@ -2147,19 +2154,31 @@ def test_analysis_tab_renders_decision_first_brief():
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
-def test_analysis_tab_renders_backend_tz_passport():
+def test_analysis_tab_renders_compact_tz_passport_navigation():
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     passport_source = TENDER_ANALYSIS_PASSPORT_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
     assert "from './TenderAnalysisPassport'" in analysis_source
-    assert "<AnalysisPassport analysis={analysis} />" in analysis_source
+    assert "selectedSection={selectedAnalysisSection}" in analysis_source
+    assert "onSelectSection={setSelectedAnalysisSection}" in analysis_source
+    assert "sections={analysisSections}" in analysis_source
+    assert "<AnalysisSectionRail" not in analysis_source
+    decision_index = analysis_source.index("<AnalysisDecisionBrief")
+    passport_index = analysis_source.index("<AnalysisPassport")
+    workspace_index = analysis_source.index('className="analysis-workspace"')
+    assert decision_index < passport_index < workspace_index
     assert "export function AnalysisPassport" in passport_source
     assert "analysis?.tz_passport" in passport_source
-    assert "passport.sections" in passport_source
+    assert "navSections.map(passportSectionNavItem)" in passport_source
+    assert "PASSPORT_SECTION_TARGETS" not in passport_source
+    assert "onSelectSection?.(item.target)" in passport_source
     assert "analysis-passport" in passport_source
+    assert "analysis-passport-nav" in passport_source
+    assert "analysis-passport-item" not in passport_source
     assert ".analysis-passport" in styles_source
-    assert ".analysis-passport-grid" in styles_source
+    assert ".analysis-passport-nav" in styles_source
+    assert ".analysis-passport-grid" not in styles_source
     assert find_mojibake(passport_source, TENDER_ANALYSIS_PASSPORT_SOURCE) == []
 
 

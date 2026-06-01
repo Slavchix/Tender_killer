@@ -80,6 +80,30 @@ def test_docx_extractor_reads_document_text(tmp_path):
     assert "Office paper whiteness 146 CIE" in result.text
 
 
+def test_docx_extractor_preserves_manual_page_breaks(tmp_path):
+    path = tmp_path / "spec.docx"
+    path.write_bytes(
+        _zip_bytes(
+            {
+                "word/document.xml": (
+                    '<?xml version="1.0" encoding="UTF-8"?>'
+                    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                    "<w:body><w:p><w:r><w:t>Page one general text</w:t>"
+                    '<w:br w:type="page"/>'
+                    "<w:t>Page two certificate text</w:t></w:r></w:p></w:body></w:document>"
+                )
+            }
+        )
+    )
+
+    result = DocumentTextExtractor().extract(path)
+
+    assert result.status == "ok"
+    assert "Page one general text" in result.text
+    assert "\f" in result.text
+    assert "Page two certificate text" in result.text
+
+
 def test_legacy_doc_extractor_reads_cp1251_text(tmp_path):
     path = tmp_path / "spec.doc"
     path.write_bytes("Срок поставки 10 календарных дней".encode("cp1251"))
@@ -179,6 +203,25 @@ def test_pdf_extractor_uses_ocr_fallback_for_scanned_pdf_when_configured(tmp_pat
     assert result.status == "ok"
     assert "Государственный контракт" in result.text
     assert "OCR fallback used." in result.warnings
+
+
+def test_pdf_ocr_extractor_preserves_page_breaks(tmp_path):
+    path = tmp_path / "scanned-contract.pdf"
+    path.write_bytes(
+        b"%PDF-1.4\n"
+        b"1 0 obj\n<< /Subtype /Image /Width 20 /Height 20 /ColorSpace /DeviceGray >>\nendobj\n"
+        b"%%EOF"
+    )
+
+    def fake_ocr_runner(received_path):
+        assert received_path == path
+        return "First scanned page text\fSecond scanned page certificate text", ("OCR fallback used.",)
+
+    result = DocumentTextExtractor(ocr_runner=fake_ocr_runner).extract(path)
+
+    assert result.status == "ok"
+    assert "\f" in result.text
+    assert "Second scanned page certificate text" in result.text
 
 
 def test_pdf_extractor_reads_ocr_command_from_environment(monkeypatch, tmp_path):

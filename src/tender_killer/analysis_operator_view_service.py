@@ -345,6 +345,9 @@ def _item_from_label(
         "severity": severity or "medium",
         "description": "",
         "source": "",
+        "source_page": None,
+        "source_label": "",
+        "source_context": "",
         "impact": "",
     }
 
@@ -363,7 +366,7 @@ def _item_from_checklist(
         "category": item["category"],
         "severity": severity or item["severity"],
         "description": item.get("evidence", ""),
-        "source": item.get("document_name") or item.get("source") or "",
+        **_item_source_fields(item),
         "impact": item.get("impact") or "",
     }
 
@@ -393,7 +396,7 @@ def _evidence_item(item: dict[str, Any], index: int) -> dict[str, Any]:
         "category": str(item.get("category") or "general"),
         "severity": str(item.get("severity") or "medium"),
         "description": str(item.get("fragment") or ""),
-        "source": str(item.get("document_name") or ""),
+        **_item_source_fields(item),
         "impact": str(item.get("impact") or ""),
     }
 
@@ -408,7 +411,7 @@ def _execution_term_item(term: dict[str, Any], index: int) -> dict[str, Any]:
         "category": str(term.get("category") or "general"),
         "severity": str(term.get("severity") or "medium"),
         "description": value,
-        "source": str(term.get("source") or ""),
+        **_item_source_fields(term),
         "impact": _execution_term_impact(term),
     }
 
@@ -583,7 +586,7 @@ def _fact_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         "category": str(raw_item.get("category") or "general"),
         "severity": str(raw_item.get("severity") or "medium"),
         "description": str(raw_item.get("value") or raw_item.get("fragment") or ""),
-        "source": str(raw_item.get("document_name") or raw_item.get("source") or ""),
+        **_item_source_fields(raw_item),
         "impact": str(raw_item.get("impact") or ""),
         "operator_group": str(raw_item.get("operator_group") or _fallback_operator_group(raw_item)),
         "operator_action": str(raw_item.get("operator_action") or ""),
@@ -612,6 +615,19 @@ def _checklist_items(value: Any) -> list[dict[str, Any]]:
             }
         )
     return items
+
+
+def _item_source_fields(item: dict[str, Any]) -> dict[str, Any]:
+    source = str(item.get("document_name") or item.get("source") or "")
+    source_label = str(item.get("source_label") or source)
+    source_context = str(item.get("source_context") or "")
+    source_page = _source_page(item.get("source_page"))
+    return {
+        "source": source,
+        "source_page": source_page,
+        "source_label": source_label,
+        "source_context": source_context,
+    }
 
 
 def _evidence_items(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -702,3 +718,13 @@ def _int_metric(value: Any, fallback: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return fallback
+
+
+def _source_page(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        page = int(value)
+    except (TypeError, ValueError):
+        return None
+    return page if page > 0 else None

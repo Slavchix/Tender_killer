@@ -1,11 +1,9 @@
 import { useState } from 'react'
 import { AnalysisDecisionBrief } from './TenderAnalysisDecisionBrief'
 import { AnalysisDocumentsPanel } from './TenderAnalysisDocumentsPanel'
-import { AnalysisEvidencePanel } from './TenderAnalysisEvidencePanel'
 import { AnalysisPassport } from './TenderAnalysisPassport'
 import {
   AnalysisSectionBody,
-  AnalysisSectionRail,
   analysisSectionItems,
 } from './TenderAnalysisSections'
 import { AnalysisSummary } from './TenderAnalysisSummary'
@@ -55,21 +53,20 @@ export function TenderAnalysisTab({
         onDownload={onDownload}
         onExtract={onExtract}
       />
-      <AnalysisPassport analysis={analysis} />
       <AnalysisSummary analysis={analysis} documents={documents} />
       <AnalysisDecisionBrief
         analysis={analysis}
         documents={documents}
         onOpenSection={setSelectedAnalysisSection}
       />
+      <AnalysisPassport
+        analysis={analysis}
+        sections={analysisSections}
+        selectedSection={selectedAnalysisSection}
+        onSelectSection={setSelectedAnalysisSection}
+      />
 
       <div className="analysis-workspace">
-        <AnalysisSectionRail
-          sections={analysisSections}
-          selectedSection={selectedAnalysisSection}
-          onSelectSection={setSelectedAnalysisSection}
-        />
-
         <div className="analysis-main-panel">
           {analysis ? (
             <AnalysisSectionBody
@@ -82,7 +79,6 @@ export function TenderAnalysisTab({
           )}
         </div>
 
-        <AnalysisEvidencePanel documents={documents} analysis={analysis} />
       </div>
     </section>
   )

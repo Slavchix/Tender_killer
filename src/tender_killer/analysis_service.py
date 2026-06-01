@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -12,6 +11,7 @@ from tender_killer.analysis_evidence_service import build_analysis_evidence_item
 from tender_killer.analysis_facts_service import build_analysis_facts
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 from tender_killer.analysis_passport_service import build_analysis_tz_passport
+from tender_killer.analysis_source_service import attach_document_sources
 from tender_killer.schema import ensure_analysis_table
 from tender_killer.schema import ensure_documents_table
 from tender_killer.tender_detail_service import get_tender_payload
@@ -39,7 +39,7 @@ def analyze_tender_payload(database_path: str | Path, source: str, external_id: 
         documents = [dict(row) for row in rows]
         result = analyze_tender_texts([str(row["text_content"] or "") for row in rows])
         raw_payload = result.to_dict()
-        _attach_document_sources(raw_payload, documents)
+        attach_document_sources(raw_payload, documents)
         raw_payload["analysis_facts"] = build_analysis_facts(raw_payload, documents)
         raw_payload["tz_passport"] = build_analysis_tz_passport(raw_payload, documents)
         raw_payload["evidence_items"] = build_analysis_evidence_items(raw_payload, documents)
@@ -83,33 +83,3 @@ def _connect(database_path: str | Path) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     return connection
 
-
-def _attach_document_sources(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> None:
-    for collection_name in ("checklist", "execution_terms"):
-        collection = analysis.get(collection_name)
-        if not isinstance(collection, list):
-            continue
-        for item in collection:
-            if not isinstance(item, dict):
-                continue
-            fragment = str(item.get("evidence") or item.get("value") or "").strip()
-            source = _document_source_for_fragment(fragment, documents)
-            if not source:
-                continue
-            item.setdefault("document_name", source)
-            item.setdefault("source", source)
-
-
-def _document_source_for_fragment(fragment: str, documents: list[dict[str, Any]]) -> str:
-    needle = _normalized_text(fragment)
-    if not needle:
-        return ""
-    for document in documents:
-        haystack = _normalized_text(str(document.get("text_content") or ""))
-        if needle in haystack:
-            return str(document.get("name") or document.get("url") or "")
-    return ""
-
-
-def _normalized_text(value: str) -> str:
-    return re.sub(r"\s+", " ", value).strip().casefold()

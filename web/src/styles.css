@@ -1540,7 +1540,7 @@ textarea:focus {
 }
 
 .fullscreen-workspace-body .analysis-workspace {
-  grid-template-columns: minmax(170px, 0.32fr) minmax(0, 1fr) minmax(280px, 0.55fr);
+  grid-template-columns: 1fr;
 }
 
 .fullscreen-workspace-body .economics-workspace-grid {
@@ -2122,9 +2122,9 @@ textarea:focus {
 
 .analysis-passport {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  padding: 12px;
+  padding: 10px;
   background: #17231f;
   border: 1px solid #355046;
   border-radius: 7px;
@@ -2144,8 +2144,7 @@ textarea:focus {
   min-width: 0;
 }
 
-.analysis-passport-header span,
-.analysis-passport-section-title span {
+.analysis-passport-header span {
   color: #9fe29a;
   font-size: 12px;
   font-weight: 800;
@@ -2155,7 +2154,7 @@ textarea:focus {
 .analysis-passport-header h4 {
   margin: 0;
   color: #eef8f2;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
@@ -2172,36 +2171,53 @@ textarea:focus {
   font-size: 12px;
 }
 
-.analysis-passport-grid {
+.analysis-passport-nav {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.analysis-passport-section {
-  display: grid;
-  align-content: start;
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
   min-width: 0;
-  min-height: 154px;
-  padding: 10px;
-  background: #202b27;
-  border: 1px solid #304039;
-  border-radius: 7px;
 }
 
-.analysis-passport-section.danger {
-  border-color: #7a5045;
-}
-
-.analysis-passport-section-title {
+.analysis-passport-nav button {
   display: flex;
   gap: 8px;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 9px;
+  color: #dbe8e2;
+  text-align: left;
+  background: #202b27;
+  border: 1px solid #304039;
+  border-radius: 7px;
+  cursor: pointer;
 }
 
-.analysis-passport-section-title strong {
+.analysis-passport-nav button:hover,
+.analysis-passport-nav button.active {
+  border-color: #6be15b;
+  background: #1d3a25;
+}
+
+.analysis-passport-nav button:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.analysis-passport-nav button span {
+  min-width: 0;
+  color: #a9cfc0;
+  font-size: 12px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.analysis-passport-nav button strong {
+  flex: 0 0 auto;
   min-width: 24px;
   padding: 2px 7px;
   color: #0d160f;
@@ -2211,63 +2227,13 @@ textarea:focus {
   font-size: 12px;
 }
 
-.analysis-passport-items {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-}
-
-.analysis-passport-item {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-}
-
-.analysis-passport-item strong {
-  color: #eef8f2;
-  font-size: 13px;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.analysis-passport-item p,
-.analysis-passport-section > .muted-text {
-  margin: 0;
-  color: #b9cdc5;
-  font-size: 12px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.analysis-passport-meta {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.analysis-passport-meta span,
-.analysis-passport-meta em {
-  color: #9bb2aa;
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.analysis-passport-meta em {
-  color: #9fe29a;
-}
-
 .analysis-workspace {
   display: grid;
-  grid-template-columns: minmax(120px, 0.34fr) minmax(0, 1.4fr) minmax(190px, 0.58fr);
+  grid-template-columns: 1fr;
   gap: 10px;
   align-items: start;
 }
 
-.analysis-section-rail,
 .analysis-main-panel,
 .analysis-evidence-panel {
   min-width: 0;
@@ -2445,6 +2411,39 @@ textarea:focus {
 .analysis-checklist-row small {
   color: #9bb2aa;
   font-size: 12px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.analysis-source-context {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 10px;
+  background: #102019;
+  border: 1px solid #345147;
+  border-radius: 6px;
+}
+
+.analysis-source-context span {
+  color: #9fb9b0;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.analysis-source-context strong {
+  color: #ecf8f1;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.analysis-source-context p {
+  margin: 0;
+  color: #b8cbc4;
+  font-size: 12px;
+  line-height: 1.45;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -3921,7 +3920,7 @@ textarea:focus {
     grid-template-columns: 280px 1fr;
   }
 
-  .analysis-passport-grid {
+  .analysis-passport-nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -4098,7 +4097,7 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
-  .analysis-passport-grid {
+  .analysis-passport-nav {
     grid-template-columns: 1fr;
   }
 

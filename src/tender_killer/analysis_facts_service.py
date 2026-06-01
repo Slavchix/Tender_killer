@@ -65,6 +65,9 @@ def _checklist_fact(
         rule_id=f"checklist:{label}",
         fragment=fragment,
         document_name=_resolve_document_name(item, fragment, documents),
+        source_page=item.get("source_page"),
+        source_label=_text(item.get("source_label")),
+        source_context=_text(item.get("source_context")),
         is_blocker=is_blocker,
         is_price_factor=is_price_factor,
         impact=_impact(category, severity),
@@ -93,6 +96,9 @@ def _execution_term_fact(
         rule_id=f"execution_term:{term_type}",
         fragment=fragment,
         document_name=_resolve_document_name(item, fragment, documents),
+        source_page=item.get("source_page"),
+        source_label=_text(item.get("source_label")),
+        source_context=_text(item.get("source_context")),
         is_blocker=is_blocker,
         is_price_factor=is_price_factor,
         impact=_impact(category, severity),
@@ -110,14 +116,19 @@ def _fact(
     rule_id: str,
     fragment: str = "",
     document_name: str = "",
+    source_page: Any = None,
+    source_label: str = "",
+    source_context: str = "",
     is_blocker: bool = False,
     is_price_factor: bool = False,
     impact: str = "",
 ) -> dict[str, Any]:
     bound_document = _text(document_name)
+    page_number = _page_number(source_page)
     needs_review = bool(fragment and not bound_document)
     if needs_review:
         bound_document = "Документ не привязан"
+    display_source_label = _text(source_label) or (bound_document if needs_review else _source_label(bound_document, page_number))
     operator = _operator_metadata(kind, category, severity, is_blocker, is_price_factor, needs_review)
     return {
         "id": f"{kind}:{_slug(label)}",
@@ -130,6 +141,9 @@ def _fact(
         "rule_id": rule_id,
         "document_name": bound_document,
         "source": bound_document,
+        "source_page": page_number,
+        "source_label": display_source_label,
+        "source_context": _text(source_context),
         "fragment": fragment,
         "is_blocker": is_blocker,
         "is_price_factor": is_price_factor,
@@ -151,6 +165,24 @@ def _resolve_document_name(item: dict[str, Any], fragment: str, documents: list[
         if needle in haystack:
             return _text(document.get("name") or document.get("url"))
     return ""
+
+
+def _page_number(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        page = int(value)
+    except (TypeError, ValueError):
+        return None
+    return page if page > 0 else None
+
+
+def _source_label(document_name: str, page_number: int | None) -> str:
+    if not document_name:
+        return ""
+    if page_number is None:
+        return f"{document_name} · стр. не определена"
+    return f"{document_name} · стр. {page_number}"
 
 
 def _metrics(items: list[dict[str, Any]]) -> dict[str, int]:

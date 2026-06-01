@@ -105,21 +105,30 @@ function AnalysisOperatorSection({ section }) {
       </div>
       {items.length ? (
         <div className="analysis-checklist-list">
-          {items.map((item, index) => (
-            <article className={`analysis-checklist-row severity-${item.severity || 'medium'}`} key={item.id || `${item.label}-${index}`}>
-              <div className="analysis-checklist-main">
-                <strong>{item.label}</strong>
-                <div className="analysis-checklist-tags">
-                  <span>{analysisCategoryLabel(item.category)}</span>
-                  <span>{analysisSeverityLabel(item.severity)}</span>
-                  {item.status && <span>{operatorStatusLabel(item.status)}</span>}
+          {items.map((item, index) => {
+            const sourceLabel = item.source_label || item.source
+            return (
+              <article className={`analysis-checklist-row severity-${item.severity || 'medium'}`} key={item.id || `${item.label}-${index}`}>
+                <div className="analysis-checklist-main">
+                  <strong>{item.label}</strong>
+                  <div className="analysis-checklist-tags">
+                    <span>{analysisCategoryLabel(item.category)}</span>
+                    <span>{analysisSeverityLabel(item.severity)}</span>
+                    {item.status && <span>{operatorStatusLabel(item.status)}</span>}
+                  </div>
                 </div>
-              </div>
-              {item.description && <p>{item.description}</p>}
-              {item.impact && <em className="analysis-evidence-impact">{item.impact}</em>}
-              {item.source && <small>{item.source}</small>}
-            </article>
-          ))}
+                {item.description && <p>{item.description}</p>}
+                {item.impact && <em className="analysis-evidence-impact">{item.impact}</em>}
+                {sourceLabel && (
+                  <div className="analysis-source-context">
+                    <span>Источник</span>
+                    <strong>{sourceLabel}</strong>
+                    {item.source_context && <p>{item.source_context}</p>}
+                  </div>
+                )}
+              </article>
+            )
+          })}
         </div>
       ) : (
         <p className="muted-text">{section.empty}</p>

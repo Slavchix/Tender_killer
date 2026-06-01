@@ -19,19 +19,24 @@ def build_analysis_evidence_items(
         label = _text(item.get("label"), "Фрагмент документа")
         category = _text(item.get("category"), "general")
         severity = _text(item.get("severity"), "medium")
-        items.append(
-            {
-                "id": f"{label}-{index}",
-                "label": label,
-                "category": category,
-                "severity": severity,
-                "type_label": evidence_type_label(category),
-                "importance_label": evidence_importance_label(severity),
-                "document_name": resolve_evidence_document_name(item, document_rows),
-                "fragment": _text(item.get("evidence"), ""),
-                "impact": evidence_impact_label(item),
-            }
-        )
+        evidence_item = {
+            "id": f"{label}-{index}",
+            "label": label,
+            "category": category,
+            "severity": severity,
+            "type_label": evidence_type_label(category),
+            "importance_label": evidence_importance_label(severity),
+            "document_name": resolve_evidence_document_name(item, document_rows),
+            "fragment": _text(item.get("evidence"), ""),
+            "impact": evidence_impact_label(item),
+        }
+        if item.get("source_page") not in (None, ""):
+            evidence_item["source_page"] = item.get("source_page")
+        if item.get("source_label"):
+            evidence_item["source_label"] = _text(item.get("source_label"), "")
+        if item.get("source_context"):
+            evidence_item["source_context"] = _text(item.get("source_context"), "")
+        items.append(evidence_item)
     return items
 
 

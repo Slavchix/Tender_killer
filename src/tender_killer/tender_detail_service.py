@@ -11,6 +11,7 @@ from tender_killer.analysis_evidence_service import build_analysis_evidence_item
 from tender_killer.analysis_facts_service import build_analysis_facts
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 from tender_killer.analysis_passport_service import build_analysis_tz_passport
+from tender_killer.analysis_source_service import attach_document_sources
 from tender_killer.decision_service import build_tender_decision
 from tender_killer.document_service import document_row_to_payload
 from tender_killer.economics import build_economics_summary
@@ -212,6 +213,7 @@ def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) 
     payload["risks"] = _json_list(payload.pop("risks_json"))
     payload["red_flags"] = _json_list(payload.pop("red_flags_json"))
     payload["raw_payload"] = _json_object(payload.pop("raw_payload_json"))
+    attach_document_sources(payload["raw_payload"], documents)
     payload["checklist"] = payload["raw_payload"].get("checklist", [])
     execution_terms = payload["raw_payload"].get("execution_terms")
     payload["execution_terms"] = execution_terms if isinstance(execution_terms, list) else []
@@ -221,15 +223,26 @@ def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) 
         else build_analysis_tz_passport(payload, documents)
     )
     evidence_items = payload["raw_payload"].get("evidence_items")
-    payload["evidence_items"] = evidence_items if isinstance(evidence_items, list) else build_analysis_evidence_items(payload, documents)
+    payload["evidence_items"] = (
+        evidence_items if isinstance(evidence_items, list) and _items_have_source_context(evidence_items)
+        else build_analysis_evidence_items(payload, documents)
+    )
     analysis_facts = payload["raw_payload"].get("analysis_facts")
     payload["analysis_facts"] = (
-        analysis_facts if isinstance(analysis_facts, dict) and analysis_facts.get("version") == 1
+        analysis_facts if (
+            isinstance(analysis_facts, dict)
+            and analysis_facts.get("version") == 1
+            and _items_have_source_context(analysis_facts.get("items"))
+        )
         else build_analysis_facts(payload, documents)
     )
     operator_view = payload["raw_payload"].get("operator_view")
     payload["operator_view"] = (
-        operator_view if isinstance(operator_view, dict) and operator_view.get("version") == 2
+        operator_view if (
+            isinstance(operator_view, dict)
+            and operator_view.get("version") == 2
+            and _operator_view_has_source_context(operator_view)
+        )
         else build_analysis_operator_view(payload, documents)
     )
     payload["status"] = payload.pop("recommended_status")
@@ -254,3 +267,20 @@ def _json_object(value: str | None) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _items_have_source_context(value: Any) -> bool:
+    if not isinstance(value, list):
+        return False
+    return any(
+        isinstance(item, dict)
+        and bool(item.get("source_context") or item.get("source_label") or item.get("source_page"))
+        for item in value
+    )
+
+
+def _operator_view_has_source_context(value: dict[str, Any]) -> bool:
+    sections = value.get("sections")
+    if not isinstance(sections, list):
+        return False
+    return any(_items_have_source_context(section.get("items")) for section in sections if isinstance(section, dict))

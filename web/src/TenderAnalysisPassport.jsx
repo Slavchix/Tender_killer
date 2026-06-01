@@ -1,10 +1,11 @@
 import { analysisStatusLabel } from './formatters'
 
-export function AnalysisPassport({ analysis }) {
+export function AnalysisPassport({ analysis, sections = [], selectedSection, onSelectSection }) {
   const passport = analysis?.tz_passport
   if (!passport) return null
 
-  const sections = Array.isArray(passport.sections) ? passport.sections : []
+  const navSections = Array.isArray(sections) ? sections : []
+  const navItems = navSections.map(passportSectionNavItem).filter(Boolean)
 
   return (
     <section className="analysis-passport" aria-label="Паспорт ТЗ">
@@ -15,40 +16,35 @@ export function AnalysisPassport({ analysis }) {
         </div>
         <strong>{analysisStatusLabel(passport.status || 'needs_review')}</strong>
       </div>
-      <div className="analysis-passport-grid">
-        {sections.map((section) => (
-          <PassportSection key={section.id} section={section} />
-        ))}
-      </div>
+      {navItems.length > 0 && (
+        <div className="analysis-passport-nav">
+          {navItems.map((item) => (
+            <button
+              aria-pressed={selectedSection === item.target}
+              className={selectedSection === item.target ? 'active' : undefined}
+              disabled={!onSelectSection}
+              key={item.id}
+              onClick={() => onSelectSection?.(item.target)}
+              type="button"
+            >
+              <span>{item.title}</span>
+              <strong>{item.count}</strong>
+            </button>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
 
-function PassportSection({ section }) {
-  const items = Array.isArray(section.items) ? section.items : []
+function passportSectionNavItem(section) {
+  const target = section.id
+  if (!target) return null
 
-  return (
-    <article className={`analysis-passport-section ${section.tone || 'default'}`}>
-      <div className="analysis-passport-section-title">
-        <span>{section.title}</span>
-        <strong>{section.count ?? items.length}</strong>
-      </div>
-      {items.length ? (
-        <div className="analysis-passport-items">
-          {items.map((item, index) => (
-            <div className="analysis-passport-item" key={item.id || `${item.label}-${index}`}>
-              <strong>{item.label}</strong>
-              {item.value && <p>{item.value}</p>}
-              <div className="analysis-passport-meta">
-                {item.source && <span>{item.source}</span>}
-                {item.impact && <em>{item.impact}</em>}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="muted-text">{section.empty}</p>
-      )}
-    </article>
-  )
+  return {
+    id: section.id,
+    target,
+    title: section.title,
+    count: section.value ?? section.count ?? (Array.isArray(section.items) ? section.items.length : 0),
+  }
 }
