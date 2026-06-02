@@ -11,27 +11,46 @@ function Metric({ label, value, tone }) {
   )
 }
 
-export function DashboardView({ tenderPage, stats, workflowCounts, sources, sourceStatusError, searchSummary, error, onRefreshSources, onOpenTenders, tenders }) {
-  const currentOfferCount = (tenders || []).filter((tender) => hasParticipantBid(tender.market_state)).length
-  const noParticipantsCount = (tenders || []).filter((tender) => tender.market_state?.status === 'no_participants').length
-  const decisionReadyCount = (tenders || []).filter((tender) => tender.decision).length
+export function DashboardView({
+  dashboardQueueError,
+  dashboardQueues,
+  tenderPage,
+  stats,
+  workflowCounts,
+  sources,
+  sourceStatusError,
+  searchSummary,
+  error,
+  onRefreshSources,
+  onOpenTenders,
+  tenders,
+}) {
+  const queuePayload = dashboardQueues || {}
+  const summary = queuePayload.summary || {}
+  const currentOfferCount = numberOrFallback(
+    summary.current_offers,
+    (tenders || []).filter((tender) => hasParticipantBid(tender.market_state)).length,
+  )
+  const noParticipantsCount = numberOrFallback(
+    summary.no_participants,
+    (tenders || []).filter((tender) => tender.market_state?.status === 'no_participants').length,
+  )
+  const decisionReadyCount = numberOrFallback(
+    summary.decisions,
+    (tenders || []).filter((tender) => tender.decision).length,
+  )
   const marketMetric = currentOfferCount ? `${currentOfferCount} с ценой` : (noParticipantsCount ? `${noParticipantsCount} без участников` : 'нет данных')
-  const queue = [
-    { label: 'Новые', value: workflowCounts.new || 0 },
-    { label: 'Интересные', value: workflowCounts.interesting || 0 },
-    { label: 'В работе', value: workflowCounts.in_progress || 0 },
-    { label: 'Архив', value: workflowCounts.archive || 0 },
-  ]
+  const queue = dashboardQueueKpis(dashboardQueues, workflowCounts)
 
   return (
     <section className="dashboard-view">
       <section className="metrics">
-        <Metric label="Найдено" value={tenderPage.total} />
+        <Metric label="Найдено" value={summary.total ?? tenderPage.total} />
         <Metric label="Активные" value={stats.active} />
         <Metric label="Сумма в выдаче" value={formatMoney(stats.totalPrice)} />
         <Metric label="Ставки" value={marketMetric} />
         <Metric label="Решения" value={decisionReadyCount ? `${decisionReadyCount} готово` : 'нет решений'} />
-        <Metric label="API" value={error ? 'ошибка' : 'ok'} tone={error ? 'danger' : 'good'} />
+        <Metric label="API" value={error || dashboardQueueError ? 'ошибка' : 'ok'} tone={error || dashboardQueueError ? 'danger' : 'good'} />
       </section>
       {searchSummary && <div className="run-summary">{searchSummary}</div>}
       <section className="dashboard-grid">
@@ -41,7 +60,7 @@ export function DashboardView({ tenderPage, stats, workflowCounts, sources, sour
           sources={sources}
         />
         <section className="dashboard-panel">
-          <div className="panel-title"><FileText size={18} /> Очередь</div>
+          <div className="panel-title"><FileText size={18} /> Очередь решений</div>
           <div className="dashboard-kpis">
             {queue.map((item) => (
               <div key={item.label}>
@@ -50,6 +69,7 @@ export function DashboardView({ tenderPage, stats, workflowCounts, sources, sour
               </div>
             ))}
           </div>
+          {dashboardQueueError && <div className="source-status-error">{dashboardQueueError}</div>}
           <button className="primary-button dashboard-open-button" onClick={onOpenTenders} type="button">
             Открыть закупки
           </button>
@@ -57,6 +77,8 @@ export function DashboardView({ tenderPage, stats, workflowCounts, sources, sour
       </section>
       <section className="dashboard-secondary-grid">
         <DashboardAttentionPanel
+          dashboardQueueError={dashboardQueueError}
+          dashboardQueues={dashboardQueues}
           error={error}
           onOpenTenders={onOpenTenders}
           sources={sources}
@@ -69,15 +91,37 @@ export function DashboardView({ tenderPage, stats, workflowCounts, sources, sour
   )
 }
 
-function DashboardAttentionPanel({ error, sources, tenders, workflowCounts, onOpenTenders }) {
+function numberOrFallback(value, fallback) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function dashboardQueueKpis(dashboardQueues, workflowCounts) {
+  const queues = dashboardQueues?.queues || []
+  if (queues.length) {
+    return queues.slice(0, 4).map((queue) => ({ label: queue.label, value: queue.count || 0 }))
+  }
+  return [
+    { label: 'Новые', value: workflowCounts.new || 0 },
+    { label: 'Интересные', value: workflowCounts.interesting || 0 },
+    { label: 'В работе', value: workflowCounts.in_progress || 0 },
+    { label: 'Архив', value: workflowCounts.archive || 0 },
+  ]
+}
+
+function DashboardAttentionPanel({ dashboardQueueError, dashboardQueues, error, sources, tenders, workflowCounts, onOpenTenders }) {
   const sourceErrors = (sources || []).filter((source) => source.last_error)
   const attentionItems = []
 
   if (error) attentionItems.push({ label: 'API сайта', value: error })
+  if (dashboardQueueError) attentionItems.push({ label: 'Очереди', value: dashboardQueueError })
   if (sourceErrors.length) attentionItems.push({ label: 'Источники', value: `${sourceErrors.length} требуют проверки` })
-  if (workflowCounts.new) attentionItems.push({ label: 'Новые закупки', value: `${workflowCounts.new} еще не разобраны` })
-  if (workflowCounts.interesting) attentionItems.push({ label: 'Интересные', value: `${workflowCounts.interesting} ждут решения` })
-  attentionItems.push(...decisionAttentionItems(tenders))
+  attentionItems.push(...dashboardQueueItems(dashboardQueues))
+  if (!dashboardQueues?.queues?.length) {
+    if (workflowCounts.new) attentionItems.push({ label: 'Новые закупки', value: `${workflowCounts.new} еще не разобраны` })
+    if (workflowCounts.interesting) attentionItems.push({ label: 'Интересные', value: `${workflowCounts.interesting} ждут решения` })
+    attentionItems.push(...decisionAttentionItems(tenders))
+  }
 
   return (
     <section className="dashboard-panel">
@@ -93,6 +137,21 @@ function DashboardAttentionPanel({ error, sources, tenders, workflowCounts, onOp
       </div>
     </section>
   )
+}
+
+function dashboardQueueItems(dashboardQueues) {
+  return (dashboardQueues?.queues || [])
+    .filter((queue) => Number(queue.count || 0) > 0)
+    .slice(0, 4)
+    .map((queue) => {
+      const firstItem = queue.items?.[0]
+      const preview = firstItem?.title ? ` · ${firstItem.title}` : ''
+      return {
+        key: `dashboard-queue-${queue.id}`,
+        label: 'Очередь решений',
+        value: `${queue.label}: ${queue.count}${preview}`,
+      }
+    })
 }
 
 function decisionAttentionItems(tenders) {

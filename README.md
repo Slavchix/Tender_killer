@@ -89,6 +89,8 @@ Recent architecture cleanup:
 - Decision Engine v1 now lives in `src/tender_killer/decision_service.py`. `get_tender_payload(...)` attaches a stable `decision` object that combines economics, analysis, documents, market state, and product profiles into one status/label/next-step payload for future card, list, dashboard, and report surfaces.
 - The tender card decision strip, tender list badges, and dashboard previews now read the shared backend `tender.decision` payload through frontend formatter helpers, falling back to saved economics only for older payloads.
 - The tender card decision strip and Word report now surface backend decision reasons and blockers, so the operator can see why the current status/next step was recommended.
+- Dashboard decision queues now live on the backend in `src/tender_killer/dashboard_queue_service.py` and are exposed as `GET /api/dashboard/queues`. The dashboard no longer infers core queues from the currently visible 25 rows; it scans the active filtered set and returns counts/items for missing prices, TZ review, bid limits, interesting tenders, document text gaps, and urgent deadlines.
+- Tender list decision cues are decision-first: each row shows the backend next step and the first blocker/reason instead of separate low-level analysis/economics snippets.
 - Analysis document evidence now has one backend-owned model in `src/tender_killer/analysis_evidence_service.py`. Analysis runs, detail payloads, Word reports, and the React evidence view all read `analysis.evidence_items`, so labels, importance, document names, fragments, and impact text stay consistent for future agents.
 - TZ analysis now also emits `analysis.execution_terms`: normalized delivery, payment, advance, warranty, contract security, and penalty conditions. `operator_view` surfaces them as the dedicated `Условия исполнения` section between requirements and price factors, giving the operator a faster route from documents to economics.
 - Analysis runs bind checklist evidence and execution terms back to the source document when the fragment can be matched to extracted document text, so multi-document tenders can show whether a condition came from the ТЗ, contract draft, or another file.
@@ -110,13 +112,13 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest full verified result after analysis decision workflow: `454 passed`.
+Latest full verified result after backend dashboard queues and decision-first list cues: `465 passed`.
 
 Good next steps:
 
-1. Improve the analysis engine from rule-based extraction toward document-aware agent prompts while preserving the backend `analysis.evidence_items` and `analysis.execution_terms` contracts.
-2. Feed decision blockers into workflow queues and dashboard attention items.
-3. Add tighter visual verification for the decision card and modal workspaces after each major frontend slice.
+1. Start the auto-pricing pipeline for economics: normalized price candidates, provider confidence, review/confirm/reject, then recalculation from confirmed prices only.
+2. Improve the analysis engine from rule-based extraction toward document-aware agent prompts while preserving `analysis.evidence_items`, `analysis.analysis_facts`, and document/page bindings.
+3. Add tighter browser visual verification for dashboard queues, list rows, and full-screen analysis/economics workspaces after each major frontend slice.
 
 Previous next steps:
 

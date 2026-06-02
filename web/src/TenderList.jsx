@@ -1,10 +1,7 @@
 import { CalendarClock, CircleDollarSign, FileText, Scale, TrendingUp, Users } from 'lucide-react'
 import { sourceLabels, workflowLabels } from './constants'
 import {
-  analysisStatusLabel,
-  economicsStatusLabel,
   formatDate,
-  formatPercent,
   marketStateValue,
   nmcPriceValue,
   tenderDecisionLabel,
@@ -116,26 +113,20 @@ function TenderListItem({ isSelected, onTenderSelect, tender }) {
 function TenderListDecisionCues({ tender }) {
   return (
     <div className="row-insights">
-      <span><TrendingUp size={14} /> {economicsInsight(tender)}</span>
-      <span><FileText size={14} /> {analysisInsight(tender)}</span>
+      <span><TrendingUp size={14} /> {decisionPrimaryInsight(tender)}</span>
+      <span><FileText size={14} /> {decisionSecondaryInsight(tender)}</span>
     </div>
   )
 }
 
-function economicsInsight(tender) {
-  const economics = tender.economics
-  const margin = Number(economics?.margin_percent)
-  if (economics) {
-    const marginText = Number.isFinite(margin) ? `маржа ${formatPercent(margin)}` : economicsStatusLabel(economics.status)
-    return `Экономика: ${marginText}`
-  }
-  return `Экономика: ${tenderDecisionNextStep(tender, economics)}`
+function decisionPrimaryInsight(tender) {
+  return `Следующий шаг: ${tender.decision?.next_step || tenderDecisionNextStep(tender)}`
 }
 
-function analysisInsight(tender) {
-  const analysis = tender.analysis
-  if (!analysis) return 'Анализ: не запускался'
-  const metrics = analysis.operator_view?.metrics || {}
-  const risksCount = metrics.risks ?? ((analysis.risks?.length || 0) + (analysis.red_flags?.length || 0))
-  return `Анализ: ${analysisStatusLabel(analysis.status)} · рисков ${risksCount}`
+function decisionSecondaryInsight(tender) {
+  const reason = tender.decision?.blockers?.[0] || tender.decision?.reasons?.[0]
+  if (reason) return `Причина: ${reason}`
+  if (tender.decision?.summary) return tender.decision.summary
+  if (tender.economics || tender.analysis) return 'Решение собрано, проверь карточку'
+  return 'Решение еще не собрано'
 }

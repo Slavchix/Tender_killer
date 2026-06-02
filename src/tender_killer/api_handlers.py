@@ -22,6 +22,7 @@ from tender_killer.api_routes import parse_product_profile_supplier_options_path
 from tender_killer.api_routes import parse_product_profile_supplier_search_prepare_path
 from tender_killer.api_routes import parse_tender_path
 from tender_killer.config import Settings
+from tender_killer.dashboard_queue_service import build_dashboard_queues_payload
 from tender_killer.database_view_service import get_database_table_payload
 from tender_killer.database_view_service import list_database_tables_payload
 from tender_killer.document_service import download_tender_documents_payload
@@ -70,6 +71,7 @@ API_CAPABILITIES: tuple[str, ...] = (
     "supplier_discovery_url",
     "web_auto_search",
     "market_state_import",
+    "dashboard_queues",
 )
 
 
@@ -262,6 +264,8 @@ def handle_get_request(database_path: str | Path, path: str, query: dict[str, st
         return ApiResponse(list_source_runs_payload(database_path))
     if path == "/api/supplier-catalogs/health":
         return ApiResponse(get_supplier_catalog_health_payload(live=_truthy_query_value(query.get("live"))))
+    if path == "/api/dashboard/queues":
+        return ApiResponse(build_dashboard_queues_payload(database_path, query))
     if path == "/api/tenders":
         return ApiResponse(list_tenders_payload(database_path, query))
     if path.startswith("/api/tenders/") and path.endswith("/report.docx"):

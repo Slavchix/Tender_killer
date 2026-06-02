@@ -134,6 +134,8 @@ def test_frontend_uses_dedicated_api_client():
     assert "error.status = response.status" in api_source
     assert "response.json().catch" in api_source
     assert "export function fetchTenderDetail" in api_source
+    assert "export function fetchDashboardQueues" in api_source
+    assert "/api/dashboard/queues" in api_source
     assert "export function saveProfileEconomics" in api_source
     assert "export function autoSelectProfileSupplierOption" in api_source
     assert "fetch(" not in app_source
@@ -325,8 +327,12 @@ def test_frontend_uses_dedicated_tender_list_module():
     assert "onTenderSelect(tender)" in tender_list_source
     assert "TenderListDecisionCues" in tender_list_source
     assert "row-insights" in tender_list_source
-    assert "economicsStatusLabel" in tender_list_source
-    assert "analysisStatusLabel" in tender_list_source
+    assert "decisionPrimaryInsight" in tender_list_source
+    assert "decisionSecondaryInsight" in tender_list_source
+    assert "tender.decision?.next_step" in tender_list_source
+    assert "tender.decision?.blockers?.[0] || tender.decision?.reasons?.[0]" in tender_list_source
+    assert "economicsStatusLabel" not in tender_list_source
+    assert "analysisStatusLabel" not in tender_list_source
     assert "function TenderList" not in app_source
     assert "className=\"tender-list\"" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
@@ -2735,10 +2741,17 @@ def test_economics_tab_supports_bulk_best_supplier_selection():
 
 def test_dashboard_surfaces_current_offers_and_backend_decisions():
     dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
+    assert "fetchDashboardQueues" in app_source
+    assert "const [dashboardQueues, setDashboardQueues]" in app_source
+    assert "loadDashboardQueues()" in app_source
+    assert "dashboardQueues={dashboardQueues}" in app_source
+    assert "dashboardQueueError={dashboardQueueError}" in app_source
+    assert "dashboardQueues" in dashboard_source
+    assert "queuePayload" in dashboard_source
     assert "currentOfferCount" in dashboard_source
-    assert "hasParticipantBid(tender.market_state)" in dashboard_source
     assert "marketMetric" in dashboard_source
     assert "decisionReadyCount" in dashboard_source
     assert "tenderDecisionLabel(tender)" in dashboard_source
@@ -2868,8 +2881,9 @@ def test_dashboard_surfaces_attention_and_recent_tenders():
     assert "function DashboardTenderPreview" in dashboard_source
     assert "<DashboardAttentionPanel" in dashboard_source
     assert "tenders={tenders}" in dashboard_source
-    assert "decisionAttentionItems(tenders)" in dashboard_source
-    assert "tender.decision?.blockers" in dashboard_source
+    assert "dashboardQueues={dashboardQueues}" in dashboard_source
+    assert "dashboardQueueItems(dashboardQueues)" in dashboard_source
+    assert "queue.items?.[0]" in dashboard_source
     assert "ТЗ/решение" in dashboard_source
     assert "<DashboardTenderPreview" in dashboard_source
     assert "Требует внимания" in dashboard_source

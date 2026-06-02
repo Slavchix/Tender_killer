@@ -91,7 +91,13 @@ def build_tender_list_query(query: dict[str, str]) -> TenderListQuery:
         "analysis.raw_payload_json AS analysis_raw_payload_json, "
         "analysis.analyzed_at AS analysis_analyzed_at, "
         "(SELECT COUNT(*) FROM tender_items AS item_count "
-        "WHERE item_count.source = tenders.source AND item_count.external_id = tenders.external_id) AS items_count "
+        "WHERE item_count.source = tenders.source AND item_count.external_id = tenders.external_id) AS items_count, "
+        "(SELECT COUNT(*) FROM tender_documents AS document_count "
+        "WHERE document_count.source = tenders.source AND document_count.external_id = tenders.external_id) "
+        "AS document_records_count, "
+        "(SELECT COUNT(*) FROM tender_documents AS document_text_count "
+        "WHERE document_text_count.source = tenders.source AND document_text_count.external_id = tenders.external_id "
+        "AND document_text_count.text_status = 'ok') AS document_text_ready_count "
     )
     limit = max(1, min(_int_query(query.get("limit"), 100), 500))
     offset = max(0, _int_query(query.get("offset"), 0))
@@ -429,9 +435,13 @@ def _active_deadline_filter() -> str:
 def _row_to_list_item(row: sqlite3.Row, database_path: str | Path) -> dict[str, Any]:
     payload = dict(row)
     documents = _json_list(payload.pop("documents_json"))
+    document_records_count = _int_value(payload.pop("document_records_count", 0))
+    document_text_ready_count = _int_value(payload.pop("document_text_ready_count", 0))
+    documents_total = max(len(documents), document_records_count)
+    document_records = _document_records_for_decision(documents_total, document_text_ready_count)
     raw_payload_json = payload.pop("raw_payload_json", None)
     analysis = _analysis_from_list_row(payload)
-    payload["documents_count"] = len(documents)
+    payload["documents_count"] = documents_total
     payload["market_state"] = extract_market_state({**payload, "raw_payload_json": raw_payload_json})
     payload["law"] = payload.get("law") or _law_label(raw_payload_json)
     profiles = TenderStore(database_path).get_product_profiles(payload["source"], payload["external_id"])
@@ -453,7 +463,7 @@ def _row_to_list_item(row: sqlite3.Row, database_path: str | Path) -> dict[str, 
             {
                 **payload,
                 "analysis": analysis,
-                "document_records": [],
+                "document_records": document_records,
                 "product_profiles": profiles,
             }
         )
@@ -510,6 +520,22 @@ def _analysis_from_list_row(payload: dict[str, Any]) -> dict[str, Any] | None:
         else build_analysis_operator_view(analysis, [])
     )
     return analysis
+
+
+def _document_records_for_decision(total: int, ready: int) -> list[dict[str, str]]:
+    normalized_total = max(0, total)
+    normalized_ready = max(0, min(ready, normalized_total))
+    return [
+        *({"text_status": "ok"} for _ in range(normalized_ready)),
+        *({"text_status": "pending"} for _ in range(normalized_total - normalized_ready)),
+    ]
+
+
+def _int_value(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _json_list(value: str | None) -> list[Any]:

@@ -42,6 +42,12 @@ export function fetchTenderPage(params) {
   return apiJson(`/api/tenders?${params.toString()}`)
 }
 
+export function fetchDashboardQueues(params = new URLSearchParams()) {
+  return apiJson(`/api/dashboard/queues?${params.toString()}`, {
+    errorMessage: 'Не удалось загрузить очереди решений',
+  })
+}
+
 export function fetchSourceStatus() {
   return apiJson('/api/sources/status')
 }

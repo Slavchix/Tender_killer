@@ -7,6 +7,7 @@ import {
   RefreshCcw,
 } from 'lucide-react'
 import {
+  fetchDashboardQueues,
   fetchSourceStatus,
   fetchTenderDetail,
   fetchTenderPage,
@@ -46,6 +47,8 @@ function App() {
   const [filtersCollapsed, setFiltersCollapsed] = useState(false)
   const [sourceStatus, setSourceStatus] = useState([])
   const [sourceStatusError, setSourceStatusError] = useState('')
+  const [dashboardQueues, setDashboardQueues] = useState(null)
+  const [dashboardQueueError, setDashboardQueueError] = useState('')
   const [pageOffset, setPageOffset] = useState(0)
   const [pageLimit, setPageLimit] = useState(defaultTenderPageLimit)
   const [tenderPage, setTenderPage] = useState(initialTenderPage)
@@ -53,6 +56,10 @@ function App() {
   useEffect(() => {
     loadTenders(appliedFilters, pageOffset)
   }, [appliedFilters, pageOffset, pageLimit])
+
+  useEffect(() => {
+    loadDashboardQueues(appliedFilters)
+  }, [appliedFilters])
 
   useEffect(() => {
     loadSourceStatus()
@@ -110,6 +117,17 @@ function App() {
     return fetchSourceStatus()
       .then((payload) => setSourceStatus(payload.sources || []))
       .catch((err) => setSourceStatusError(err.message))
+  }
+
+  function loadDashboardQueues(nextAppliedFilters = appliedFilters) {
+    setDashboardQueueError('')
+    const params = new URLSearchParams()
+    Object.entries(nextAppliedFilters || {}).forEach(([key, value]) => {
+      if (value) params.set(key, value)
+    })
+    return fetchDashboardQueues(params)
+      .then(setDashboardQueues)
+      .catch((err) => setDashboardQueueError(err.message))
   }
 
   const stats = useMemo(() => {
@@ -203,6 +221,7 @@ function App() {
           }
         : item
     )))
+    loadDashboardQueues()
   }
 
   function updateTenderDetails(updatedTender) {
@@ -247,6 +266,7 @@ function App() {
           }
         : item
     )))
+    loadDashboardQueues()
   }
 
   function runSearch() {
@@ -264,6 +284,7 @@ function App() {
           `Fetched=${stats.fetched || 0} Saved=${stats.saved || 0} Matched=${stats.matched || 0} Notified=${stats.notified || 0} Telegram=${payload.notifications_enabled ? 'on' : 'off'}`
         )
         loadSourceStatus()
+        loadDashboardQueues(nextFilters)
         return loadTenders(nextFilters, 0)
       })
       .catch((err) => setError(err.message))
@@ -320,7 +341,7 @@ function App() {
                 <PlayCircle size={18} />
                 {searching ? 'Поиск...' : 'Запустить поиск'}
               </button>
-              <button className="icon-button" onClick={loadTenders} title="Обновить список">
+              <button className="icon-button" onClick={() => { loadTenders(); loadDashboardQueues() }} title="Обновить список">
                 <RefreshCcw size={18} />
               </button>
               <span className="status-pill"><Bell size={16} /> Telegram: уведомления</span>
@@ -329,6 +350,8 @@ function App() {
 
           {view === 'dashboard' && (
             <DashboardView
+              dashboardQueueError={dashboardQueueError}
+              dashboardQueues={dashboardQueues}
               error={error}
               onOpenTenders={() => changeView('tenders')}
               onRefreshSources={loadSourceStatus}

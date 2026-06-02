@@ -17,6 +17,7 @@ def test_check_api_health_requires_health_and_source_status_endpoints():
                     "supplier_discovery_url",
                     "web_auto_search",
                     "market_state_import",
+                    "dashboard_queues",
                 ],
             }
         if url.endswith("/api/sources/status"):
@@ -54,6 +55,7 @@ def test_check_api_health_reports_stale_backend_missing_supplier_capabilities():
     assert "supplier_discovery_url" in health["error"]
     assert "web_auto_search" in health["error"]
     assert "market_state_import" in health["error"]
+    assert "dashboard_queues" in health["error"]
 
 
 def test_check_api_health_reports_stale_backend_missing_source_status():
@@ -68,6 +70,7 @@ def test_check_api_health_reports_stale_backend_missing_source_status():
                     "supplier_discovery_url",
                     "web_auto_search",
                     "market_state_import",
+                    "dashboard_queues",
                 ],
             }
         if url.endswith("/api/sources/status"):
@@ -97,6 +100,7 @@ def test_check_api_health_reports_stale_backend_missing_supplier_catalog_health(
                     "supplier_discovery_url",
                     "web_auto_search",
                     "market_state_import",
+                    "dashboard_queues",
                 ],
             }
         if url.endswith("/api/sources/status"):

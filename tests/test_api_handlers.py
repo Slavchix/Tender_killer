@@ -95,6 +95,7 @@ def test_handle_get_request_returns_health_payload(tmp_path) -> None:
     assert "supplier_discovery_url" in response.payload["capabilities"]
     assert "web_auto_search" in response.payload["capabilities"]
     assert "market_state_import" in response.payload["capabilities"]
+    assert "dashboard_queues" in response.payload["capabilities"]
 
 
 def test_handle_get_request_routes_supplier_catalog_health(tmp_path) -> None:
@@ -133,6 +134,18 @@ def test_handle_get_request_routes_tender_list(tmp_path) -> None:
     assert response.status == 200
     assert response.payload["total"] == 1
     assert response.payload["items"][0]["external_id"] == "3668200"
+
+
+def test_handle_get_request_routes_dashboard_queues(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+
+    response = handle_get_request(store.database_path, "/api/dashboard/queues", {"status": "active"})
+
+    assert response.kind == "json"
+    assert response.status == 200
+    assert response.payload["ok"] is True
+    assert "summary" in response.payload
+    assert "queues" in response.payload
 
 
 def test_handle_post_request_routes_workflow_update(tmp_path) -> None:

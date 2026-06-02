@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 from tender_killer.models import ProductProfile
 from tender_killer.models import Tender
+from tender_killer.models import TenderDocument
 from tender_killer.storage import TenderStore
 from tender_killer.tender_query_service import list_tenders_payload
 
@@ -82,6 +83,53 @@ def test_tender_query_service_includes_market_state_and_saved_economics(tmp_path
     assert item["economics"]["revenue_kind"] == "current_offer"
     assert item["economics"]["participation_decision"]["status"] == "can_bid"
     assert item["decision"]["status"] == "interesting"
+
+
+def test_tender_query_service_decision_metrics_use_persisted_document_text_counts(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="doc-metrics",
+            url="https://example.test/doc-metrics",
+            title="Tender with document metrics",
+            price=100000.0,
+            document_records=[
+                TenderDocument(url="https://example.test/spec.docx", name="spec.docx"),
+                TenderDocument(url="https://example.test/contract.pdf", name="contract.pdf"),
+            ],
+        )
+    )
+    with store._connect() as connection:
+        connection.execute(
+            """
+            UPDATE tender_documents
+            SET text_status = 'ok', text_content = 'extracted text'
+            WHERE source = ? AND external_id = ? AND url = ?
+            """,
+            ("mosreg_market", "doc-metrics", "https://example.test/spec.docx"),
+        )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "doc-metrics",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="doc-metrics",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                raw_payload={"economics": {"unit_cost": 6000.0}},
+            )
+        ],
+    )
+
+    payload = list_tenders_payload(store.database_path, {})
+    metrics = payload["items"][0]["decision"]["metrics"]
+
+    assert metrics["documents_total"] == 2
+    assert metrics["documents_ready"] == 1
 
 
 def test_tender_query_service_includes_operator_decision_for_dashboard_attention(tmp_path):

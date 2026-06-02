@@ -961,3 +961,24 @@ Date: 2026-06-01.
 - Targeted verification after this checkpoint: `135 passed` for analysis, reports, frontend contract, detail/query, and related tests.
 - Vite build verification after this checkpoint: direct bundled Node invocation of `node_modules\vite\bin\vite.js build` completed successfully.
 - Full verification after this checkpoint: `454 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-decision-workflow`.
+
+## Dashboard queues and economics architecture checkpoint
+
+Date: 2026-06-02.
+
+- Added `src/tender_killer/dashboard_queue_service.py` and `GET /api/dashboard/queues`.
+- Dashboard queues are backend-owned instead of derived from the current visible page. The service scans the active filtered set and returns summary counts plus sample items for `missing_prices`, `needs_review`, `with_limit`, `interesting`, `documents_review`, and `urgent_deadline`.
+- `list_tenders_payload(...)` now passes persisted `tender_documents.text_status` counts into `build_tender_decision(...)`, so list/dashboard decision metrics can show real document readiness instead of `0/0`.
+- The React dashboard loads `fetchDashboardQueues(...)`, refreshes queues after search/detail/workflow changes, and keeps a fallback to page-derived workflow counts if the endpoint is unavailable.
+- Tender list rows are decision-first: they show `decision.next_step` and the first blocker/reason instead of separate economics and analysis status snippets.
+- `tender_killer.dev_health` now requires the `dashboard_queues` capability, preventing stale local API processes from being treated as compatible before Vite starts.
+- Local dev stack after restart: API `http://127.0.0.1:8000`, Vite `http://127.0.0.1:5173`, dev smoke OK.
+- Full verification after this checkpoint: `465 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-dashboard-final`.
+
+Economics architecture notes from the dedicated agent:
+
+- Current economics is manual-first and review-only, with supplier candidates and auto-estimate drafts already present, but there is no single auditable auto-pricing pipeline from public price source to confirmed cost input.
+- Recommended next layer: `pricing_pipeline` with query generation, provider collectors, normalized price candidates, candidate scoring/confidence reasons, staged review, operator confirm/reject/refresh, and economics recalculation only from confirmed prices.
+- Keep the legal boundary: no portal login, no cookies/tokens, no automated bid/submission/signing. Public catalog scraping can be brittle and must remain review-first.
+- Short-term storage can preserve compatibility through `product_profiles.raw_payload`, but SaaS-ready history should move to normalized tables such as `supplier_price_runs`, `supplier_price_candidates`, and `supplier_price_observations`.
+- UI direction for the economics modal: show ranked candidates with source, price, confidence reasons, observed time, availability/VAT/unit hints, rejected/stale states, and bulk "find prices for all positions" as stage-only, not silent accept.
