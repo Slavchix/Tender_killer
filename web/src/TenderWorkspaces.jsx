@@ -43,6 +43,7 @@ export function TenderWorkspaces({
     onSupplierOptionSelect,
     onSupplierOptionAutoSelect,
     onSupplierOptionAutoSelectAll,
+    onReadyPriceCandidatesConfirmAll,
     onSupplierDiscoveryImport,
     onPriceCandidateConfirm,
     onPriceCandidateReject,
@@ -62,6 +63,7 @@ export function TenderWorkspaces({
     discoveringSupplierPosition,
     autoSelectingSupplierPosition,
     autoSelectingAllSuppliers,
+    confirmingReadyPriceCandidates,
     autoEstimatingPosition,
     acceptingAutoEconomicsPosition,
     supplierCatalogHealth,
@@ -118,6 +120,7 @@ export function TenderWorkspaces({
           onSupplierOptionSelect={onSupplierOptionSelect}
           onSupplierOptionAutoSelect={onSupplierOptionAutoSelect}
           onSupplierOptionAutoSelectAll={onSupplierOptionAutoSelectAll}
+          onReadyPriceCandidatesConfirmAll={onReadyPriceCandidatesConfirmAll}
           onSupplierDiscoveryImport={onSupplierDiscoveryImport}
           onPriceCandidateConfirm={onPriceCandidateConfirm}
           onPriceCandidateReject={onPriceCandidateReject}
@@ -137,6 +140,7 @@ export function TenderWorkspaces({
           discoveringSupplierPosition={discoveringSupplierPosition}
           autoSelectingSupplierPosition={autoSelectingSupplierPosition}
           autoSelectingAllSuppliers={autoSelectingAllSuppliers}
+          confirmingReadyPriceCandidates={confirmingReadyPriceCandidates}
           autoEstimatingPosition={autoEstimatingPosition}
           acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
           supplierCatalogHealth={supplierCatalogHealth}

@@ -2745,12 +2745,25 @@ def test_economics_tab_supports_bulk_best_supplier_selection():
 
     assert "export function autoSelectTenderSupplierOptions" in api_source
     assert "product-profiles/supplier-options/best/select" in api_source
+    assert "export function confirmReadyTenderPriceCandidates" in api_source
+    assert "price-candidates/ready/confirm" in api_source
     assert "autoSelectTenderSupplierOptions as autoSelectTenderSupplierOptionsRequest" in hook_source
+    assert "confirmReadyTenderPriceCandidates as confirmReadyTenderPriceCandidatesRequest" in hook_source
     assert "autoSelectingAllSuppliers" in hook_source
+    assert "confirmingReadyPriceCandidates" in hook_source
+    assert "READY_PRICE_CANDIDATES_REVIEW_ID" in hook_source
+    assert "const confirmingReadyPriceCandidates = reviewingPriceCandidateId === READY_PRICE_CANDIDATES_REVIEW_ID" in hook_source
+    assert "const [confirmingReadyPriceCandidates, setConfirmingReadyPriceCandidates]" not in hook_source
     assert "function autoSelectAllSupplierOptions" in hook_source
+    assert "function confirmReadyPriceCandidates" in hook_source
     assert "onSupplierOptionAutoSelectAll" in details_source
+    assert "onReadyPriceCandidatesConfirmAll" in details_source
     assert "onSupplierOptionAutoSelectAll" in economics_source
+    assert "onReadyPriceCandidatesConfirmAll" in economics_source
     assert "autoSelectingAllSuppliers" in economics_source
+    assert "confirmingReadyPriceCandidates" in economics_source
+    assert "hasReadyPriceCandidateWithoutCost" in economics_source
+    assert "Готовые цены в расчет" in economics_source
     assert "Лучшие цены в расчет" in economics_source
     assert find_mojibake(api_source, API_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []

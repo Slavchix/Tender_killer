@@ -148,6 +148,65 @@ def review_profile_price_candidate(
     }
 
 
+def confirm_ready_price_candidates(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+) -> dict[str, Any]:
+    store = TenderStore(database_path)
+    store.initialize()
+    profiles = ensure_product_profiles(database_path, source, external_id)
+
+    confirmed: list[dict[str, int | None]] = []
+    review_updates: list[tuple[int, dict[str, Any], int | None]] = []
+    skipped_existing_cost_count = 0
+    skipped_no_ready_candidate_count = 0
+
+    for profile in profiles:
+        position_index = int(profile.get("position_index") or 0)
+        if _profile_has_positive_cost(profile):
+            skipped_existing_cost_count += 1
+            continue
+
+        candidate = _first_ready_candidate(profile)
+        if candidate is None:
+            skipped_no_ready_candidate_count += 1
+            continue
+
+        supplier_option_index = _apply_confirmed_candidate(profile, candidate, selection="bulk_auto_eligible")
+        confirmed.append(
+            {
+                "position_index": position_index,
+                "candidate_id": int(candidate["id"]),
+                "supplier_option_index": supplier_option_index,
+            }
+        )
+        review_updates.append((position_index, candidate, supplier_option_index))
+
+    if confirmed:
+        store.upsert_product_profiles(source, external_id, profiles)
+        for position_index, candidate, supplier_option_index in review_updates:
+            store.update_price_candidate_review(
+                source,
+                external_id,
+                position_index,
+                candidate,
+                review_status="confirmed",
+                supplier_option_index=supplier_option_index,
+            )
+
+    skipped_count = skipped_existing_cost_count + skipped_no_ready_candidate_count
+    return {
+        "ok": True,
+        "total_profiles": len(profiles),
+        "confirmed_count": len(confirmed),
+        "skipped_count": skipped_count,
+        "skipped_existing_cost_count": skipped_existing_cost_count,
+        "skipped_no_ready_candidate_count": skipped_no_ready_candidate_count,
+        "confirmed": confirmed,
+    }
+
+
 def _candidate_score(candidate: dict[str, Any], quality: dict[str, Any]) -> tuple[int, list[str]]:
     score = 0
     reasons: list[str] = []
@@ -197,7 +256,12 @@ def _rank_key(candidate: dict[str, Any]) -> tuple[float, float, int]:
     return (-float(candidate.get("score") or 0), normalized_price, int(candidate.get("id") or 0))
 
 
-def _apply_confirmed_candidate(profile: dict[str, Any], candidate: dict[str, Any]) -> int | None:
+def _apply_confirmed_candidate(
+    profile: dict[str, Any],
+    candidate: dict[str, Any],
+    *,
+    selection: str = "manual_confirmed",
+) -> int | None:
     unit_price = _number(candidate.get("unit_price"))
     if unit_price is None:
         raise ValueError("Price candidate has no unit price.")
@@ -222,16 +286,22 @@ def _apply_confirmed_candidate(profile: dict[str, Any], candidate: dict[str, Any
     raw_payload["supplier_options"] = supplier_options
     raw_payload["selected_supplier_option_index"] = option_index
     quality = evaluate_price_candidate_quality(profile, candidate)
-    raw_payload["economics_price_source"] = _economics_price_source(candidate, unit_price, quality)
+    raw_payload["economics_price_source"] = _economics_price_source(candidate, unit_price, quality, selection=selection)
     profile["raw_payload"] = raw_payload
     profile["profile_status"] = "priced"
     return option_index
 
 
-def _economics_price_source(candidate: dict[str, Any], unit_price: float, quality: dict[str, Any]) -> dict[str, Any]:
+def _economics_price_source(
+    candidate: dict[str, Any],
+    unit_price: float,
+    quality: dict[str, Any],
+    *,
+    selection: str,
+) -> dict[str, Any]:
     return {
         "source": "price_candidate",
-        "selection": "manual_confirmed",
+        "selection": selection,
         "candidate_id": int(candidate["id"]),
         "provider": candidate.get("provider"),
         "product_name": candidate.get("product_name"),
@@ -268,6 +338,26 @@ def _supplier_option_from_candidate(candidate: dict[str, Any]) -> dict[str, Any]
         if candidate.get(source_key) not in (None, ""):
             option[option_key] = candidate[source_key]
     return {key: value for key, value in option.items() if value is not None}
+
+
+def _first_ready_candidate(profile: dict[str, Any]) -> dict[str, Any] | None:
+    for candidate in rank_profile_price_candidates(profile):
+        review_status = str(candidate.get("review_status") or "pending").casefold()
+        if candidate.get("auto_eligible") is True and review_status not in REVIEW_STATUSES:
+            return candidate
+    return None
+
+
+def _profile_has_positive_cost(profile: dict[str, Any]) -> bool:
+    raw_payload = profile.get("raw_payload")
+    if not isinstance(raw_payload, dict):
+        return False
+    economics = raw_payload.get("economics")
+    if not isinstance(economics, dict):
+        return False
+    unit_cost = _number(economics.get("unit_cost"))
+    total_cost = _number(economics.get("total_cost"))
+    return bool((unit_cost is not None and unit_cost > 0) or (total_cost is not None and total_cost > 0))
 
 
 def _matching_supplier_option_index(supplier_options: list[dict[str, Any]], option: dict[str, Any]) -> int | None:

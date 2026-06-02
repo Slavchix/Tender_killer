@@ -202,6 +202,13 @@ export function rejectProfilePriceCandidate(tender, profile, candidateId) {
   })
 }
 
+export function confirmReadyTenderPriceCandidates(tender) {
+  return apiJson(`${tenderPath(tender)}/price-candidates/ready/confirm`, {
+    method: 'POST',
+    errorMessage: 'Не удалось принять готовые цены',
+  })
+}
+
 export function prepareProfileSupplierSearch(tender, profile) {
   return apiJson(`${productProfilePath(tender, profile)}/supplier-search/prepare`, {
     method: 'POST',

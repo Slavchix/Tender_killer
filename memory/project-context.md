@@ -1018,3 +1018,16 @@ Date: 2026-06-02.
 - React economics renders compact quality labels and chips next to ranked candidates, making it clear whether a price is ready for calculation, needs review, or must not be auto-used.
 - Verification: price candidate ranking tests `3 passed`; direct workspace-temp runner passed confirm/reject review scenarios; frontend contract `89 passed`.
 - Current pytest caveat remains: `tmp_path` tests can fail during Windows temp cleanup in this sandbox, so workspace-local direct runners were used for the temp-dependent confirm/reject checks.
+
+## Price candidate bulk-ready confirmation checkpoint
+
+Date: 2026-06-02.
+
+- Added tender-level bulk confirmation for normalized price candidates through `confirm_ready_price_candidates(...)`.
+- New endpoint: `POST /api/tenders/{source}/{external_id}/price-candidates/ready/confirm`.
+- The bulk action applies only candidates with `auto_eligible=true` and a non-reviewed status to product profiles that do not already have saved positive `raw_payload.economics.unit_cost` or `total_cost`.
+- Confirmed candidates are marked `confirmed`, linked to the selected supplier option, and written into `raw_payload.economics.unit_cost` with `economics_price_source.selection="bulk_auto_eligible"`.
+- Positions with existing manual costs are preserved; positions without ready candidates stay in `needs_costs` and keep their review candidates visible.
+- React economics now exposes `Готовые цены в расчет (N)` in the full-screen economics header, next to the older reviewed-supplier bulk button.
+- Verification: direct workspace-temp runner passed the new service/API bulk confirmation scenarios; frontend contract `89 passed`; Python compileall passed; Vite production build passed through direct bundled Node invocation.
+- Current pytest caveat remains: temp-dependent pytest tests can fail during Windows temp setup/cleanup in this desktop sandbox, so direct workspace-temp runners are still used for those targeted backend checks.

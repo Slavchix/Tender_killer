@@ -34,6 +34,7 @@ from tender_killer.economics_service import update_profile_economics_assumptions
 from tender_killer.economics_service import update_profile_auto_economics as update_profile_auto_economics_inputs
 from tender_killer.market_state_import_service import import_tender_market_state
 from tender_killer.notification_service import send_tender_notification_payload
+from tender_killer.price_candidate_service import confirm_ready_price_candidates
 from tender_killer.price_candidate_service import review_profile_price_candidate
 from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
@@ -75,6 +76,7 @@ API_CAPABILITIES: tuple[str, ...] = (
     "market_state_import",
     "dashboard_queues",
     "price_candidate_review",
+    "price_candidate_bulk_review",
 )
 
 
@@ -274,6 +276,13 @@ def review_product_profile_price_candidate(
     )
     payload = get_tender_payload(database_path, source, external_id)
     payload["price_candidate_review"] = review
+    return payload
+
+
+def confirm_ready_tender_price_candidates(database_path: str | Path, source: str, external_id: str) -> dict[str, Any]:
+    review = confirm_ready_price_candidates(database_path, source, external_id)
+    payload = get_tender_payload(database_path, source, external_id)
+    payload["price_candidate_bulk_review"] = review
     return payload
 
 
@@ -568,6 +577,11 @@ def handle_post_request(
                 route.candidate_index,
             )
         )
+    if path.startswith("/api/tenders/") and path.endswith("/price-candidates/ready/confirm"):
+        route = parse_tender_path(path, suffix="price-candidates/ready/confirm")
+        if route is None:
+            return ApiResponse({"error": "invalid ready price candidate bulk review path"}, status=400)
+        return ApiResponse(confirm_ready_tender_price_candidates(database_path, route.source, route.external_id))
     if path.startswith("/api/tenders/") and (path.endswith("/confirm") or path.endswith("/reject")):
         route = parse_product_profile_price_candidate_review_path(path)
         if route is None:

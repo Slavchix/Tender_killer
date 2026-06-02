@@ -15,6 +15,7 @@ export function TenderEconomicsTab({
   onSupplierOptionSelect,
   onSupplierOptionAutoSelect,
   onSupplierOptionAutoSelectAll,
+  onReadyPriceCandidatesConfirmAll,
   onSupplierDiscoveryImport,
   onPriceCandidateConfirm,
   onPriceCandidateReject,
@@ -34,6 +35,7 @@ export function TenderEconomicsTab({
   discoveringSupplierPosition = null,
   autoSelectingSupplierPosition = null,
   autoSelectingAllSuppliers = false,
+  confirmingReadyPriceCandidates = false,
   autoEstimatingPosition = null,
   acceptingAutoEconomicsPosition = null,
   supplierCatalogHealth = null,
@@ -46,6 +48,7 @@ export function TenderEconomicsTab({
     const supplierOptions = profile?.raw_payload?.supplier_options
     return Array.isArray(supplierOptions) && supplierOptions.length > 0
   })
+  const readyPriceCandidateCount = profiles.filter(hasReadyPriceCandidateWithoutCost).length
 
   useEffect(() => {
     if (supplierCatalogHealth || supplierCatalogHealthLoading || supplierCatalogHealthError) return
@@ -61,6 +64,14 @@ export function TenderEconomicsTab({
     <section className="detail-section active economics-section">
       <div className="section-heading-row">
         <h3>Экономика</h3>
+        <button
+          className="secondary-button compact"
+          disabled={confirmingReadyPriceCandidates || !onReadyPriceCandidatesConfirmAll || readyPriceCandidateCount === 0}
+          onClick={() => ignoreEconomicsActionError(onReadyPriceCandidatesConfirmAll?.())}
+          type="button"
+        >
+          {confirmingReadyPriceCandidates ? 'Принимаю...' : `Готовые цены в расчет (${readyPriceCandidateCount})`}
+        </button>
         <button
           className="secondary-button compact"
           disabled={autoSelectingAllSuppliers || !onSupplierOptionAutoSelectAll || !hasSupplierOptions}
@@ -82,6 +93,7 @@ export function TenderEconomicsTab({
         onSupplierOptionSave={onSupplierOptionSave}
         onSupplierOptionSelect={onSupplierOptionSelect}
         onSupplierOptionAutoSelect={onSupplierOptionAutoSelect}
+        onReadyPriceCandidatesConfirmAll={onReadyPriceCandidatesConfirmAll}
         onSupplierDiscoveryImport={onSupplierDiscoveryImport}
         onPriceCandidateConfirm={onPriceCandidateConfirm}
         onPriceCandidateReject={onPriceCandidateReject}
@@ -101,6 +113,7 @@ export function TenderEconomicsTab({
         discoveringSupplierPosition={discoveringSupplierPosition}
         autoSelectingSupplierPosition={autoSelectingSupplierPosition}
         autoSelectingAllSuppliers={autoSelectingAllSuppliers}
+        confirmingReadyPriceCandidates={confirmingReadyPriceCandidates}
         autoEstimatingPosition={autoEstimatingPosition}
         acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
         supplierCatalogHealth={supplierCatalogHealth}
@@ -116,4 +129,18 @@ function ignoreEconomicsActionError(result) {
   if (result?.catch) {
     result.catch(() => {})
   }
+}
+
+function hasReadyPriceCandidateWithoutCost(profile) {
+  if (hasPositiveEconomicsCost(profile)) return false
+  const candidates = Array.isArray(profile?.price_candidates) ? profile.price_candidates : []
+  return candidates.some((candidate) => {
+    const reviewStatus = String(candidate?.review_status || 'pending').toLowerCase()
+    return candidate?.auto_eligible === true && reviewStatus !== 'confirmed' && reviewStatus !== 'rejected'
+  })
+}
+
+function hasPositiveEconomicsCost(profile) {
+  const economics = profile?.raw_payload?.economics || {}
+  return Number(economics.unit_cost || 0) > 0 || Number(economics.total_cost || 0) > 0
 }

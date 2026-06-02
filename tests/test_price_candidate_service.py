@@ -1,4 +1,5 @@
 from tender_killer.models import ProductProfile, Tender
+from tender_killer.price_candidate_service import confirm_ready_price_candidates
 from tender_killer.price_candidate_service import rank_profile_price_candidates
 from tender_killer.price_candidate_service import review_profile_price_candidate
 from tender_killer.storage import TenderStore
@@ -212,6 +213,85 @@ def test_confirm_profile_price_candidate_applies_price_to_economics_and_marks_re
         "quality_flags": [],
     }
     assert detail["economics"]["supplier_cost"] == 8800.0
+
+
+def test_confirm_ready_price_candidates_applies_only_auto_eligible_missing_prices(tmp_path) -> None:
+    store = _store_with_profile(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "price-review",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-review",
+                position_index=1,
+                product_name="Paper A4",
+                quantity=10,
+                unit="pack",
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-review",
+                position_index=2,
+                product_name="Folder",
+                quantity=5,
+                unit="pack",
+                raw_payload={"economics": {"unit_cost": 55.0}},
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-review",
+                position_index=3,
+                product_name="Cable",
+                quantity=20,
+                unit="шт",
+            ),
+        ],
+    )
+    ready_candidate = {
+        "provider": "officemag",
+        "name": "Paper A4",
+        "url": "https://supplier.example/paper",
+        "unit_price": 100.0,
+        "currency": "RUB",
+        "vat_mode": "vat_included",
+        "availability": "in_stock",
+        "confidence": "high",
+        "delivery_note": "Delivery included",
+        "pack_quantity": 1,
+        "unit": "pack",
+        "minimum_order_quantity": 1,
+    }
+    store.upsert_price_candidates("mosreg_market", "price-review", 1, [ready_candidate], origin="supplier_discovery")
+    store.upsert_price_candidates("mosreg_market", "price-review", 2, [ready_candidate], origin="supplier_discovery")
+    store.upsert_price_candidates(
+        "mosreg_market",
+        "price-review",
+        3,
+        [{"provider": "manual", "name": "Cable", "unit_price": 25.0, "currency": "RUB", "confidence": "medium"}],
+        origin="supplier_discovery",
+    )
+
+    result = confirm_ready_price_candidates(store.database_path, "mosreg_market", "price-review")
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "price-review")
+    profiles = {profile["position_index"]: profile for profile in detail["product_profiles"]}
+    assert result == {
+        "ok": True,
+        "total_profiles": 3,
+        "confirmed_count": 1,
+        "skipped_count": 2,
+        "skipped_existing_cost_count": 1,
+        "skipped_no_ready_candidate_count": 1,
+        "confirmed": [{"position_index": 1, "candidate_id": profiles[1]["price_candidates"][0]["id"], "supplier_option_index": 0}],
+    }
+    assert profiles[1]["raw_payload"]["economics"] == {"unit_cost": 100.0}
+    assert profiles[1]["raw_payload"]["economics_price_source"]["selection"] == "bulk_auto_eligible"
+    assert profiles[1]["price_candidates"][0]["review_status"] == "confirmed"
+    assert profiles[2]["raw_payload"]["economics"] == {"unit_cost": 55.0}
+    assert profiles[2]["price_candidates"][0]["review_status"] == "pending"
+    assert "economics" not in profiles[3]["raw_payload"]
+    assert profiles[3]["price_candidates"][0]["quality_status"] == "review"
 
 
 def test_reject_profile_price_candidate_marks_review_without_pricing(tmp_path) -> None:

@@ -4,6 +4,7 @@ import {
   addProfileSupplierOption,
   autoSelectTenderSupplierOptions as autoSelectTenderSupplierOptionsRequest,
   autoSelectProfileSupplierOption,
+  confirmReadyTenderPriceCandidates as confirmReadyTenderPriceCandidatesRequest,
   confirmProfilePriceCandidate as confirmProfilePriceCandidateRequest,
   fetchSupplierCatalogHealth,
   importProfileSupplierDiscoveryCandidate,
@@ -18,6 +19,8 @@ import {
   saveProfileEconomicsAssumptions as saveProfileEconomicsAssumptionsRequest,
   selectProfileSupplierOption,
 } from './api'
+
+const READY_PRICE_CANDIDATES_REVIEW_ID = 'ready-price-candidates-bulk'
 
 export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatus) {
   const [productProfiles, setProductProfiles] = useState(tender.product_profiles || [])
@@ -180,6 +183,23 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .finally(() => setAutoSelectingAllSuppliers(false))
   }
 
+  function confirmReadyPriceCandidates() {
+    setReviewingPriceCandidateId(READY_PRICE_CANDIDATES_REVIEW_ID)
+    setDetailStatus('')
+    return confirmReadyTenderPriceCandidatesRequest(tender)
+      .then((nextTender) => {
+        const review = nextTender.price_candidate_bulk_review || {}
+        const confirmed = Number(review.confirmed_count || 0)
+        const skipped = Number(review.skipped_count || 0)
+        return updateFromNextTender(nextTender, `Готовые цены приняты: ${confirmed}, пропущено: ${skipped}`)
+      })
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setReviewingPriceCandidateId(null))
+  }
+
   function importSupplierDiscoveryCandidate(profile, candidateIndex) {
     if (!profile?.position_index) return null
     setImportingSupplierCandidatePosition(profile.position_index)
@@ -300,6 +320,8 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .finally(() => setAcceptingAutoEconomicsPosition(null))
   }
 
+  const confirmingReadyPriceCandidates = reviewingPriceCandidateId === READY_PRICE_CANDIDATES_REVIEW_ID
+
   return {
     productProfiles,
     productProfileSummary,
@@ -317,6 +339,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     discoveringSupplierPosition,
     autoSelectingSupplierPosition,
     autoSelectingAllSuppliers,
+    confirmingReadyPriceCandidates,
     autoEstimatingPosition,
     acceptingAutoEconomicsPosition,
     supplierCatalogHealth,
@@ -331,6 +354,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     selectSupplierOption,
     autoSelectSupplierOption,
     autoSelectAllSupplierOptions,
+    confirmReadyPriceCandidates,
     importSupplierDiscoveryCandidate,
     confirmPriceCandidate,
     rejectPriceCandidate,

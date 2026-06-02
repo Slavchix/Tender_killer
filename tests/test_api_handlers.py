@@ -97,6 +97,7 @@ def test_handle_get_request_returns_health_payload(tmp_path) -> None:
     assert "market_state_import" in response.payload["capabilities"]
     assert "dashboard_queues" in response.payload["capabilities"]
     assert "price_candidate_review" in response.payload["capabilities"]
+    assert "price_candidate_bulk_review" in response.payload["capabilities"]
 
 
 def test_handle_get_request_routes_supplier_catalog_health(tmp_path) -> None:
@@ -918,6 +919,77 @@ def test_handle_post_request_routes_product_profile_price_candidate_reject(tmp_p
     assert response.payload["price_candidate_review"]["review_status"] == "rejected"
     assert candidates[0]["review_status"] == "rejected"
     assert "economics" not in profile["raw_payload"]
+
+
+def test_handle_post_request_routes_ready_price_candidate_bulk_confirm(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=2,
+                product_name="Cable",
+                quantity=20,
+                unit="шт",
+            ),
+        ],
+    )
+    store.upsert_price_candidates(
+        "mosreg_market",
+        "3668200",
+        1,
+        [
+            {
+                "provider": "komus",
+                "name": "Office paper",
+                "url": "https://example.com/paper",
+                "unit_price": 900.0,
+                "currency": "RUB",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "confidence": "high",
+                "delivery_note": "Delivery included",
+                "pack_quantity": 1,
+                "unit": "pack",
+                "minimum_order_quantity": 1,
+            }
+        ],
+        origin="supplier_discovery",
+    )
+    store.upsert_price_candidates(
+        "mosreg_market",
+        "3668200",
+        2,
+        [{"provider": "manual", "name": "Cable", "unit_price": 10.0, "currency": "RUB", "confidence": "medium"}],
+        origin="supplier_discovery",
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/price-candidates/ready/confirm",
+        {},
+    )
+
+    assert response.status == 200
+    assert response.payload["price_candidate_bulk_review"]["confirmed_count"] == 1
+    assert response.payload["price_candidate_bulk_review"]["skipped_no_ready_candidate_count"] == 1
+    profile = response.payload["product_profiles"][0]
+    assert profile["raw_payload"]["economics"]["unit_cost"] == 900.0
+    assert profile["raw_payload"]["economics_price_source"]["selection"] == "bulk_auto_eligible"
+    assert response.payload["economics"]["items"][0]["total_cost"] == 9000.0
+    assert response.payload["economics"]["supplier_cost"] is None
+    assert response.payload["economics"]["status"] == "needs_costs"
 
 
 def test_handle_post_request_routes_product_profile_supplier_option_select(tmp_path) -> None:
