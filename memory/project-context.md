@@ -1044,3 +1044,14 @@ Date: 2026-06-02.
 - React economics now exposes `Подготовить цены (N)` in the full-screen economics header. Loading state reuses the existing price-candidate review sentinel instead of adding a new hook, avoiding the previous hook-order regression.
 - Verification: manual workspace-temp runner passed the targeted price candidate service/API stage suite; frontend contract auto-stage test passed; Python compileall passed.
 - Next economics steps: replace the saved-evidence-only stage with an active provider run that records per-provider diagnostics, then expand collectors and scoring before any wider automation.
+
+## Active supplier price discovery checkpoint
+
+Date: 2026-06-02.
+
+- Added tender-level active supplier price discovery through `run_tender_supplier_price_discovery(...)`.
+- New endpoint/capability: `POST /api/tenders/{source}/{external_id}/price-discovery/run` / `price_discovery_run`.
+- The run loops over product profiles, prepares supplier search queries, executes configured public provider collectors, preserves per-position no-candidate/error states, aggregates provider diagnostics, and then normalizes discovered evidence into `price_candidates`.
+- This is still review-only. The run does not write product-profile economics and does not select suppliers; calculation changes still require confirming an individual candidate or using the existing ready-candidate bulk confirmation action.
+- React economics now exposes `Найти цены (N)` in the full-screen economics header for positions that still need costs. The loading state reuses the existing price-candidate review sentinel, so the hook order stays stable.
+- Next economics steps: improve provider coverage/scoring, expose richer provider diagnostics in the modal, and only then consider narrower auto-confirm rules for very high-confidence candidates.

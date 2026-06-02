@@ -51,6 +51,7 @@ from tender_killer.supplier_option_service import add_profile_supplier_option
 from tender_killer.supplier_option_service import select_profile_supplier_option
 from tender_killer.supplier_price_discovery_service import run_profile_supplier_price_discovery
 from tender_killer.supplier_price_discovery_service import run_profile_supplier_url_discovery
+from tender_killer.supplier_price_discovery_service import run_tender_supplier_price_discovery
 from tender_killer.supplier_search_service import prepare_profile_supplier_search
 from tender_killer.tender_detail_service import get_tender_payload
 from tender_killer.tender_detail_service import refresh_tender_detail_payload
@@ -79,6 +80,7 @@ API_CAPABILITIES: tuple[str, ...] = (
     "price_candidate_review",
     "price_candidate_bulk_review",
     "price_candidate_auto_stage",
+    "price_discovery_run",
 )
 
 
@@ -292,6 +294,13 @@ def stage_tender_price_candidate_sources(database_path: str | Path, source: str,
     stage = stage_tender_price_candidates(database_path, source, external_id)
     payload = get_tender_payload(database_path, source, external_id)
     payload["price_candidate_stage"] = stage
+    return payload
+
+
+def run_tender_price_discovery(database_path: str | Path, source: str, external_id: str) -> dict[str, Any]:
+    discovery_run = run_tender_supplier_price_discovery(database_path, source, external_id)
+    payload = get_tender_payload(database_path, source, external_id)
+    payload["price_discovery_run"] = discovery_run
     return payload
 
 
@@ -596,6 +605,11 @@ def handle_post_request(
         if route is None:
             return ApiResponse({"error": "invalid price candidate stage path"}, status=400)
         return ApiResponse(stage_tender_price_candidate_sources(database_path, route.source, route.external_id))
+    if path.startswith("/api/tenders/") and path.endswith("/price-discovery/run"):
+        route = parse_tender_path(path, suffix="price-discovery/run")
+        if route is None:
+            return ApiResponse({"error": "invalid price discovery run path"}, status=400)
+        return ApiResponse(run_tender_price_discovery(database_path, route.source, route.external_id))
     if path.startswith("/api/tenders/") and (path.endswith("/confirm") or path.endswith("/reject")):
         route = parse_product_profile_price_candidate_review_path(path)
         if route is None:

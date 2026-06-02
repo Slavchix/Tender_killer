@@ -14,11 +14,13 @@ import httpx
 from bs4 import BeautifulSoup
 
 from tender_killer.product_profile_service import ensure_product_profiles
+from tender_killer.price_candidate_service import stage_tender_price_candidates
 from tender_killer.storage import TenderStore
 from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
 from tender_killer.supplier_catalog_health_service import http_error_kind
 from tender_killer.supplier_catalog_health_service import response_body_preview
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
+from tender_killer.supplier_search_service import prepare_profile_supplier_search
 
 
 SCHEMA_ORG_PRODUCT_PROVIDER = "schema_org_product"
@@ -228,6 +230,83 @@ def run_profile_supplier_price_discovery(
     )
 
 
+def run_tender_supplier_price_discovery(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    collectors: list[Any] | None = None,
+) -> dict[str, Any]:
+    profiles = ensure_product_profiles(database_path, source, external_id)
+    price_collectors = default_price_collectors() if collectors is None else collectors
+    positions: list[dict[str, Any]] = []
+    prepared_count = 0
+    no_candidates_count = 0
+    error_count = 0
+
+    for profile in profiles:
+        position_index = int(profile.get("position_index") or 0)
+        if position_index <= 0:
+            continue
+        prepare_profile_supplier_search(database_path, source, external_id, position_index)
+        prepared_count += 1
+        try:
+            result = run_profile_supplier_price_discovery(
+                database_path,
+                source,
+                external_id,
+                position_index,
+                collectors=price_collectors,
+            )
+        except ValueError as exc:
+            no_candidates_count += 1
+            positions.append(
+                {
+                    "position_index": position_index,
+                    "status": "no_candidates",
+                    "staged_count": 0,
+                    "error": _supplier_discovery_error_message(exc),
+                }
+            )
+            continue
+        except KeyError as exc:
+            error_count += 1
+            positions.append(
+                {
+                    "position_index": position_index,
+                    "status": "error",
+                    "staged_count": 0,
+                    "error": str(exc),
+                }
+            )
+            continue
+        staged_count = int(result.get("staged_count") or 0)
+        positions.append(
+            {
+                "position_index": position_index,
+                "status": "staged" if staged_count else "no_candidates",
+                "staged_count": staged_count,
+            }
+        )
+
+    normalized_stage = stage_tender_price_candidates(database_path, source, external_id)
+    updated_profiles = ensure_product_profiles(database_path, source, external_id)
+    diagnostics_by_provider = _tender_discovery_diagnostics(updated_profiles)
+    return {
+        "ok": True,
+        "total_profiles": len(profiles),
+        "prepared_count": prepared_count,
+        "searched_count": prepared_count,
+        "staged_count": normalized_stage["staged_count"],
+        "ready_count": normalized_stage["ready_count"],
+        "review_count": normalized_stage["review_count"],
+        "blocked_count": normalized_stage["blocked_count"],
+        "no_candidates_count": no_candidates_count,
+        "error_count": error_count,
+        "positions": positions,
+        "diagnostics_by_provider": diagnostics_by_provider,
+    }
+
+
 def run_profile_supplier_url_discovery(
     database_path: str | Path,
     source: str,
@@ -362,6 +441,27 @@ def _record_supplier_discovery_diagnostics(
     raw_payload["supplier_discovery"] = discovery
     target["raw_payload"] = raw_payload
     store.upsert_product_profiles(source, external_id, profiles)
+
+
+def _tender_discovery_diagnostics(profiles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    diagnostics_by_provider: dict[str, dict[str, Any]] = {}
+    for profile in profiles:
+        raw_payload = profile.get("raw_payload") if isinstance(profile.get("raw_payload"), dict) else {}
+        discovery = raw_payload.get("supplier_discovery") if isinstance(raw_payload.get("supplier_discovery"), dict) else {}
+        diagnostics = discovery.get("collector_diagnostics") if isinstance(discovery.get("collector_diagnostics"), list) else []
+        for item in diagnostics:
+            if isinstance(item, dict) and _diagnostics_has_signal(item):
+                _merge_diagnostics(diagnostics_by_provider, item)
+    return list(diagnostics_by_provider.values())
+
+
+def _supplier_discovery_error_message(exc: ValueError) -> str:
+    message = str(exc)
+    if "РќРѕРІ" in message or "new candidates" in message.casefold():
+        return "Новых кандидатов поставщиков не найдено."
+    if "РЎРЅР°С‡" in message or "prepare" in message.casefold():
+        return "Сначала подготовь поиск поставщиков."
+    return message
 
 
 def _collector_diagnostics(provider: str) -> dict[str, Any]:

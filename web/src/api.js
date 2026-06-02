@@ -216,6 +216,13 @@ export function stageTenderPriceCandidates(tender) {
   })
 }
 
+export function runTenderPriceDiscovery(tender) {
+  return apiJson(`${tenderPath(tender)}/price-discovery/run`, {
+    method: 'POST',
+    errorMessage: 'Не удалось найти цены поставщиков',
+  })
+}
+
 export function prepareProfileSupplierSearch(tender, profile) {
   return apiJson(`${productProfilePath(tender, profile)}/supplier-search/prepare`, {
     method: 'POST',

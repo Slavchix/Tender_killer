@@ -99,6 +99,7 @@ def test_handle_get_request_returns_health_payload(tmp_path) -> None:
     assert "price_candidate_review" in response.payload["capabilities"]
     assert "price_candidate_bulk_review" in response.payload["capabilities"]
     assert "price_candidate_auto_stage" in response.payload["capabilities"]
+    assert "price_discovery_run" in response.payload["capabilities"]
 
 
 def test_handle_get_request_routes_supplier_catalog_health(tmp_path) -> None:
@@ -1035,6 +1036,46 @@ def test_handle_post_request_routes_price_candidate_auto_stage(tmp_path) -> None
     assert profile["price_candidates"][0]["provider"] == "komus"
     assert profile["price_candidates"][0]["quality_status"] == "ready"
     assert "economics" not in profile["raw_payload"]
+
+
+def test_handle_post_request_routes_tender_price_discovery_run(tmp_path, monkeypatch) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+    calls = []
+
+    def fake_run(database_path, source, external_id):
+        calls.append((database_path, source, external_id))
+        return {
+            "ok": True,
+            "total_profiles": 1,
+            "searched_count": 1,
+            "staged_count": 0,
+            "no_candidates_count": 1,
+            "diagnostics_by_provider": [],
+            "positions": [{"position_index": 1, "status": "no_candidates", "staged_count": 0}],
+        }
+
+    monkeypatch.setattr("tender_killer.api_handlers.run_tender_supplier_price_discovery", fake_run)
+
+    response = handle_post_request(store.database_path, "/api/tenders/mosreg_market/3668200/price-discovery/run", {})
+
+    assert response.status == 200
+    assert calls == [(store.database_path, "mosreg_market", "3668200")]
+    assert response.payload["price_discovery_run"]["searched_count"] == 1
+    assert response.payload["product_profiles"][0]["position_index"] == 1
 
 
 def test_handle_post_request_routes_product_profile_supplier_option_select(tmp_path) -> None:

@@ -17,6 +17,7 @@ export function TenderEconomicsTab({
   onSupplierOptionAutoSelectAll,
   onReadyPriceCandidatesConfirmAll,
   onPriceCandidatesStage,
+  onPriceDiscoveryRun,
   onSupplierDiscoveryImport,
   onPriceCandidateConfirm,
   onPriceCandidateReject,
@@ -38,6 +39,7 @@ export function TenderEconomicsTab({
   autoSelectingAllSuppliers = false,
   confirmingReadyPriceCandidates = false,
   stagingPriceCandidates = false,
+  runningPriceDiscovery = false,
   autoEstimatingPosition = null,
   acceptingAutoEconomicsPosition = null,
   supplierCatalogHealth = null,
@@ -52,6 +54,7 @@ export function TenderEconomicsTab({
   })
   const readyPriceCandidateCount = profiles.filter(hasReadyPriceCandidateWithoutCost).length
   const priceCandidateSourceCount = profiles.filter(hasPriceCandidateSource).length
+  const priceDiscoveryRunCount = profiles.filter(profileNeedsPriceDiscovery).length
 
   useEffect(() => {
     if (supplierCatalogHealth || supplierCatalogHealthLoading || supplierCatalogHealthError) return
@@ -67,6 +70,14 @@ export function TenderEconomicsTab({
     <section className="detail-section active economics-section">
       <div className="section-heading-row">
         <h3>Экономика</h3>
+        <button
+          className="secondary-button compact"
+          disabled={runningPriceDiscovery || !onPriceDiscoveryRun || priceDiscoveryRunCount === 0}
+          onClick={() => ignoreEconomicsActionError(onPriceDiscoveryRun?.())}
+          type="button"
+        >
+          {runningPriceDiscovery ? 'Ищу...' : `Найти цены (${priceDiscoveryRunCount})`}
+        </button>
         <button
           className="secondary-button compact"
           disabled={stagingPriceCandidates || !onPriceCandidatesStage || priceCandidateSourceCount === 0}
@@ -158,6 +169,10 @@ function hasPriceCandidateSource(profile) {
     (Array.isArray(supplierOptions) && supplierOptions.some((option) => Number(option?.unit_price || option?.price || 0) > 0)) ||
     (Array.isArray(discoveryCandidates) && discoveryCandidates.some((candidate) => Number(candidate?.unit_price || candidate?.price || 0) > 0))
   )
+}
+
+function profileNeedsPriceDiscovery(profile) {
+  return !hasPositiveEconomicsCost(profile)
 }
 
 function hasPositiveEconomicsCost(profile) {

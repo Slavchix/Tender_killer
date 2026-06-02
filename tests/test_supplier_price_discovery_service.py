@@ -11,6 +11,7 @@ from tender_killer.supplier_search_service import prepare_profile_supplier_searc
 from tender_killer.supplier_price_discovery_service import SchemaOrgProductCollector
 from tender_killer.supplier_price_discovery_service import run_profile_supplier_url_discovery
 from tender_killer.supplier_price_discovery_service import run_profile_supplier_price_discovery
+from tender_killer.supplier_price_discovery_service import run_tender_supplier_price_discovery
 from tender_killer.tender_detail_service import get_tender_payload
 
 
@@ -587,6 +588,115 @@ def test_run_profile_supplier_price_discovery_stages_schema_org_product_candidat
     assert profile["raw_payload"]["supplier_discovery"] == payload["supplier_discovery"]
     assert "supplier_options" not in profile["raw_payload"]
     assert "economics" not in profile["raw_payload"]
+
+
+def test_run_tender_supplier_price_discovery_prepares_all_positions_and_summarizes_diagnostics(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-discovery-bulk",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-discovery-bulk",
+            title="Office goods tender",
+            price=100000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-discovery-bulk",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-bulk",
+                position_index=1,
+                product_name="Office paper A4",
+                normalized_name="office paper a4",
+                quantity=10,
+                unit="pack",
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-bulk",
+                position_index=2,
+                product_name="Unknown custom item",
+                normalized_name="unknown custom item",
+                quantity=3,
+                unit="pack",
+            ),
+        ],
+    )
+
+    class BulkCollector:
+        provider = "bulk_test_catalog"
+
+        def collect_with_diagnostics(self, query):
+            query_text = str(query["query"])
+            candidate = {
+                "name": "Office paper A4 80 gsm",
+                "url": "https://supplier.example/paper-a4",
+                "unit_price": 925.0,
+                "currency": "RUB",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "delivery_note": "Delivery included",
+                "source_query": query_text,
+                "source_kind": query["kind"],
+                "provider": "bulk_test_catalog",
+            }
+            candidates = [candidate] if "paper" in query_text else []
+            return {
+                "candidates": candidates,
+                "diagnostics": {
+                    "provider": "bulk_test_catalog",
+                    "queries_seen": 1,
+                    "links_seen": len(query.get("quick_links") or []),
+                    "links_skipped": 0,
+                    "pages_fetched": 1,
+                    "candidates_found": len(candidates),
+                    "errors": [] if candidates else ["no visible price"],
+                },
+            }
+
+    result = run_tender_supplier_price_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-discovery-bulk",
+        collectors=[BulkCollector()],
+    )
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-price-discovery-bulk")
+    profiles = {profile["position_index"]: profile for profile in detail["product_profiles"]}
+    assert result["ok"] is True
+    assert result["total_profiles"] == 2
+    assert result["searched_count"] == 2
+    assert result["positions"] == [
+        {"position_index": 1, "status": "staged", "staged_count": 1},
+        {
+            "position_index": 2,
+            "status": "no_candidates",
+            "staged_count": 0,
+            "error": "Новых кандидатов поставщиков не найдено.",
+        },
+    ]
+    assert result["staged_count"] == 1
+    assert result["no_candidates_count"] == 1
+    assert result["diagnostics_by_provider"] == [
+        {
+            "provider": "bulk_test_catalog",
+            "queries_seen": 2,
+            "links_seen": 6,
+            "links_skipped": 0,
+            "pages_fetched": 2,
+            "candidates_found": 1,
+            "errors": ["no visible price"],
+        }
+    ]
+    assert profiles[1]["raw_payload"]["supplier_search"]["status"] == "ready"
+    assert profiles[1]["raw_payload"]["supplier_discovery"]["status"] == "pending_review"
+    assert profiles[1]["price_candidates"][0]["provider"] == "bulk_test_catalog"
+    assert "economics" not in profiles[1]["raw_payload"]
+    assert profiles[2]["raw_payload"]["supplier_discovery"]["status"] == "no_candidates"
 
 
 def test_run_profile_supplier_url_discovery_stages_visible_provider_candidate(tmp_path) -> None:

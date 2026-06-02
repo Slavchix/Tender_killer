@@ -11,6 +11,7 @@ import {
   prepareProfileSupplierSearch as prepareProfileSupplierSearchRequest,
   rebuildTenderProductProfiles,
   rejectProfilePriceCandidate as rejectProfilePriceCandidateRequest,
+  runTenderPriceDiscovery as runTenderPriceDiscoveryRequest,
   runProfileAutoEconomics as runProfileAutoEconomicsRequest,
   runProfileSupplierDiscovery as runProfileSupplierDiscoveryRequest,
   runProfileSupplierUrlDiscovery as runProfileSupplierUrlDiscoveryRequest,
@@ -23,6 +24,7 @@ import {
 
 const READY_PRICE_CANDIDATES_REVIEW_ID = 'ready-price-candidates-bulk'
 const PRICE_CANDIDATE_STAGE_REVIEW_ID = 'price-candidates-stage'
+const PRICE_DISCOVERY_RUN_ID = 'price-discovery-run'
 
 export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatus) {
   const [productProfiles, setProductProfiles] = useState(tender.product_profiles || [])
@@ -220,6 +222,24 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .finally(() => setReviewingPriceCandidateId(null))
   }
 
+  function runPriceDiscovery() {
+    setReviewingPriceCandidateId(PRICE_DISCOVERY_RUN_ID)
+    setDetailStatus('')
+    return runTenderPriceDiscoveryRequest(tender)
+      .then((nextTender) => {
+        const run = nextTender.price_discovery_run || {}
+        const staged = Number(run.staged_count || 0)
+        const ready = Number(run.ready_count || 0)
+        const noCandidates = Number(run.no_candidates_count || 0)
+        return updateFromNextTender(nextTender, `Поиск цен: подготовлено ${staged}, готово ${ready}, без кандидатов ${noCandidates}`)
+      })
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setReviewingPriceCandidateId(null))
+  }
+
   function importSupplierDiscoveryCandidate(profile, candidateIndex) {
     if (!profile?.position_index) return null
     setImportingSupplierCandidatePosition(profile.position_index)
@@ -342,6 +362,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
 
   const confirmingReadyPriceCandidates = reviewingPriceCandidateId === READY_PRICE_CANDIDATES_REVIEW_ID
   const stagingPriceCandidates = reviewingPriceCandidateId === PRICE_CANDIDATE_STAGE_REVIEW_ID
+  const runningPriceDiscovery = reviewingPriceCandidateId === PRICE_DISCOVERY_RUN_ID
 
   return {
     productProfiles,
@@ -362,6 +383,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     autoSelectingAllSuppliers,
     confirmingReadyPriceCandidates,
     stagingPriceCandidates,
+    runningPriceDiscovery,
     autoEstimatingPosition,
     acceptingAutoEconomicsPosition,
     supplierCatalogHealth,
@@ -378,6 +400,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     autoSelectAllSupplierOptions,
     confirmReadyPriceCandidates,
     stagePriceCandidates,
+    runPriceDiscovery,
     importSupplierDiscoveryCandidate,
     confirmPriceCandidate,
     rejectPriceCandidate,
