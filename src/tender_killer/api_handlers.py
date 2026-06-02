@@ -11,6 +11,7 @@ from tender_killer.api_routes import parse_product_profile_auto_economics_accept
 from tender_killer.api_routes import parse_product_profile_auto_economics_path
 from tender_killer.api_routes import parse_product_profile_economics_assumptions_path
 from tender_killer.api_routes import parse_product_profile_economics_path
+from tender_killer.api_routes import parse_product_profile_price_candidate_review_path
 from tender_killer.api_routes import parse_product_profile_supplier_option_best_select_path
 from tender_killer.api_routes import parse_product_profile_supplier_option_select_path
 from tender_killer.api_routes import parse_product_profile_supplier_catalog_presets_path
@@ -33,6 +34,7 @@ from tender_killer.economics_service import update_profile_economics_assumptions
 from tender_killer.economics_service import update_profile_auto_economics as update_profile_auto_economics_inputs
 from tender_killer.market_state_import_service import import_tender_market_state
 from tender_killer.notification_service import send_tender_notification_payload
+from tender_killer.price_candidate_service import review_profile_price_candidate
 from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
 from tender_killer.search_service import run_search_payload
@@ -72,6 +74,7 @@ API_CAPABILITIES: tuple[str, ...] = (
     "web_auto_search",
     "market_state_import",
     "dashboard_queues",
+    "price_candidate_review",
 )
 
 
@@ -250,6 +253,28 @@ def import_product_profile_supplier_candidate(
 ) -> dict[str, Any]:
     import_profile_supplier_candidate(database_path, source, external_id, position_index, candidate_index)
     return get_tender_payload(database_path, source, external_id)
+
+
+def review_product_profile_price_candidate(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    position_index: int,
+    candidate_id: int,
+    action: str,
+) -> dict[str, Any]:
+    review_status = "confirmed" if action == "confirm" else "rejected"
+    review = review_profile_price_candidate(
+        database_path,
+        source,
+        external_id,
+        position_index,
+        candidate_id,
+        review_status=review_status,
+    )
+    payload = get_tender_payload(database_path, source, external_id)
+    payload["price_candidate_review"] = review
+    return payload
 
 
 def handle_get_request(database_path: str | Path, path: str, query: dict[str, str]) -> ApiResponse:
@@ -543,6 +568,25 @@ def handle_post_request(
                 route.candidate_index,
             )
         )
+    if path.startswith("/api/tenders/") and (path.endswith("/confirm") or path.endswith("/reject")):
+        route = parse_product_profile_price_candidate_review_path(path)
+        if route is None:
+            return ApiResponse({"error": "invalid product profile price candidate review path"}, status=400)
+        try:
+            return ApiResponse(
+                review_product_profile_price_candidate(
+                    database_path,
+                    route.source,
+                    route.external_id,
+                    route.position_index,
+                    route.candidate_id,
+                    route.action,
+                )
+            )
+        except ValueError as exc:
+            return ApiResponse({"error": str(exc)}, status=400)
+        except KeyError as exc:
+            return ApiResponse({"error": str(exc)}, status=404)
     if path.startswith("/api/tenders/") and path.endswith("/product-profiles/rebuild"):
         route = parse_tender_path(path, suffix="product-profiles/rebuild")
         if route is None:

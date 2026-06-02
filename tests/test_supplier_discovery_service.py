@@ -93,6 +93,15 @@ def test_stage_profile_supplier_candidates_persists_review_queue(tmp_path) -> No
     assert profile["raw_payload"]["note"] == "keep me"
     assert profile["raw_payload"]["supplier_discovery"] == payload["supplier_discovery"]
     assert "economics" not in profile["raw_payload"]
+    price_candidates = store.list_price_candidates("mosreg_market", "supplier-discovery", 1)
+    assert len(price_candidates) == 1
+    assert price_candidates[0]["origin"] == "supplier_discovery"
+    assert price_candidates[0]["provider"] == "public_catalog"
+    assert price_candidates[0]["product_name"] == "Paper shop"
+    assert price_candidates[0]["unit_price"] == 900.5
+    assert price_candidates[0]["review_status"] == "pending"
+    assert price_candidates[0]["confidence"] == "high"
+    assert price_candidates[0]["source_query"] == "office paper a4"
 
 
 def test_import_profile_supplier_candidate_moves_candidate_to_options_without_pricing(tmp_path) -> None:
@@ -181,6 +190,10 @@ def test_import_profile_supplier_candidate_moves_candidate_to_options_without_pr
     assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["supplier_option_index"] == 1
     assert "economics" not in profile["raw_payload"]
     assert detail["economics"]["status"] == "needs_costs"
+    price_candidates = store.list_price_candidates("mosreg_market", "supplier-discovery-import", 1)
+    assert len(price_candidates) == 1
+    assert price_candidates[0]["review_status"] == "imported"
+    assert price_candidates[0]["supplier_option_index"] == 1
 
 
 def test_stage_profile_supplier_candidates_rejects_empty_candidates(tmp_path) -> None:

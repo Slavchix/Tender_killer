@@ -188,6 +188,20 @@ export function importProfileSupplierDiscoveryCandidate(tender, profile, candida
   })
 }
 
+export function confirmProfilePriceCandidate(tender, profile, candidateId) {
+  return apiJson(`${productProfilePath(tender, profile)}/price-candidates/${candidateId}/confirm`, {
+    method: 'POST',
+    errorMessage: 'Не удалось принять цену кандидата',
+  })
+}
+
+export function rejectProfilePriceCandidate(tender, profile, candidateId) {
+  return apiJson(`${productProfilePath(tender, profile)}/price-candidates/${candidateId}/reject`, {
+    method: 'POST',
+    errorMessage: 'Не удалось отклонить цену кандидата',
+  })
+}
+
 export function prepareProfileSupplierSearch(tender, profile) {
   return apiJson(`${productProfilePath(tender, profile)}/supplier-search/prepare`, {
     method: 'POST',

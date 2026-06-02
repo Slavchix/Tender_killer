@@ -63,6 +63,7 @@ def stage_profile_supplier_candidates(
         target["profile_status"] = "matched"
 
     store.upsert_product_profiles(source, external_id, profiles)
+    store.upsert_price_candidates(source, external_id, position_index, staged, origin="supplier_discovery")
     return {
         "ok": True,
         "position_index": position_index,
@@ -110,6 +111,15 @@ def import_profile_supplier_candidate(
         target["profile_status"] = "matched"
 
     store.upsert_product_profiles(source, external_id, profiles)
+    store.upsert_price_candidates(source, external_id, position_index, [candidate], origin="supplier_discovery")
+    store.update_price_candidate_review(
+        source,
+        external_id,
+        position_index,
+        candidate,
+        review_status="imported",
+        supplier_option_index=supplier_option_index,
+    )
     return {
         "ok": True,
         "position_index": position_index,

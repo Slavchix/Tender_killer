@@ -4,6 +4,7 @@ import {
 } from './TenderEconomicsSupplierDiscovery'
 import { SupplierInputForm } from './TenderEconomicsSupplierInputForm'
 import { SupplierOptionsList } from './TenderEconomicsSupplierOptions'
+import { formatMoney, supplierConfidenceLabel } from './formatters'
 
 export function ProductSupplierOptionsForm({
   profile,
@@ -11,6 +12,8 @@ export function ProductSupplierOptionsForm({
   onSelect,
   onAutoSelect,
   onDiscoveryImport,
+  onPriceCandidateConfirm,
+  onPriceCandidateReject,
   onSearchPrepare,
   onPresetSave,
   onDiscoveryRun,
@@ -21,6 +24,7 @@ export function ProductSupplierOptionsForm({
   onSupplierCatalogHealthRefresh,
   saving = false,
   importingDiscovery = false,
+  reviewingPriceCandidateId = null,
   preparingSearch = false,
   savingPresets = false,
   discoveringDiscovery = false,
@@ -32,9 +36,16 @@ export function ProductSupplierOptionsForm({
   const supplierSearch = profile?.raw_payload?.supplier_search || null
   const supplierDiscovery = profile?.raw_payload?.supplier_discovery || null
   const supplierSearchQueries = Array.isArray(supplierSearch?.queries) ? supplierSearch.queries : []
+  const priceCandidates = Array.isArray(profile?.price_candidates) ? profile.price_candidates : []
 
   return (
     <section className="profile-block supplier-options-block">
+      <PriceCandidatesList
+        price_candidates={priceCandidates}
+        reviewingPriceCandidateId={reviewingPriceCandidateId}
+        onConfirm={(candidate) => onPriceCandidateConfirm?.(profile, candidate)}
+        onReject={(candidate) => onPriceCandidateReject?.(profile, candidate)}
+      />
       <SupplierInputForm
         profile={profile}
         supplierOptions={supplierOptions}
@@ -68,4 +79,115 @@ export function ProductSupplierOptionsForm({
       />
     </section>
   )
+}
+
+function PriceCandidatesList({
+  price_candidates = [],
+  reviewingPriceCandidateId = null,
+  onConfirm,
+  onReject,
+}) {
+  if (!price_candidates.length) return null
+
+  return (
+    <div className="price-candidates-list">
+      <div className="price-candidates-heading">
+        <span>Кандидаты цен</span>
+        <em>{price_candidates.length}</em>
+      </div>
+      {price_candidates.map((candidate) => {
+        const confirmed = candidate.review_status === 'confirmed'
+        const rejected = candidate.review_status === 'rejected'
+        const busy = reviewingPriceCandidateId === candidate.id
+        const qualityFlags = Array.isArray(candidate.quality_flags) ? candidate.quality_flags : []
+        return (
+          <div
+            className={`price-candidate-row ${candidate.review_status || 'pending'} quality-${candidate.quality_status || 'unknown'}`}
+            key={candidate.id || `${candidate.source_url || candidate.product_name}-${candidate.unit_price}`}
+          >
+            <div>
+              {candidate.source_url ? (
+                <a href={candidate.source_url} target="_blank" rel="noreferrer">
+                  {candidate.product_name || candidate.source_url}
+                </a>
+              ) : (
+                <strong>{candidate.product_name || candidate.supplier_name || 'Кандидат цены'}</strong>
+              )}
+              <p>
+                {candidate.provider || 'источник не указан'}
+                {candidate.score != null ? ` · score ${candidate.score}` : ''}
+                {candidate.confidence ? ` · ${supplierConfidenceLabel(candidate.confidence)}` : ''}
+                {candidate.quality_status ? ` · ${priceCandidateQualityLabel(candidate.quality_status)}` : ''}
+                {candidate.auto_eligible ? ' · авто готово' : ''}
+              </p>
+              {candidate.source_query && <p>Запрос: {candidate.source_query}</p>}
+              {qualityFlags.length > 0 && (
+                <ul className="price-candidate-flags">
+                  {qualityFlags.slice(0, 4).map((flag) => (
+                    <li className={flag.severity || 'review'} key={flag.id || flag.label}>
+                      {priceCandidateFlagLabel(flag)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <span>{formatMoney(candidate.unit_price)}</span>
+            <div className="price-candidate-actions">
+              <button
+                className="secondary-button compact"
+                disabled={busy || confirmed || rejected || !onConfirm}
+                onClick={() => ignorePriceCandidateActionError(onConfirm?.(candidate))}
+                type="button"
+              >
+                {confirmed ? 'Принята' : 'Принять цену'}
+              </button>
+              <button
+                className="secondary-button compact"
+                disabled={busy || confirmed || rejected || !onReject}
+                onClick={() => ignorePriceCandidateActionError(onReject?.(candidate))}
+                type="button"
+              >
+                {rejected ? 'Отклонена' : 'Отклонить'}
+              </button>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function priceCandidateQualityLabel(status) {
+  return {
+    ready: 'готова к расчету',
+    review: 'проверить',
+    blocked: 'не брать автоматически',
+  }[status] || 'качество не проверено'
+}
+
+function priceCandidateFlagLabel(flag = {}) {
+  const labels = {
+    availability_unavailable: 'нет в наличии',
+    availability_unknown: 'наличие не подтверждено',
+    candidate_rejected: 'отклонена',
+    currency_non_rub: 'не рублевая цена',
+    delivery_needs_review: 'проверить доставку',
+    delivery_pickup_only: 'только самовывоз',
+    delivery_unknown: 'доставка не ясна',
+    minimum_order_amount: 'минимальная сумма заказа',
+    minimum_order_quantity: 'минимальный заказ',
+    pack_quantity_invalid: 'ошибка упаковки',
+    pack_quantity_unknown: 'упаковка/единица не ясна',
+    price_missing: 'нет цены',
+    unit_mismatch: 'единица не совпадает',
+    vat_not_included: 'НДС не включен',
+    vat_unknown: 'НДС не ясен',
+  }
+  return labels[flag.id] || flag.label || flag.id || 'проверить'
+}
+
+function ignorePriceCandidateActionError(result) {
+  if (result?.catch) {
+    result.catch(() => {})
+  }
 }

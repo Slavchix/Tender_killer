@@ -4,10 +4,12 @@ import {
   addProfileSupplierOption,
   autoSelectTenderSupplierOptions as autoSelectTenderSupplierOptionsRequest,
   autoSelectProfileSupplierOption,
+  confirmProfilePriceCandidate as confirmProfilePriceCandidateRequest,
   fetchSupplierCatalogHealth,
   importProfileSupplierDiscoveryCandidate,
   prepareProfileSupplierSearch as prepareProfileSupplierSearchRequest,
   rebuildTenderProductProfiles,
+  rejectProfilePriceCandidate as rejectProfilePriceCandidateRequest,
   runProfileAutoEconomics as runProfileAutoEconomicsRequest,
   runProfileSupplierDiscovery as runProfileSupplierDiscoveryRequest,
   runProfileSupplierUrlDiscovery as runProfileSupplierUrlDiscoveryRequest,
@@ -27,6 +29,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
   const [savingAssumptionsPosition, setSavingAssumptionsPosition] = useState(null)
   const [savingSupplierOptionPosition, setSavingSupplierOptionPosition] = useState(null)
   const [importingSupplierCandidatePosition, setImportingSupplierCandidatePosition] = useState(null)
+  const [reviewingPriceCandidateId, setReviewingPriceCandidateId] = useState(null)
   const [preparingSupplierSearchPosition, setPreparingSupplierSearchPosition] = useState(null)
   const [savingSupplierCatalogPresetPosition, setSavingSupplierCatalogPresetPosition] = useState(null)
   const [discoveringSupplierPosition, setDiscoveringSupplierPosition] = useState(null)
@@ -44,6 +47,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     setSavingAssumptionsPosition(null)
     setSavingSupplierOptionPosition(null)
     setImportingSupplierCandidatePosition(null)
+    setReviewingPriceCandidateId(null)
     setPreparingSupplierSearchPosition(null)
     setSavingSupplierCatalogPresetPosition(null)
     setDiscoveringSupplierPosition(null)
@@ -189,6 +193,27 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .finally(() => setImportingSupplierCandidatePosition(null))
   }
 
+  function confirmPriceCandidate(profile, candidate) {
+    return reviewPriceCandidate(profile, candidate, confirmProfilePriceCandidateRequest, 'Цена кандидата принята в экономику')
+  }
+
+  function rejectPriceCandidate(profile, candidate) {
+    return reviewPriceCandidate(profile, candidate, rejectProfilePriceCandidateRequest, 'Цена кандидата отклонена')
+  }
+
+  function reviewPriceCandidate(profile, candidate, request, message) {
+    if (!profile?.position_index || !candidate?.id) return null
+    setReviewingPriceCandidateId(candidate.id)
+    setDetailStatus('')
+    return request(tender, profile, candidate.id)
+      .then((nextTender) => updateFromNextTender(nextTender, message))
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setReviewingPriceCandidateId(null))
+  }
+
   function prepareSupplierSearch(profile) {
     if (!profile?.position_index) return null
     setPreparingSupplierSearchPosition(profile.position_index)
@@ -286,6 +311,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     savingAssumptionsPosition,
     savingSupplierOptionPosition,
     importingSupplierCandidatePosition,
+    reviewingPriceCandidateId,
     preparingSupplierSearchPosition,
     savingSupplierCatalogPresetPosition,
     discoveringSupplierPosition,
@@ -306,6 +332,8 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     autoSelectSupplierOption,
     autoSelectAllSupplierOptions,
     importSupplierDiscoveryCandidate,
+    confirmPriceCandidate,
+    rejectPriceCandidate,
     prepareSupplierSearch,
     saveSupplierCatalogPresets,
     runSupplierDiscovery,

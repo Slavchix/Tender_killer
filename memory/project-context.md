@@ -982,3 +982,39 @@ Economics architecture notes from the dedicated agent:
 - Keep the legal boundary: no portal login, no cookies/tokens, no automated bid/submission/signing. Public catalog scraping can be brittle and must remain review-first.
 - Short-term storage can preserve compatibility through `product_profiles.raw_payload`, but SaaS-ready history should move to normalized tables such as `supplier_price_runs`, `supplier_price_candidates`, and `supplier_price_observations`.
 - UI direction for the economics modal: show ranked candidates with source, price, confidence reasons, observed time, availability/VAT/unit hints, rejected/stale states, and bulk "find prices for all positions" as stage-only, not silent accept.
+
+## Price candidates persistence checkpoint
+
+Date: 2026-06-02.
+
+- Started the auto-pricing foundation with a normalized SQLite table `price_candidates`.
+- Each candidate is scoped by tender source/external id and product profile `position_index`, and stores origin, provider, product name, supplier name, source URL/query, unit price, currency, VAT mode, availability, offer status, review status, confidence, confidence/match reasons, supplier option link, timestamps, raw payload, and a stable fingerprint.
+- `TenderStore.upsert_price_candidates(...)` deduplicates by `(tender_source, tender_external_id, position_index, fingerprint)`, so repeated discovery of the same provider URL updates the candidate instead of adding duplicates.
+- `TenderStore.list_price_candidates(...)` exposes candidates by tender/profile, and `get_product_profiles(...)` attaches `price_candidates` to each profile for the future economics UI.
+- Existing `supplier_discovery` JSON is still preserved for current UI compatibility, but `stage_profile_supplier_candidates(...)` now mirrors staged discovery candidates into `price_candidates`.
+- `import_profile_supplier_candidate(...)` now also marks the normalized price candidate as `imported` and stores the resulting `supplier_option_index`, including for older JSON-only candidates.
+- Verification: frontend contract `89 passed`; Python compileall passed; direct workspace-temp runner passed `49` related backend tests across storage, supplier discovery, supplier price discovery, supplier options, auto-economics, and tender detail service.
+- Current pytest caveat in this desktop sandbox: normal pytest `tmp_path` setup fails before tests with `PermissionError` on generated temp roots such as `.pytest-local-temp/pytest-of-zinin.v.a`; direct workspace-temp test execution confirms the new backend contracts are green.
+
+## Price candidate review checkpoint
+
+Date: 2026-06-02.
+
+- `price_candidates` is no longer only a storage layer: detail payloads rank candidates with `score` and `score_reasons`, and `/price-candidates/{id}/confirm|reject` lets the operator review a normalized price per product position.
+- Confirming a price candidate applies it to `raw_payload.economics.unit_cost`, writes `raw_payload.economics_price_source` with candidate id, source, provider, URL, query, and unit price, selects or creates the matching supplier option, and marks the candidate as `confirmed`.
+- Rejecting a candidate only marks it as `rejected`; it does not change supplier options or economics.
+- React economics now shows `price_candidates` above supplier inputs with accept/reject controls, preserving the older discovery/import flow as review evidence.
+- Next economics step: improve candidate quality before automation with pack/unit conversion, VAT, delivery, minimum-order normalization, availability checks, and confidence thresholds for auto-staging.
+
+## Price candidate quality checkpoint
+
+Date: 2026-06-02.
+
+- Added backend price-quality gates in `src/tender_killer/price_candidate_service.py`.
+- `rank_profile_price_candidates(...)` now attaches `quality_status`, `auto_eligible`, and `quality_flags` to each candidate before sorting.
+- Current rules check positive unit price, rejected candidates, availability, currency, VAT mode, delivery terms, pack/unit conversion hints, and minimum order quantity/amount.
+- Quality affects ranking: ready candidates get a positive score reason, review candidates are slightly penalized, and blocked candidates sink below usable offers.
+- Confirming a candidate now stores the same quality snapshot inside `raw_payload.economics_price_source`, so manual economics inputs remain auditable later.
+- React economics renders compact quality labels and chips next to ranked candidates, making it clear whether a price is ready for calculation, needs review, or must not be auto-used.
+- Verification: price candidate ranking tests `3 passed`; direct workspace-temp runner passed confirm/reject review scenarios; frontend contract `89 passed`.
+- Current pytest caveat remains: `tmp_path` tests can fail during Windows temp cleanup in this sandbox, so workspace-local direct runners were used for the temp-dependent confirm/reject checks.

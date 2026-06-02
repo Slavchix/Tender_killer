@@ -13,6 +13,8 @@ export function TenderEconomicsProfileWorkspace({
   onSupplierOptionSelect,
   onSupplierOptionAutoSelect,
   onSupplierDiscoveryImport,
+  onPriceCandidateConfirm,
+  onPriceCandidateReject,
   onSupplierSearchPrepare,
   onSupplierCatalogPresetsSave,
   onSupplierDiscoveryRun,
@@ -23,6 +25,7 @@ export function TenderEconomicsProfileWorkspace({
   savingAssumptions = false,
   savingSupplierOption = false,
   importingSupplierCandidate = false,
+  reviewingPriceCandidateId = null,
   preparingSupplierSearch = false,
   savingSupplierCatalogPresets = false,
   discoveringDiscovery = false,
@@ -63,6 +66,8 @@ export function TenderEconomicsProfileWorkspace({
           onSelect={onSupplierOptionSelect}
           onAutoSelect={onSupplierOptionAutoSelect}
           onDiscoveryImport={onSupplierDiscoveryImport}
+          onPriceCandidateConfirm={onPriceCandidateConfirm}
+          onPriceCandidateReject={onPriceCandidateReject}
           onSearchPrepare={onSupplierSearchPrepare}
           onPresetSave={onSupplierCatalogPresetsSave}
           onDiscoveryRun={onSupplierDiscoveryRun}
@@ -73,6 +78,7 @@ export function TenderEconomicsProfileWorkspace({
           onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
           saving={savingSupplierOption}
           importingDiscovery={importingSupplierCandidate}
+          reviewingPriceCandidateId={reviewingPriceCandidateId}
           preparingSearch={preparingSupplierSearch}
           savingPresets={savingSupplierCatalogPresets}
           discoveringDiscovery={discoveringDiscovery}

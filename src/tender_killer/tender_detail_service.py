@@ -17,6 +17,7 @@ from tender_killer.document_service import document_row_to_payload
 from tender_killer.economics import build_economics_summary
 from tender_killer.market_state import extract_market_state
 from tender_killer.price_tracking import latest_price_change
+from tender_killer.price_candidate_service import rank_profile_price_candidates
 from tender_killer.product_profile_service import build_profiles
 from tender_killer.product_profile_service import product_profile_summary
 from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
@@ -139,6 +140,8 @@ def get_tender_payload(
         product_profiles = store.get_product_profiles(source, external_id)
         if not product_profiles:
             product_profiles = build_profiles(payload)
+        else:
+            product_profiles = _rank_price_candidates(product_profiles)
     else:
         product_profiles = []
     payload["product_profiles"] = product_profiles
@@ -150,6 +153,15 @@ def get_tender_payload(
         database_path, source, external_id, "current_offer"
     ) or latest_price_change(database_path, source, external_id, "nmc")
     return payload
+
+
+def _rank_price_candidates(product_profiles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ranked_profiles: list[dict[str, Any]] = []
+    for profile in product_profiles:
+        if isinstance(profile.get("price_candidates"), list):
+            profile = {**profile, "price_candidates": rank_profile_price_candidates(profile)}
+        ranked_profiles.append(profile)
+    return ranked_profiles
 
 
 def _raw_payload_from_tender(tender: dict[str, Any]) -> dict[str, Any]:

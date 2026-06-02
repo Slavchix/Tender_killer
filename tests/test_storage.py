@@ -277,6 +277,29 @@ def test_store_empty_product_profile_upsert_deletes_existing_profiles(tmp_path):
     assert store.get_product_profiles("moscow", "abc") == []
 
 
+def test_store_removes_price_candidates_for_removed_product_profiles(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_product_profiles(
+        "moscow",
+        "abc",
+        [
+            _product_profile(position_index=1, product_name="Paper"),
+            _product_profile(position_index=2, product_name="Folder"),
+        ],
+    )
+    store.upsert_price_candidates("moscow", "abc", 1, [{"name": "Paper", "unit_price": 100}], origin="supplier_discovery")
+    store.upsert_price_candidates("moscow", "abc", 2, [{"name": "Folder", "unit_price": 200}], origin="supplier_discovery")
+
+    store.upsert_product_profiles("moscow", "abc", [_product_profile(position_index=2, product_name="Folder")])
+
+    assert [candidate["position_index"] for candidate in store.list_price_candidates("moscow", "abc")] == [2]
+
+    store.upsert_product_profiles("moscow", "abc", [])
+
+    assert store.list_price_candidates("moscow", "abc") == []
+
+
 def test_store_preserves_product_profiles_when_tender_is_refreshed(tmp_path):
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()
@@ -304,6 +327,72 @@ def test_store_preserves_product_profiles_when_tender_is_refreshed(tmp_path):
     profiles = store.get_product_profiles("moscow", "abc")
     assert len(profiles) == 1
     assert profiles[0]["product_name"] == "Paper"
+
+
+def test_store_upserts_price_candidates_with_stable_fingerprint(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+
+    first = store.upsert_price_candidates(
+        "mosreg_market",
+        "price-candidates",
+        1,
+        [
+            {
+                "provider": " Komus ",
+                "name": " Paper A4 ",
+                "url": " https://supplier.example/paper-a4 ",
+                "unit_price": "900,50",
+                "currency": " rub ",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "confidence": "high",
+                "confidence_reasons": ["has_price", "has_url"],
+                "source_query": "paper a4",
+                "source_kind": "normalized_name",
+                "delivery_note": "Delivery in Moscow",
+                "note": "Visible public offer",
+            }
+        ],
+        origin="supplier_discovery",
+    )
+    second = store.upsert_price_candidates(
+        "mosreg_market",
+        "price-candidates",
+        1,
+        [
+            {
+                "provider": "komus",
+                "name": "Paper A4 updated",
+                "url": "https://supplier.example/paper-a4",
+                "unit_price": "880",
+                "currency": "RUB",
+                "availability": "on_request",
+                "confidence": "medium",
+                "source_query": "paper a4",
+                "source_kind": "normalized_name",
+            }
+        ],
+        origin="supplier_discovery",
+    )
+
+    assert first[0]["id"] == second[0]["id"]
+    candidates = store.list_price_candidates("mosreg_market", "price-candidates", 1)
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    assert candidate["origin"] == "supplier_discovery"
+    assert candidate["provider"] == "komus"
+    assert candidate["product_name"] == "Paper A4 updated"
+    assert candidate["source_url"] == "https://supplier.example/paper-a4"
+    assert candidate["unit_price"] == 880.0
+    assert candidate["currency"] == "RUB"
+    assert candidate["availability"] == "on_request"
+    assert candidate["confidence"] == "medium"
+    assert candidate["review_status"] == "pending"
+    assert candidate["source_query"] == "paper a4"
+    assert candidate["source_kind"] == "normalized_name"
+    assert candidate["fingerprint"] == first[0]["fingerprint"]
+    assert candidate["raw_payload"]["name"] == "Paper A4 updated"
 
 
 def test_store_migrates_existing_minimal_product_profiles_table(tmp_path):

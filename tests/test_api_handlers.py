@@ -96,6 +96,7 @@ def test_handle_get_request_returns_health_payload(tmp_path) -> None:
     assert "web_auto_search" in response.payload["capabilities"]
     assert "market_state_import" in response.payload["capabilities"]
     assert "dashboard_queues" in response.payload["capabilities"]
+    assert "price_candidate_review" in response.payload["capabilities"]
 
 
 def test_handle_get_request_routes_supplier_catalog_health(tmp_path) -> None:
@@ -838,6 +839,84 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_candidate
         }
     ]
     assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["review_status"] == "imported"
+    assert "economics" not in profile["raw_payload"]
+
+
+def test_handle_post_request_routes_product_profile_price_candidate_confirm(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+    saved = store.upsert_price_candidates(
+        "mosreg_market",
+        "3668200",
+        1,
+        [{"provider": "komus", "name": "Office paper", "url": "https://example.com/paper", "unit_price": 900.0}],
+        origin="supplier_discovery",
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        f"/api/tenders/mosreg_market/3668200/product-profiles/1/price-candidates/{saved[0]['id']}/confirm",
+        {},
+    )
+
+    profile = response.payload["product_profiles"][0]
+    assert response.status == 200
+    assert response.payload["price_candidate_review"]["review_status"] == "confirmed"
+    assert response.payload["price_candidate_review"]["supplier_option_index"] == 0
+    assert profile["profile_status"] == "priced"
+    assert profile["raw_payload"]["economics"]["unit_cost"] == 900.0
+    assert profile["raw_payload"]["economics_price_source"]["source"] == "price_candidate"
+    assert response.payload["economics"]["supplier_cost"] == 9000.0
+
+
+def test_handle_post_request_routes_product_profile_price_candidate_reject(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+    saved = store.upsert_price_candidates(
+        "mosreg_market",
+        "3668200",
+        1,
+        [{"provider": "bad", "name": "Wrong item", "unit_price": 10.0}],
+        origin="supplier_discovery",
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        f"/api/tenders/mosreg_market/3668200/product-profiles/1/price-candidates/{saved[0]['id']}/reject",
+        {},
+    )
+
+    profile = response.payload["product_profiles"][0]
+    candidates = store.list_price_candidates("mosreg_market", "3668200", 1)
+    assert response.status == 200
+    assert response.payload["price_candidate_review"]["review_status"] == "rejected"
+    assert candidates[0]["review_status"] == "rejected"
     assert "economics" not in profile["raw_payload"]
 
 

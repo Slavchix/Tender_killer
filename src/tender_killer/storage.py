@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from dataclasses import asdict, dataclass, is_dataclass
@@ -212,12 +213,24 @@ class TenderStore:
         with self._connect() as connection:
             if not rows:
                 connection.execute(
+                    "DELETE FROM price_candidates WHERE tender_source = ? AND tender_external_id = ?",
+                    (source, external_id),
+                )
+                connection.execute(
                     "DELETE FROM product_profiles WHERE tender_source = ? AND tender_external_id = ?",
                     (source, external_id),
                 )
                 return
             positions = [row["position_index"] for row in rows]
             placeholders = ", ".join(["?"] * len(positions))
+            connection.execute(
+                f"""
+                DELETE FROM price_candidates
+                WHERE tender_source = ? AND tender_external_id = ?
+                    AND position_index NOT IN ({placeholders})
+                """,
+                [source, external_id, *positions],
+            )
             connection.execute(
                 f"""
                 DELETE FROM product_profiles
@@ -295,7 +308,171 @@ class TenderStore:
                 """,
                 (source, external_id),
             ).fetchall()
-        return [_deserialize_product_profile(row) for row in rows]
+            candidate_rows = connection.execute(
+                """
+                SELECT
+                    id, tender_source, tender_external_id, position_index, origin, fingerprint,
+                    provider, product_name, supplier_name, source_url, source_query, source_kind,
+                    unit_price, currency, vat_mode, availability, offer_status, review_status,
+                    confidence, confidence_reasons_json, match_reasons_json, supplier_option_index,
+                    observed_at, reviewed_at, raw_payload_json, created_at, updated_at
+                FROM price_candidates
+                WHERE tender_source = ? AND tender_external_id = ?
+                ORDER BY position_index, id
+                """,
+                (source, external_id),
+            ).fetchall()
+        profiles = [_deserialize_product_profile(row) for row in rows]
+        candidates_by_position: dict[int, list[dict[str, Any]]] = {}
+        for row in candidate_rows:
+            candidate = _deserialize_price_candidate(row)
+            candidates_by_position.setdefault(int(candidate["position_index"]), []).append(candidate)
+        for profile in profiles:
+            profile["price_candidates"] = candidates_by_position.get(int(profile.get("position_index") or 0), [])
+        return profiles
+
+    def upsert_price_candidates(
+        self,
+        source: str,
+        external_id: str,
+        position_index: int,
+        candidates: list[dict[str, Any]],
+        *,
+        origin: str,
+    ) -> list[dict[str, Any]]:
+        rows = [
+            _serialize_price_candidate(source, external_id, position_index, candidate, origin=origin)
+            for candidate in candidates
+        ]
+        rows = [row for row in rows if row]
+        if not rows:
+            return []
+        with self._connect() as connection:
+            connection.executemany(
+                """
+                INSERT INTO price_candidates (
+                    tender_source, tender_external_id, position_index, origin, fingerprint,
+                    provider, product_name, supplier_name, source_url, source_query, source_kind,
+                    unit_price, currency, vat_mode, availability, offer_status, review_status,
+                    confidence, confidence_reasons_json, match_reasons_json, supplier_option_index,
+                    raw_payload_json
+                )
+                VALUES (
+                    :tender_source, :tender_external_id, :position_index, :origin, :fingerprint,
+                    :provider, :product_name, :supplier_name, :source_url, :source_query, :source_kind,
+                    :unit_price, :currency, :vat_mode, :availability, :offer_status, :review_status,
+                    :confidence, :confidence_reasons_json, :match_reasons_json, :supplier_option_index,
+                    :raw_payload_json
+                )
+                ON CONFLICT(tender_source, tender_external_id, position_index, fingerprint) DO UPDATE SET
+                    origin = excluded.origin,
+                    provider = excluded.provider,
+                    product_name = excluded.product_name,
+                    supplier_name = excluded.supplier_name,
+                    source_url = excluded.source_url,
+                    source_query = excluded.source_query,
+                    source_kind = excluded.source_kind,
+                    unit_price = excluded.unit_price,
+                    currency = excluded.currency,
+                    vat_mode = excluded.vat_mode,
+                    availability = excluded.availability,
+                    offer_status = excluded.offer_status,
+                    review_status = CASE
+                        WHEN price_candidates.review_status IN ('confirmed', 'imported', 'rejected')
+                            THEN price_candidates.review_status
+                        ELSE excluded.review_status
+                    END,
+                    confidence = excluded.confidence,
+                    confidence_reasons_json = excluded.confidence_reasons_json,
+                    match_reasons_json = excluded.match_reasons_json,
+                    raw_payload_json = excluded.raw_payload_json,
+                    observed_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                rows,
+            )
+            fingerprints = [row["fingerprint"] for row in rows]
+            placeholders = ", ".join(["?"] * len(fingerprints))
+            saved_rows = connection.execute(
+                f"""
+                SELECT
+                    id, tender_source, tender_external_id, position_index, origin, fingerprint,
+                    provider, product_name, supplier_name, source_url, source_query, source_kind,
+                    unit_price, currency, vat_mode, availability, offer_status, review_status,
+                    confidence, confidence_reasons_json, match_reasons_json, supplier_option_index,
+                    observed_at, reviewed_at, raw_payload_json, created_at, updated_at
+                FROM price_candidates
+                WHERE tender_source = ? AND tender_external_id = ? AND position_index = ?
+                    AND fingerprint IN ({placeholders})
+                """,
+                [source, external_id, int(position_index), *fingerprints],
+            ).fetchall()
+        saved_by_fingerprint = {
+            str(row["fingerprint"]): _deserialize_price_candidate(row)
+            for row in saved_rows
+        }
+        return [saved_by_fingerprint[row["fingerprint"]] for row in rows if row["fingerprint"] in saved_by_fingerprint]
+
+    def list_price_candidates(
+        self,
+        source: str,
+        external_id: str,
+        position_index: int | None = None,
+    ) -> list[dict[str, Any]]:
+        params: list[Any] = [source, external_id]
+        position_filter = ""
+        if position_index is not None:
+            position_filter = " AND position_index = ?"
+            params.append(int(position_index))
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT
+                    id, tender_source, tender_external_id, position_index, origin, fingerprint,
+                    provider, product_name, supplier_name, source_url, source_query, source_kind,
+                    unit_price, currency, vat_mode, availability, offer_status, review_status,
+                    confidence, confidence_reasons_json, match_reasons_json, supplier_option_index,
+                    observed_at, reviewed_at, raw_payload_json, created_at, updated_at
+                FROM price_candidates
+                WHERE tender_source = ? AND tender_external_id = ?{position_filter}
+                ORDER BY position_index, id
+                """,
+                params,
+            ).fetchall()
+        return [_deserialize_price_candidate(row) for row in rows]
+
+    def update_price_candidate_review(
+        self,
+        source: str,
+        external_id: str,
+        position_index: int,
+        candidate: dict[str, Any],
+        *,
+        review_status: str,
+        supplier_option_index: int | None = None,
+    ) -> None:
+        row = _serialize_price_candidate(source, external_id, position_index, candidate, origin="supplier_discovery")
+        if not row:
+            return
+        with self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE price_candidates
+                SET review_status = ?,
+                    supplier_option_index = ?,
+                    reviewed_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE tender_source = ? AND tender_external_id = ? AND position_index = ? AND fingerprint = ?
+                """,
+                (
+                    _price_candidate_review_status(review_status),
+                    supplier_option_index,
+                    source,
+                    external_id,
+                    int(position_index),
+                    row["fingerprint"],
+                ),
+            )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.database_path)
@@ -565,3 +742,162 @@ def _empty_json_value(field_name: str) -> list[Any] | dict[str, Any]:
     if field_name == "raw_payload":
         return {}
     return []
+
+
+def _serialize_price_candidate(
+    source: str,
+    external_id: str,
+    position_index: int,
+    candidate: dict[str, Any],
+    *,
+    origin: str,
+) -> dict[str, Any]:
+    row = {
+        "tender_source": source,
+        "tender_external_id": external_id,
+        "position_index": int(position_index),
+        "origin": _token(origin) or "manual",
+        "provider": _token(candidate.get("provider")),
+        "product_name": _text(candidate.get("product_name")) or _text(candidate.get("name")),
+        "supplier_name": _text(candidate.get("supplier_name")),
+        "source_url": _text(candidate.get("source_url")) or _text(candidate.get("url")),
+        "source_query": _text(candidate.get("source_query")),
+        "source_kind": _text(candidate.get("source_kind")),
+        "unit_price": _number(candidate.get("unit_price")),
+        "currency": _currency(candidate.get("currency")),
+        "vat_mode": _token(candidate.get("vat_mode")),
+        "availability": _token(candidate.get("availability")),
+        "offer_status": _token(candidate.get("offer_status")) or _token(candidate.get("status")),
+        "review_status": _price_candidate_review_status(candidate.get("review_status")),
+        "confidence": _token(candidate.get("confidence")),
+        "confidence_reasons_json": json.dumps(_json_list(candidate.get("confidence_reasons")), ensure_ascii=False),
+        "match_reasons_json": json.dumps(_json_list(candidate.get("match_reasons")), ensure_ascii=False),
+        "supplier_option_index": _integer(candidate.get("supplier_option_index")),
+        "raw_payload_json": json.dumps(_normalized_price_candidate_payload(candidate), ensure_ascii=False),
+    }
+    if not any(row.get(field) for field in ("product_name", "source_url", "supplier_name")) and row["unit_price"] is None:
+        return {}
+    row["fingerprint"] = _price_candidate_fingerprint(row)
+    return row
+
+
+def _deserialize_price_candidate(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": int(row["id"]),
+        "tender_source": row["tender_source"],
+        "tender_external_id": row["tender_external_id"],
+        "position_index": int(row["position_index"]),
+        "origin": row["origin"],
+        "fingerprint": row["fingerprint"],
+        "provider": row["provider"],
+        "product_name": row["product_name"],
+        "supplier_name": row["supplier_name"],
+        "source_url": row["source_url"],
+        "source_query": row["source_query"],
+        "source_kind": row["source_kind"],
+        "unit_price": row["unit_price"],
+        "currency": row["currency"],
+        "vat_mode": row["vat_mode"],
+        "availability": row["availability"],
+        "offer_status": row["offer_status"],
+        "review_status": row["review_status"],
+        "confidence": row["confidence"],
+        "confidence_reasons": _json_list(row["confidence_reasons_json"]),
+        "match_reasons": _json_list(row["match_reasons_json"]),
+        "supplier_option_index": row["supplier_option_index"],
+        "observed_at": row["observed_at"],
+        "reviewed_at": row["reviewed_at"],
+        "raw_payload": _json_object(row["raw_payload_json"]),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def _normalized_price_candidate_payload(candidate: dict[str, Any]) -> dict[str, Any]:
+    payload = {str(key): value for key, value in candidate.items()}
+    if name := _text(candidate.get("name")):
+        payload["name"] = name
+    if product_name := _text(candidate.get("product_name")):
+        payload["product_name"] = product_name
+    if url := _text(candidate.get("url")):
+        payload["url"] = url
+    if source_url := _text(candidate.get("source_url")):
+        payload["source_url"] = source_url
+    if unit_price := _number(candidate.get("unit_price")):
+        payload["unit_price"] = unit_price
+    if provider := _token(candidate.get("provider")):
+        payload["provider"] = provider
+    return payload
+
+
+def _price_candidate_fingerprint(row: dict[str, Any]) -> str:
+    provider = str(row.get("provider") or "").casefold()
+    source_url = str(row.get("source_url") or "").strip().casefold()
+    if source_url:
+        basis = ["url", provider, source_url]
+    else:
+        basis = [
+            "text",
+            provider,
+            str(row.get("source_query") or "").casefold(),
+            str(row.get("product_name") or "").casefold(),
+            str(row.get("unit_price") or ""),
+        ]
+    return hashlib.sha256("\x1f".join(basis).encode("utf-8")).hexdigest()
+
+
+def _price_candidate_review_status(value: Any) -> str:
+    token = _token(value)
+    return token if token in {"pending", "confirmed", "imported", "rejected"} else "pending"
+
+
+def _currency(value: Any) -> str:
+    text = _text(value)
+    if not text:
+        return "RUB"
+    currency = text.upper()
+    return "RUB" if currency in {"RUB", "RUR", "РУБ", "РУБ."} else currency
+
+
+def _json_list(value: Any) -> list[Any]:
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+        except json.JSONDecodeError:
+            return []
+        return decoded if isinstance(decoded, list) else []
+    return value if isinstance(value, list) else []
+
+
+def _text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _token(value: Any) -> str | None:
+    text = _text(value)
+    if not text:
+        return None
+    token = "".join(character if character.isalnum() else "_" for character in text.casefold()).strip("_")
+    while "__" in token:
+        token = token.replace("__", "_")
+    return token or None
+
+
+def _number(value: Any) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        number = float(str(value).replace(" ", "").replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+    return number if number >= 0 else None
+
+
+def _integer(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

@@ -3564,6 +3564,137 @@ textarea:focus {
   gap: 7px;
 }
 
+.price-candidates-list {
+  display: grid;
+  gap: 7px;
+  padding: 8px 9px;
+  color: #b7ccc4;
+  background: #17211e;
+  border: 1px solid #3a4a43;
+  border-radius: 6px;
+}
+
+.price-candidates-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.price-candidates-heading span {
+  color: #eef8f2;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.price-candidates-heading em {
+  min-width: 24px;
+  padding: 3px 7px;
+  color: #0d160f;
+  background: #9fe29a;
+  border-radius: 999px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  text-align: center;
+}
+
+.price-candidate-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  background: #18231f;
+  border: 1px solid #304039;
+  border-radius: 6px;
+}
+
+.price-candidate-row.confirmed {
+  border-color: #5aa45b;
+  box-shadow: inset 3px 0 0 #6edc61;
+}
+
+.price-candidate-row.quality-ready {
+  border-color: #5aa45b;
+}
+
+.price-candidate-row.quality-review {
+  border-color: #7b6937;
+}
+
+.price-candidate-row.quality-blocked {
+  border-color: #765043;
+}
+
+.price-candidate-row.rejected {
+  opacity: 0.62;
+}
+
+.price-candidate-row a,
+.price-candidate-row strong {
+  color: #eef8f2;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.price-candidate-row p {
+  margin: 3px 0 0;
+  color: #9bb2aa;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.price-candidate-row > span {
+  color: #9fe29a;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.price-candidate-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.price-candidate-flags li {
+  max-width: 100%;
+  padding: 2px 7px;
+  color: #d7eadf;
+  background: #23302a;
+  border: 1px solid #3d5147;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.price-candidate-flags li.block {
+  color: #ffd7ca;
+  border-color: #87523f;
+}
+
+.price-candidate-flags li.review {
+  color: #f4e7ba;
+  border-color: #7b6937;
+}
+
+.price-candidate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+.price-candidate-actions .secondary-button.compact {
+  min-width: 94px;
+}
+
 .supplier-catalog-presets {
   display: grid;
   gap: 7px;

@@ -1555,6 +1555,22 @@ def test_product_profile_renders_supplier_option_form():
     assert "supplier-discovery/url" in api_source
     assert "runProfileSupplierUrlDiscovery" in api_source
     assert "supplier-discovery/candidates/${candidateIndex}/import" in api_source
+    assert "price-candidates/${candidateId}/confirm" in api_source
+    assert "price-candidates/${candidateId}/reject" in api_source
+    assert "confirmProfilePriceCandidate" in hook_source
+    assert "rejectProfilePriceCandidate" in hook_source
+    assert "onPriceCandidateConfirm" in profile_workspace_source
+    assert "onPriceCandidateReject" in profile_workspace_source
+    assert "price_candidates" in source
+    assert "PriceCandidatesList" in source
+    assert "candidate.score" in source
+    assert "candidate.quality_status" in source
+    assert "candidate.quality_flags" in source
+    assert "priceCandidateQualityLabel" in source
+    assert "готова к расчету" in source
+    assert "не брать автоматически" in source
+    assert "Принять цену" in source
+    assert "Отклонить" in source
     assert "supplier_options" in source
     assert "supplier_search" in source
     assert "supplier_discovery" in source
@@ -1642,6 +1658,8 @@ def test_product_profile_renders_supplier_option_form():
     assert ".supplier-catalog-preset-grid" in styles_source
     assert ".supplier-search-links" in styles_source
     assert ".supplier-discovery-preview" in styles_source
+    assert ".price-candidates-list" in styles_source
+    assert ".price-candidate-row" in styles_source
     assert ".supplier-discovery-diagnostics" in styles_source
     assert ".supplier-discovery-metrics" in styles_source
     assert find_mojibake(details_source, TENDER_DETAILS_SOURCE) == []

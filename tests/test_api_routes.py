@@ -6,6 +6,7 @@ from tender_killer.api_routes import (
     parse_product_profile_economics_path,
     parse_product_profile_supplier_option_select_path,
     parse_product_profile_supplier_option_best_select_path,
+    parse_product_profile_price_candidate_review_path,
     parse_product_profile_supplier_discovery_candidate_import_path,
     parse_product_profile_supplier_discovery_candidates_path,
     parse_product_profile_supplier_discovery_run_path,
@@ -267,4 +268,33 @@ def test_parse_product_profile_supplier_option_best_select_path_decodes_position
     ) is None
     assert parse_product_profile_supplier_option_best_select_path(
         "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-options/best/select"
+    ) is None
+
+
+def test_parse_product_profile_price_candidate_review_path_decodes_candidate_route() -> None:
+    route = parse_product_profile_price_candidate_review_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/price-candidates/12/confirm"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+    assert route.candidate_id == 12
+    assert route.action == "confirm"
+
+    reject_route = parse_product_profile_price_candidate_review_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/3/price-candidates/12/reject"
+    )
+    assert reject_route is not None
+    assert reject_route.action == "reject"
+
+    assert parse_product_profile_price_candidate_review_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/price-candidates/12/confirm"
+    ) is None
+    assert parse_product_profile_price_candidate_review_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/3/price-candidates/0/confirm"
+    ) is None
+    assert parse_product_profile_price_candidate_review_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/3/price-candidates/12/archive"
     ) is None

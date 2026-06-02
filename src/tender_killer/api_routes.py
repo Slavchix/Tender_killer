@@ -40,6 +40,15 @@ class ProductProfileSupplierDiscoveryCandidatePath:
     candidate_index: int
 
 
+@dataclass(frozen=True)
+class ProductProfilePriceCandidateReviewPath:
+    source: str
+    external_id: str
+    position_index: int
+    candidate_id: int
+    action: str
+
+
 def parse_tender_path(path: str, suffix: str = "") -> TenderPath | None:
     parts = path.split("/")
     suffix_parts = [part for part in suffix.split("/") if part]
@@ -292,6 +301,34 @@ def parse_product_profile_supplier_discovery_candidate_import_path(
         external_id=unquote(parts[4]),
         position_index=position_index,
         candidate_index=candidate_index,
+    )
+
+
+def parse_product_profile_price_candidate_review_path(
+    path: str,
+) -> ProductProfilePriceCandidateReviewPath | None:
+    parts = path.split("/")
+    if len(parts) != 10 or parts[:3] != ["", "api", "tenders"]:
+        return None
+    if parts[5] != "product-profiles" or parts[7] != "price-candidates":
+        return None
+    if parts[9] not in {"confirm", "reject"}:
+        return None
+    if not parts[3] or not parts[4]:
+        return None
+    try:
+        position_index = int(parts[6])
+        candidate_id = int(parts[8])
+    except ValueError:
+        return None
+    if position_index <= 0 or candidate_id <= 0:
+        return None
+    return ProductProfilePriceCandidateReviewPath(
+        source=unquote(parts[3]),
+        external_id=unquote(parts[4]),
+        position_index=position_index,
+        candidate_id=candidate_id,
+        action=parts[9],
     )
 
 

@@ -91,6 +91,9 @@ Recent architecture cleanup:
 - The tender card decision strip and Word report now surface backend decision reasons and blockers, so the operator can see why the current status/next step was recommended.
 - Dashboard decision queues now live on the backend in `src/tender_killer/dashboard_queue_service.py` and are exposed as `GET /api/dashboard/queues`. The dashboard no longer infers core queues from the currently visible 25 rows; it scans the active filtered set and returns counts/items for missing prices, TZ review, bid limits, interesting tenders, document text gaps, and urgent deadlines.
 - Tender list decision cues are decision-first: each row shows the backend next step and the first blocker/reason instead of separate low-level analysis/economics snippets.
+- Auto-pricing now has its first normalized persistence layer: `price_candidates` stores per-position supplier price candidates with provider, source URL/query, unit price, currency, VAT/availability metadata, confidence, review status, fingerprint deduplication, and raw payload evidence. Existing supplier discovery still keeps its UI JSON, but staged/imported candidates are mirrored into this backend table for future automated economics.
+- Price candidate review is now live: detail payloads rank per-position price candidates, the API exposes confirm/reject actions, confirming a candidate writes `raw_payload.economics.unit_cost` plus `economics_price_source`, and the economics workspace shows accept/reject controls before supplier options.
+- Price candidate quality gates are now live: ranking evaluates VAT, delivery, availability, pack/unit conversion, minimum order, currency, and missing-price risks before any future auto-accept. Candidates expose `quality_status`, `auto_eligible`, and `quality_flags`; confirming a candidate stores this quality snapshot in `economics_price_source`.
 - Analysis document evidence now has one backend-owned model in `src/tender_killer/analysis_evidence_service.py`. Analysis runs, detail payloads, Word reports, and the React evidence view all read `analysis.evidence_items`, so labels, importance, document names, fragments, and impact text stay consistent for future agents.
 - TZ analysis now also emits `analysis.execution_terms`: normalized delivery, payment, advance, warranty, contract security, and penalty conditions. `operator_view` surfaces them as the dedicated `Условия исполнения` section between requirements and price factors, giving the operator a faster route from documents to economics.
 - Analysis runs bind checklist evidence and execution terms back to the source document when the fragment can be matched to extracted document text, so multi-document tenders can show whether a condition came from the ТЗ, contract draft, or another file.
@@ -116,9 +119,10 @@ Latest full verified result after backend dashboard queues and decision-first li
 
 Good next steps:
 
-1. Start the auto-pricing pipeline for economics: normalized price candidates, provider confidence, review/confirm/reject, then recalculation from confirmed prices only.
-2. Improve the analysis engine from rule-based extraction toward document-aware agent prompts while preserving `analysis.evidence_items`, `analysis.analysis_facts`, and document/page bindings.
-3. Add tighter browser visual verification for dashboard queues, list rows, and full-screen analysis/economics workspaces after each major frontend slice.
+1. Continue the auto-pricing pipeline from reviewed and quality-checked `price_candidates`: expand catalog collectors, normalize pack/unit conversions into candidate payloads, and auto-stage higher-confidence candidates before operator confirmation.
+2. Add auto-stage run orchestration and bulk review UX: find prices for all positions, show only `auto_eligible` candidates as suggested, and keep operator confirm/reject as the final step before economics changes.
+3. Improve the analysis engine from rule-based extraction toward document-aware agent prompts while preserving `analysis.evidence_items`, `analysis.analysis_facts`, and document/page bindings.
+4. Add tighter browser visual verification for dashboard queues, list rows, and full-screen analysis/economics workspaces after each major frontend slice.
 
 Previous next steps:
 

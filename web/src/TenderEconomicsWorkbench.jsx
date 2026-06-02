@@ -12,6 +12,8 @@ export function TenderEconomicsWorkbench({
   onSupplierOptionSelect,
   onSupplierOptionAutoSelect,
   onSupplierDiscoveryImport,
+  onPriceCandidateConfirm,
+  onPriceCandidateReject,
   onSupplierSearchPrepare,
   onSupplierCatalogPresetsSave,
   onSupplierDiscoveryRun,
@@ -22,6 +24,7 @@ export function TenderEconomicsWorkbench({
   savingAssumptionsPosition = null,
   savingSupplierOptionPosition = null,
   importingSupplierCandidatePosition = null,
+  reviewingPriceCandidateId = null,
   preparingSupplierSearchPosition = null,
   savingSupplierCatalogPresetPosition = null,
   discoveringSupplierPosition = null,
@@ -65,6 +68,8 @@ export function TenderEconomicsWorkbench({
             onSupplierOptionSelect={onSupplierOptionSelect}
             onSupplierOptionAutoSelect={onSupplierOptionAutoSelect}
             onSupplierDiscoveryImport={onSupplierDiscoveryImport}
+            onPriceCandidateConfirm={onPriceCandidateConfirm}
+            onPriceCandidateReject={onPriceCandidateReject}
             onSupplierSearchPrepare={onSupplierSearchPrepare}
             onSupplierCatalogPresetsSave={onSupplierCatalogPresetsSave}
             onSupplierDiscoveryRun={onSupplierDiscoveryRun}
@@ -75,6 +80,7 @@ export function TenderEconomicsWorkbench({
             savingAssumptions={savingAssumptions}
             savingSupplierOption={savingSupplierOption}
             importingSupplierCandidate={importingSupplierCandidate}
+            reviewingPriceCandidateId={reviewingPriceCandidateId}
             preparingSupplierSearch={preparingSupplierSearch}
             savingSupplierCatalogPresets={savingSupplierCatalogPresets}
             discoveringDiscovery={discoveringDiscovery}

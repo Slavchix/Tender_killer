@@ -12,6 +12,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
     ensure_documents_table(connection)
     ensure_analysis_table(connection)
     ensure_product_profiles_table(connection)
+    ensure_price_candidates_table(connection)
     ensure_source_runs_table(connection)
     ensure_app_state_table(connection)
 
@@ -236,6 +237,49 @@ def ensure_source_runs_table(connection: sqlite3.Connection) -> None:
         """
     )
     ensure_source_run_columns(connection)
+
+
+def ensure_price_candidates_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS price_candidates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tender_source TEXT NOT NULL,
+            tender_external_id TEXT NOT NULL,
+            position_index INTEGER NOT NULL,
+            origin TEXT NOT NULL,
+            fingerprint TEXT NOT NULL,
+            provider TEXT,
+            product_name TEXT,
+            supplier_name TEXT,
+            source_url TEXT,
+            source_query TEXT,
+            source_kind TEXT,
+            unit_price REAL,
+            currency TEXT NOT NULL DEFAULT 'RUB',
+            vat_mode TEXT,
+            availability TEXT,
+            offer_status TEXT,
+            review_status TEXT NOT NULL DEFAULT 'pending',
+            confidence TEXT,
+            confidence_reasons_json TEXT NOT NULL DEFAULT '[]',
+            match_reasons_json TEXT NOT NULL DEFAULT '[]',
+            supplier_option_index INTEGER,
+            observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at TEXT,
+            raw_payload_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(tender_source, tender_external_id, position_index, fingerprint)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_price_candidates_profile
+        ON price_candidates(tender_source, tender_external_id, position_index, review_status, confidence)
+        """
+    )
 
 
 def ensure_app_state_table(connection: sqlite3.Connection) -> None:
