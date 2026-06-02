@@ -18,9 +18,11 @@ import {
   saveProfileEconomics as saveProfileEconomicsRequest,
   saveProfileEconomicsAssumptions as saveProfileEconomicsAssumptionsRequest,
   selectProfileSupplierOption,
+  stageTenderPriceCandidates as stageTenderPriceCandidatesRequest,
 } from './api'
 
 const READY_PRICE_CANDIDATES_REVIEW_ID = 'ready-price-candidates-bulk'
+const PRICE_CANDIDATE_STAGE_REVIEW_ID = 'price-candidates-stage'
 
 export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatus) {
   const [productProfiles, setProductProfiles] = useState(tender.product_profiles || [])
@@ -200,6 +202,24 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .finally(() => setReviewingPriceCandidateId(null))
   }
 
+  function stagePriceCandidates() {
+    setReviewingPriceCandidateId(PRICE_CANDIDATE_STAGE_REVIEW_ID)
+    setDetailStatus('')
+    return stageTenderPriceCandidatesRequest(tender)
+      .then((nextTender) => {
+        const stage = nextTender.price_candidate_stage || {}
+        const staged = Number(stage.staged_count || 0)
+        const ready = Number(stage.ready_count || 0)
+        const review = Number(stage.review_count || 0)
+        return updateFromNextTender(nextTender, `Кандидаты цен подготовлены: ${staged}, готово: ${ready}, проверить: ${review}`)
+      })
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setReviewingPriceCandidateId(null))
+  }
+
   function importSupplierDiscoveryCandidate(profile, candidateIndex) {
     if (!profile?.position_index) return null
     setImportingSupplierCandidatePosition(profile.position_index)
@@ -321,6 +341,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
   }
 
   const confirmingReadyPriceCandidates = reviewingPriceCandidateId === READY_PRICE_CANDIDATES_REVIEW_ID
+  const stagingPriceCandidates = reviewingPriceCandidateId === PRICE_CANDIDATE_STAGE_REVIEW_ID
 
   return {
     productProfiles,
@@ -340,6 +361,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     autoSelectingSupplierPosition,
     autoSelectingAllSuppliers,
     confirmingReadyPriceCandidates,
+    stagingPriceCandidates,
     autoEstimatingPosition,
     acceptingAutoEconomicsPosition,
     supplierCatalogHealth,
@@ -355,6 +377,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     autoSelectSupplierOption,
     autoSelectAllSupplierOptions,
     confirmReadyPriceCandidates,
+    stagePriceCandidates,
     importSupplierDiscoveryCandidate,
     confirmPriceCandidate,
     rejectPriceCandidate,

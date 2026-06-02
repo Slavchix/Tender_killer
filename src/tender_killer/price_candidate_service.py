@@ -110,6 +110,142 @@ def evaluate_price_candidate_quality(profile: dict[str, Any], candidate: dict[st
     }
 
 
+def normalize_price_candidate(profile: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    normalized = {**candidate}
+    raw_payload = _raw_payload(candidate)
+    original_unit_price = _number(candidate.get("unit_price") or raw_payload.get("unit_price"))
+    if original_unit_price is None:
+        original_unit_price = 0.0
+    unit_price = original_unit_price
+    match_reasons = _string_list(candidate.get("match_reasons"))
+    normalization: dict[str, Any] = {
+        "original_unit_price": original_unit_price,
+        "source": candidate.get("source_kind") or raw_payload.get("source_kind"),
+    }
+
+    profile_unit = _token(profile.get("unit"))
+    candidate_unit = _token(candidate.get("unit") or raw_payload.get("unit") or raw_payload.get("uom"))
+    pack_quantity = _first_number(candidate, raw_payload, PACK_QUANTITY_FIELDS)
+    if _is_pack_unit(candidate_unit) and _is_piece_unit(profile_unit) and pack_quantity and pack_quantity > 0:
+        unit_price = unit_price / pack_quantity
+        normalized["unit"] = profile.get("unit")
+        normalization["pack_quantity"] = pack_quantity
+        match_reasons.append("pack_quantity_normalized")
+    elif candidate.get("unit") not in (None, ""):
+        normalized["unit"] = candidate.get("unit")
+    elif profile.get("unit") not in (None, ""):
+        normalized["unit"] = profile.get("unit")
+
+    vat_mode = _token(candidate.get("vat_mode") or raw_payload.get("vat_mode"))
+    vat_rate = _number(candidate.get("vat_rate_percent") or raw_payload.get("vat_rate_percent"))
+    if vat_mode in VAT_REVIEW_VALUES and vat_rate and vat_rate > 0:
+        unit_price = unit_price * (1 + vat_rate / 100)
+        normalized["vat_mode"] = "vat_included"
+        normalization["vat_rate_percent"] = vat_rate
+        match_reasons.append("vat_normalized")
+    elif vat_mode:
+        normalized["vat_mode"] = "vat_included" if vat_mode in VAT_INCLUDED_VALUES else vat_mode
+
+    availability = _normalize_availability(candidate.get("availability") or raw_payload.get("availability"))
+    if availability:
+        normalized["availability"] = availability
+
+    delivery_note = str(candidate.get("delivery_note") or raw_payload.get("delivery_note") or "").strip()
+    if not delivery_note and _number(candidate.get("delivery_cost") or raw_payload.get("delivery_cost")) == 0:
+        delivery_note = "Delivery included"
+    if delivery_note:
+        normalized["delivery_note"] = delivery_note
+
+    normalized["unit_price"] = round(unit_price, 2)
+    normalized["currency"] = str(candidate.get("currency") or raw_payload.get("currency") or "RUB").strip().upper() or "RUB"
+    normalized["confidence"] = str(candidate.get("confidence") or raw_payload.get("confidence") or "high").strip().casefold()
+    if candidate.get("provider") not in (None, ""):
+        normalized["provider"] = candidate.get("provider")
+    if candidate.get("source_url") in (None, "") and candidate.get("url"):
+        normalized["source_url"] = candidate.get("url")
+    if candidate.get("product_name") in (None, "") and candidate.get("name"):
+        normalized["product_name"] = candidate.get("name")
+
+    normalization["normalized_unit_price"] = normalized["unit_price"]
+    raw_payload.update(
+        {
+            "original_unit_price": original_unit_price,
+            "normalized_unit_price": normalized["unit_price"],
+            "normalization": {key: value for key, value in normalization.items() if value not in (None, "")},
+        }
+    )
+    normalized["original_unit_price"] = original_unit_price
+    normalized["normalized_unit_price"] = normalized["unit_price"]
+    normalized["normalization"] = raw_payload["normalization"]
+    normalized["raw_payload"] = raw_payload
+    normalized["match_reasons"] = _dedupe_strings(match_reasons)
+    return normalized
+
+
+def stage_tender_price_candidates(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+) -> dict[str, Any]:
+    store = TenderStore(database_path)
+    store.initialize()
+    profiles = ensure_product_profiles(database_path, source, external_id)
+    staged_count = 0
+    ready_count = 0
+    review_count = 0
+    blocked_count = 0
+    skipped_no_candidate_source_count = 0
+    positions: list[dict[str, Any]] = []
+
+    for profile in profiles:
+        position_index = int(profile.get("position_index") or 0)
+        candidates = _profile_candidate_sources(profile)
+        if not candidates:
+            skipped_no_candidate_source_count += 1
+            positions.append({"position_index": position_index, "staged_count": 0, "status": "no_candidate_source"})
+            continue
+
+        normalized_candidates = [normalize_price_candidate(profile, candidate) for candidate in candidates]
+        saved_candidates = store.upsert_price_candidates(
+            source,
+            external_id,
+            position_index,
+            normalized_candidates,
+            origin="auto_stage",
+        )
+        staged_count += len(saved_candidates)
+
+        status_counts = {"ready": 0, "review": 0, "blocked": 0}
+        for candidate in saved_candidates:
+            status = str(evaluate_price_candidate_quality(profile, candidate).get("quality_status") or "review")
+            if status in status_counts:
+                status_counts[status] += 1
+        ready_count += status_counts["ready"]
+        review_count += status_counts["review"]
+        blocked_count += status_counts["blocked"]
+        positions.append(
+            {
+                "position_index": position_index,
+                "staged_count": len(saved_candidates),
+                "ready_count": status_counts["ready"],
+                "review_count": status_counts["review"],
+                "blocked_count": status_counts["blocked"],
+            }
+        )
+
+    return {
+        "ok": True,
+        "total_profiles": len(profiles),
+        "profiles_with_candidates_count": len(profiles) - skipped_no_candidate_source_count,
+        "staged_count": staged_count,
+        "ready_count": ready_count,
+        "review_count": review_count,
+        "blocked_count": blocked_count,
+        "skipped_no_candidate_source_count": skipped_no_candidate_source_count,
+        "positions": positions,
+    }
+
+
 def review_profile_price_candidate(
     database_path: str | Path,
     source: str,
@@ -360,6 +496,64 @@ def _profile_has_positive_cost(profile: dict[str, Any]) -> bool:
     return bool((unit_cost is not None and unit_cost > 0) or (total_cost is not None and total_cost > 0))
 
 
+def _profile_candidate_sources(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_payload = profile.get("raw_payload") if isinstance(profile.get("raw_payload"), dict) else {}
+    candidates: list[dict[str, Any]] = []
+    for option in _supplier_options(raw_payload.get("supplier_options")):
+        candidate = _candidate_from_supplier_source(profile, option, source_kind="supplier_options")
+        if candidate:
+            candidates.append(candidate)
+
+    discovery = raw_payload.get("supplier_discovery") if isinstance(raw_payload.get("supplier_discovery"), dict) else {}
+    discovery_candidates = discovery.get("candidates") if isinstance(discovery.get("candidates"), list) else []
+    for item in discovery_candidates:
+        if not isinstance(item, dict):
+            continue
+        candidate = _candidate_from_supplier_source(profile, item, source_kind="supplier_discovery")
+        if candidate:
+            candidates.append(candidate)
+    return candidates
+
+
+def _candidate_from_supplier_source(
+    profile: dict[str, Any],
+    source_candidate: dict[str, Any],
+    *,
+    source_kind: str,
+) -> dict[str, Any]:
+    unit_price = _number(source_candidate.get("unit_price") or source_candidate.get("price"))
+    if unit_price is None or unit_price <= 0:
+        return {}
+    raw_payload = {**source_candidate, "source_kind": source_kind}
+    confidence = str(source_candidate.get("confidence") or "").strip().casefold()
+    if not confidence:
+        confidence = "high" if source_candidate.get("url") or source_candidate.get("source_url") else "medium"
+    candidate = {
+        "provider": source_candidate.get("provider") or source_candidate.get("catalog") or "manual",
+        "product_name": source_candidate.get("product_name") or source_candidate.get("name") or profile.get("product_name"),
+        "supplier_name": source_candidate.get("supplier_name"),
+        "source_url": source_candidate.get("source_url") or source_candidate.get("url"),
+        "source_query": source_candidate.get("source_query"),
+        "source_kind": source_kind,
+        "unit_price": unit_price,
+        "currency": source_candidate.get("currency") or "RUB",
+        "vat_mode": source_candidate.get("vat_mode"),
+        "vat_rate_percent": source_candidate.get("vat_rate_percent"),
+        "availability": source_candidate.get("availability"),
+        "delivery_note": source_candidate.get("delivery_note"),
+        "delivery_cost": source_candidate.get("delivery_cost"),
+        "unit": source_candidate.get("unit") or source_candidate.get("uom") or profile.get("unit"),
+        "pack_quantity": _first_number(source_candidate, raw_payload, PACK_QUANTITY_FIELDS),
+        "minimum_order_quantity": _first_number(source_candidate, raw_payload, MIN_ORDER_QUANTITY_FIELDS),
+        "minimum_order_amount": _first_number(source_candidate, raw_payload, MIN_ORDER_AMOUNT_FIELDS),
+        "confidence": confidence,
+        "confidence_reasons": _string_list(source_candidate.get("confidence_reasons")),
+        "match_reasons": _string_list(source_candidate.get("match_reasons")) + [f"from_{source_kind}"],
+        "raw_payload": raw_payload,
+    }
+    return {key: value for key, value in candidate.items() if value not in (None, "")}
+
+
 def _matching_supplier_option_index(supplier_options: list[dict[str, Any]], option: dict[str, Any]) -> int | None:
     option_url = str(option.get("url") or "").strip().casefold()
     for index, supplier_option in enumerate(supplier_options):
@@ -407,6 +601,34 @@ def _supplier_options(value: Any) -> list[dict[str, Any]]:
     return [dict(item) for item in value if isinstance(item, dict)]
 
 
+def _normalize_availability(value: Any) -> str:
+    token = _token(value)
+    in_stock_values = {
+        "in_stock",
+        "available",
+        "instock",
+        "https://schema.org/instock",
+        "РІ_РЅР°Р»РёС‡РёРё",
+        "РЅР°_СЃРєР»Р°РґРµ",
+    }
+    unavailable_values = {
+        "not_available",
+        "unavailable",
+        "out_of_stock",
+        "sold_out",
+        "https://schema.org/outofstock",
+        "РЅРµС‚",
+        "РЅРµС‚_РІ_РЅР°Р»РёС‡РёРё",
+    }
+    if token in in_stock_values:
+        return "in_stock"
+    if token in unavailable_values:
+        return "unavailable"
+    if token in UNKNOWN_VALUES:
+        return "unknown"
+    return token or "unknown"
+
+
 def _raw_payload(candidate: dict[str, Any]) -> dict[str, Any]:
     payload = candidate.get("raw_payload")
     return dict(payload) if isinstance(payload, dict) else {}
@@ -427,8 +649,34 @@ def _first_number(candidate: dict[str, Any], raw_payload: dict[str, Any], fields
     return None
 
 
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if item not in (None, "")]
+
+
+def _dedupe_strings(values: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value).strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return result
+
+
 def _token(value: Any) -> str:
     return str(value or "").strip().casefold().replace(" ", "_").replace("-", "_")
+
+
+def _is_piece_unit(unit: str) -> bool:
+    return unit in {"С€С‚", "С€С‚СѓРєР°", "РµРґ", "pcs", "piece", "unit", "item"}
+
+
+def _is_pack_unit(unit: str) -> bool:
+    return unit in {"СѓРї", "СѓРїР°Рє", "СѓРїР°РєРѕРІРєР°", "pack", "package", "box"}
 
 
 def _units_compatible(profile_unit: str, candidate_unit: str) -> bool:
@@ -443,6 +691,42 @@ def _units_compatible(profile_unit: str, candidate_unit: str) -> bool:
         if profile_unit in group and candidate_unit in group:
             return True
     return profile_unit == candidate_unit
+
+
+def _normalize_availability(value: Any) -> str:
+    token = _token(value)
+    in_stock_values = {
+        "in_stock",
+        "available",
+        "instock",
+        "https://schema.org/instock",
+        "\u0432_\u043d\u0430\u043b\u0438\u0447\u0438\u0438",
+        "\u043d\u0430_\u0441\u043a\u043b\u0430\u0434\u0435",
+    }
+    unavailable_values = {
+        "not_available",
+        "unavailable",
+        "out_of_stock",
+        "sold_out",
+        "https://schema.org/outofstock",
+        "\u043d\u0435\u0442",
+        "\u043d\u0435\u0442_\u0432_\u043d\u0430\u043b\u0438\u0447\u0438\u0438",
+    }
+    if token in in_stock_values:
+        return "in_stock"
+    if token in unavailable_values:
+        return "unavailable"
+    if token in UNKNOWN_VALUES:
+        return "unknown"
+    return token or "unknown"
+
+
+def _is_piece_unit(unit: str) -> bool:
+    return unit in {"\u0448\u0442", "\u0448\u0442\u0443\u043a\u0430", "\u0435\u0434", "pcs", "piece", "unit", "item"}
+
+
+def _is_pack_unit(unit: str) -> bool:
+    return unit in {"\u0443\u043f", "\u0443\u043f\u0430\u043a", "\u0443\u043f\u0430\u043a\u043e\u0432\u043a\u0430", "pack", "package", "box"}
 
 
 def _number(value: Any) -> float | None:

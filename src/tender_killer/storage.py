@@ -782,6 +782,7 @@ def _serialize_price_candidate(
 
 
 def _deserialize_price_candidate(row: sqlite3.Row) -> dict[str, Any]:
+    raw_payload = _json_object(row["raw_payload_json"])
     return {
         "id": int(row["id"]),
         "tender_source": row["tender_source"],
@@ -805,9 +806,12 @@ def _deserialize_price_candidate(row: sqlite3.Row) -> dict[str, Any]:
         "confidence_reasons": _json_list(row["confidence_reasons_json"]),
         "match_reasons": _json_list(row["match_reasons_json"]),
         "supplier_option_index": row["supplier_option_index"],
+        "unit": raw_payload.get("unit"),
+        "pack_quantity": raw_payload.get("pack_quantity"),
+        "delivery_note": raw_payload.get("delivery_note"),
         "observed_at": row["observed_at"],
         "reviewed_at": row["reviewed_at"],
-        "raw_payload": _json_object(row["raw_payload_json"]),
+        "raw_payload": raw_payload,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }

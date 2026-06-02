@@ -16,6 +16,7 @@ export function TenderEconomicsTab({
   onSupplierOptionAutoSelect,
   onSupplierOptionAutoSelectAll,
   onReadyPriceCandidatesConfirmAll,
+  onPriceCandidatesStage,
   onSupplierDiscoveryImport,
   onPriceCandidateConfirm,
   onPriceCandidateReject,
@@ -36,6 +37,7 @@ export function TenderEconomicsTab({
   autoSelectingSupplierPosition = null,
   autoSelectingAllSuppliers = false,
   confirmingReadyPriceCandidates = false,
+  stagingPriceCandidates = false,
   autoEstimatingPosition = null,
   acceptingAutoEconomicsPosition = null,
   supplierCatalogHealth = null,
@@ -49,6 +51,7 @@ export function TenderEconomicsTab({
     return Array.isArray(supplierOptions) && supplierOptions.length > 0
   })
   const readyPriceCandidateCount = profiles.filter(hasReadyPriceCandidateWithoutCost).length
+  const priceCandidateSourceCount = profiles.filter(hasPriceCandidateSource).length
 
   useEffect(() => {
     if (supplierCatalogHealth || supplierCatalogHealthLoading || supplierCatalogHealthError) return
@@ -64,6 +67,14 @@ export function TenderEconomicsTab({
     <section className="detail-section active economics-section">
       <div className="section-heading-row">
         <h3>Экономика</h3>
+        <button
+          className="secondary-button compact"
+          disabled={stagingPriceCandidates || !onPriceCandidatesStage || priceCandidateSourceCount === 0}
+          onClick={() => ignoreEconomicsActionError(onPriceCandidatesStage?.())}
+          type="button"
+        >
+          {stagingPriceCandidates ? 'Готовлю...' : `Подготовить цены (${priceCandidateSourceCount})`}
+        </button>
         <button
           className="secondary-button compact"
           disabled={confirmingReadyPriceCandidates || !onReadyPriceCandidatesConfirmAll || readyPriceCandidateCount === 0}
@@ -138,6 +149,15 @@ function hasReadyPriceCandidateWithoutCost(profile) {
     const reviewStatus = String(candidate?.review_status || 'pending').toLowerCase()
     return candidate?.auto_eligible === true && reviewStatus !== 'confirmed' && reviewStatus !== 'rejected'
   })
+}
+
+function hasPriceCandidateSource(profile) {
+  const supplierOptions = profile?.raw_payload?.supplier_options
+  const discoveryCandidates = profile?.raw_payload?.supplier_discovery?.candidates
+  return (
+    (Array.isArray(supplierOptions) && supplierOptions.some((option) => Number(option?.unit_price || option?.price || 0) > 0)) ||
+    (Array.isArray(discoveryCandidates) && discoveryCandidates.some((candidate) => Number(candidate?.unit_price || candidate?.price || 0) > 0))
+  )
 }
 
 function hasPositiveEconomicsCost(profile) {

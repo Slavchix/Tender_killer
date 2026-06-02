@@ -209,6 +209,13 @@ export function confirmReadyTenderPriceCandidates(tender) {
   })
 }
 
+export function stageTenderPriceCandidates(tender) {
+  return apiJson(`${tenderPath(tender)}/price-candidates/stage`, {
+    method: 'POST',
+    errorMessage: 'Не удалось подготовить кандидатов цен',
+  })
+}
+
 export function prepareProfileSupplierSearch(tender, profile) {
   return apiJson(`${productProfilePath(tender, profile)}/supplier-search/prepare`, {
     method: 'POST',

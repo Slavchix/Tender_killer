@@ -1031,3 +1031,16 @@ Date: 2026-06-02.
 - React economics now exposes `Готовые цены в расчет (N)` in the full-screen economics header, next to the older reviewed-supplier bulk button.
 - Verification: direct workspace-temp runner passed the new service/API bulk confirmation scenarios; frontend contract `89 passed`; Python compileall passed; Vite production build passed through direct bundled Node invocation.
 - Current pytest caveat remains: temp-dependent pytest tests can fail during Windows temp setup/cleanup in this desktop sandbox, so direct workspace-temp runners are still used for those targeted backend checks.
+
+## Price candidate auto-stage checkpoint
+
+Date: 2026-06-02.
+
+- Added tender-level auto-stage for already saved supplier evidence through `stage_tender_price_candidates(...)`.
+- New endpoint/capability: `POST /api/tenders/{source}/{external_id}/price-candidates/stage` / `price_candidate_auto_stage`.
+- The stage action reads existing `raw_payload.supplier_options` and `raw_payload.supplier_discovery.candidates`, normalizes them into the backend `price_candidates` table, and returns counts for staged/ready/review/blocked candidates.
+- Normalization currently covers VAT excluded -> VAT included, pack-to-piece unit conversion, availability tokens, delivery hints, source kind, match reasons, and raw original/normalized price evidence.
+- This remains review-only: staging candidates does not select a supplier, does not write `raw_payload.economics`, and does not change tender economics until the operator confirms a candidate or uses the existing bulk ready-confirm action.
+- React economics now exposes `Подготовить цены (N)` in the full-screen economics header. Loading state reuses the existing price-candidate review sentinel instead of adding a new hook, avoiding the previous hook-order regression.
+- Verification: manual workspace-temp runner passed the targeted price candidate service/API stage suite; frontend contract auto-stage test passed; Python compileall passed.
+- Next economics steps: replace the saved-evidence-only stage with an active provider run that records per-provider diagnostics, then expand collectors and scoring before any wider automation.

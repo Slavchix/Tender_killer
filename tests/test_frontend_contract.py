@@ -2770,6 +2770,30 @@ def test_economics_tab_supports_bulk_best_supplier_selection():
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
 
 
+def test_economics_tab_supports_price_candidate_auto_stage():
+    api_source = API_SOURCE.read_text(encoding="utf-8")
+    hook_source = USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
+    details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
+    economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+
+    assert "export function stageTenderPriceCandidates" in api_source
+    assert "price-candidates/stage" in api_source
+    assert "stageTenderPriceCandidates as stageTenderPriceCandidatesRequest" in hook_source
+    assert "PRICE_CANDIDATE_STAGE_REVIEW_ID" in hook_source
+    assert "const stagingPriceCandidates = reviewingPriceCandidateId === PRICE_CANDIDATE_STAGE_REVIEW_ID" in hook_source
+    assert "const [stagingPriceCandidates, setStagingPriceCandidates]" not in hook_source
+    assert "function stagePriceCandidates" in hook_source
+    assert "onPriceCandidatesStage" in details_source
+    assert "onPriceCandidatesStage" in workspaces_source
+    assert "onPriceCandidatesStage" in economics_source
+    assert "stagingPriceCandidates" in economics_source
+    assert "Подготовить цены" in economics_source
+    assert find_mojibake(api_source, API_SOURCE) == []
+    assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
+    assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+
+
 def test_dashboard_surfaces_current_offers_and_backend_decisions():
     dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
     app_source = APP_SOURCE.read_text(encoding="utf-8")

@@ -1,7 +1,9 @@
 from tender_killer.models import ProductProfile, Tender
 from tender_killer.price_candidate_service import confirm_ready_price_candidates
+from tender_killer.price_candidate_service import normalize_price_candidate
 from tender_killer.price_candidate_service import rank_profile_price_candidates
 from tender_killer.price_candidate_service import review_profile_price_candidate
+from tender_killer.price_candidate_service import stage_tender_price_candidates
 from tender_killer.storage import TenderStore
 from tender_killer.tender_detail_service import get_tender_payload
 
@@ -143,6 +145,40 @@ def test_rank_profile_price_candidates_flags_unknown_cost_drivers_before_auto_ac
     assert "quality_review" in ranked[0]["score_reasons"]
 
 
+def test_normalize_price_candidate_applies_vat_and_pack_conversion() -> None:
+    profile = {
+        "position_index": 1,
+        "quantity": 20,
+        "unit": "шт",
+    }
+    candidate = {
+        "provider": "manual",
+        "name": "Cable marker pack",
+        "unit_price": 1200.0,
+        "currency": "RUB",
+        "vat_mode": "vat_excluded",
+        "vat_rate_percent": 20,
+        "availability": "в наличии",
+        "delivery_note": "Delivery included",
+        "unit": "pack",
+        "pack_quantity": 10,
+        "confidence": "high",
+    }
+
+    normalized = normalize_price_candidate(profile, candidate)
+
+    assert normalized["unit_price"] == 144.0
+    assert normalized["unit"] == "шт"
+    assert normalized["vat_mode"] == "vat_included"
+    assert normalized["availability"] == "in_stock"
+    assert "pack_quantity_normalized" in normalized["match_reasons"]
+    assert "vat_normalized" in normalized["match_reasons"]
+    assert normalized["raw_payload"]["original_unit_price"] == 1200.0
+    assert normalized["raw_payload"]["normalized_unit_price"] == 144.0
+    assert normalized["raw_payload"]["normalization"]["pack_quantity"] == 10.0
+    assert normalized["raw_payload"]["normalization"]["vat_rate_percent"] == 20.0
+
+
 def test_confirm_profile_price_candidate_applies_price_to_economics_and_marks_review(tmp_path) -> None:
     store = _store_with_profile(tmp_path)
     saved = store.upsert_price_candidates(
@@ -213,6 +249,86 @@ def test_confirm_profile_price_candidate_applies_price_to_economics_and_marks_re
         "quality_flags": [],
     }
     assert detail["economics"]["supplier_cost"] == 8800.0
+
+
+def test_stage_tender_price_candidates_from_saved_sources_normalizes_quality(tmp_path) -> None:
+    store = _store_with_profile(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "price-review",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-review",
+                position_index=1,
+                product_name="Paper A4",
+                quantity=10,
+                unit="pack",
+                raw_payload={
+                    "supplier_options": [
+                        {
+                            "provider": "komus",
+                            "name": "Paper A4",
+                            "url": "https://supplier.example/paper",
+                            "unit_price": 880.0,
+                            "currency": "RUB",
+                            "vat_mode": "vat_included",
+                            "availability": "in_stock",
+                            "delivery_note": "Delivery included",
+                            "unit": "pack",
+                            "pack_quantity": 1,
+                            "source_query": "paper a4",
+                        }
+                    ]
+                },
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-review",
+                position_index=2,
+                product_name="Cable marker",
+                quantity=20,
+                unit="шт",
+                raw_payload={
+                    "supplier_discovery": {
+                        "candidates": [
+                            {
+                                "provider": "officemag",
+                                "name": "Cable marker pack",
+                                "url": "https://supplier.example/marker-pack",
+                                "unit_price": 1200.0,
+                                "currency": "RUB",
+                                "vat_mode": "vat_excluded",
+                                "vat_rate_percent": 20,
+                                "availability": "в наличии",
+                                "delivery_note": "Delivery included",
+                                "unit": "pack",
+                                "pack_quantity": 10,
+                                "confidence": "high",
+                                "source_query": "cable marker",
+                            }
+                        ]
+                    }
+                },
+            ),
+        ],
+    )
+
+    result = stage_tender_price_candidates(store.database_path, "mosreg_market", "price-review")
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "price-review")
+    profiles = {profile["position_index"]: profile for profile in detail["product_profiles"]}
+    assert result["ok"] is True
+    assert result["total_profiles"] == 2
+    assert result["staged_count"] == 2
+    assert result["ready_count"] == 2
+    assert result["skipped_no_candidate_source_count"] == 0
+    assert profiles[1]["price_candidates"][0]["unit_price"] == 880.0
+    assert profiles[1]["price_candidates"][0]["quality_status"] == "ready"
+    assert profiles[2]["price_candidates"][0]["unit_price"] == 144.0
+    assert profiles[2]["price_candidates"][0]["unit"] == "шт"
+    assert profiles[2]["price_candidates"][0]["quality_status"] == "ready"
+    assert profiles[2]["price_candidates"][0]["raw_payload"]["normalization"]["source"] == "supplier_discovery"
 
 
 def test_confirm_ready_price_candidates_applies_only_auto_eligible_missing_prices(tmp_path) -> None:

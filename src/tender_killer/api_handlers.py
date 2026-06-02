@@ -36,6 +36,7 @@ from tender_killer.market_state_import_service import import_tender_market_state
 from tender_killer.notification_service import send_tender_notification_payload
 from tender_killer.price_candidate_service import confirm_ready_price_candidates
 from tender_killer.price_candidate_service import review_profile_price_candidate
+from tender_killer.price_candidate_service import stage_tender_price_candidates
 from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
 from tender_killer.search_service import run_search_payload
@@ -77,6 +78,7 @@ API_CAPABILITIES: tuple[str, ...] = (
     "dashboard_queues",
     "price_candidate_review",
     "price_candidate_bulk_review",
+    "price_candidate_auto_stage",
 )
 
 
@@ -283,6 +285,13 @@ def confirm_ready_tender_price_candidates(database_path: str | Path, source: str
     review = confirm_ready_price_candidates(database_path, source, external_id)
     payload = get_tender_payload(database_path, source, external_id)
     payload["price_candidate_bulk_review"] = review
+    return payload
+
+
+def stage_tender_price_candidate_sources(database_path: str | Path, source: str, external_id: str) -> dict[str, Any]:
+    stage = stage_tender_price_candidates(database_path, source, external_id)
+    payload = get_tender_payload(database_path, source, external_id)
+    payload["price_candidate_stage"] = stage
     return payload
 
 
@@ -582,6 +591,11 @@ def handle_post_request(
         if route is None:
             return ApiResponse({"error": "invalid ready price candidate bulk review path"}, status=400)
         return ApiResponse(confirm_ready_tender_price_candidates(database_path, route.source, route.external_id))
+    if path.startswith("/api/tenders/") and path.endswith("/price-candidates/stage"):
+        route = parse_tender_path(path, suffix="price-candidates/stage")
+        if route is None:
+            return ApiResponse({"error": "invalid price candidate stage path"}, status=400)
+        return ApiResponse(stage_tender_price_candidate_sources(database_path, route.source, route.external_id))
     if path.startswith("/api/tenders/") and (path.endswith("/confirm") or path.endswith("/reject")):
         route = parse_product_profile_price_candidate_review_path(path)
         if route is None:
