@@ -106,6 +106,43 @@ def test_build_analysis_facts_marks_unbound_evidence_for_operator_review():
     assert facts["metrics"]["unbound"] == 1
 
 
+def test_build_analysis_facts_derives_page_and_context_from_document_text():
+    documents = [
+        {
+            "name": "contract.pdf",
+            "text_status": "ok",
+            "text_content": (
+                "Страница 1. Общие условия поставки.\f"
+                "Раздел 2. Подтверждающие документы. "
+                "Поставщик обязан предоставить сертификат соответствия. "
+                "Проверка сертификата проводится заказчиком при приемке товара."
+            ),
+        }
+    ]
+    analysis = {
+        "confidence": 0.9,
+        "checklist": [
+            {
+                "label": "сертификат/декларация",
+                "category": "documents",
+                "severity": "medium",
+                "evidence": "Поставщик обязан предоставить сертификат соответствия.",
+            }
+        ],
+    }
+
+    facts = build_analysis_facts(analysis, documents)
+    certificate = next(item for item in facts["items"] if item["label"] == "сертификат/декларация")
+
+    assert certificate["document_name"] == "contract.pdf"
+    assert certificate["source_page"] == 2
+    assert certificate["source_label"] == "contract.pdf · стр. 2"
+    assert "Раздел 2. Подтверждающие документы" in certificate["source_context"]
+    assert "Проверка сертификата проводится заказчиком" in certificate["source_context"]
+    assert certificate["needs_review"] is False
+    assert facts["metrics"]["unbound"] == 0
+
+
 def test_build_analysis_facts_routes_domain_specific_requirements_to_operator_tasks():
     text = """
     Техническое задание: поставка аккумуляторных батарей с монтажом.

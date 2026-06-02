@@ -38,3 +38,35 @@ def test_build_analysis_evidence_items_labels_document_and_impact():
     assert items[1]["type_label"] == "Сроки и поставка"
     assert items[1]["importance_label"] == "важно"
     assert items[1]["impact"] == "Может повлиять на решение, цену или возможность участия."
+
+
+def test_build_analysis_evidence_items_derives_page_and_context_from_document_text():
+    analysis = {
+        "checklist": [
+            {
+                "label": "certificate",
+                "category": "documents",
+                "severity": "medium",
+                "evidence": "Supplier must provide certificate before acceptance.",
+            },
+        ],
+    }
+    documents = [
+        {
+            "name": "terms.pdf",
+            "text_status": "ok",
+            "text_content": (
+                "Page one has general terms.\f"
+                "Page two. Supplier must provide certificate before acceptance. "
+                "The buyer checks the original document."
+            ),
+        },
+    ]
+
+    items = build_analysis_evidence_items(analysis, documents)
+
+    assert items[0]["document_name"] == "terms.pdf"
+    assert items[0]["source_page"] == 2
+    assert items[0]["source_label"] == "terms.pdf · стр. 2"
+    assert "Supplier must provide certificate before acceptance" in items[0]["source_context"]
+    assert "buyer checks the original document" in items[0]["source_context"]

@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from tender_killer.analysis_source_service import document_source_for_fragment
+
 
 BLOCKER_CATEGORIES = {"legal", "national_regime"}
 PRICE_FACTOR_CATEGORIES = {"acceptance", "contract", "delivery", "financial", "payment", "standards"}
@@ -55,6 +57,7 @@ def _checklist_fact(
     is_blocker = severity == "high" or category in BLOCKER_CATEGORIES
     is_price_factor = category in PRICE_FACTOR_CATEGORIES and not is_blocker
     kind = "blocker" if is_blocker else "supplier_document" if category in SUPPLIER_DOCUMENT_CATEGORIES else "requirement"
+    source = _document_source(item, fragment, documents)
     return _fact(
         kind=kind,
         label=label,
@@ -64,10 +67,10 @@ def _checklist_fact(
         confidence=analysis.get("confidence"),
         rule_id=f"checklist:{label}",
         fragment=fragment,
-        document_name=_resolve_document_name(item, fragment, documents),
-        source_page=item.get("source_page"),
-        source_label=_text(item.get("source_label")),
-        source_context=_text(item.get("source_context")),
+        document_name=source.get("document_name", ""),
+        source_page=source.get("source_page"),
+        source_label=source.get("source_label", ""),
+        source_context=source.get("source_context", ""),
         is_blocker=is_blocker,
         is_price_factor=is_price_factor,
         impact=_impact(category, severity),
@@ -86,6 +89,7 @@ def _execution_term_fact(
     term_type = _text(item.get("type")) or _slug(label)
     is_blocker = severity == "high" and category in {"financial", "legal", "national_regime"}
     is_price_factor = category in PRICE_FACTOR_CATEGORIES
+    source = _document_source(item, fragment, documents)
     return _fact(
         kind="blocker" if is_blocker else "execution_term",
         label=label,
@@ -95,10 +99,10 @@ def _execution_term_fact(
         confidence=analysis.get("confidence"),
         rule_id=f"execution_term:{term_type}",
         fragment=fragment,
-        document_name=_resolve_document_name(item, fragment, documents),
-        source_page=item.get("source_page"),
-        source_label=_text(item.get("source_label")),
-        source_context=_text(item.get("source_context")),
+        document_name=source.get("document_name", ""),
+        source_page=source.get("source_page"),
+        source_label=source.get("source_label", ""),
+        source_context=source.get("source_context", ""),
         is_blocker=is_blocker,
         is_price_factor=is_price_factor,
         impact=_impact(category, severity),
@@ -165,6 +169,39 @@ def _resolve_document_name(item: dict[str, Any], fragment: str, documents: list[
         if needle in haystack:
             return _text(document.get("name") or document.get("url"))
     return ""
+
+
+def _document_source(item: dict[str, Any], fragment: str, documents: list[dict[str, Any]]) -> dict[str, Any]:
+    explicit_document = _text(item.get("document_name") or item.get("source"))
+    explicit_source = {
+        "document_name": explicit_document,
+        "source_page": item.get("source_page"),
+        "source_label": _text(item.get("source_label")),
+        "source_context": _text(item.get("source_context")),
+    }
+    if (
+        explicit_source["document_name"]
+        and (explicit_source["source_page"] not in (None, "") or explicit_source["source_context"])
+    ):
+        return explicit_source
+
+    matched = document_source_for_fragment(fragment, documents)
+    if matched:
+        return {
+            "document_name": _text(matched.get("document_name")),
+            "source_page": matched.get("source_page"),
+            "source_label": _text(matched.get("source_label")),
+            "source_context": _text(matched.get("source_context")),
+        }
+
+    if explicit_document:
+        return explicit_source
+    return {
+        "document_name": _resolve_document_name(item, fragment, documents),
+        "source_page": item.get("source_page"),
+        "source_label": _text(item.get("source_label")),
+        "source_context": _text(item.get("source_context")),
+    }
 
 
 def _page_number(value: Any) -> int | None:

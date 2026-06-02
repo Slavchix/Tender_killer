@@ -157,7 +157,8 @@ def test_build_economics_summary_surfaces_analysis_cost_drivers():
         "level": "high",
         "rate_percent": 4.0,
     }
-    assert summary["risk_reserve_rate_percent"] == 0.0
+    assert summary["risk_reserve_rate_percent"] == 4.0
+    assert summary["execution_risk_reserve"] == 4000.0
 
 
 def test_build_economics_summary_uses_tz_passport_cost_drivers():
@@ -304,6 +305,59 @@ def test_build_economics_summary_prefers_analysis_facts_cost_drivers():
         "level": "high",
         "rate_percent": 3.0,
     }
+
+
+def test_build_economics_summary_applies_analysis_reserve_hint_to_execution_reserve():
+    summary = build_economics_summary(
+        {
+            "price": 100000.0,
+            "analysis": {
+                "analysis_facts": {
+                    "version": 1,
+                    "items": [
+                        {
+                            "label": "короткий срок поставки",
+                            "category": "delivery",
+                            "severity": "high",
+                            "kind": "execution_term",
+                            "is_price_factor": True,
+                            "document_name": "ТЗ.docx",
+                            "source_page": 2,
+                            "impact": "Заложить ускоренную логистику.",
+                        },
+                        {
+                            "label": "обеспечение исполнения",
+                            "category": "financial",
+                            "severity": "medium",
+                            "kind": "execution_term",
+                            "is_price_factor": True,
+                            "document_name": "Контракт.pdf",
+                            "source_page": 4,
+                            "impact": "Учесть нагрузку на оборотку.",
+                        },
+                    ],
+                }
+            },
+            "product_profiles": [
+                {
+                    "product_name": "Fuel",
+                    "quantity": 10,
+                    "raw_payload": {"economics": {"unit_cost": 5000}},
+                }
+            ],
+        }
+    )
+
+    assert summary["analysis_reserve_hint"] == {
+        "driver_count": 2,
+        "level": "high",
+        "rate_percent": 3.0,
+    }
+    assert summary["execution_risk_reserve"] == 3000.0
+    assert summary["risk_reserve_rate_percent"] == 3.0
+    assert summary["risk_reserve"] == 3000.0
+    assert summary["estimated_total_cost"] == 53000.0
+    assert summary["analysis_cost_drivers"][0]["source_label"] == "ТЗ.docx · стр. 2"
 
 
 def test_build_economics_summary_applies_position_assumptions():

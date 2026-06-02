@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from tender_killer.analysis_source_service import document_source_for_fragment
+
 
 def build_analysis_evidence_items(
     analysis: dict[str, Any] | None,
@@ -19,6 +21,8 @@ def build_analysis_evidence_items(
         label = _text(item.get("label"), "Фрагмент документа")
         category = _text(item.get("category"), "general")
         severity = _text(item.get("severity"), "medium")
+        fragment = _text(item.get("evidence"), "")
+        source = _evidence_source(item, fragment, document_rows)
         evidence_item = {
             "id": f"{label}-{index}",
             "label": label,
@@ -26,16 +30,16 @@ def build_analysis_evidence_items(
             "severity": severity,
             "type_label": evidence_type_label(category),
             "importance_label": evidence_importance_label(severity),
-            "document_name": resolve_evidence_document_name(item, document_rows),
-            "fragment": _text(item.get("evidence"), ""),
+            "document_name": source["document_name"],
+            "fragment": fragment,
             "impact": evidence_impact_label(item),
         }
-        if item.get("source_page") not in (None, ""):
-            evidence_item["source_page"] = item.get("source_page")
-        if item.get("source_label"):
-            evidence_item["source_label"] = _text(item.get("source_label"), "")
-        if item.get("source_context"):
-            evidence_item["source_context"] = _text(item.get("source_context"), "")
+        if source.get("source_page") not in (None, ""):
+            evidence_item["source_page"] = source["source_page"]
+        if source.get("source_label"):
+            evidence_item["source_label"] = source["source_label"]
+        if source.get("source_context"):
+            evidence_item["source_context"] = source["source_context"]
         items.append(evidence_item)
     return items
 
@@ -86,6 +90,27 @@ def resolve_evidence_document_name(item: dict[str, Any], documents: list[dict[st
     if len(ready_documents) == 1:
         return _text(ready_documents[0].get("name") or ready_documents[0].get("url"), "Документ")
     return "Документ не привязан"
+
+
+def _evidence_source(item: dict[str, Any], fragment: str, documents: list[dict[str, Any]]) -> dict[str, Any]:
+    explicit = {
+        "document_name": resolve_evidence_document_name(item, documents),
+        "source_page": item.get("source_page"),
+        "source_label": _text(item.get("source_label"), ""),
+        "source_context": _text(item.get("source_context"), ""),
+    }
+    if explicit["source_label"] or explicit["source_context"] or explicit["source_page"] not in (None, ""):
+        return explicit
+
+    matched = document_source_for_fragment(fragment, documents)
+    if matched:
+        return {
+            "document_name": _text(matched.get("document_name"), explicit["document_name"]),
+            "source_page": matched.get("source_page"),
+            "source_label": _text(matched.get("source_label"), ""),
+            "source_context": _text(matched.get("source_context"), ""),
+        }
+    return explicit
 
 
 def _text(value: Any, fallback: str) -> str:

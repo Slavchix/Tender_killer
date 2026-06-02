@@ -53,7 +53,14 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         supplier_cost += item["estimated_total_cost"]
 
     risk_types = _risk_types(profiles)
-    execution_risk_reserve_rate_percent = _risk_reserve_rate_percent(risk_types)
+    profile_execution_risk_reserve_rate_percent = _risk_reserve_rate_percent(risk_types)
+    analysis_execution_risk_reserve_rate_percent = _number(
+        analysis_context["analysis_reserve_hint"].get("rate_percent")
+    ) or 0.0
+    execution_risk_reserve_rate_percent = max(
+        profile_execution_risk_reserve_rate_percent,
+        analysis_execution_risk_reserve_rate_percent,
+    )
     execution_risk_reserve = (
         _round_money(revenue * execution_risk_reserve_rate_percent / 100)
         if revenue is not None
@@ -488,6 +495,7 @@ def _analysis_fact_cost_drivers(analysis: dict[str, Any]) -> list[dict[str, Any]
                 "source": str(item.get("document_name") or item.get("source") or ""),
                 "impact": str(item.get("impact") or item.get("fragment") or ""),
                 "reserve_hint_percent": _analysis_driver_reserve_hint(severity),
+                **_analysis_driver_source_label(item),
             }
         )
     return drivers
@@ -536,6 +544,17 @@ def _analysis_driver_reserve_hint(severity: str) -> float:
     return ANALYSIS_RESERVE_HINT_RATES.get(severity, ANALYSIS_RESERVE_HINT_RATES["medium"])
 
 
+def _analysis_driver_source_label(item: dict[str, Any]) -> dict[str, str]:
+    explicit = str(item.get("source_label") or "").strip()
+    if explicit:
+        return {"source_label": explicit}
+    source = str(item.get("document_name") or item.get("source") or "").strip()
+    page = _positive_int(item.get("source_page"))
+    if source and page is not None:
+        return {"source_label": f"{source} · стр. {page}"}
+    return {}
+
+
 def _risk_reserve_rate_percent(risk_types: list[str]) -> float:
     return _round_percent(min(8.0, sum(RISK_RESERVE_RATES.get(risk_type, 0.5) for risk_type in risk_types)))
 
@@ -574,6 +593,16 @@ def _number(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if number >= 0 else None
+
+
+def _positive_int(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
 
 
 def _round_money(value: float) -> float:
