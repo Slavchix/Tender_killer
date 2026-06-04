@@ -33,7 +33,7 @@ def build_auto_economics_estimate(
 
     needs_review: list[str] = []
     if unit_cost is None:
-        needs_review.append("Не найдена базовая цена товара")
+        needs_review.append("Не найдена цена поставщика")
         unit_cost = 0.0
 
     base_total_cost = _round_money(unit_cost * quantity)
@@ -67,22 +67,38 @@ def _base_unit_cost(profile: dict[str, Any], raw_payload: dict[str, Any], quanti
     supplier_price = best_supplier_price(profile)
     if supplier_price is not None:
         base_source = "selected_supplier" if supplier_price["selection"] == "manual_selected" else "best_supplier_option"
-        return supplier_price["unit_price"], base_source, [
-            {
-                "source": base_source,
-                "value": str(supplier_price.get("supplier_name") or supplier_price.get("supplier_url") or "supplier option"),
-            }
-        ]
+        return supplier_price["unit_price"], base_source, [_supplier_price_evidence(supplier_price, base_source)]
 
+    return None, "missing_supplier_price", _tender_position_price_evidence(profile, quantity)
+
+
+def _supplier_price_evidence(supplier_price: dict[str, Any], base_source: str) -> dict[str, str]:
+    evidence = {
+        "source": base_source,
+        "value": str(supplier_price.get("supplier_name") or supplier_price.get("supplier_url") or "supplier option"),
+    }
+    supplier_url = str(supplier_price.get("supplier_url") or "").strip()
+    if supplier_url:
+        evidence["url"] = supplier_url
+    return evidence
+
+
+def _tender_position_price_evidence(profile: dict[str, Any], quantity: float) -> list[dict[str, str]]:
+    evidence: list[dict[str, str]] = []
     unit_price = _number(profile.get("unit_price"))
-    if unit_price is not None:
-        return unit_price, "source_position_unit_price", [{"source": "tender_card", "value": "unit_price"}]
-
     total_price = _number(profile.get("total_price"))
-    if total_price is not None and quantity:
-        return total_price / quantity, "source_position_total_price", [{"source": "tender_card", "value": "total_price"}]
-
-    return None, "missing", []
+    if unit_price is not None:
+        evidence.append({"source": "tender_position_price_reference", "value": f"unit_price={_round_money(unit_price)}"})
+    if total_price is not None:
+        evidence.append({"source": "tender_position_price_reference", "value": f"total_price={_round_money(total_price)}"})
+        if unit_price is None and quantity:
+            evidence.append(
+                {
+                    "source": "tender_position_price_reference",
+                    "value": f"derived_unit_price={_round_money(total_price / quantity)}",
+                }
+            )
+    return evidence
 
 
 def _cost_drivers(
@@ -156,8 +172,8 @@ def _confidence(
     value = 0.5
     if base_source == "selected_supplier":
         value += 0.2
-    elif base_source.startswith("source_position"):
-        value += 0.1
+    elif base_source == "best_supplier_option":
+        value += 0.15
     if tax_mode != "unknown":
         value += 0.1
     if cost_drivers:

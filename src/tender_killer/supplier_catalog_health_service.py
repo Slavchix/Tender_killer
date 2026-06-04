@@ -8,6 +8,7 @@ from urllib.parse import quote_plus
 import httpx
 from bs4 import BeautifulSoup
 
+from tender_killer import supplier_browser_fetcher
 from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
 
 
@@ -60,6 +61,7 @@ def _catalog_health_item(preset: dict[str, Any]) -> dict[str, Any]:
         "error_kind": "",
         "error": "",
         "body_preview": "",
+        "access_mode": "configured",
     }
 
 
@@ -67,11 +69,14 @@ def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogH
     try:
         status, _body = fetch(catalog["sample_url"], timeout)
     except Exception as exc:  # noqa: BLE001 - health diagnostics should preserve provider failures.
+        if _try_browser_catalog_health(catalog):
+            return
         catalog["status"] = "error"
         catalog["http_status"] = None
         catalog["error_kind"] = "network_error"
         catalog["error"] = str(exc)
         catalog["body_preview"] = ""
+        catalog["access_mode"] = "http"
         return
     catalog["http_status"] = int(status)
     if 200 <= int(status) < 400:
@@ -79,11 +84,36 @@ def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogH
         catalog["error_kind"] = ""
         catalog["error"] = ""
         catalog["body_preview"] = ""
+        catalog["access_mode"] = "http"
+        return
+    if http_error_kind(int(status)) == "access_blocked" and _try_browser_catalog_health(catalog):
         return
     catalog["status"] = "error"
     catalog["error_kind"] = http_error_kind(int(status))
     catalog["error"] = f"expected HTTP 2xx/3xx, got {status}"
     catalog["body_preview"] = response_body_preview(_body)
+    catalog["access_mode"] = "http"
+
+
+def _try_browser_catalog_health(catalog: dict[str, Any]) -> bool:
+    provider = str(catalog.get("provider") or "")
+    if not supplier_browser_fetcher.is_enabled_for_provider(provider):
+        return False
+    try:
+        body = supplier_browser_fetcher.fetch_text(str(catalog["sample_url"]), provider=provider)
+    except supplier_browser_fetcher.BrowserFetchError as exc:
+        catalog["browser_error"] = str(exc)
+        return False
+    if not str(body or "").strip():
+        catalog["browser_error"] = "browser fetch returned an empty response"
+        return False
+    catalog["status"] = "ok"
+    catalog["http_status"] = None
+    catalog["error_kind"] = ""
+    catalog["error"] = ""
+    catalog["body_preview"] = ""
+    catalog["access_mode"] = "browser"
+    return True
 
 
 def _fetch_catalog_status(url: str, timeout: float) -> CatalogHealthFetchResult:
@@ -91,6 +121,7 @@ def _fetch_catalog_status(url: str, timeout: float) -> CatalogHealthFetchResult:
         url,
         follow_redirects=True,
         timeout=timeout,
+        trust_env=False,
         headers={"User-Agent": "TenderKiller/0.1 public catalog health"},
     )
     return int(response.status_code), response.text

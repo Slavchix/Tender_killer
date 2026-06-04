@@ -34,9 +34,12 @@ from tender_killer.economics_service import update_profile_economics_assumptions
 from tender_killer.economics_service import update_profile_auto_economics as update_profile_auto_economics_inputs
 from tender_killer.market_state_import_service import import_tender_market_state
 from tender_killer.notification_service import send_tender_notification_payload
+from tender_killer.price_candidate_service import apply_tender_auto_prices
 from tender_killer.price_candidate_service import confirm_ready_price_candidates
 from tender_killer.price_candidate_service import review_profile_price_candidate
 from tender_killer.price_candidate_service import stage_tender_price_candidates
+from tender_killer.price_discovery_job_service import get_tender_price_discovery_job
+from tender_killer.price_discovery_job_service import start_tender_price_discovery_job
 from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
 from tender_killer.search_service import run_search_payload
@@ -51,7 +54,6 @@ from tender_killer.supplier_option_service import add_profile_supplier_option
 from tender_killer.supplier_option_service import select_profile_supplier_option
 from tender_killer.supplier_price_discovery_service import run_profile_supplier_price_discovery
 from tender_killer.supplier_price_discovery_service import run_profile_supplier_url_discovery
-from tender_killer.supplier_price_discovery_service import run_tender_supplier_price_discovery
 from tender_killer.supplier_search_service import prepare_profile_supplier_search
 from tender_killer.tender_detail_service import get_tender_payload
 from tender_killer.tender_detail_service import refresh_tender_detail_payload
@@ -80,7 +82,9 @@ API_CAPABILITIES: tuple[str, ...] = (
     "price_candidate_review",
     "price_candidate_bulk_review",
     "price_candidate_auto_stage",
+    "price_auto_apply",
     "price_discovery_run",
+    "price_discovery_jobs",
 )
 
 
@@ -297,10 +301,28 @@ def stage_tender_price_candidate_sources(database_path: str | Path, source: str,
     return payload
 
 
-def run_tender_price_discovery(database_path: str | Path, source: str, external_id: str) -> dict[str, Any]:
-    discovery_run = run_tender_supplier_price_discovery(database_path, source, external_id)
+def apply_tender_auto_prices_request(database_path: str | Path, source: str, external_id: str) -> dict[str, Any]:
+    auto_apply = apply_tender_auto_prices(database_path, source, external_id)
     payload = get_tender_payload(database_path, source, external_id)
+    payload["price_auto_apply"] = auto_apply
+    return payload
+
+
+def run_tender_price_discovery(database_path: str | Path, source: str, external_id: str) -> dict[str, Any]:
+    discovery_run = start_tender_price_discovery_job(database_path, source, external_id)
+    payload = get_tender_payload(database_path, source, external_id)
+    payload["price_discovery_job"] = discovery_run
     payload["price_discovery_run"] = discovery_run
+    return payload
+
+
+def get_price_discovery_job_payload(database_path: str | Path, job_id: str) -> dict[str, Any]:
+    job = get_tender_price_discovery_job(job_id)
+    payload: dict[str, Any] = {"ok": True, "price_discovery_job": job}
+    source = str(job.get("source") or "")
+    external_id = str(job.get("external_id") or "")
+    if source and external_id:
+        payload["tender"] = get_tender_payload(database_path, source, external_id)
     return payload
 
 
@@ -318,6 +340,14 @@ def handle_get_request(database_path: str | Path, path: str, query: dict[str, st
         return ApiResponse(get_supplier_catalog_health_payload(live=_truthy_query_value(query.get("live"))))
     if path == "/api/dashboard/queues":
         return ApiResponse(build_dashboard_queues_payload(database_path, query))
+    if path.startswith("/api/price-discovery/jobs/"):
+        job_id = path.removeprefix("/api/price-discovery/jobs/").strip("/")
+        if not job_id or "/" in job_id:
+            return ApiResponse({"error": "invalid price discovery job path"}, status=400)
+        try:
+            return ApiResponse(get_price_discovery_job_payload(database_path, job_id))
+        except KeyError as exc:
+            return ApiResponse({"error": str(exc)}, status=404)
     if path == "/api/tenders":
         return ApiResponse(list_tenders_payload(database_path, query))
     if path.startswith("/api/tenders/") and path.endswith("/report.docx"):
@@ -605,6 +635,11 @@ def handle_post_request(
         if route is None:
             return ApiResponse({"error": "invalid price candidate stage path"}, status=400)
         return ApiResponse(stage_tender_price_candidate_sources(database_path, route.source, route.external_id))
+    if path.startswith("/api/tenders/") and path.endswith("/price-candidates/auto-apply"):
+        route = parse_tender_path(path, suffix="price-candidates/auto-apply")
+        if route is None:
+            return ApiResponse({"error": "invalid price auto apply path"}, status=400)
+        return ApiResponse(apply_tender_auto_prices_request(database_path, route.source, route.external_id))
     if path.startswith("/api/tenders/") and path.endswith("/price-discovery/run"):
         route = parse_tender_path(path, suffix="price-discovery/run")
         if route is None:

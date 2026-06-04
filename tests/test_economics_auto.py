@@ -64,6 +64,52 @@ def test_build_auto_economics_estimate_uses_best_supplier_when_none_selected():
     assert estimate["evidence"][0] == {"source": "best_supplier_option", "value": "Best paper"}
 
 
+def test_build_auto_economics_estimate_keeps_supplier_url_in_evidence():
+    profile = {
+        "product_name": "Office paper",
+        "quantity": 10,
+        "unit": "pack",
+        "raw_payload": {
+            "selected_supplier_option_index": 0,
+            "supplier_options": [
+                {
+                    "name": "Best paper",
+                    "url": "https://example.test/paper",
+                    "unit_price": 900.0,
+                    "status": "selected",
+                },
+            ],
+        },
+    }
+
+    estimate = build_auto_economics_estimate(profile, [])
+
+    assert estimate["base_source"] == "selected_supplier"
+    assert estimate["estimated_unit_cost"] == 900.0
+    assert estimate["evidence"][0]["value"] == "Best paper"
+    assert estimate["evidence"][0]["url"] == "https://example.test/paper"
+
+
+def test_build_auto_economics_estimate_does_not_use_tender_position_price_as_supplier_cost():
+    profile = {
+        "product_name": "Office paper",
+        "quantity": 85,
+        "unit": "pack",
+        "unit_price": 219.82,
+        "total_price": 18685.0,
+        "raw_payload": {"supplier_options": []},
+    }
+
+    estimate = build_auto_economics_estimate(profile, [])
+
+    assert estimate["status"] == "needs_review"
+    assert estimate["base_source"] == "missing_supplier_price"
+    assert estimate["estimated_unit_cost"] == 0.0
+    assert estimate["base_total_cost"] == 0.0
+    assert estimate["estimated_total_cost"] == 0.0
+    assert estimate["evidence"][0]["source"] == "tender_position_price_reference"
+
+
 def test_update_profile_auto_economics_persists_draft_without_overwriting_manual_inputs(tmp_path):
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()

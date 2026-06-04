@@ -1619,6 +1619,11 @@ def test_product_profile_renders_supplier_option_form():
     assert "diagnostics.candidates_found" in discovery_source
     assert "diagnostics.links_skipped" in discovery_source
     assert "diagnostics.errors" in discovery_source
+    assert "compactDiscoveryErrors(errors)" in discovery_source
+    assert "formatDiscoveryError(error)" in discovery_source
+    assert "Сайт требует браузерную проверку" in discovery_source
+    assert "Добавь ссылку на товар вручную" in discovery_source
+    assert "errors.join(' · ')" not in discovery_source
     assert "supplierConfidenceLabel(candidate.confidence)" in discovery_source
     assert "candidate.provider" in discovery_source
     assert "confidence_reasons" in discovery_source
@@ -1830,7 +1835,12 @@ def test_economics_tab_renders_auto_estimate_panel():
     assert "Принять в расчет" in source
     assert "заполнит пустые допущения" in source
     assert "Уверенность" in source
+    assert "normalizeAutoEconomicsEstimate" in source
+    assert "source_position" in source
+    assert "Цена поставщика не выбрана" in source
+    assert "Открыть товар" in source
     assert ".auto-economics-panel" in styles_source
+    assert ".price-source-link" in styles_source
     assert find_mojibake(details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
@@ -2779,28 +2789,50 @@ def test_economics_tab_supports_price_candidate_auto_stage():
 
     assert "export function stageTenderPriceCandidates" in api_source
     assert "price-candidates/stage" in api_source
+    assert "export function applyTenderAutoPrices" in api_source
+    assert "price-candidates/auto-apply" in api_source
     assert "export function runTenderPriceDiscovery" in api_source
     assert "price-discovery/run" in api_source
+    assert "export function fetchPriceDiscoveryJob" in api_source
+    assert "/api/price-discovery/jobs/${encodeURIComponent(jobId)}" in api_source
     assert "stageTenderPriceCandidates as stageTenderPriceCandidatesRequest" in hook_source
+    assert "applyTenderAutoPrices as applyTenderAutoPricesRequest" in hook_source
     assert "runTenderPriceDiscovery as runTenderPriceDiscoveryRequest" in hook_source
+    assert "fetchPriceDiscoveryJob" in hook_source
     assert "PRICE_CANDIDATE_STAGE_REVIEW_ID" in hook_source
+    assert "PRICE_AUTO_APPLY_ID" in hook_source
     assert "PRICE_DISCOVERY_RUN_ID" in hook_source
     assert "const stagingPriceCandidates = reviewingPriceCandidateId === PRICE_CANDIDATE_STAGE_REVIEW_ID" in hook_source
-    assert "const runningPriceDiscovery = reviewingPriceCandidateId === PRICE_DISCOVERY_RUN_ID" in hook_source
+    assert "const applyingAutoPrices = reviewingPriceCandidateId === PRICE_AUTO_APPLY_ID" in hook_source
+    assert "isPriceDiscoveryJobActive(priceDiscoveryJob)" in hook_source
+    assert "const [priceDiscoveryJob, setPriceDiscoveryJob]" in hook_source
+    assert "fetchPriceDiscoveryJob(priceDiscoveryJob.job_id)" in hook_source
+    assert "price_discovery_job" in hook_source
     assert "const [stagingPriceCandidates, setStagingPriceCandidates]" not in hook_source
+    assert "const [applyingAutoPrices, setApplyingAutoPrices]" not in hook_source
     assert "const [runningPriceDiscovery, setRunningPriceDiscovery]" not in hook_source
     assert "function stagePriceCandidates" in hook_source
+    assert "function applyAutoPrices" in hook_source
     assert "function runPriceDiscovery" in hook_source
+    assert "priceDiscoveryStatusMessage(job)" in hook_source
     assert "onPriceCandidatesStage" in details_source
+    assert "onAutoPricesApply" in details_source
     assert "onPriceDiscoveryRun" in details_source
+    assert "priceDiscoveryJob" in details_source
     assert "onPriceCandidatesStage" in workspaces_source
+    assert "onAutoPricesApply" in workspaces_source
     assert "onPriceDiscoveryRun" in workspaces_source
+    assert "priceDiscoveryJob" in workspaces_source
     assert "onPriceCandidatesStage" in economics_source
+    assert "onAutoPricesApply" in economics_source
     assert "onPriceDiscoveryRun" in economics_source
+    assert "priceDiscoveryJobStatusText" in economics_source
     assert "stagingPriceCandidates" in economics_source
+    assert "applyingAutoPrices" in economics_source
     assert "runningPriceDiscovery" in economics_source
     assert "Найти цены" in economics_source
     assert "Подготовить цены" in economics_source
+    assert "Автоцены в расчет" in economics_source
     assert find_mojibake(api_source, API_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []

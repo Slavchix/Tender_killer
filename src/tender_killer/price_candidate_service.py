@@ -343,6 +343,37 @@ def confirm_ready_price_candidates(
     }
 
 
+def apply_tender_auto_prices(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+) -> dict[str, Any]:
+    stage = stage_tender_price_candidates(database_path, source, external_id)
+    ready_review = confirm_ready_price_candidates(database_path, source, external_id)
+    profiles = ensure_product_profiles(database_path, source, external_id)
+
+    priced_positions: list[int] = []
+    missing_cost_positions: list[int] = []
+    for profile in profiles:
+        position_index = int(profile.get("position_index") or 0)
+        if _profile_has_positive_cost(profile):
+            priced_positions.append(position_index)
+        else:
+            missing_cost_positions.append(position_index)
+
+    return {
+        "ok": True,
+        "total_profiles": len(profiles),
+        "stage": stage,
+        "ready_review": ready_review,
+        "applied_count": int(ready_review.get("confirmed_count") or 0),
+        "priced_count": len(priced_positions),
+        "missing_cost_count": len(missing_cost_positions),
+        "priced_positions": priced_positions,
+        "missing_cost_positions": missing_cost_positions,
+    }
+
+
 def _candidate_score(candidate: dict[str, Any], quality: dict[str, Any]) -> tuple[int, list[str]]:
     score = 0
     reasons: list[str] = []
@@ -608,8 +639,8 @@ def _normalize_availability(value: Any) -> str:
         "available",
         "instock",
         "https://schema.org/instock",
-        "РІ_РЅР°Р»РёС‡РёРё",
-        "РЅР°_СЃРєР»Р°РґРµ",
+        "в_наличии",
+        "на_складе",
     }
     unavailable_values = {
         "not_available",
@@ -617,8 +648,8 @@ def _normalize_availability(value: Any) -> str:
         "out_of_stock",
         "sold_out",
         "https://schema.org/outofstock",
-        "РЅРµС‚",
-        "РЅРµС‚_РІ_РЅР°Р»РёС‡РёРё",
+        "нет",
+        "нет_в_наличии",
     }
     if token in in_stock_values:
         return "in_stock"
@@ -672,11 +703,11 @@ def _token(value: Any) -> str:
 
 
 def _is_piece_unit(unit: str) -> bool:
-    return unit in {"С€С‚", "С€С‚СѓРєР°", "РµРґ", "pcs", "piece", "unit", "item"}
+    return unit in {"шт", "штука", "ед", "pcs", "piece", "unit", "item"}
 
 
 def _is_pack_unit(unit: str) -> bool:
-    return unit in {"СѓРї", "СѓРїР°Рє", "СѓРїР°РєРѕРІРєР°", "pack", "package", "box"}
+    return unit in {"уп", "упак", "упаковка", "pack", "package", "box"}
 
 
 def _units_compatible(profile_unit: str, candidate_unit: str) -> bool:

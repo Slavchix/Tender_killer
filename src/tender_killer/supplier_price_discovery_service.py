@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import json
 import re
 from pathlib import Path
@@ -13,6 +14,7 @@ from urllib.parse import urldefrag
 import httpx
 from bs4 import BeautifulSoup
 
+from tender_killer import supplier_browser_fetcher
 from tender_killer.product_profile_service import ensure_product_profiles
 from tender_killer.price_candidate_service import stage_tender_price_candidates
 from tender_killer.storage import TenderStore
@@ -30,8 +32,36 @@ BUILT_IN_CATALOG_PROVIDERS = tuple(str(preset["provider"]) for preset in SUPPLIE
 BUILT_IN_CATALOG_PROVIDER_SET = {provider.casefold() for provider in BUILT_IN_CATALOG_PROVIDERS}
 SEARCH_ENGINE_HOSTS = ("google.", "yandex.")
 FetchText = Callable[[str], str]
+ProgressCallback = Callable[[dict[str, Any]], None]
 VISIBLE_PRICE_RE = re.compile(r"(?<!\d)(\d[\d\s\u00a0\u202f]*(?:[,.]\d{1,2})?)\s*(?:₽|руб\.?)", re.IGNORECASE)
 NUMBER_SPACE_RE = re.compile(r"[\s\u00a0\u202f]+")
+NO_SUPPLIER_CANDIDATES_MESSAGE = "\u041d\u043e\u0432\u044b\u0445 \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432 \u043f\u043e\u0441\u0442\u0430\u0432\u0449\u0438\u043a\u043e\u0432 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e."
+PREPARE_SUPPLIER_SEARCH_MESSAGE = "\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u044c \u043f\u043e\u0438\u0441\u043a \u043f\u043e\u0441\u0442\u0430\u0432\u0449\u0438\u043a\u043e\u0432."
+DEFAULT_TENDER_PRICE_DISCOVERY_MAX_POSITIONS = 50
+DEFAULT_CATALOG_MAX_PRODUCT_PAGES = 1
+DEFAULT_PUBLIC_FETCH_TIMEOUT_SECONDS = 5.0
+
+
+def _positive_env_int(name: str, default: int) -> int:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    try:
+        value = int(raw_value)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def _positive_env_float(name: str, default: float) -> float:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    try:
+        value = float(raw_value)
+    except ValueError:
+        return default
+    return value if value > 0 else default
 
 
 class SchemaOrgProductCollector:
@@ -99,7 +129,7 @@ class ProviderCatalogCollector:
     def __init__(self, catalog_provider: str, fetch_text: FetchText | None = None, max_product_pages: int = 5) -> None:
         self.catalog_provider = str(catalog_provider).casefold()
         self.provider = f"catalog_{self.catalog_provider}"
-        self.fetch_text = fetch_text or _fetch_public_text
+        self.fetch_text = fetch_text or (lambda url: _fetch_catalog_text(url, self.catalog_provider))
         self.max_product_pages = max(0, int(max_product_pages))
 
     def collect(self, query: dict[str, Any]) -> list[dict[str, Any]]:
@@ -169,6 +199,10 @@ class ProviderCatalogCollector:
         query_text: str,
         source_kind: str,
     ) -> list[dict[str, Any]]:
+        if self.catalog_provider == "officemag":
+            candidates = _officemag_visible_candidates(html, source_url, query_text, source_kind)
+            if candidates:
+                return candidates
         candidates = _schema_org_candidates(
             html,
             source_url,
@@ -189,8 +223,15 @@ class ProviderCatalogCollector:
 
 
 def default_price_collectors(fetch_text: FetchText | None = None) -> list[Any]:
+    max_product_pages = _positive_env_int(
+        "TENDER_KILLER_PRICE_DISCOVERY_MAX_PRODUCT_PAGES",
+        DEFAULT_CATALOG_MAX_PRODUCT_PAGES,
+    )
     return [
-        *[ProviderCatalogCollector(provider, fetch_text=fetch_text) for provider in BUILT_IN_CATALOG_PROVIDERS],
+        *[
+            ProviderCatalogCollector(provider, fetch_text=fetch_text, max_product_pages=max_product_pages)
+            for provider in BUILT_IN_CATALOG_PROVIDERS
+        ],
         SchemaOrgProductCollector(fetch_text=fetch_text),
     ]
 
@@ -235,20 +276,55 @@ def run_tender_supplier_price_discovery(
     source: str,
     external_id: str,
     collectors: list[Any] | None = None,
+    max_positions: int | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> dict[str, Any]:
     profiles = ensure_product_profiles(database_path, source, external_id)
+    searchable_profiles = [profile for profile in profiles if int(profile.get("position_index") or 0) > 0]
     price_collectors = default_price_collectors() if collectors is None else collectors
+    position_limit = (
+        max(1, int(max_positions))
+        if max_positions is not None
+        else _positive_env_int(
+            "TENDER_KILLER_PRICE_DISCOVERY_MAX_POSITIONS",
+            DEFAULT_TENDER_PRICE_DISCOVERY_MAX_POSITIONS,
+        )
+    )
     positions: list[dict[str, Any]] = []
     prepared_count = 0
     no_candidates_count = 0
     error_count = 0
+    searched_count = 0
+    if progress_callback is not None:
+        progress_callback(
+            {
+                "status": "running",
+                "total_profiles": len(profiles),
+                "searched_count": 0,
+                "limited_count": len(searchable_profiles),
+                "partial": bool(searchable_profiles),
+                "positions": [],
+            }
+        )
 
-    for profile in profiles:
+    for profile in searchable_profiles:
         position_index = int(profile.get("position_index") or 0)
-        if position_index <= 0:
+        if searched_count >= position_limit:
+            positions.append({"position_index": position_index, "status": "deferred", "staged_count": 0})
+            if progress_callback is not None:
+                progress_callback(
+                    {
+                        "total_profiles": len(profiles),
+                        "searched_count": searched_count,
+                        "limited_count": max(0, len(searchable_profiles) - searched_count),
+                        "partial": True,
+                        "positions": positions,
+                    }
+                )
             continue
         prepare_profile_supplier_search(database_path, source, external_id, position_index)
         prepared_count += 1
+        searched_count += 1
         try:
             result = run_profile_supplier_price_discovery(
                 database_path,
@@ -267,6 +343,16 @@ def run_tender_supplier_price_discovery(
                     "error": _supplier_discovery_error_message(exc),
                 }
             )
+            if progress_callback is not None:
+                progress_callback(
+                    {
+                        "total_profiles": len(profiles),
+                        "searched_count": searched_count,
+                        "limited_count": max(0, len(searchable_profiles) - searched_count),
+                        "partial": searched_count < len(searchable_profiles),
+                        "positions": positions,
+                    }
+                )
             continue
         except KeyError as exc:
             error_count += 1
@@ -278,6 +364,16 @@ def run_tender_supplier_price_discovery(
                     "error": str(exc),
                 }
             )
+            if progress_callback is not None:
+                progress_callback(
+                    {
+                        "total_profiles": len(profiles),
+                        "searched_count": searched_count,
+                        "limited_count": max(0, len(searchable_profiles) - searched_count),
+                        "partial": searched_count < len(searchable_profiles),
+                        "positions": positions,
+                    }
+                )
             continue
         staged_count = int(result.get("staged_count") or 0)
         positions.append(
@@ -287,15 +383,27 @@ def run_tender_supplier_price_discovery(
                 "staged_count": staged_count,
             }
         )
+        if progress_callback is not None:
+            progress_callback(
+                {
+                    "total_profiles": len(profiles),
+                    "searched_count": searched_count,
+                    "limited_count": max(0, len(searchable_profiles) - searched_count),
+                    "partial": searched_count < len(searchable_profiles),
+                    "positions": positions,
+                }
+            )
 
     normalized_stage = stage_tender_price_candidates(database_path, source, external_id)
     updated_profiles = ensure_product_profiles(database_path, source, external_id)
     diagnostics_by_provider = _tender_discovery_diagnostics(updated_profiles)
-    return {
+    result = {
         "ok": True,
         "total_profiles": len(profiles),
         "prepared_count": prepared_count,
-        "searched_count": prepared_count,
+        "searched_count": searched_count,
+        "limited_count": max(0, len(searchable_profiles) - searched_count),
+        "partial": searched_count < len(searchable_profiles),
         "staged_count": normalized_stage["staged_count"],
         "ready_count": normalized_stage["ready_count"],
         "review_count": normalized_stage["review_count"],
@@ -305,6 +413,9 @@ def run_tender_supplier_price_discovery(
         "positions": positions,
         "diagnostics_by_provider": diagnostics_by_provider,
     }
+    if progress_callback is not None:
+        progress_callback(result)
+    return result
 
 
 def run_profile_supplier_url_discovery(
@@ -394,7 +505,7 @@ def _run_supplier_discovery_with_queries(
                 target,
                 list(diagnostics_by_provider.values()),
             )
-        raise ValueError("Новых кандидатов поставщиков не найдено.")
+        raise ValueError(NO_SUPPLIER_CANDIDATES_MESSAGE)
 
     return stage_profile_supplier_candidates(
         database_path,
@@ -457,10 +568,11 @@ def _tender_discovery_diagnostics(profiles: list[dict[str, Any]]) -> list[dict[s
 
 def _supplier_discovery_error_message(exc: ValueError) -> str:
     message = str(exc)
-    if "РќРѕРІ" in message or "new candidates" in message.casefold():
-        return "Новых кандидатов поставщиков не найдено."
-    if "РЎРЅР°С‡" in message or "prepare" in message.casefold():
-        return "Сначала подготовь поиск поставщиков."
+    lowered = message.casefold()
+    if NO_SUPPLIER_CANDIDATES_MESSAGE.casefold() in lowered or "new candidates" in lowered:
+        return NO_SUPPLIER_CANDIDATES_MESSAGE
+    if PREPARE_SUPPLIER_SEARCH_MESSAGE.casefold() in lowered or "prepare" in lowered:
+        return PREPARE_SUPPLIER_SEARCH_MESSAGE
     return message
 
 
@@ -700,6 +812,217 @@ def _provider_visible_offer_candidates(
     ]
 
 
+def _officemag_visible_candidates(
+    html: str,
+    source_url: str,
+    query_text: str,
+    source_kind: str,
+) -> list[dict[str, Any]]:
+    soup = BeautifulSoup(html, "html.parser")
+    if _is_provider_product_detail_url("officemag", source_url):
+        candidate = _officemag_candidate_from_scope(
+            soup,
+            source_url,
+            query_text,
+            source_kind,
+            note=f"OfficeMag catalog visible offer from {source_url}.",
+        )
+        return [candidate] if candidate else []
+
+    candidates: list[dict[str, Any]] = []
+    for item in soup.select("li.listItem"):
+        product_url = _officemag_product_url(item, source_url)
+        if not product_url:
+            continue
+        candidate = _officemag_candidate_from_scope(
+            item,
+            product_url,
+            query_text,
+            source_kind,
+            note=f"OfficeMag catalog search result from {source_url}.",
+        )
+        if candidate:
+            candidates.append(candidate)
+    return candidates
+
+
+def _officemag_candidate_from_scope(
+    scope: BeautifulSoup,
+    product_url: str,
+    query_text: str,
+    source_kind: str,
+    *,
+    note: str,
+) -> dict[str, Any] | None:
+    product_name = _officemag_product_name(scope)
+    if not product_name:
+        return None
+    price_breaks = _officemag_price_breaks(scope)
+    prices = [item["price"] for item in price_breaks]
+    if price := _officemag_primary_price(scope):
+        prices.append(price)
+    if not prices:
+        lines = _visible_text_lines(scope)
+        visible_price = _visible_offer_price(lines, product_name)
+        if visible_price is not None:
+            prices.append(visible_price)
+    if not prices:
+        return None
+
+    delivery_note = _officemag_delivery_note(scope, price_breaks)
+    candidate = {
+        "name": product_name,
+        "url": product_url,
+        "unit_price": min(prices),
+        "currency": "RUB",
+        "availability": _officemag_availability(scope),
+        "status": "candidate",
+        "source_query": query_text,
+        "source_kind": source_kind,
+        "note": note,
+        "provider": "officemag",
+    }
+    if delivery_note:
+        candidate["delivery_note"] = delivery_note
+    return candidate
+
+
+def _officemag_product_url(scope: BeautifulSoup, source_url: str) -> str | None:
+    for anchor in scope.find_all("a", href=True):
+        href = _text(anchor.get("href"))
+        if href and "/catalog/goods/" in href.casefold():
+            return urldefrag(urljoin(source_url, href))[0]
+    return None
+
+
+def _officemag_product_name(scope: BeautifulSoup) -> str | None:
+    heading = scope.find("h1")
+    if heading:
+        return _clean_officemag_text(heading.get_text(" ", strip=True))
+    for anchor in scope.find_all("a", href=True):
+        href = _text(anchor.get("href"))
+        if not href or "/catalog/goods/" not in href.casefold():
+            continue
+        text = _clean_officemag_text(anchor.get_text(" ", strip=True))
+        if text:
+            return text
+    image = scope.find("img", alt=True)
+    if image:
+        return _clean_officemag_text(str(image.get("alt") or ""))
+    return None
+
+
+def _clean_officemag_text(value: str) -> str | None:
+    text = BeautifulSoup(value.replace("<wbr/>", ""), "html.parser").get_text(" ", strip=True)
+    text = text.replace("«", '"').replace("»", '"').replace("\xa0", " ")
+    text = " ".join(text.split())
+    text = text.replace("/ ", "/").replace(" /", "/")
+    text = re.sub(r'\s+"', ' "', text)
+    text = re.sub(r'"([^"]*?)\s+"', r'"\1"', text)
+    text = re.sub(r'"\s+', '" ', text)
+    return _text(text)
+
+
+def _officemag_price_breaks(scope: BeautifulSoup) -> list[dict[str, Any]]:
+    breaks: list[dict[str, Any]] = []
+    seen: set[tuple[int, float]] = set()
+    for item in scope.select(".ProductSpecial__item[data-price]"):
+        price = _number(item.get("data-price"))
+        count = _positive_number(item.get("data-count"))
+        if price is None or count is None:
+            continue
+        key = (count, price)
+        if key in seen:
+            continue
+        seen.add(key)
+        breaks.append({"count": count, "price": price})
+    return sorted(breaks, key=lambda item: int(item["count"]))
+
+
+def _officemag_primary_price(scope: BeautifulSoup) -> float | None:
+    price_node = scope.select_one('.Product__price[itemprop="price"][content]')
+    if price_node:
+        return _number(price_node.get("content"))
+    sum_node = scope.select_one(".js-productSum[data-price]")
+    if sum_node:
+        return _number(sum_node.get("data-price"))
+    return None
+
+
+def _officemag_availability(scope: BeautifulSoup) -> str:
+    text = _officemag_scope_text(scope).casefold()
+    if "наличие на складе" in text or "на складе" in text or "в корзину" in text:
+        return "in_stock"
+    if "нет в наличии" in text or "недоступен" in text:
+        return "not_available"
+    return "unknown"
+
+
+def _officemag_delivery_note(scope: BeautifulSoup, price_breaks: list[dict[str, Any]]) -> str | None:
+    parts: list[str] = []
+    for item in price_breaks:
+        parts.append(f"цена от {item['count']} шт. {_format_decimal(item['price'])} RUB")
+    text = _officemag_scope_text(scope)
+    stock = _officemag_quantity_after(text, r"(?:Наличие на складе|На складе)\b")
+    preorder = _officemag_quantity_after(text, r"Под заказ\b")
+    min_party = _officemag_min_party(scope) or _officemag_int_after(text, r"Мин\.\s*партия")
+    pack_size = _officemag_int_after(text, r"В упаковке")
+    if not parts and min_party is None and pack_size is None:
+        return None
+    if stock:
+        parts.append(f"склад {stock}")
+    if preorder:
+        parts.append(f"под заказ {preorder}")
+    if min_party is not None:
+        parts.append(f"мин. партия {min_party}")
+    if pack_size is not None:
+        parts.append(f"в упаковке {pack_size}")
+    return f"OfficeMag: {'; '.join(parts)}." if parts else None
+
+
+def _officemag_scope_text(scope: BeautifulSoup) -> str:
+    return " ".join(scope.get_text(" ", strip=True).replace("\xa0", " ").split())
+
+
+def _officemag_min_party(scope: BeautifulSoup) -> int | None:
+    for node in scope.select(".ProductState--stepCount .ProductState"):
+        text = _officemag_scope_text(node)
+        if "Мин. партия" not in text:
+            continue
+        match = re.search(r":\s*(\d+)\b", text)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def _officemag_quantity_after(text: str, marker_pattern: str) -> str | None:
+    match = re.search(rf"{marker_pattern}.{{0,80}}?([+]?\d[\d\s\u00a0\u202f]*\s*шт\.?)", text, re.IGNORECASE)
+    if not match:
+        return None
+    return " ".join(match.group(1).replace("\xa0", " ").replace("\u202f", " ").split())
+
+
+def _officemag_int_after(text: str, marker_pattern: str) -> int | None:
+    match = re.search(rf"{marker_pattern}\s*:?\s*(\d+)", text, re.IGNORECASE)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _positive_number(value: Any) -> int | None:
+    number = _number(value)
+    if number is None or number <= 0:
+        return None
+    return int(number)
+
+
+def _format_decimal(value: Any) -> str:
+    number = _number(value)
+    if number is None:
+        return ""
+    return f"{number:.2f}".rstrip("0").rstrip(".")
+
+
 def _is_provider_product_detail_url(provider: str, url: str) -> bool:
     parsed = urlparse(url)
     path = parsed.path.casefold()
@@ -819,7 +1142,11 @@ def _fetch_public_text(url: str) -> str:
     response = httpx.get(
         url,
         follow_redirects=True,
-        timeout=10.0,
+        timeout=_positive_env_float(
+            "TENDER_KILLER_PRICE_DISCOVERY_HTTP_TIMEOUT_SECONDS",
+            DEFAULT_PUBLIC_FETCH_TIMEOUT_SECONDS,
+        ),
+        trust_env=False,
         headers={"User-Agent": "TenderKiller/0.1 public price discovery"},
     )
     try:
@@ -832,6 +1159,18 @@ def _fetch_public_text(url: str) -> str:
             message = f"{message}: {preview}"
         raise httpx.HTTPStatusError(message, request=exc.request, response=exc.response) from exc
     return response.text
+
+
+def _fetch_catalog_text(url: str, provider: str) -> str:
+    try:
+        return _fetch_public_text(url)
+    except httpx.HTTPError as exc:
+        if not supplier_browser_fetcher.is_enabled_for_provider(provider):
+            raise
+        try:
+            return supplier_browser_fetcher.fetch_text(url, provider=provider)
+        except supplier_browser_fetcher.BrowserFetchError as browser_exc:
+            raise httpx.HTTPError(f"{exc}; browser_fetch_error: {browser_exc}") from browser_exc
 
 
 def _is_public_product_page_url(url: str) -> bool:

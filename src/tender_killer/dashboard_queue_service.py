@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from tender_killer.normalization import parse_datetime
+from tender_killer.normalization import parse_float
 from tender_killer.tender_query_service import list_tenders_payload
 
 
@@ -160,4 +161,5 @@ def _has_current_offer(tender: dict[str, Any]) -> bool:
     market_state = tender.get("market_state")
     if not isinstance(market_state, dict):
         return False
-    return market_state.get("current_offer_price") not in (None, "")
+    price = parse_float(market_state.get("current_offer_price"))
+    return price is not None and price > 0

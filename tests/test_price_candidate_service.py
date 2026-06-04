@@ -1,4 +1,5 @@
 from tender_killer.models import ProductProfile, Tender
+from tender_killer.price_candidate_service import apply_tender_auto_prices
 from tender_killer.price_candidate_service import confirm_ready_price_candidates
 from tender_killer.price_candidate_service import normalize_price_candidate
 from tender_killer.price_candidate_service import rank_profile_price_candidates
@@ -408,6 +409,101 @@ def test_confirm_ready_price_candidates_applies_only_auto_eligible_missing_price
     assert profiles[2]["price_candidates"][0]["review_status"] == "pending"
     assert "economics" not in profiles[3]["raw_payload"]
     assert profiles[3]["price_candidates"][0]["quality_status"] == "review"
+
+
+def test_apply_tender_auto_prices_stages_ready_candidates_and_updates_economics(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="auto-prices",
+            url="https://market.mosreg.ru/Trade/ViewTrade/auto-prices",
+            title="Paper tender",
+            price=100000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "auto-prices",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="auto-prices",
+                position_index=1,
+                product_name="Paper A4",
+                quantity=10,
+                unit="pack",
+                raw_payload={
+                    "supplier_options": [
+                        {
+                            "provider": "komus",
+                            "name": "Paper A4",
+                            "url": "https://example.com/paper",
+                            "unit_price": 900.0,
+                            "currency": "RUB",
+                            "vat_mode": "vat_included",
+                            "availability": "in_stock",
+                            "delivery_note": "Delivery included",
+                            "pack_quantity": 1,
+                            "unit": "pack",
+                        }
+                    ]
+                },
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="auto-prices",
+                position_index=2,
+                product_name="Pens",
+                quantity=5,
+                unit="pack",
+                raw_payload={
+                    "economics": {"unit_cost": 55.0},
+                    "supplier_options": [
+                        {
+                            "provider": "manual",
+                            "name": "Pens",
+                            "url": "https://example.com/pens",
+                            "unit_price": 10.0,
+                            "currency": "RUB",
+                            "vat_mode": "vat_included",
+                            "availability": "in_stock",
+                            "delivery_note": "Delivery included",
+                            "pack_quantity": 1,
+                            "unit": "pack",
+                        }
+                    ],
+                },
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="auto-prices",
+                position_index=3,
+                product_name="Folders",
+                quantity=3,
+                unit="pack",
+            ),
+        ],
+    )
+
+    result = apply_tender_auto_prices(store.database_path, "mosreg_market", "auto-prices")
+
+    assert result["ok"] is True
+    assert result["stage"]["staged_count"] == 2
+    assert result["ready_review"]["confirmed_count"] == 1
+    assert result["ready_review"]["skipped_existing_cost_count"] == 1
+    assert result["priced_count"] == 2
+    assert result["missing_cost_count"] == 1
+    assert result["missing_cost_positions"] == [3]
+    detail = get_tender_payload(store.database_path, "mosreg_market", "auto-prices")
+    profiles = {profile["position_index"]: profile for profile in detail["product_profiles"]}
+    assert profiles[1]["raw_payload"]["economics"]["unit_cost"] == 900.0
+    assert profiles[1]["raw_payload"]["economics_price_source"]["selection"] == "bulk_auto_eligible"
+    assert profiles[2]["raw_payload"]["economics"]["unit_cost"] == 55.0
+    assert detail["economics"]["items"][0]["total_cost"] == 9000.0
+    assert detail["economics"]["items"][1]["total_cost"] == 275.0
+    assert detail["economics"]["missing_cost_inputs"] == ["Folders"]
 
 
 def test_reject_profile_price_candidate_marks_review_without_pricing(tmp_path) -> None:

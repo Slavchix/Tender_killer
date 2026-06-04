@@ -26,6 +26,10 @@ web/dist/
 .env
 .env.*
 !.env.example
+logs/
+tmp-*/
+tmp_*/
+tmp*/
 api-dev.err.log
 api-dev.out.log
 data/

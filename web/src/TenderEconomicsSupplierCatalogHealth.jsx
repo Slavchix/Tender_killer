@@ -29,9 +29,7 @@ export function SupplierCatalogHealthPanel({ supplierCatalogHealth, loading = fa
               <strong>{catalog.label || catalog.provider}</strong>
               <span>{catalog.provider}</span>
               <em>{supplierCatalogHealthStatusLabel(catalog.status, catalog.http_status, catalog.error_kind)}</em>
-              {(catalog.error || catalog.body_preview) && (
-                <small>{[catalog.error, catalog.body_preview].filter(Boolean).join(' · ')}</small>
-              )}
+              <small>{supplierCatalogHealthDetail(catalog)}</small>
             </a>
           ))}
         </div>
@@ -42,10 +40,31 @@ export function SupplierCatalogHealthPanel({ supplierCatalogHealth, loading = fa
 
 function supplierCatalogHealthStatusLabel(status, httpStatus, errorKind = '') {
   if (status === 'ok') return httpStatus ? `HTTP ${httpStatus}` : 'доступен'
-  if (status === 'error' && errorKind === 'access_blocked') return httpStatus ? `блокировка ${httpStatus}` : 'блокировка'
+  if (status === 'error' && errorKind === 'access_blocked') {
+    return httpStatus ? `блокировка ${httpStatus}` : 'блокировка'
+  }
   if (status === 'error' && errorKind === 'network_error') return 'сеть недоступна'
   if (status === 'error') return httpStatus ? `ошибка ${httpStatus}` : 'ошибка'
   return 'настроен'
+}
+
+function supplierCatalogHealthDetail(catalog) {
+  if (catalog.status === 'ok') {
+    return 'Каталог ответил на автоматическую проверку.'
+  }
+  if (catalog.status === 'error' && catalog.error_kind === 'access_blocked') {
+    const preview = String(catalog.body_preview || '').toLowerCase()
+    if (preview.includes('капч')) return 'Сайт просит пройти капчу. Открой каталог вручную или добавь ссылку поставщика.'
+    if (preview.includes('провер')) return 'Сайт требует браузерную проверку. Автопарсер пока не может читать этот каталог напрямую.'
+    return 'Сайт ограничивает автоматический доступ. Ручная ссылка поставщика остается рабочим вариантом.'
+  }
+  if (catalog.status === 'error' && catalog.error_kind === 'network_error') {
+    return catalog.error || 'Не удалось подключиться к каталогу.'
+  }
+  if (catalog.status === 'error') {
+    return catalog.error || 'Каталог вернул неожиданный ответ.'
+  }
+  return 'Каталог подключен в настройках, live-проверка не запускалась.'
 }
 
 function ignoreCatalogActionError(result) {

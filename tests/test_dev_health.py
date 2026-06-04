@@ -19,7 +19,9 @@ def test_check_api_health_requires_health_and_source_status_endpoints():
                     "market_state_import",
                     "dashboard_queues",
                     "price_candidate_auto_stage",
+                    "price_auto_apply",
                     "price_discovery_run",
+                    "price_discovery_jobs",
                 ],
             }
         if url.endswith("/api/sources/status"):
@@ -59,7 +61,9 @@ def test_check_api_health_reports_stale_backend_missing_supplier_capabilities():
     assert "market_state_import" in health["error"]
     assert "dashboard_queues" in health["error"]
     assert "price_candidate_auto_stage" in health["error"]
+    assert "price_auto_apply" in health["error"]
     assert "price_discovery_run" in health["error"]
+    assert "price_discovery_jobs" in health["error"]
 
 
 def test_check_api_health_reports_stale_backend_missing_source_status():
@@ -76,7 +80,9 @@ def test_check_api_health_reports_stale_backend_missing_source_status():
                     "market_state_import",
                     "dashboard_queues",
                     "price_candidate_auto_stage",
+                    "price_auto_apply",
                     "price_discovery_run",
+                    "price_discovery_jobs",
                 ],
             }
         if url.endswith("/api/sources/status"):
@@ -108,7 +114,9 @@ def test_check_api_health_reports_stale_backend_missing_supplier_catalog_health(
                     "market_state_import",
                     "dashboard_queues",
                     "price_candidate_auto_stage",
+                    "price_auto_apply",
                     "price_discovery_run",
+                    "price_discovery_jobs",
                 ],
             }
         if url.endswith("/api/sources/status"):
@@ -134,6 +142,22 @@ def test_dev_web_script_runs_api_health_check_before_frontend():
     assert "Port 8000 is already in use" in script
     assert "TENDER_KILLER_PDF_OCR_COMMAND" in script
     assert "ocr-pdf.ps1" in script
+
+
+def test_dev_web_script_runs_persistent_supervisor_with_static_fallback():
+    script = Path("scripts/dev-web.ps1").read_text(encoding="utf-8")
+
+    assert "while ($true)" in script
+    assert "Restart-ManagedProcess" in script
+    assert "Find-LocalViteScript" in script
+    assert "Start-ViteNodeProcess" in script
+    assert "node_modules\\vite\\bin\\vite.js" in script
+    assert "tender_killer.dev_static_proxy" in script
+    assert "TENDER_KILLER_DEV_FORCE_STATIC" in script
+    assert "Stop-StalePortProcess" in script
+    assert "Repair-ProcessPathEnvironment" in script
+    assert 'SetEnvironmentVariable("PATH", $null, "Process")' in script
+    assert "npm.cmd not found" not in script
 
 
 def test_ocr_pdf_script_wraps_local_ocr_backends_for_pdf_text_fallback():

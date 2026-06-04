@@ -26,6 +26,48 @@ def test_supplier_catalog_presets_match_office_and_building_profiles() -> None:
     assert [preset["provider"] for preset in building_presets] == ["petrovich", "vseinstrumenti"]
 
 
+def test_supplier_catalog_presets_match_printer_consumables_to_office_catalogs() -> None:
+    presets = supplier_catalog_presets_for_profile(
+        {
+            "product_name": "Картридж для электрографических печатающих устройств",
+            "normalized_name": "картридж для принтера",
+            "okpd2": "28.23.25",
+        }
+    )
+
+    assert [preset["provider"] for preset in presets] == ["officemag", "komus"]
+
+
+def test_supplier_catalog_presets_do_not_match_building_inside_unrelated_words() -> None:
+    presets = supplier_catalog_presets_for_profile(
+        {
+            "product_name": "Устройство коммутационное для лаборатории",
+            "normalized_name": "электрографическое печатающее устройство",
+        }
+    )
+
+    assert presets == []
+
+
+def test_supplier_catalog_presets_match_okpd2_prefixes_without_keyword_text() -> None:
+    office_presets = supplier_catalog_presets_for_profile({"product_name": "Лот 1", "okpd2": "28.23.25.000"})
+    building_presets = supplier_catalog_presets_for_profile({"product_name": "Лот 2", "okpd2": "23.51.12.110"})
+
+    assert [preset["provider"] for preset in office_presets] == ["officemag", "komus"]
+    assert [preset["provider"] for preset in building_presets] == ["petrovich", "vseinstrumenti"]
+
+
+def test_supplier_catalog_presets_route_tools_to_tool_catalog_only() -> None:
+    presets = supplier_catalog_presets_for_profile(
+        {
+            "product_name": "Аккумуляторный шуруповерт с набором бит",
+            "normalized_name": "шуруповерт аккумуляторный",
+        }
+    )
+
+    assert [preset["provider"] for preset in presets] == ["vseinstrumenti"]
+
+
 def test_supplier_catalog_presets_can_be_selected_or_disabled_by_payload() -> None:
     selected = supplier_catalog_presets_for_profile(
         {

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from tender_killer.dashboard_queue_service import _has_current_offer
 from tender_killer.dashboard_queue_service import build_dashboard_queues_payload
 from tender_killer.models import ProductProfile, Tender, TenderDocument
 from tender_killer.storage import TenderStore
@@ -59,3 +60,9 @@ def test_dashboard_queue_service_builds_decision_owned_work_queues(tmp_path):
     assert queues["documents_review"]["count"] == 1
     assert queues["missing_prices"]["items"][0]["external_id"] == "queue-1"
     assert queues["missing_prices"]["items"][0]["decision"]["status"] == "missing_prices"
+
+
+def test_dashboard_queue_service_counts_only_positive_current_offer():
+    assert _has_current_offer({"market_state": {"current_offer_price": 1000}}) is True
+    assert _has_current_offer({"market_state": {"current_offer_price": 0}}) is False
+    assert _has_current_offer({"market_state": {"current_offer_price": ""}}) is False

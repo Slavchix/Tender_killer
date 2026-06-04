@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 import {
   acceptProfileAutoEconomics as acceptProfileAutoEconomicsRequest,
   addProfileSupplierOption,
+  applyTenderAutoPrices as applyTenderAutoPricesRequest,
   autoSelectTenderSupplierOptions as autoSelectTenderSupplierOptionsRequest,
   autoSelectProfileSupplierOption,
   confirmReadyTenderPriceCandidates as confirmReadyTenderPriceCandidatesRequest,
   confirmProfilePriceCandidate as confirmProfilePriceCandidateRequest,
+  fetchPriceDiscoveryJob,
   fetchSupplierCatalogHealth,
   importProfileSupplierDiscoveryCandidate,
   prepareProfileSupplierSearch as prepareProfileSupplierSearchRequest,
@@ -25,6 +27,32 @@ import {
 const READY_PRICE_CANDIDATES_REVIEW_ID = 'ready-price-candidates-bulk'
 const PRICE_CANDIDATE_STAGE_REVIEW_ID = 'price-candidates-stage'
 const PRICE_DISCOVERY_RUN_ID = 'price-discovery-run'
+const PRICE_AUTO_APPLY_ID = 'price-auto-apply'
+
+function isPriceDiscoveryJobActive(job) {
+  return job?.status === 'queued' || job?.status === 'running'
+}
+
+function priceDiscoveryStatusMessage(job) {
+  if (!job?.job_id) return ''
+
+  const staged = Number(job.staged_count || job.result?.staged_count || 0)
+  const ready = Number(job.ready_count || job.result?.ready_count || 0)
+  const noCandidates = Number(job.no_candidates_count || job.result?.no_candidates_count || 0)
+  const searched = Number(job.searched_count || 0)
+  const total = Number(job.total_profiles || 0)
+  const limited = Number(job.limited_count || 0)
+  const progressNote = total > 0 ? `${searched}/${total}` : `${searched}`
+
+  if (job.status === 'failed') {
+    return `Поиск цен завершился ошибкой: ${job.error || 'подробности не получены'}`
+  }
+  if (job.status === 'succeeded') {
+    const limitNote = job.partial ? `, осталось ${limited}` : ''
+    return `Поиск цен завершен: подготовлено ${staged}, готово ${ready}, без кандидатов ${noCandidates}${limitNote}`
+  }
+  return `Идет поиск цен: проверено ${progressNote}, подготовлено ${staged}, готово ${ready}`
+}
 
 export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatus) {
   const [productProfiles, setProductProfiles] = useState(tender.product_profiles || [])
@@ -47,6 +75,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
   const [supplierCatalogHealth, setSupplierCatalogHealth] = useState(null)
   const [supplierCatalogHealthLoading, setSupplierCatalogHealthLoading] = useState(false)
   const [supplierCatalogHealthError, setSupplierCatalogHealthError] = useState('')
+  const [priceDiscoveryJob, setPriceDiscoveryJob] = useState(null)
 
   useEffect(() => {
     applyProductTenderState(tender)
@@ -62,7 +91,43 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     setAutoSelectingAllSuppliers(false)
     setAutoEstimatingPosition(null)
     setAcceptingAutoEconomicsPosition(null)
+    setPriceDiscoveryJob(null)
   }, [tender.source, tender.external_id, tender.product_profiles, tender.product_profile_summary, tender.economics])
+
+  useEffect(() => {
+    if (!isPriceDiscoveryJobActive(priceDiscoveryJob) || !priceDiscoveryJob?.job_id) return undefined
+
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      fetchPriceDiscoveryJob(priceDiscoveryJob.job_id)
+        .then((payload) => {
+          if (cancelled) return
+
+          const job = payload.price_discovery_job || {}
+          const active = isPriceDiscoveryJobActive(job)
+          if (!active && payload.tender) {
+            onTenderRefresh(payload.tender)
+            applyProductTenderState(payload.tender, { resetSelection: false })
+          }
+          setPriceDiscoveryJob(job)
+          setDetailStatus(priceDiscoveryStatusMessage(job))
+          if (!active) {
+            setReviewingPriceCandidateId(null)
+          }
+        })
+        .catch((err) => {
+          if (cancelled) return
+          setPriceDiscoveryJob(null)
+          setReviewingPriceCandidateId(null)
+          setDetailStatus(err.message)
+        })
+    }, 1500)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [priceDiscoveryJob, onTenderRefresh, setDetailStatus])
 
   function refreshSupplierCatalogHealth(live = false) {
     setSupplierCatalogHealthLoading(true)
@@ -222,22 +287,43 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .finally(() => setReviewingPriceCandidateId(null))
   }
 
-  function runPriceDiscovery() {
-    setReviewingPriceCandidateId(PRICE_DISCOVERY_RUN_ID)
+  function applyAutoPrices() {
+    setReviewingPriceCandidateId(PRICE_AUTO_APPLY_ID)
     setDetailStatus('')
-    return runTenderPriceDiscoveryRequest(tender)
+    return applyTenderAutoPricesRequest(tender)
       .then((nextTender) => {
-        const run = nextTender.price_discovery_run || {}
-        const staged = Number(run.staged_count || 0)
-        const ready = Number(run.ready_count || 0)
-        const noCandidates = Number(run.no_candidates_count || 0)
-        return updateFromNextTender(nextTender, `Поиск цен: подготовлено ${staged}, готово ${ready}, без кандидатов ${noCandidates}`)
+        const autoApply = nextTender.price_auto_apply || {}
+        const applied = Number(autoApply.applied_count || 0)
+        const missing = Number(autoApply.missing_cost_count || 0)
+        return updateFromNextTender(nextTender, `Автоцены применены: ${applied}, без цены: ${missing}`)
       })
       .catch((err) => {
         setDetailStatus(err.message)
         throw err
       })
       .finally(() => setReviewingPriceCandidateId(null))
+  }
+
+  function runPriceDiscovery() {
+    setReviewingPriceCandidateId(PRICE_DISCOVERY_RUN_ID)
+    setDetailStatus('')
+    return runTenderPriceDiscoveryRequest(tender)
+      .then((nextTender) => {
+        const job = nextTender.price_discovery_job || nextTender.price_discovery_run || {}
+        setPriceDiscoveryJob(job)
+        setDetailStatus(priceDiscoveryStatusMessage(job))
+        if (!isPriceDiscoveryJobActive(job)) {
+          updateFromNextTender(nextTender, priceDiscoveryStatusMessage(job))
+          setReviewingPriceCandidateId(null)
+        }
+        return nextTender
+      })
+      .catch((err) => {
+        setPriceDiscoveryJob(null)
+        setReviewingPriceCandidateId(null)
+        setDetailStatus(err.message)
+        throw err
+      })
   }
 
   function importSupplierDiscoveryCandidate(profile, candidateIndex) {
@@ -362,7 +448,8 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
 
   const confirmingReadyPriceCandidates = reviewingPriceCandidateId === READY_PRICE_CANDIDATES_REVIEW_ID
   const stagingPriceCandidates = reviewingPriceCandidateId === PRICE_CANDIDATE_STAGE_REVIEW_ID
-  const runningPriceDiscovery = reviewingPriceCandidateId === PRICE_DISCOVERY_RUN_ID
+  const runningPriceDiscovery = reviewingPriceCandidateId === PRICE_DISCOVERY_RUN_ID || isPriceDiscoveryJobActive(priceDiscoveryJob)
+  const applyingAutoPrices = reviewingPriceCandidateId === PRICE_AUTO_APPLY_ID
 
   return {
     productProfiles,
@@ -384,11 +471,13 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     confirmingReadyPriceCandidates,
     stagingPriceCandidates,
     runningPriceDiscovery,
+    applyingAutoPrices,
     autoEstimatingPosition,
     acceptingAutoEconomicsPosition,
     supplierCatalogHealth,
     supplierCatalogHealthLoading,
     supplierCatalogHealthError,
+    priceDiscoveryJob,
     refreshSupplierCatalogHealth,
     applyProductTenderState,
     rebuildProductProfiles,
@@ -400,6 +489,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     autoSelectAllSupplierOptions,
     confirmReadyPriceCandidates,
     stagePriceCandidates,
+    applyAutoPrices,
     runPriceDiscovery,
     importSupplierDiscoveryCandidate,
     confirmPriceCandidate,

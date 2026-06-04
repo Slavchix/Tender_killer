@@ -95,6 +95,7 @@ def test_schema_org_product_collector_skips_search_engine_links() -> None:
 
 def test_public_fetch_error_preserves_blocked_catalog_preview(monkeypatch) -> None:
     url = "https://www.vseinstrumenti.ru/search/?q=cement+mix"
+    captured: dict[str, object] = {}
 
     class BlockedResponse:
         status_code = 403
@@ -104,7 +105,12 @@ def test_public_fetch_error_preserves_blocked_catalog_preview(monkeypatch) -> No
         def raise_for_status(self) -> None:
             raise httpx.HTTPStatusError("raw forbidden", request=self.request, response=self)
 
-    monkeypatch.setattr(price_discovery.httpx, "get", lambda *args, **kwargs: BlockedResponse())
+    def fake_get(*args: object, **kwargs: object) -> BlockedResponse:
+        captured["args"] = args
+        captured.update(kwargs)
+        return BlockedResponse()
+
+    monkeypatch.setattr(price_discovery.httpx, "get", fake_get)
 
     with pytest.raises(httpx.HTTPStatusError) as excinfo:
         price_discovery._fetch_public_text(url)
@@ -112,6 +118,7 @@ def test_public_fetch_error_preserves_blocked_catalog_preview(monkeypatch) -> No
     message = str(excinfo.value)
     assert "access_blocked HTTP 403" in message
     assert "Пожалуйста, пройдите проверку" in message
+    assert captured["trust_env"] is False
 
 
 def test_provider_catalog_collector_follows_matching_catalog_product_links() -> None:
@@ -260,6 +267,205 @@ def test_provider_catalog_collector_extracts_officemag_visible_offer_without_sch
             "provider": "officemag",
         }
     ]
+
+
+def test_provider_catalog_collector_extracts_officemag_search_result_cards() -> None:
+    html = """
+        <html>
+          <body>
+            <ul class="listItems">
+              <li class="listItem js-productListItem" data-list-name="search">
+                <a class="listItemPhoto__link" href="/catalog/goods/271846/">
+                  <img alt="Папка на 2 кольцах, ПРОЧНАЯ, картон/ПВХ, BRAUBERG &quot;Office&quot;, ЧЕРНАЯ, 75 мм, до 500 листов, 271846">
+                </a>
+                <a href="/catalog/goods/271846/">
+                  Папка на 2 кольцах, ПРОЧНАЯ, картон/<wbr/>ПВХ, BRAUBERG &laquo;Office&raquo;,
+                  ЧЕРНАЯ, 75 мм, до 500 листов, 271846
+                </a>
+                <span class="code">Код 271846</span>
+                <div class="ProductSpecial__item js-ProductSpecialRow ProductSpecial__item--active" data-count="1" data-price="482.58">
+                  От <span class="ProductSpecial__count">1</span> шт.
+                </div>
+                <div class="ProductSpecial__item js-ProductSpecialRow" data-count="3" data-price="458.45">
+                  От <span class="ProductSpecial__count">3</span> шт.
+                </div>
+                <div class="listItemBuy__available">
+                  <table>
+                    <tr>
+                      <td>Наличие на складе</td>
+                      <td>39 шт.</td>
+                    </tr>
+                    <tr>
+                      <td>Под заказ от 3-4 д.</td>
+                      <td>+6634 шт.</td>
+                    </tr>
+                  </table>
+                </div>
+                <div class="ProductState ProductState--stepCount">
+                  <div class="ProductState">Мин. партия: 1.</div>
+                  <div class="ProductState">В упаковке: 12</div>
+                </div>
+              </li>
+            </ul>
+          </body>
+        </html>
+    """
+    collector = price_discovery.ProviderCatalogCollector(
+        "officemag",
+        fetch_text=lambda url: html,
+        max_product_pages=0,
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "папка 2 кольца brauberg 75 мм",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "OfficeMag",
+                    "url": "https://www.officemag.ru/search/index.php?SECTION=837&q=folder",
+                    "provider": "officemag",
+                    "link_kind": "catalog_search",
+                    "preset_id": "officemag_office_supplies",
+                }
+            ],
+        }
+    )
+
+    assert result["diagnostics"]["pages_fetched"] == 1
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"] == [
+        {
+            "name": 'Папка на 2 кольцах, ПРОЧНАЯ, картон/ПВХ, BRAUBERG "Office", ЧЕРНАЯ, 75 мм, до 500 листов, 271846',
+            "url": "https://www.officemag.ru/catalog/goods/271846/",
+            "unit_price": 458.45,
+            "currency": "RUB",
+            "availability": "in_stock",
+            "delivery_note": "OfficeMag: цена от 1 шт. 482.58 RUB; цена от 3 шт. 458.45 RUB; склад 39 шт.; под заказ +6634 шт.; мин. партия 1; в упаковке 12.",
+            "status": "candidate",
+            "source_query": "папка 2 кольца brauberg 75 мм",
+            "source_kind": "normalized_name",
+            "note": "OfficeMag catalog search result from https://www.officemag.ru/search/index.php?SECTION=837&q=folder.",
+            "provider": "officemag",
+        }
+    ]
+
+
+def test_provider_catalog_collector_extracts_officemag_product_detail_terms() -> None:
+    html = """
+        <html>
+          <body>
+            <h1 class="ProductHead__name">Папка на 2 кольцах, ПРОЧНАЯ, картон/<wbr/>ПВХ, BRAUBERG &laquo;Office&raquo;, ЧЕРНАЯ, 75 мм, до 500 листов, 271846</h1>
+            <div class="Product__price js-detailCardGoods" itemprop="price" content="458.45">
+              <span class="Price__count">458</span>,<span class="Price__penny">45</span>
+              <div class="Product__specialCondition">От 3 шт.</div>
+            </div>
+            <div class="ProductSpecial__item js-ProductSpecialRow ProductSpecial__item--active" data-count="1" data-price="482.58"></div>
+            <div class="ProductSpecial__item js-ProductSpecialRow" data-count="3" data-price="458.45"></div>
+            <div class="Availability Availability--inline">
+              <div class="Availability__item">На складе <span class="Availability__content">в Москве <span class="Availability__quantity">39 шт.</span></span></div>
+              <div class="Availability__item">Под заказ <span class="Availability__content">от 3-4 д. <span class="Availability__quantity">+6634 шт.</span></span></div>
+            </div>
+            <div class="ProductState ProductState--stepCount">
+              <div class="ProductState">Мин. партия: 1.</div>
+              <div class="ProductState">В упаковке: 12</div>
+            </div>
+          </body>
+        </html>
+    """
+    collector = price_discovery.ProviderCatalogCollector(
+        "officemag",
+        fetch_text=lambda url: html,
+        max_product_pages=0,
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "папка 2 кольца brauberg 75 мм",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "OfficeMag manual",
+                    "url": "https://www.officemag.ru/catalog/goods/271846/",
+                    "provider": "officemag",
+                    "link_kind": "manual_product_url",
+                    "preset_id": "officemag_office_supplies",
+                }
+            ],
+        }
+    )
+
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"][0]["unit_price"] == 458.45
+    assert result["candidates"][0]["delivery_note"] == (
+        "OfficeMag: цена от 1 шт. 482.58 RUB; цена от 3 шт. 458.45 RUB; "
+        "склад 39 шт.; под заказ +6634 шт.; мин. партия 1; в упаковке 12."
+    )
+
+
+def test_provider_catalog_collector_uses_browser_fallback_for_officemag_access_block(monkeypatch) -> None:
+    url = "https://www.officemag.ru/search/?q=office+paper+a4"
+    request = httpx.Request("GET", url)
+    response = httpx.Response(
+        503,
+        request=request,
+        text="<html><body>Ваш браузер не смог пройти проверку.</body></html>",
+    )
+    browser_calls: list[tuple[str, str | None]] = []
+    html = """
+        <html>
+          <body>
+            <ul class="listItems">
+              <li class="listItem js-productListItem">
+                <a href="/catalog/goods/271846/">
+                  Папка на 2 кольцах, ПРОЧНАЯ, картон/<wbr/>ПВХ, BRAUBERG &laquo;Office&raquo;,
+                  ЧЕРНАЯ, 75 мм, до 500 листов, 271846
+                </a>
+                <div class="ProductSpecial__item js-ProductSpecialRow" data-count="3" data-price="458.45"></div>
+                <div class="ProductState ProductState--stepCount">
+                  <div class="ProductState">Мин. партия: 1.</div>
+                  <div class="ProductState">В упаковке: 12</div>
+                </div>
+              </li>
+            </ul>
+          </body>
+        </html>
+    """
+
+    def blocked_fetch(fetch_url: str) -> str:
+        raise httpx.HTTPStatusError("access_blocked HTTP 503", request=request, response=response)
+
+    def fake_browser_fetch(fetch_url: str, *, provider: str | None = None) -> str:
+        browser_calls.append((fetch_url, provider))
+        return html
+
+    monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "1")
+    monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", "officemag")
+    monkeypatch.setattr(price_discovery, "_fetch_public_text", blocked_fetch)
+    monkeypatch.setattr(price_discovery.supplier_browser_fetcher, "fetch_text", fake_browser_fetch)
+
+    collector = price_discovery.ProviderCatalogCollector("officemag", max_product_pages=0)
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "office paper a4",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "OfficeMag",
+                    "url": url,
+                    "provider": "officemag",
+                    "link_kind": "catalog_search",
+                    "preset_id": "officemag_office_supplies",
+                }
+            ],
+        }
+    )
+
+    assert browser_calls == [(url, "officemag")]
+    assert result["diagnostics"]["pages_fetched"] == 1
+    assert result["diagnostics"]["errors"] == []
+    assert result["candidates"][0]["unit_price"] == 458.45
+    assert result["candidates"][0]["provider"] == "officemag"
 
 
 def test_provider_catalog_collector_extracts_vseinstrumenti_visible_offer_without_schema_org() -> None:
@@ -663,6 +869,7 @@ def test_run_tender_supplier_price_discovery_prepares_all_positions_and_summariz
         "mosreg_market",
         "supplier-price-discovery-bulk",
         collectors=[BulkCollector()],
+        max_positions=10,
     )
 
     detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-price-discovery-bulk")
@@ -697,6 +904,91 @@ def test_run_tender_supplier_price_discovery_prepares_all_positions_and_summariz
     assert profiles[1]["price_candidates"][0]["provider"] == "bulk_test_catalog"
     assert "economics" not in profiles[1]["raw_payload"]
     assert profiles[2]["raw_payload"]["supplier_discovery"]["status"] == "no_candidates"
+
+
+def test_run_tender_supplier_price_discovery_can_limit_positions_per_run(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-discovery-limited",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-discovery-limited",
+            title="Large tender",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-discovery-limited",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-limited",
+                position_index=1,
+                product_name="Office paper A4",
+                normalized_name="office paper a4",
+                quantity=10,
+                unit="pack",
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-limited",
+                position_index=2,
+                product_name="Office folders",
+                normalized_name="office folders",
+                quantity=5,
+                unit="pack",
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-limited",
+                position_index=3,
+                product_name="Office pens",
+                normalized_name="office pens",
+                quantity=20,
+                unit="pack",
+            ),
+        ],
+    )
+
+    class NoCandidateCollector:
+        provider = "no_candidate_catalog"
+
+        def collect_with_diagnostics(self, query):
+            return {
+                "candidates": [],
+                "diagnostics": {
+                    "provider": "no_candidate_catalog",
+                    "queries_seen": 1,
+                    "links_seen": len(query.get("quick_links") or []),
+                    "links_skipped": 0,
+                    "pages_fetched": 1,
+                    "candidates_found": 0,
+                    "errors": ["no visible price"],
+                },
+            }
+
+    result = run_tender_supplier_price_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-discovery-limited",
+        collectors=[NoCandidateCollector()],
+        max_positions=1,
+    )
+
+    assert result["ok"] is True
+    assert result["total_profiles"] == 3
+    assert result["searched_count"] == 1
+    assert result["limited_count"] == 2
+    assert result["partial"] is True
+    assert result["positions"][0]["position_index"] == 1
+    assert result["positions"][0]["status"] == "no_candidates"
+    assert result["positions"][0]["staged_count"] == 0
+    assert result["positions"][0]["error"]
+    assert result["positions"][1:] == [
+        {"position_index": 2, "status": "deferred", "staged_count": 0},
+        {"position_index": 3, "status": "deferred", "staged_count": 0},
+    ]
 
 
 def test_run_profile_supplier_url_discovery_stages_visible_provider_candidate(tmp_path) -> None:

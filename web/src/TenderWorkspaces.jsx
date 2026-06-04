@@ -45,6 +45,7 @@ export function TenderWorkspaces({
     onSupplierOptionAutoSelectAll,
     onReadyPriceCandidatesConfirmAll,
     onPriceCandidatesStage,
+    onAutoPricesApply,
     onPriceDiscoveryRun,
     onSupplierDiscoveryImport,
     onPriceCandidateConfirm,
@@ -68,11 +69,13 @@ export function TenderWorkspaces({
     confirmingReadyPriceCandidates,
     stagingPriceCandidates,
     runningPriceDiscovery,
+    applyingAutoPrices,
     autoEstimatingPosition,
     acceptingAutoEconomicsPosition,
     supplierCatalogHealth,
     supplierCatalogHealthLoading,
     supplierCatalogHealthError,
+    priceDiscoveryJob,
     onSupplierCatalogHealthRefresh,
   } = economicsState
 
@@ -126,6 +129,7 @@ export function TenderWorkspaces({
           onSupplierOptionAutoSelectAll={onSupplierOptionAutoSelectAll}
           onReadyPriceCandidatesConfirmAll={onReadyPriceCandidatesConfirmAll}
           onPriceCandidatesStage={onPriceCandidatesStage}
+          onAutoPricesApply={onAutoPricesApply}
           onPriceDiscoveryRun={onPriceDiscoveryRun}
           onSupplierDiscoveryImport={onSupplierDiscoveryImport}
           onPriceCandidateConfirm={onPriceCandidateConfirm}
@@ -149,11 +153,13 @@ export function TenderWorkspaces({
           confirmingReadyPriceCandidates={confirmingReadyPriceCandidates}
           stagingPriceCandidates={stagingPriceCandidates}
           runningPriceDiscovery={runningPriceDiscovery}
+          applyingAutoPrices={applyingAutoPrices}
           autoEstimatingPosition={autoEstimatingPosition}
           acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
           supplierCatalogHealth={supplierCatalogHealth}
           supplierCatalogHealthLoading={supplierCatalogHealthLoading}
           supplierCatalogHealthError={supplierCatalogHealthError}
+          priceDiscoveryJob={priceDiscoveryJob}
           onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
         />
       )}

@@ -52,6 +52,7 @@ function SupplierDiscoveryDiagnostics({ diagnostics }) {
     <div className="supplier-discovery-diagnostics">
       {diagnostics.map((diagnostics, index) => {
         const errors = Array.isArray(diagnostics.errors) ? diagnostics.errors : []
+        const compactErrors = compactDiscoveryErrors(errors)
         return (
           <section key={`${diagnostics.provider || 'collector'}-${index}`}>
             <strong>{diagnostics.provider || 'collector'}</strong>
@@ -62,12 +63,59 @@ function SupplierDiscoveryDiagnostics({ diagnostics }) {
               <span>Страницы: {diagnostics.pages_fetched || 0}</span>
               <span>Кандидаты: {diagnostics.candidates_found || 0}</span>
             </div>
-            {errors.length ? <p>{errors.join(' · ')}</p> : null}
+            {compactErrors.length ? (
+              <ul className="supplier-discovery-errors">
+                {compactErrors.map((error) => (
+                  <li key={`${diagnostics.provider || 'collector'}-${error.label}`} title={error.raw}>
+                    {error.label}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </section>
         )
       })}
     </div>
   )
+}
+
+function compactDiscoveryErrors(errors) {
+  const seen = new Set()
+  return errors
+    .map((error) => formatDiscoveryError(error))
+    .filter((error) => {
+      if (!error.label || seen.has(error.label)) return false
+      seen.add(error.label)
+      return true
+    })
+    .slice(0, 3)
+}
+
+function formatDiscoveryError(error) {
+  const raw = String(error || '')
+  const normalized = raw.toLowerCase()
+  if (normalized.includes('access_blocked') || normalized.includes('browser_fetch_error')) {
+    return {
+      label: 'Сайт требует браузерную проверку. Добавь ссылку на товар вручную или открой каталог в браузере.',
+      raw,
+    }
+  }
+  if (normalized.includes('timed out') || normalized.includes('timeout')) {
+    return {
+      label: 'Каталог не успел ответить. Повтори поиск позже или добавь ссылку на товар вручную.',
+      raw,
+    }
+  }
+  if (normalized.includes('network') || normalized.includes('winerror')) {
+    return {
+      label: 'Сеть не дала прочитать каталог. Проверь интернет или добавь ссылку на товар вручную.',
+      raw,
+    }
+  }
+  return {
+    label: raw.length > 140 ? `${raw.slice(0, 140)}...` : raw,
+    raw,
+  }
 }
 
 export function SupplierSearchPreview({ search }) {

@@ -99,7 +99,9 @@ def test_handle_get_request_returns_health_payload(tmp_path) -> None:
     assert "price_candidate_review" in response.payload["capabilities"]
     assert "price_candidate_bulk_review" in response.payload["capabilities"]
     assert "price_candidate_auto_stage" in response.payload["capabilities"]
+    assert "price_auto_apply" in response.payload["capabilities"]
     assert "price_discovery_run" in response.payload["capabilities"]
+    assert "price_discovery_jobs" in response.payload["capabilities"]
 
 
 def test_handle_get_request_routes_supplier_catalog_health(tmp_path) -> None:
@@ -1038,7 +1040,60 @@ def test_handle_post_request_routes_price_candidate_auto_stage(tmp_path) -> None
     assert "economics" not in profile["raw_payload"]
 
 
-def test_handle_post_request_routes_tender_price_discovery_run(tmp_path, monkeypatch) -> None:
+def test_handle_post_request_routes_tender_auto_prices_and_refreshes_economics(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+                raw_payload={
+                    "supplier_options": [
+                        {
+                            "provider": "komus",
+                            "name": "Office paper",
+                            "url": "https://example.com/paper",
+                            "unit_price": 900.0,
+                            "currency": "RUB",
+                            "vat_mode": "vat_included",
+                            "availability": "in_stock",
+                            "delivery_note": "Delivery included",
+                            "pack_quantity": 1,
+                            "unit": "pack",
+                        }
+                    ]
+                },
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=2,
+                product_name="Folders",
+                quantity=5,
+                unit="pack",
+            ),
+        ],
+    )
+
+    response = handle_post_request(store.database_path, "/api/tenders/mosreg_market/3668200/price-candidates/auto-apply", {})
+
+    assert response.status == 200
+    assert response.payload["price_auto_apply"]["stage"]["staged_count"] == 1
+    assert response.payload["price_auto_apply"]["ready_review"]["confirmed_count"] == 1
+    assert response.payload["price_auto_apply"]["priced_count"] == 1
+    assert response.payload["price_auto_apply"]["missing_cost_positions"] == [2]
+    assert response.payload["product_profiles"][0]["raw_payload"]["economics"]["unit_cost"] == 900.0
+    assert response.payload["economics"]["items"][0]["total_cost"] == 9000.0
+    assert response.payload["economics"]["missing_cost_inputs"] == ["Folders"]
+
+
+def test_handle_post_request_starts_tender_price_discovery_job(tmp_path, monkeypatch) -> None:
     store = _store_with_tender(tmp_path)
     store.upsert_product_profiles(
         "mosreg_market",
@@ -1056,26 +1111,69 @@ def test_handle_post_request_routes_tender_price_discovery_run(tmp_path, monkeyp
     )
     calls = []
 
-    def fake_run(database_path, source, external_id):
+    def fake_start(database_path, source, external_id):
         calls.append((database_path, source, external_id))
         return {
-            "ok": True,
+            "job_id": "job-1",
+            "status": "queued",
+            "source": source,
+            "external_id": external_id,
             "total_profiles": 1,
-            "searched_count": 1,
-            "staged_count": 0,
-            "no_candidates_count": 1,
-            "diagnostics_by_provider": [],
-            "positions": [{"position_index": 1, "status": "no_candidates", "staged_count": 0}],
+            "searched_count": 0,
+            "limited_count": 0,
+            "partial": False,
         }
 
-    monkeypatch.setattr("tender_killer.api_handlers.run_tender_supplier_price_discovery", fake_run)
+    monkeypatch.setattr("tender_killer.api_handlers.start_tender_price_discovery_job", fake_start)
 
     response = handle_post_request(store.database_path, "/api/tenders/mosreg_market/3668200/price-discovery/run", {})
 
     assert response.status == 200
     assert calls == [(store.database_path, "mosreg_market", "3668200")]
-    assert response.payload["price_discovery_run"]["searched_count"] == 1
+    assert response.payload["price_discovery_job"]["job_id"] == "job-1"
+    assert response.payload["price_discovery_job"]["status"] == "queued"
+    assert response.payload["price_discovery_run"]["job_id"] == "job-1"
     assert response.payload["product_profiles"][0]["position_index"] == 1
+
+
+def test_handle_get_request_routes_tender_price_discovery_job_status(tmp_path, monkeypatch) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+
+    def fake_get(job_id):
+        assert job_id == "job-1"
+        return {
+            "job_id": "job-1",
+            "status": "running",
+            "source": "mosreg_market",
+            "external_id": "3668200",
+            "total_profiles": 3,
+            "searched_count": 1,
+            "limited_count": 2,
+            "partial": True,
+        }
+
+    monkeypatch.setattr("tender_killer.api_handlers.get_tender_price_discovery_job", fake_get)
+
+    response = handle_get_request(store.database_path, "/api/price-discovery/jobs/job-1", {})
+
+    assert response.status == 200
+    assert response.payload["price_discovery_job"]["job_id"] == "job-1"
+    assert response.payload["price_discovery_job"]["searched_count"] == 1
+    assert response.payload["tender"]["external_id"] == "3668200"
 
 
 def test_handle_post_request_routes_product_profile_supplier_option_select(tmp_path) -> None:

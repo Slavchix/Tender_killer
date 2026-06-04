@@ -216,10 +216,23 @@ export function stageTenderPriceCandidates(tender) {
   })
 }
 
+export function applyTenderAutoPrices(tender) {
+  return apiJson(`${tenderPath(tender)}/price-candidates/auto-apply`, {
+    method: 'POST',
+    errorMessage: 'Не удалось применить автоцены',
+  })
+}
+
 export function runTenderPriceDiscovery(tender) {
   return apiJson(`${tenderPath(tender)}/price-discovery/run`, {
     method: 'POST',
     errorMessage: 'Не удалось найти цены поставщиков',
+  })
+}
+
+export function fetchPriceDiscoveryJob(jobId) {
+  return apiJson(`/api/price-discovery/jobs/${encodeURIComponent(jobId)}`, {
+    errorMessage: 'Не удалось получить статус поиска цен',
   })
 }
 

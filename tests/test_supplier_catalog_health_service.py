@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from tender_killer import supplier_catalog_health_service as health
 from tender_killer.supplier_catalog_health_service import get_supplier_catalog_health_payload
 
 
@@ -21,6 +22,30 @@ def test_supplier_catalog_health_lists_configured_builtin_catalogs_without_netwo
         "configured",
     ]
     assert payload["catalogs"][0]["sample_url"] == "https://www.officemag.ru/search/?q=office+paper+a4"
+
+
+def test_supplier_catalog_health_fetch_bypasses_system_proxy_env(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class Response:
+        status_code = 200
+        text = "<html></html>"
+
+    def fake_get(url: str, **kwargs: object) -> Response:
+        captured["url"] = url
+        captured.update(kwargs)
+        return Response()
+
+    monkeypatch.setattr(health.httpx, "get", fake_get)
+
+    status, body = health._fetch_catalog_status("https://example.test/search", 7.5)
+
+    assert status == 200
+    assert body == "<html></html>"
+    assert captured["url"] == "https://example.test/search"
+    assert captured["timeout"] == 7.5
+    assert captured["follow_redirects"] is True
+    assert captured["trust_env"] is False
 
 
 def test_supplier_catalog_health_live_mode_records_provider_errors() -> None:
@@ -64,3 +89,32 @@ def test_supplier_catalog_health_live_mode_records_provider_errors() -> None:
     assert statuses["vseinstrumenti"]["error"] == "timed out"
     assert statuses["vseinstrumenti"]["error_kind"] == "network_error"
     assert statuses["vseinstrumenti"]["body_preview"] == ""
+
+
+def test_supplier_catalog_health_uses_browser_fallback_for_officemag_access_block(monkeypatch) -> None:
+    calls: list[tuple[str, float]] = []
+    browser_calls: list[tuple[str, str | None]] = []
+
+    def fetcher(url: str, timeout: float) -> tuple[int, str]:
+        calls.append((url, timeout))
+        if "officemag" in url:
+            return 503, "<html><body>Ваш браузер не смог пройти проверку.</body></html>"
+        return 200, "<html></html>"
+
+    def fake_browser_fetch(url: str, *, provider: str | None = None) -> str:
+        browser_calls.append((url, provider))
+        return "<html><body><li class='js-productListItem'>OfficeMag ok</li></body></html>"
+
+    monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", raising=False)
+    monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", raising=False)
+    monkeypatch.setattr(health.supplier_browser_fetcher, "fetch_text", fake_browser_fetch)
+
+    payload = get_supplier_catalog_health_payload(live=True, timeout=1.5, fetcher=fetcher)
+
+    statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
+    assert browser_calls == [("https://www.officemag.ru/search/?q=office+paper+a4", "officemag")]
+    assert statuses["officemag"]["status"] == "ok"
+    assert statuses["officemag"]["access_mode"] == "browser"
+    assert statuses["officemag"]["error"] == ""
+    assert statuses["officemag"]["body_preview"] == ""
+    assert payload["ok"] is True

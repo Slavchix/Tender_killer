@@ -30,7 +30,7 @@ LOW_MARGIN_PERCENT = 7.0
 def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
     market_state = _market_state(tender)
     nmc_price = _number(market_state.get("nmc_price")) or _number(tender.get("price"))
-    current_offer_price = _number(market_state.get("current_offer_price"))
+    current_offer_price = _positive_number(market_state.get("current_offer_price"))
     revenue = current_offer_price if current_offer_price is not None else nmc_price
     revenue_kind = "current_offer" if current_offer_price is not None else "nmc"
     price_context = _price_context(revenue, revenue_kind, nmc_price, market_state)
@@ -238,8 +238,12 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
 def _market_state(tender: dict[str, Any]) -> dict[str, Any]:
     state = tender.get("market_state")
     market_state = dict(state) if isinstance(state, dict) else {}
-    if "current_offer_price" not in market_state and _number(tender.get("current_offer_price")) is not None:
-        market_state["current_offer_price"] = _number(tender.get("current_offer_price"))
+    if "current_offer_price" in market_state:
+        market_state["current_offer_price"] = _positive_number(market_state.get("current_offer_price"))
+    else:
+        current_offer_price = _positive_number(tender.get("current_offer_price"))
+        if current_offer_price is not None:
+            market_state["current_offer_price"] = current_offer_price
     if "nmc_price" not in market_state and _number(tender.get("price")) is not None:
         market_state["nmc_price"] = _number(tender.get("price"))
     return market_state
@@ -593,6 +597,13 @@ def _number(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if number >= 0 else None
+
+
+def _positive_number(value: Any) -> float | None:
+    number = _number(value)
+    if number is None or number <= 0:
+        return None
+    return number
 
 
 def _positive_int(value: Any) -> int | None:

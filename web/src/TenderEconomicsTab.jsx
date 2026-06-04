@@ -17,6 +17,7 @@ export function TenderEconomicsTab({
   onSupplierOptionAutoSelectAll,
   onReadyPriceCandidatesConfirmAll,
   onPriceCandidatesStage,
+  onAutoPricesApply,
   onPriceDiscoveryRun,
   onSupplierDiscoveryImport,
   onPriceCandidateConfirm,
@@ -40,11 +41,13 @@ export function TenderEconomicsTab({
   confirmingReadyPriceCandidates = false,
   stagingPriceCandidates = false,
   runningPriceDiscovery = false,
+  applyingAutoPrices = false,
   autoEstimatingPosition = null,
   acceptingAutoEconomicsPosition = null,
   supplierCatalogHealth = null,
   supplierCatalogHealthLoading = false,
   supplierCatalogHealthError = '',
+  priceDiscoveryJob = null,
   onSupplierCatalogHealthRefresh,
 }) {
   const profiles = productProfiles || []
@@ -55,6 +58,8 @@ export function TenderEconomicsTab({
   const readyPriceCandidateCount = profiles.filter(hasReadyPriceCandidateWithoutCost).length
   const priceCandidateSourceCount = profiles.filter(hasPriceCandidateSource).length
   const priceDiscoveryRunCount = profiles.filter(profileNeedsPriceDiscovery).length
+  const autoPriceApplyCount = Math.max(readyPriceCandidateCount, priceCandidateSourceCount)
+  const priceDiscoveryJobText = priceDiscoveryJobStatusText(priceDiscoveryJob)
 
   useEffect(() => {
     if (supplierCatalogHealth || supplierCatalogHealthLoading || supplierCatalogHealthError) return
@@ -88,6 +93,14 @@ export function TenderEconomicsTab({
         </button>
         <button
           className="secondary-button compact"
+          disabled={applyingAutoPrices || !onAutoPricesApply || autoPriceApplyCount === 0}
+          onClick={() => ignoreEconomicsActionError(onAutoPricesApply?.())}
+          type="button"
+        >
+          {applyingAutoPrices ? 'Применяю...' : `Автоцены в расчет (${autoPriceApplyCount})`}
+        </button>
+        <button
+          className="secondary-button compact"
           disabled={confirmingReadyPriceCandidates || !onReadyPriceCandidatesConfirmAll || readyPriceCandidateCount === 0}
           onClick={() => ignoreEconomicsActionError(onReadyPriceCandidatesConfirmAll?.())}
           type="button"
@@ -103,6 +116,7 @@ export function TenderEconomicsTab({
           {autoSelectingAllSuppliers ? 'Выбираю...' : 'Лучшие цены в расчет'}
         </button>
       </div>
+      {priceDiscoveryJobText && <p className="muted-text price-discovery-progress">{priceDiscoveryJobText}</p>}
       <TenderEconomicsMetrics economics={economics} tender={tender} />
       <EconomicsSummary economics={economics} tender={tender} />
       <TenderEconomicsWorkbench
@@ -151,6 +165,18 @@ function ignoreEconomicsActionError(result) {
   if (result?.catch) {
     result.catch(() => {})
   }
+}
+
+function priceDiscoveryJobStatusText(job) {
+  if (!job?.job_id) return ''
+  const searched = Number(job.searched_count || 0)
+  const total = Number(job.total_profiles || 0)
+  const staged = Number(job.staged_count || job.result?.staged_count || 0)
+  const ready = Number(job.ready_count || job.result?.ready_count || 0)
+  const progress = total > 0 ? `${searched}/${total}` : `${searched}`
+  if (job.status === 'failed') return `Поиск цен: ошибка, проверено ${progress}.`
+  if (job.status === 'succeeded') return `Поиск цен завершен: проверено ${progress}, подготовлено ${staged}, готово ${ready}.`
+  return `Поиск цен выполняется: проверено ${progress}, подготовлено ${staged}, готово ${ready}.`
 }
 
 function hasReadyPriceCandidateWithoutCost(profile) {

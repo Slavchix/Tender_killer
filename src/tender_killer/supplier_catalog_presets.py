@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 
@@ -9,30 +10,123 @@ SUPPLIER_CATALOG_PRESETS: tuple[dict[str, Any], ...] = (
         "label": "OfficeMag",
         "provider": "officemag",
         "url_template": "https://www.officemag.ru/search/?q={query}",
-        "match_terms": ("office", "paper", "stationery", "бумага", "канцел", "офис", "17.12"),
+        "match_keywords": (
+            "office",
+            "paper",
+            "stationery",
+            "бумаг",
+            "канцел",
+            "офис",
+            "папк",
+            "скоросшив",
+            "регистратор",
+            "файл",
+            "картридж",
+            "тонер",
+            "принтер",
+            "мфу",
+            "оргтехник",
+            "расходн",
+            "чернил",
+        ),
+        "match_okpd2_prefixes": ("17.12", "28.23"),
     },
     {
         "preset_id": "komus_office_supplies",
         "label": "Komus",
         "provider": "komus",
         "url_template": "https://www.komus.ru/search/?text={query}",
-        "match_terms": ("office", "paper", "stationery", "бумага", "канцел", "офис", "17.12"),
+        "match_keywords": (
+            "office",
+            "paper",
+            "stationery",
+            "бумаг",
+            "канцел",
+            "офис",
+            "папк",
+            "скоросшив",
+            "регистратор",
+            "файл",
+            "картридж",
+            "тонер",
+            "принтер",
+            "мфу",
+            "оргтехник",
+            "расходн",
+            "чернил",
+        ),
+        "match_okpd2_prefixes": ("17.12", "28.23"),
     },
     {
         "preset_id": "petrovich_building_materials",
         "label": "Petrovich",
         "provider": "petrovich",
         "url_template": "https://petrovich.ru/search/?q={query}",
-        "match_terms": ("building", "cement", "concrete", "цемент", "бетон", "строит", "строй", "смес"),
+        "match_keywords": (
+            "building",
+            "cement",
+            "concrete",
+            "цемент",
+            "бетон",
+            "строител",
+            "сухая смесь",
+            "сухие смеси",
+            "смес",
+            "штукатур",
+            "шпатлев",
+            "гипс",
+            "кирпич",
+            "плитк",
+            "краск",
+            "грунтов",
+            "герметик",
+            "пескобетон",
+        ),
+        "match_okpd2_prefixes": ("08.12", "23.5", "23.6", "23.7", "23.9"),
     },
     {
         "preset_id": "vseinstrumenti_building_materials",
         "label": "Vseinstrumenti",
         "provider": "vseinstrumenti",
         "url_template": "https://www.vseinstrumenti.ru/search/?q={query}",
-        "match_terms": ("building", "cement", "tool", "цемент", "инструмент", "строит", "строй", "смес"),
+        "match_keywords": (
+            "tool",
+            "tools",
+            "instrument",
+            "building",
+            "cement",
+            "concrete",
+            "инструмент",
+            "дрел",
+            "шуруповерт",
+            "перфоратор",
+            "пил",
+            "болгарк",
+            "шлиф",
+            "сверл",
+            "ключ",
+            "молот",
+            "насос",
+            "компрессор",
+            "станок",
+            "свароч",
+            "генератор",
+            "триммер",
+            "цемент",
+            "бетон",
+            "строител",
+            "сухая смесь",
+            "сухие смеси",
+            "смес",
+            "штукатур",
+            "шпатлев",
+            "пескобетон",
+        ),
+        "match_okpd2_prefixes": ("08.12", "23.5", "23.6", "23.7", "23.9", "25.73", "28.24"),
     },
 )
+
+TOKEN_RE = re.compile(r"[0-9a-zа-яё]+", re.IGNORECASE)
 
 
 def supplier_catalog_preset_ids() -> set[str]:
@@ -63,10 +157,12 @@ def supplier_catalog_presets_for_profile(profile: dict[str, Any]) -> list[dict[s
         return _presets_by_ids(preset_ids)
 
     profile_text = _profile_text(profile)
+    profile_tokens = _profile_tokens(profile_text)
+    okpd2_codes = _profile_okpd2_codes(profile)
     return [
         _public_preset(preset)
         for preset in SUPPLIER_CATALOG_PRESETS
-        if _matches_profile(preset, profile_text)
+        if _matches_profile(preset, profile_text, profile_tokens, okpd2_codes)
     ]
 
 
@@ -83,8 +179,32 @@ def _presets_by_ids(preset_ids: list[Any]) -> list[dict[str, str]]:
     return selected
 
 
-def _matches_profile(preset: dict[str, Any], profile_text: str) -> bool:
-    return any(str(term).casefold() in profile_text for term in preset.get("match_terms") or ())
+def _matches_profile(
+    preset: dict[str, Any],
+    profile_text: str,
+    profile_tokens: list[str],
+    okpd2_codes: list[str],
+) -> bool:
+    if _matches_okpd2_prefix(preset, okpd2_codes):
+        return True
+    keywords = preset.get("match_keywords") or preset.get("match_terms") or ()
+    return any(_matches_keyword(str(keyword), profile_text, profile_tokens) for keyword in keywords)
+
+
+def _matches_okpd2_prefix(preset: dict[str, Any], okpd2_codes: list[str]) -> bool:
+    prefixes = tuple(str(prefix).casefold().strip() for prefix in preset.get("match_okpd2_prefixes") or ())
+    if not prefixes:
+        return False
+    return any(code.startswith(prefix) for code in okpd2_codes for prefix in prefixes)
+
+
+def _matches_keyword(keyword: str, profile_text: str, profile_tokens: list[str]) -> bool:
+    normalized = " ".join(_profile_tokens(keyword))
+    if not normalized:
+        return False
+    if " " in normalized:
+        return normalized in " ".join(profile_tokens)
+    return any(token == normalized or token.startswith(normalized) for token in profile_tokens)
 
 
 def _public_preset(preset: dict[str, Any]) -> dict[str, str]:
@@ -114,6 +234,18 @@ def _profile_text(profile: dict[str, Any]) -> str:
         if text := _text(phrase):
             parts.append(text)
     return " ".join(parts).casefold()
+
+
+def _profile_tokens(text: str) -> list[str]:
+    return TOKEN_RE.findall(str(text or "").casefold())
+
+
+def _profile_okpd2_codes(profile: dict[str, Any]) -> list[str]:
+    codes: list[str] = []
+    for field in ("okpd2", "classifier_code"):
+        if text := _text(profile.get(field)):
+            codes.append(text.casefold().strip())
+    return codes
 
 
 def _text(value: Any) -> str | None:

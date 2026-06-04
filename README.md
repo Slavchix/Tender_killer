@@ -299,7 +299,9 @@ Recommended combined local startup:
 npm run dev
 ```
 
-This starts the backend from `.\.venv\Scripts\python.exe`, waits until `/api/health` reports the expected API capabilities and `/api/sources/status` responds, then starts Vite. If port `8000` is already occupied by an old or incompatible API process, the script stops with a clear error instead of silently proxying the site to the wrong backend.
+This starts a persistent local dev supervisor. It keeps the backend on `http://127.0.0.1:8000` and the site on `http://127.0.0.1:5173`, checks health continuously, and restarts stale or unhealthy processes on those ports. If `npm.cmd` is available, the supervisor uses Vite for the frontend. If Node/npm is unavailable or Vite does not become healthy, it falls back to `tender_killer.dev_static_proxy`, which serves the existing `web/dist` build and proxies `/api` to the backend so the site remains reachable. Set `TENDER_KILLER_DEV_FORCE_STATIC=1` to force the static proxy fallback.
+
+The supervisor writes local runtime logs to `logs/` and runs until `Ctrl+C`.
 
 Manual API health check:
 

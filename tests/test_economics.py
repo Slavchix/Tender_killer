@@ -96,6 +96,36 @@ def test_build_economics_summary_returns_bid_thresholds():
     assert summary["interesting_price"] == 83529.41
 
 
+def test_build_economics_summary_ignores_zero_participant_bid_and_falls_back_to_nmc():
+    summary = build_economics_summary(
+        {
+            "price": 100000.0,
+            "market_state": {
+                "status": "no_participants",
+                "participant_count": 0,
+                "bid_count": 0,
+                "current_offer_price": 0.0,
+                "nmc_price": 100000.0,
+            },
+            "product_profiles": [
+                {
+                    "product_name": "Fuel",
+                    "quantity": 10,
+                    "raw_payload": {"economics": {"unit_cost": 5000}},
+                }
+            ],
+        }
+    )
+
+    assert summary["revenue"] == 100000.0
+    assert summary["revenue_kind"] == "nmc"
+    assert summary["market_state"]["status"] == "no_participants"
+    assert summary["market_state"]["current_offer_price"] is None
+    assert summary["market_state"]["participant_count"] == 0
+    assert summary["market_state"]["bid_count"] == 0
+    assert summary["bid_scenarios"][-1]["id"] == "current_nmc"
+
+
 def test_build_economics_summary_surfaces_analysis_cost_drivers():
     summary = build_economics_summary(
         {

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
+
 from tender_killer.dev_smoke import check_dev_site
 
 
@@ -7,8 +10,15 @@ def _mojibake(text: str) -> str:
     return text.encode("utf-8").decode("cp1251")
 
 
-def test_check_dev_site_verifies_api_frontend_proxy_and_ui_text(tmp_path):
-    app_source = tmp_path / "App.jsx"
+def _workspace_tmp(name: str) -> Path:
+    root = Path.cwd() / "pytest-cache-dev-smoke" / name
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True)
+    return root
+
+
+def test_check_dev_site_verifies_api_frontend_proxy_and_ui_text():
+    app_source = _workspace_tmp("ok") / "App.jsx"
     app_source.write_text(
         "Tender Killer\nЗакупки\nФильтры\nНа странице\nЗакупок на странице\n",
         encoding="utf-8",
@@ -18,7 +28,7 @@ def test_check_dev_site_verifies_api_frontend_proxy_and_ui_text(tmp_path):
         if url == "http://127.0.0.1:8000/api/health":
             return 200, (
                 '{"ok": true, "capabilities": '
-                '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health", "supplier_discovery_url", "web_auto_search", "market_state_import", "dashboard_queues", "price_candidate_auto_stage", "price_discovery_run"]}'
+                '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health", "supplier_discovery_url", "web_auto_search", "market_state_import", "dashboard_queues", "price_candidate_auto_stage", "price_auto_apply", "price_discovery_run", "price_discovery_jobs"]}'
             )
         if url == "http://127.0.0.1:8000/api/sources/status":
             return 200, '{"sources": []}'
@@ -29,7 +39,7 @@ def test_check_dev_site_verifies_api_frontend_proxy_and_ui_text(tmp_path):
         if url == "http://127.0.0.1:5173/api/health":
             return 200, (
                 '{"ok": true, "capabilities": '
-                '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health", "supplier_discovery_url", "web_auto_search", "market_state_import", "dashboard_queues", "price_candidate_auto_stage", "price_discovery_run"]}'
+                '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health", "supplier_discovery_url", "web_auto_search", "market_state_import", "dashboard_queues", "price_candidate_auto_stage", "price_auto_apply", "price_discovery_run", "price_discovery_jobs"]}'
             )
         if url == "http://127.0.0.1:5173/api/sources/status":
             return 200, '{"sources": []}'
@@ -55,8 +65,8 @@ def test_check_dev_site_verifies_api_frontend_proxy_and_ui_text(tmp_path):
     ]
 
 
-def test_check_dev_site_reports_missing_page_size_label(tmp_path):
-    app_source = tmp_path / "App.jsx"
+def test_check_dev_site_reports_missing_page_size_label():
+    app_source = _workspace_tmp("missing-label") / "App.jsx"
     app_source.write_text(
         "Tender Killer\nЗакупки\nФильтры\n" + _mojibake("На странице") + "\n",
         encoding="utf-8",
@@ -66,7 +76,7 @@ def test_check_dev_site_reports_missing_page_size_label(tmp_path):
         if url.endswith("/api/health"):
             return 200, (
                 '{"ok": true, "capabilities": '
-                '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health", "supplier_discovery_url", "web_auto_search", "market_state_import", "dashboard_queues", "price_candidate_auto_stage", "price_discovery_run"]}'
+                '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health", "supplier_discovery_url", "web_auto_search", "market_state_import", "dashboard_queues", "price_candidate_auto_stage", "price_auto_apply", "price_discovery_run", "price_discovery_jobs"]}'
             )
         if url.endswith("/api/sources/status"):
             return 200, '{"sources": []}'

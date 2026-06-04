@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from tender_killer.models import ProductProfile
 from tender_killer.models import Tender
 from tender_killer.models import TenderDocument
+from tender_killer.economics_service import update_profile_economics
 from tender_killer.storage import TenderStore
 from tender_killer.tender_query_service import list_tenders_payload
 
@@ -81,6 +82,54 @@ def test_tender_query_service_includes_market_state_and_saved_economics(tmp_path
     assert item["market_state"]["current_offer_price"] == 90000.0
     assert item["economics"]["revenue"] == 90000.0
     assert item["economics"]["revenue_kind"] == "current_offer"
+    assert item["economics"]["participation_decision"]["status"] == "can_bid"
+    assert item["decision"]["status"] == "interesting"
+
+
+def test_tender_query_service_reflects_manual_economics_after_persisted_save(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="manual-economics-list",
+            url="https://example.test/manual-economics-list",
+            title="Manual economics list tender",
+            price=50000.0,
+            status="Active",
+            deadline_at=datetime.now(UTC) + timedelta(days=1),
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "manual-economics-list",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="manual-economics-list",
+                position_index=1,
+                product_name="Cable",
+                quantity=5,
+                unit="pcs",
+            )
+        ],
+    )
+
+    update_profile_economics(
+        store.database_path,
+        "mosreg_market",
+        "manual-economics-list",
+        1,
+        {"unit_cost": "7000", "logistics_cost": "1000", "documents_cost": "500", "other_costs": "500"},
+    )
+
+    payload = list_tenders_payload(store.database_path, {"status": "active"})
+    item = payload["items"][0]
+
+    assert item["external_id"] == "manual-economics-list"
+    assert item["economics"]["items"][0]["total_cost"] == 35000.0
+    assert item["economics"]["supplier_cost"] == 37000.0
+    assert item["economics"]["missing_cost_inputs"] == []
     assert item["economics"]["participation_decision"]["status"] == "can_bid"
     assert item["decision"]["status"] == "interesting"
 

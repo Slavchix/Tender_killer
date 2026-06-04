@@ -1049,6 +1049,8 @@ Date: 2026-06-02.
 
 Date: 2026-06-02.
 
+Local dev supervisor note, 2026-06-03: `scripts/dev-web.ps1` now keeps API `127.0.0.1:8000` and web `127.0.0.1:5173` alive, restarts stale/unhealthy local processes, writes ignored logs to `logs/`, and falls back to `tender_killer.dev_static_proxy` when npm/Vite is unavailable or unhealthy.
+
 - Added tender-level active supplier price discovery through `run_tender_supplier_price_discovery(...)`.
 - New endpoint/capability: `POST /api/tenders/{source}/{external_id}/price-discovery/run` / `price_discovery_run`.
 - The run loops over product profiles, prepares supplier search queries, executes configured public provider collectors, preserves per-position no-candidate/error states, aggregates provider diagnostics, and then normalizes discovered evidence into `price_candidates`.
