@@ -22,7 +22,13 @@ DISCOVERY_TEXT_FIELDS = (
     "vat_mode",
     "delivery_note",
 )
-DISCOVERY_NUMBER_FIELDS = ("unit_price",)
+DISCOVERY_NUMBER_FIELDS = (
+    "unit_price",
+    "stock_quantity",
+    "preorder_quantity",
+    "minimum_order_quantity",
+    "pack_quantity",
+)
 DISCOVERY_CONFIDENCE_VALUES = {"high", "medium", "needs_review"}
 LOCKED_PROFILE_STATUSES = {"priced", "rejected"}
 TOKEN_PATTERN = re.compile(r"[^\w]+", re.UNICODE)

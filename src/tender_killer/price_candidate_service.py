@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,26 @@ PACK_QUANTITY_FIELDS = (
 )
 MIN_ORDER_QUANTITY_FIELDS = ("minimum_order_quantity", "min_order_quantity", "minimum_quantity", "min_quantity")
 MIN_ORDER_AMOUNT_FIELDS = ("minimum_order_amount", "min_order_amount")
+SUPPLIER_STOCK_FIELDS = ("stock_quantity", "available_quantity", "stock")
+SUPPLIER_PREORDER_FIELDS = ("preorder_quantity", "backorder_quantity", "on_order_quantity")
+PRICE_MATCH_TOKEN_RE = re.compile(r"[\w]+", re.UNICODE)
+PRICE_MATCH_STOP_WORDS = {
+    "для",
+    "товар",
+    "товара",
+    "товары",
+    "работа",
+    "работы",
+    "услуга",
+    "услуги",
+    "офисной",
+    "офисная",
+    "техники",
+    "техника",
+    "office",
+    "for",
+    "the",
+}
 
 
 def rank_profile_price_candidates(profile: dict[str, Any]) -> list[dict[str, Any]]:
@@ -48,6 +69,16 @@ def evaluate_price_candidate_quality(profile: dict[str, Any], candidate: dict[st
     review_status = str(candidate.get("review_status") or "pending").casefold()
     if review_status == "rejected":
         flags.append(_quality_flag("candidate_rejected", "block", "Rejected", "Operator already rejected this candidate."))
+
+    if _candidate_name_mismatch(profile, candidate, raw_payload):
+        flags.append(
+            _quality_flag(
+                "product_name_mismatch",
+                "block",
+                "Product name mismatch",
+                "Supplier product title does not match the tender position.",
+            )
+        )
 
     availability = _token(candidate.get("availability") or raw_payload.get("availability"))
     if availability in UNAVAILABLE_VALUES:
@@ -149,6 +180,12 @@ def normalize_price_candidate(profile: dict[str, Any], candidate: dict[str, Any]
     availability = _normalize_availability(candidate.get("availability") or raw_payload.get("availability"))
     if availability:
         normalized["availability"] = availability
+    stock_quantity = _first_number(candidate, raw_payload, SUPPLIER_STOCK_FIELDS)
+    if stock_quantity is not None:
+        normalized["stock_quantity"] = stock_quantity
+    preorder_quantity = _first_number(candidate, raw_payload, SUPPLIER_PREORDER_FIELDS)
+    if preorder_quantity is not None:
+        normalized["preorder_quantity"] = preorder_quantity
 
     delivery_note = str(candidate.get("delivery_note") or raw_payload.get("delivery_note") or "").strip()
     if not delivery_note and _number(candidate.get("delivery_cost") or raw_payload.get("delivery_cost")) == 0:
@@ -374,6 +411,51 @@ def apply_tender_auto_prices(
     }
 
 
+def _candidate_name_mismatch(
+    profile: dict[str, Any],
+    candidate: dict[str, Any],
+    raw_payload: dict[str, Any],
+) -> bool:
+    candidate_name = str(
+        candidate.get("product_name")
+        or candidate.get("name")
+        or raw_payload.get("product_name")
+        or raw_payload.get("name")
+        or ""
+    ).strip()
+    if not candidate_name:
+        return False
+
+    profile_text = " ".join(
+        str(value).strip()
+        for value in (
+            profile.get("product_name"),
+            profile.get("normalized_name"),
+            candidate.get("source_query"),
+            raw_payload.get("source_query"),
+        )
+        if value not in (None, "")
+    )
+    profile_stems = _price_match_stems(profile_text, remove_stop_words=True)
+    if not profile_stems:
+        return False
+    candidate_stems = _price_match_stems(candidate_name, remove_stop_words=False)
+    if not candidate_stems:
+        return False
+    return not bool(profile_stems & candidate_stems)
+
+
+def _price_match_stems(text: str, *, remove_stop_words: bool) -> set[str]:
+    stems: set[str] = set()
+    for token in PRICE_MATCH_TOKEN_RE.findall(str(text or "").casefold()):
+        if token.isdigit() or len(token) < 4:
+            continue
+        if remove_stop_words and token in PRICE_MATCH_STOP_WORDS:
+            continue
+        stems.add(token[:5])
+    return stems
+
+
 def _candidate_score(candidate: dict[str, Any], quality: dict[str, Any]) -> tuple[int, list[str]]:
     score = 0
     reasons: list[str] = []
@@ -466,7 +548,8 @@ def _economics_price_source(
     *,
     selection: str,
 ) -> dict[str, Any]:
-    return {
+    raw_payload = _raw_payload(candidate)
+    source = {
         "source": "price_candidate",
         "selection": selection,
         "candidate_id": int(candidate["id"]),
@@ -483,6 +566,16 @@ def _economics_price_source(
         "auto_eligible": bool(quality.get("auto_eligible")),
         "quality_flags": quality.get("quality_flags") or [],
     }
+    for field, fields in {
+        "stock_quantity": SUPPLIER_STOCK_FIELDS,
+        "preorder_quantity": SUPPLIER_PREORDER_FIELDS,
+        "minimum_order_quantity": MIN_ORDER_QUANTITY_FIELDS,
+        "pack_quantity": PACK_QUANTITY_FIELDS,
+    }.items():
+        number = _first_number(candidate, raw_payload, fields)
+        if number is not None:
+            source[field] = number
+    return source
 
 
 def _supplier_option_from_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
@@ -504,6 +597,17 @@ def _supplier_option_from_candidate(candidate: dict[str, Any]) -> dict[str, Any]
     for source_key, option_key in field_map.items():
         if candidate.get(source_key) not in (None, ""):
             option[option_key] = candidate[source_key]
+    raw_payload = _raw_payload(candidate)
+    number_field_map = {
+        "stock_quantity": SUPPLIER_STOCK_FIELDS,
+        "preorder_quantity": SUPPLIER_PREORDER_FIELDS,
+        "minimum_order_quantity": MIN_ORDER_QUANTITY_FIELDS,
+        "pack_quantity": PACK_QUANTITY_FIELDS,
+    }
+    for option_key, source_fields in number_field_map.items():
+        number = _first_number(candidate, raw_payload, source_fields)
+        if number is not None:
+            option[option_key] = number
     return {key: value for key, value in option.items() if value is not None}
 
 
@@ -575,6 +679,8 @@ def _candidate_from_supplier_source(
         "delivery_cost": source_candidate.get("delivery_cost"),
         "unit": source_candidate.get("unit") or source_candidate.get("uom") or profile.get("unit"),
         "pack_quantity": _first_number(source_candidate, raw_payload, PACK_QUANTITY_FIELDS),
+        "stock_quantity": _first_number(source_candidate, raw_payload, SUPPLIER_STOCK_FIELDS),
+        "preorder_quantity": _first_number(source_candidate, raw_payload, SUPPLIER_PREORDER_FIELDS),
         "minimum_order_quantity": _first_number(source_candidate, raw_payload, MIN_ORDER_QUANTITY_FIELDS),
         "minimum_order_amount": _first_number(source_candidate, raw_payload, MIN_ORDER_AMOUNT_FIELDS),
         "confidence": confidence,

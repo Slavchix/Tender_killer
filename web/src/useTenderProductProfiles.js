@@ -30,7 +30,16 @@ const PRICE_DISCOVERY_RUN_ID = 'price-discovery-run'
 const PRICE_AUTO_APPLY_ID = 'price-auto-apply'
 
 function isPriceDiscoveryJobActive(job) {
-  return job?.status === 'queued' || job?.status === 'running'
+  return job?.status === 'queued' || (job?.status === 'running' && !isPriceDiscoveryJobComplete(job))
+}
+
+function isPriceDiscoveryJobComplete(job) {
+  if (!job) return false
+  const status = String(job.status || '').toLowerCase()
+  if (status === 'succeeded' || status === 'failed') return true
+  const total = Number(job.total_profiles || 0)
+  const searched = Number(job.searched_count || 0)
+  return status === 'running' && total > 0 && searched >= total
 }
 
 function priceDiscoveryStatusMessage(job) {
@@ -47,7 +56,7 @@ function priceDiscoveryStatusMessage(job) {
   if (job.status === 'failed') {
     return `Поиск цен завершился ошибкой: ${job.error || 'подробности не получены'}`
   }
-  if (job.status === 'succeeded') {
+  if (job.status === 'succeeded' || isPriceDiscoveryJobComplete(job)) {
     const limitNote = job.partial ? `, осталось ${limited}` : ''
     return `Поиск цен завершен: подготовлено ${staged}, готово ${ready}, без кандидатов ${noCandidates}${limitNote}`
   }

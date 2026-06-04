@@ -37,11 +37,18 @@ export function ProductSupplierOptionsForm({
   const supplierDiscovery = profile?.raw_payload?.supplier_discovery || null
   const supplierSearchQueries = Array.isArray(supplierSearch?.queries) ? supplierSearch.queries : []
   const priceCandidates = Array.isArray(profile?.price_candidates) ? profile.price_candidates : []
+  const visiblePriceCandidates = priceCandidates.filter((candidate) => {
+    const reviewStatus = String(candidate?.review_status || 'pending').toLowerCase()
+    const qualityStatus = String(candidate?.quality_status || '').toLowerCase()
+    return reviewStatus === 'pending' && qualityStatus !== 'blocked'
+  })
+  const showDiscoveryPreview = visiblePriceCandidates.length === 0
+  const showSupplierOptions = supplierOptions.length > 0 && visiblePriceCandidates.length === 0
 
   return (
     <section className="profile-block supplier-options-block">
       <PriceCandidatesList
-        price_candidates={priceCandidates}
+        price_candidates={visiblePriceCandidates}
         reviewingPriceCandidateId={reviewingPriceCandidateId}
         onConfirm={(candidate) => onPriceCandidateConfirm?.(profile, candidate)}
         onReject={(candidate) => onPriceCandidateReject?.(profile, candidate)}
@@ -67,16 +74,20 @@ export function ProductSupplierOptionsForm({
         autoSelecting={autoSelecting}
       />
       <SupplierSearchPreview search={supplierSearch} />
-      <SupplierDiscoveryPreview
-        discovery={supplierDiscovery}
-        importing={importingDiscovery}
-        onImport={(candidateIndex) => onDiscoveryImport?.(profile, candidateIndex)}
-      />
-      <SupplierOptionsList
-        supplierOptions={supplierOptions}
-        saving={saving}
-        onSelect={(optionIndex) => onSelect?.(profile, optionIndex)}
-      />
+      {showDiscoveryPreview && (
+        <SupplierDiscoveryPreview
+          discovery={supplierDiscovery}
+          importing={importingDiscovery}
+          onImport={(candidateIndex) => onDiscoveryImport?.(profile, candidateIndex)}
+        />
+      )}
+      {showSupplierOptions && (
+        <SupplierOptionsList
+          supplierOptions={supplierOptions}
+          saving={saving}
+          onSelect={(optionIndex) => onSelect?.(profile, optionIndex)}
+        />
+      )}
     </section>
   )
 }
@@ -100,6 +111,7 @@ function PriceCandidatesList({
         const rejected = candidate.review_status === 'rejected'
         const busy = reviewingPriceCandidateId === candidate.id
         const qualityFlags = Array.isArray(candidate.quality_flags) ? candidate.quality_flags : []
+        const stockText = formatSupplierStock(candidate)
         return (
           <div
             className={`price-candidate-row ${candidate.review_status || 'pending'} quality-${candidate.quality_status || 'unknown'}`}
@@ -121,6 +133,7 @@ function PriceCandidatesList({
                 {candidate.auto_eligible ? ' · авто готово' : ''}
               </p>
               {candidate.source_query && <p>Запрос: {candidate.source_query}</p>}
+              {stockText && <p>{stockText}</p>}
               {qualityFlags.length > 0 && (
                 <ul className="price-candidate-flags">
                   {qualityFlags.slice(0, 4).map((flag) => (
@@ -155,6 +168,24 @@ function PriceCandidatesList({
       })}
     </div>
   )
+}
+
+function formatSupplierStock(candidate = {}) {
+  const stock = numberOrNull(candidate.stock_quantity ?? candidate.raw_payload?.stock_quantity)
+  const preorder = numberOrNull(candidate.preorder_quantity ?? candidate.raw_payload?.preorder_quantity)
+  const parts = []
+  if (stock != null) parts.push(`Склад: ${formatQuantity(stock)} шт.`)
+  if (preorder != null) parts.push(`Под заказ: ${formatQuantity(preorder)} шт.`)
+  return parts.join(' · ')
+}
+
+function formatQuantity(value) {
+  return Number.isInteger(value) ? String(value) : String(value).replace('.', ',')
+}
+
+function numberOrNull(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
 }
 
 function priceCandidateQualityLabel(status) {

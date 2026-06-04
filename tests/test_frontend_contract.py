@@ -1563,6 +1563,12 @@ def test_product_profile_renders_supplier_option_form():
     assert "onPriceCandidateReject" in profile_workspace_source
     assert "price_candidates" in source
     assert "PriceCandidatesList" in source
+    assert "visiblePriceCandidates" in source
+    assert "reviewStatus === 'pending'" in source
+    assert "showDiscoveryPreview" in source
+    assert "showSupplierOptions" in source
+    assert "formatSupplierStock(candidate)" in source
+    assert "formatSupplierStock(option)" in options_source
     assert "candidate.score" in source
     assert "candidate.quality_status" in source
     assert "candidate.quality_flags" in source
@@ -2802,8 +2808,10 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     assert "PRICE_CANDIDATE_STAGE_REVIEW_ID" in hook_source
     assert "PRICE_AUTO_APPLY_ID" in hook_source
     assert "PRICE_DISCOVERY_RUN_ID" in hook_source
+    assert "function isPriceDiscoveryJobComplete" in hook_source
     assert "const stagingPriceCandidates = reviewingPriceCandidateId === PRICE_CANDIDATE_STAGE_REVIEW_ID" in hook_source
     assert "const applyingAutoPrices = reviewingPriceCandidateId === PRICE_AUTO_APPLY_ID" in hook_source
+    assert "!isPriceDiscoveryJobComplete(job)" in hook_source
     assert "isPriceDiscoveryJobActive(priceDiscoveryJob)" in hook_source
     assert "const [priceDiscoveryJob, setPriceDiscoveryJob]" in hook_source
     assert "fetchPriceDiscoveryJob(priceDiscoveryJob.job_id)" in hook_source
@@ -2823,16 +2831,12 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     assert "onAutoPricesApply" in workspaces_source
     assert "onPriceDiscoveryRun" in workspaces_source
     assert "priceDiscoveryJob" in workspaces_source
-    assert "onPriceCandidatesStage" in economics_source
-    assert "onAutoPricesApply" in economics_source
     assert "onPriceDiscoveryRun" in economics_source
     assert "priceDiscoveryJobStatusText" in economics_source
-    assert "stagingPriceCandidates" in economics_source
-    assert "applyingAutoPrices" in economics_source
     assert "runningPriceDiscovery" in economics_source
     assert "Найти цены" in economics_source
-    assert "Подготовить цены" in economics_source
-    assert "Автоцены в расчет" in economics_source
+    assert "Подготовить цены" not in economics_source
+    assert "Автоцены в расчет" not in economics_source
     assert find_mojibake(api_source, API_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []

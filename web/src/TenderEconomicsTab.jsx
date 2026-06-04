@@ -16,8 +16,6 @@ export function TenderEconomicsTab({
   onSupplierOptionAutoSelect,
   onSupplierOptionAutoSelectAll,
   onReadyPriceCandidatesConfirmAll,
-  onPriceCandidatesStage,
-  onAutoPricesApply,
   onPriceDiscoveryRun,
   onSupplierDiscoveryImport,
   onPriceCandidateConfirm,
@@ -39,9 +37,7 @@ export function TenderEconomicsTab({
   autoSelectingSupplierPosition = null,
   autoSelectingAllSuppliers = false,
   confirmingReadyPriceCandidates = false,
-  stagingPriceCandidates = false,
   runningPriceDiscovery = false,
-  applyingAutoPrices = false,
   autoEstimatingPosition = null,
   acceptingAutoEconomicsPosition = null,
   supplierCatalogHealth = null,
@@ -56,9 +52,7 @@ export function TenderEconomicsTab({
     return Array.isArray(supplierOptions) && supplierOptions.length > 0
   })
   const readyPriceCandidateCount = profiles.filter(hasReadyPriceCandidateWithoutCost).length
-  const priceCandidateSourceCount = profiles.filter(hasPriceCandidateSource).length
   const priceDiscoveryRunCount = profiles.filter(profileNeedsPriceDiscovery).length
-  const autoPriceApplyCount = Math.max(readyPriceCandidateCount, priceCandidateSourceCount)
   const priceDiscoveryJobText = priceDiscoveryJobStatusText(priceDiscoveryJob)
 
   useEffect(() => {
@@ -82,22 +76,6 @@ export function TenderEconomicsTab({
           type="button"
         >
           {runningPriceDiscovery ? 'Ищу...' : `Найти цены (${priceDiscoveryRunCount})`}
-        </button>
-        <button
-          className="secondary-button compact"
-          disabled={stagingPriceCandidates || !onPriceCandidatesStage || priceCandidateSourceCount === 0}
-          onClick={() => ignoreEconomicsActionError(onPriceCandidatesStage?.())}
-          type="button"
-        >
-          {stagingPriceCandidates ? 'Готовлю...' : `Подготовить цены (${priceCandidateSourceCount})`}
-        </button>
-        <button
-          className="secondary-button compact"
-          disabled={applyingAutoPrices || !onAutoPricesApply || autoPriceApplyCount === 0}
-          onClick={() => ignoreEconomicsActionError(onAutoPricesApply?.())}
-          type="button"
-        >
-          {applyingAutoPrices ? 'Применяю...' : `Автоцены в расчет (${autoPriceApplyCount})`}
         </button>
         <button
           className="secondary-button compact"
@@ -174,8 +152,9 @@ function priceDiscoveryJobStatusText(job) {
   const staged = Number(job.staged_count || job.result?.staged_count || 0)
   const ready = Number(job.ready_count || job.result?.ready_count || 0)
   const progress = total > 0 ? `${searched}/${total}` : `${searched}`
+  const completedByProgress = job.status === 'running' && total > 0 && searched >= total
   if (job.status === 'failed') return `Поиск цен: ошибка, проверено ${progress}.`
-  if (job.status === 'succeeded') return `Поиск цен завершен: проверено ${progress}, подготовлено ${staged}, готово ${ready}.`
+  if (job.status === 'succeeded' || completedByProgress) return `Поиск цен завершен: проверено ${progress}, подготовлено ${staged}, готово ${ready}.`
   return `Поиск цен выполняется: проверено ${progress}, подготовлено ${staged}, готово ${ready}.`
 }
 
@@ -186,15 +165,6 @@ function hasReadyPriceCandidateWithoutCost(profile) {
     const reviewStatus = String(candidate?.review_status || 'pending').toLowerCase()
     return candidate?.auto_eligible === true && reviewStatus !== 'confirmed' && reviewStatus !== 'rejected'
   })
-}
-
-function hasPriceCandidateSource(profile) {
-  const supplierOptions = profile?.raw_payload?.supplier_options
-  const discoveryCandidates = profile?.raw_payload?.supplier_discovery?.candidates
-  return (
-    (Array.isArray(supplierOptions) && supplierOptions.some((option) => Number(option?.unit_price || option?.price || 0) > 0)) ||
-    (Array.isArray(discoveryCandidates) && discoveryCandidates.some((candidate) => Number(candidate?.unit_price || candidate?.price || 0) > 0))
-  )
 }
 
 function profileNeedsPriceDiscovery(profile) {

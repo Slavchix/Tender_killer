@@ -260,6 +260,8 @@ def test_provider_catalog_collector_extracts_officemag_visible_offer_without_sch
             "unit_price": 346.0,
             "currency": "RUB",
             "availability": "in_stock",
+            "stock_quantity": 16891,
+            "delivery_note": "OfficeMag: склад 16891 шт..",
             "status": "candidate",
             "source_query": "office paper a4",
             "source_kind": "normalized_name",
@@ -341,6 +343,10 @@ def test_provider_catalog_collector_extracts_officemag_search_result_cards() -> 
             "unit_price": 458.45,
             "currency": "RUB",
             "availability": "in_stock",
+            "stock_quantity": 39,
+            "preorder_quantity": 6634,
+            "minimum_order_quantity": 1,
+            "pack_quantity": 12,
             "delivery_note": "OfficeMag: цена от 1 шт. 482.58 RUB; цена от 3 шт. 458.45 RUB; склад 39 шт.; под заказ +6634 шт.; мин. партия 1; в упаковке 12.",
             "status": "candidate",
             "source_query": "папка 2 кольца brauberg 75 мм",
@@ -421,6 +427,10 @@ def test_provider_catalog_collector_extracts_real_russian_officemag_search_resul
             "unit_price": 498.0,
             "currency": "RUB",
             "availability": "in_stock",
+            "stock_quantity": 123,
+            "preorder_quantity": 200,
+            "minimum_order_quantity": 1,
+            "pack_quantity": 5,
             "delivery_note": "OfficeMag: цена от 1 шт. 520 RUB; цена от 10 шт. 498 RUB; склад 123 шт.; под заказ +200 шт.; мин. партия 1; в упаковке 5.",
             "status": "candidate",
             "source_query": "бумага офисная а4",
@@ -429,6 +439,51 @@ def test_provider_catalog_collector_extracts_real_russian_officemag_search_resul
             "provider": "officemag",
         }
     ]
+
+
+def test_provider_catalog_collector_skips_officemag_cards_without_query_core_token() -> None:
+    html = """
+        <html>
+          <body>
+            <ul class="listItems">
+              <li class="listItem js-productListItem" data-list-name="search">
+                <a class="listItemPhoto__link" href="/catalog/goods/999999/">
+                  <img alt="Знак эвакуационный Направляющая стрелка, комплект 10 штук">
+                </a>
+                <a href="/catalog/goods/999999/">
+                  Знак эвакуационный Направляющая стрелка, комплект 10 штук
+                </a>
+                <div class="ProductSpecial__item js-ProductSpecialRow" data-count="1" data-price="347"></div>
+              </li>
+            </ul>
+          </body>
+        </html>
+    """
+    collector = price_discovery.ProviderCatalogCollector(
+        "officemag",
+        fetch_text=lambda url: html,
+        max_product_pages=0,
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "Бумага для офисной техники 11.05.01.02.05.009",
+            "kind": "catalog_hint",
+            "quick_links": [
+                {
+                    "label": "OfficeMag",
+                    "url": "https://www.officemag.ru/search/?q=paper",
+                    "provider": "officemag",
+                    "link_kind": "catalog_search",
+                    "preset_id": "officemag_office_supplies",
+                }
+            ],
+        }
+    )
+
+    assert result["diagnostics"]["pages_fetched"] == 1
+    assert result["diagnostics"]["candidates_found"] == 0
+    assert result["candidates"] == []
 
 
 def test_provider_catalog_collector_extracts_officemag_product_detail_terms() -> None:
@@ -484,7 +539,7 @@ def test_provider_catalog_collector_extracts_officemag_product_detail_terms() ->
 
 
 def test_provider_catalog_collector_uses_browser_fallback_for_officemag_access_block(monkeypatch) -> None:
-    url = "https://www.officemag.ru/search/?q=office+paper+a4"
+    url = "https://www.officemag.ru/search/?q=folder"
     request = httpx.Request("GET", url)
     response = httpx.Response(
         503,
@@ -527,7 +582,7 @@ def test_provider_catalog_collector_uses_browser_fallback_for_officemag_access_b
     collector = price_discovery.ProviderCatalogCollector("officemag", max_product_pages=0)
     result = collector.collect_with_diagnostics(
         {
-            "query": "office paper a4",
+            "query": "папка 2 кольца",
             "kind": "normalized_name",
             "quick_links": [
                 {

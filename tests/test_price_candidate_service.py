@@ -198,6 +198,8 @@ def test_confirm_profile_price_candidate_applies_price_to_economics_and_marks_re
                 "confidence": "high",
                 "delivery_note": "Delivery included",
                 "pack_quantity": 1,
+                "stock_quantity": 123,
+                "preorder_quantity": 200,
                 "unit": "pack",
                 "minimum_order_quantity": 1,
                 "source_query": "paper a4",
@@ -232,6 +234,8 @@ def test_confirm_profile_price_candidate_applies_price_to_economics_and_marks_re
     assert profile["raw_payload"]["economics"] == {"unit_cost": 880.0}
     assert profile["raw_payload"]["selected_supplier_option_index"] == 0
     assert profile["raw_payload"]["supplier_options"][0]["status"] == "selected"
+    assert profile["raw_payload"]["supplier_options"][0]["stock_quantity"] == 123
+    assert profile["raw_payload"]["supplier_options"][0]["preorder_quantity"] == 200
     assert profile["raw_payload"]["economics_price_source"] == {
         "source": "price_candidate",
         "selection": "manual_confirmed",
@@ -244,6 +248,10 @@ def test_confirm_profile_price_candidate_applies_price_to_economics_and_marks_re
         "source_kind": "normalized_name",
         "unit_price": 880.0,
         "currency": "RUB",
+        "stock_quantity": 123,
+        "preorder_quantity": 200,
+        "minimum_order_quantity": 1,
+        "pack_quantity": 1,
         "review_status": "confirmed",
         "quality_status": "ready",
         "auto_eligible": True,

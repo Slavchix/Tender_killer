@@ -36,6 +36,24 @@ FetchText = Callable[[str], str]
 ProgressCallback = Callable[[dict[str, Any]], None]
 VISIBLE_PRICE_RE = re.compile(r"(?<!\d)(\d[\d\s\u00a0\u202f]*(?:[,.]\d{1,2})?)\s*(?:₽|руб\.?)", re.IGNORECASE)
 NUMBER_SPACE_RE = re.compile(r"[\s\u00a0\u202f]+")
+CATALOG_TOKEN_RE = re.compile(r"[\w]+", re.UNICODE)
+CATALOG_QUERY_STOP_WORDS = {
+    "для",
+    "товар",
+    "товара",
+    "товары",
+    "работа",
+    "работы",
+    "услуга",
+    "услуги",
+    "офисной",
+    "офисная",
+    "техники",
+    "техника",
+    "office",
+    "for",
+    "the",
+}
 NO_SUPPLIER_CANDIDATES_MESSAGE = "\u041d\u043e\u0432\u044b\u0445 \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432 \u043f\u043e\u0441\u0442\u0430\u0432\u0449\u0438\u043a\u043e\u0432 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e."
 PREPARE_SUPPLIER_SEARCH_MESSAGE = "\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u044c \u043f\u043e\u0438\u0441\u043a \u043f\u043e\u0441\u0442\u0430\u0432\u0449\u0438\u043a\u043e\u0432."
 DEFAULT_TENDER_PRICE_DISCOVERY_MAX_POSITIONS = 50
@@ -887,6 +905,8 @@ def _officemag_candidate_from_scope(
     product_name = _officemag_product_name(scope)
     if not product_name:
         return None
+    if not _catalog_product_name_matches_query(product_name, query_text):
+        return None
     price_breaks = _officemag_price_breaks(scope)
     prices = [item["price"] for item in price_breaks]
     if price := _officemag_primary_price(scope):
@@ -900,6 +920,10 @@ def _officemag_candidate_from_scope(
         return None
 
     delivery_note = _officemag_delivery_note(scope, price_breaks)
+    stock_quantity = _officemag_stock_quantity(scope)
+    preorder_quantity = _officemag_preorder_quantity(scope)
+    min_party = _officemag_min_party(scope)
+    pack_size = _officemag_pack_size(scope)
     candidate = {
         "name": product_name,
         "url": product_url,
@@ -912,6 +936,14 @@ def _officemag_candidate_from_scope(
         "note": note,
         "provider": "officemag",
     }
+    if stock_quantity is not None:
+        candidate["stock_quantity"] = stock_quantity
+    if preorder_quantity is not None:
+        candidate["preorder_quantity"] = preorder_quantity
+    if min_party is not None:
+        candidate["minimum_order_quantity"] = min_party
+    if pack_size is not None:
+        candidate["pack_quantity"] = pack_size
     if delivery_note:
         candidate["delivery_note"] = delivery_note
     return candidate
@@ -995,9 +1027,9 @@ def _officemag_delivery_note(scope: BeautifulSoup, price_breaks: list[dict[str, 
     text = _officemag_scope_text(scope)
     stock = _officemag_quantity_after(text, r"(?:Наличие на складе|На складе)\b")
     preorder = _officemag_quantity_after(text, r"Под заказ\b")
-    min_party = _officemag_min_party(scope) or _officemag_int_after(text, r"Мин\.\s*партия")
-    pack_size = _officemag_int_after(text, r"В упаковке")
-    if not parts and min_party is None and pack_size is None:
+    min_party = _officemag_min_party(scope)
+    pack_size = _officemag_pack_size(scope)
+    if not parts and not stock and not preorder and min_party is None and pack_size is None:
         return None
     if stock:
         parts.append(f"склад {stock}")
@@ -1014,15 +1046,31 @@ def _officemag_scope_text(scope: BeautifulSoup) -> str:
     return " ".join(scope.get_text(" ", strip=True).replace("\xa0", " ").split())
 
 
+def _officemag_stock_quantity(scope: BeautifulSoup) -> int | None:
+    text = _officemag_scope_text(scope)
+    return _officemag_quantity_number_after(text, r"(?:Наличие на складе|На складе)\b")
+
+
+def _officemag_preorder_quantity(scope: BeautifulSoup) -> int | None:
+    text = _officemag_scope_text(scope)
+    return _officemag_quantity_number_after(text, r"Под заказ\b")
+
+
 def _officemag_min_party(scope: BeautifulSoup) -> int | None:
+    text = _officemag_scope_text(scope)
     for node in scope.select(".ProductState--stepCount .ProductState"):
-        text = _officemag_scope_text(node)
-        if "Мин. партия" not in text:
+        node_text = _officemag_scope_text(node)
+        if "Мин. партия" not in node_text:
             continue
-        match = re.search(r":\s*(\d+)\b", text)
+        match = re.search(r":\s*(\d+)\b", node_text)
         if match:
             return int(match.group(1))
-    return None
+    return _officemag_int_after(text, r"Мин\.\s*партия")
+
+
+def _officemag_pack_size(scope: BeautifulSoup) -> int | None:
+    text = _officemag_scope_text(scope)
+    return _officemag_int_after(text, r"В упаковке")
 
 
 def _officemag_quantity_after(text: str, marker_pattern: str) -> str | None:
@@ -1032,11 +1080,42 @@ def _officemag_quantity_after(text: str, marker_pattern: str) -> str | None:
     return " ".join(match.group(1).replace("\xa0", " ").replace("\u202f", " ").split())
 
 
+def _officemag_quantity_number_after(text: str, marker_pattern: str) -> int | None:
+    quantity = _officemag_quantity_after(text, marker_pattern)
+    if not quantity:
+        return None
+    match = re.search(r"\d[\d\s\u00a0\u202f]*", quantity)
+    if not match:
+        return None
+    return int(NUMBER_SPACE_RE.sub("", match.group(0)))
+
+
 def _officemag_int_after(text: str, marker_pattern: str) -> int | None:
     match = re.search(rf"{marker_pattern}\s*:?\s*(\d+)", text, re.IGNORECASE)
     if not match:
         return None
     return int(match.group(1))
+
+
+def _catalog_product_name_matches_query(product_name: str, query_text: str) -> bool:
+    query_stems = _catalog_token_stems(query_text, remove_stop_words=True)
+    if not query_stems:
+        return True
+    name_stems = _catalog_token_stems(product_name, remove_stop_words=False)
+    if not name_stems:
+        return True
+    return bool(query_stems & name_stems)
+
+
+def _catalog_token_stems(text: str, *, remove_stop_words: bool) -> set[str]:
+    stems: set[str] = set()
+    for token in CATALOG_TOKEN_RE.findall(str(text or "").casefold()):
+        if token.isdigit() or len(token) < 4:
+            continue
+        if remove_stop_words and token in CATALOG_QUERY_STOP_WORDS:
+            continue
+        stems.add(token[:5])
+    return stems
 
 
 def _positive_number(value: Any) -> int | None:
