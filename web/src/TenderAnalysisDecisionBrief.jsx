@@ -4,7 +4,6 @@ export function AnalysisDecisionBrief({ analysis, documents = [], onOpenSection 
   const operatorView = analysis?.operator_view
   const decision = operatorView?.decision_brief || fallbackAnalysisDecision(analysis, documents)
   const actionPlan = operatorView?.action_plan || []
-  const documentState = operatorView?.document_state
   const primarySection = decision.primary_section || 'decision_risks'
 
   return (
@@ -29,29 +28,26 @@ export function AnalysisDecisionBrief({ analysis, documents = [], onOpenSection 
       </div>
 
       {actionPlan.length > 0 && (
-        <div className="analysis-action-plan">
-          <span>План проверки</span>
-          {actionPlan.slice(0, 4).map((item) => (
-            <button
-              className={`analysis-action-card ${item.status || 'pending'}`}
-              key={item.id || item.title}
-              onClick={() => onOpenSection?.(item.id || primarySection)}
-              type="button"
-            >
-              <strong>{item.title}</strong>
-              <em>{item.next_step}</em>
-              {item.items?.length ? <small>{item.items.slice(0, 3).join(', ')}</small> : null}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {documentState && (
-        <div className={`analysis-document-state ${documentState.status || 'pending'}`}>
-          <span>Документы</span>
-          <strong>{documentState.text_ready}/{documentState.total}</strong>
-          <p>{documentState.summary}</p>
-        </div>
+        <details className="analysis-action-plan">
+          <summary>
+            <span>План проверки</span>
+            <strong>{actionPlan.length}</strong>
+          </summary>
+          <div className="analysis-action-plan-list">
+            {actionPlan.slice(0, 4).map((item) => (
+              <button
+                className={`analysis-action-card ${item.status || 'pending'}`}
+                key={item.id || item.title}
+                onClick={() => onOpenSection?.(item.id || primarySection)}
+                type="button"
+              >
+                <strong>{item.title}</strong>
+                <em>{item.next_step}</em>
+                {item.items?.length ? <small>{item.items.slice(0, 3).join(', ')}</small> : null}
+              </button>
+            ))}
+          </div>
+        </details>
       )}
 
       <div className="analysis-decision-actions">

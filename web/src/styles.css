@@ -2159,7 +2159,6 @@ textarea:focus {
 .analysis-decision-head,
 .analysis-reason-list,
 .analysis-action-plan,
-.analysis-document-state,
 .analysis-decision-actions {
   min-width: 0;
 }
@@ -2209,17 +2208,66 @@ textarea:focus {
 }
 
 .analysis-action-plan {
-  display: grid;
   grid-column: 1 / 3;
-  gap: 8px;
 }
 
-.analysis-action-plan > span,
-.analysis-document-state span {
+.analysis-action-plan summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 10px;
+  color: #dbe8e2;
+  background: #1e2c27;
+  border: 1px solid #3b5148;
+  border-radius: 7px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.analysis-action-plan summary::-webkit-details-marker {
+  display: none;
+}
+
+.analysis-action-plan summary::before {
+  content: "+";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: #0d160f;
+  background: #70df64;
+  border-radius: 50%;
+  font-weight: 900;
+}
+
+.analysis-action-plan[open] summary::before {
+  content: "-";
+}
+
+.analysis-action-plan summary span {
+  flex: 1 1 auto;
+  min-width: 0;
   color: #9bb2aa;
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.analysis-action-plan summary strong {
+  color: #0d160f;
+  padding: 3px 8px;
+  background: #70df64;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.analysis-action-plan-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .analysis-action-card {
@@ -2252,28 +2300,6 @@ textarea:focus {
 .analysis-action-card small {
   color: #b9cdc5;
   font-style: normal;
-}
-
-.analysis-document-state {
-  display: grid;
-  grid-column: 1 / 3;
-  gap: 4px;
-  min-width: 0;
-  padding: 9px 10px;
-  background: #15221e;
-  border: 1px solid #33443d;
-  border-radius: 7px;
-}
-
-.analysis-document-state strong {
-  color: #eef8f2;
-  font-size: 18px;
-}
-
-.analysis-document-state p {
-  margin: 0;
-  color: #b9cdc5;
-  overflow-wrap: anywhere;
 }
 
 .analysis-decision-actions {

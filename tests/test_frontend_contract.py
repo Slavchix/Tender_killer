@@ -538,8 +538,11 @@ def test_frontend_analysis_reads_backend_operator_view_contract():
     assert "analysis?.operator_view" in analysis_decision_source
     assert "decision_brief" in analysis_decision_source
     assert "operatorView?.action_plan" in analysis_decision_source
-    assert "operatorView?.document_state" in analysis_decision_source
-    assert "documentState?.text_ready" in analysis_summary_source
+    assert "operatorView?.document_state" not in analysis_decision_source
+    assert "analysis-document-state" not in analysis_decision_source
+    assert "documentStatusCounts" not in analysis_summary_source
+    assert "documents_ready" not in analysis_summary_source
+    assert "documents_total" not in analysis_summary_source
     assert "operatorView?.sections" in analysis_sections_source
     assert "operatorView?.metrics" in analysis_summary_source
     assert "buildAnalysisDecision" not in analysis_decision_source
@@ -2249,12 +2252,20 @@ def test_analysis_tab_renders_decision_first_brief():
     assert "Короткое решение" in decision_source
     assert "Ключевые причины" in decision_source
     assert "reasons.slice(0, 3)" in decision_source
+    assert '<details className="analysis-action-plan">' in decision_source
+    assert "<summary>" in decision_source
+    assert "analysis-action-plan-list" in decision_source
+    assert "analysis-document-state" not in decision_source
+    assert "documentState" not in decision_source
     assert "onOpenSection?.(primarySection)" in decision_source
     assert "onOpenSection?.('evidence')" not in decision_source
     assert "'decision_risks'" in decision_source
     assert "'product_compliance'" in decision_source
     assert ".analysis-decision-brief" in styles_source
     assert ".analysis-reason-list" in styles_source
+    assert ".analysis-action-plan summary" in styles_source
+    assert ".analysis-action-plan-list" in styles_source
+    assert ".analysis-document-state" not in styles_source
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
     assert find_mojibake(decision_source, TENDER_ANALYSIS_DECISION_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
