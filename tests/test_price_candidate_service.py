@@ -115,6 +115,40 @@ def test_rank_profile_price_candidates_marks_auto_ready_candidate() -> None:
     assert _flag_ids(ranked[1]) == {"availability_unavailable"}
 
 
+def test_rank_profile_price_candidates_blocks_wrong_product_family() -> None:
+    profile = {
+        "position_index": 1,
+        "product_name": "cartridge for electrophotographic printing devices",
+        "quantity": 2,
+        "unit": "piece",
+        "price_candidates": [
+            {
+                "id": 1,
+                "provider": "officemag",
+                "product_name": "Office paper A4, 80 gsm, 500 sheets",
+                "source_url": "https://www.officemag.ru/catalog/goods/112464/",
+                "source_query": "cartridge for electrophotographic printing devices",
+                "unit_price": 493.0,
+                "currency": "RUB",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "confidence": "high",
+                "raw_payload": {
+                    "delivery_note": "Delivery included",
+                    "pack_quantity": 1,
+                    "unit": "piece",
+                },
+            }
+        ],
+    }
+
+    ranked = rank_profile_price_candidates(profile)
+
+    assert ranked[0]["quality_status"] == "blocked"
+    assert ranked[0]["auto_eligible"] is False
+    assert "product_name_mismatch" in _flag_ids(ranked[0])
+
+
 def test_rank_profile_price_candidates_flags_unknown_cost_drivers_before_auto_accept() -> None:
     profile = {
         "position_index": 1,

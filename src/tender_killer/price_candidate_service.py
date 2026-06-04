@@ -6,6 +6,7 @@ from typing import Any
 
 from tender_killer.product_profile_service import ensure_product_profiles
 from tender_killer.storage import TenderStore
+from tender_killer.supplier_product_matcher import supplier_product_name_matches_query
 
 
 REVIEW_STATUSES = {"confirmed", "rejected"}
@@ -436,13 +437,9 @@ def _candidate_name_mismatch(
         )
         if value not in (None, "")
     )
-    profile_stems = _price_match_stems(profile_text, remove_stop_words=True)
-    if not profile_stems:
+    if not profile_text.strip():
         return False
-    candidate_stems = _price_match_stems(candidate_name, remove_stop_words=False)
-    if not candidate_stems:
-        return False
-    return not bool(profile_stems & candidate_stems)
+    return not supplier_product_name_matches_query(profile_text, candidate_name)
 
 
 def _price_match_stems(text: str, *, remove_stop_words: bool) -> set[str]:

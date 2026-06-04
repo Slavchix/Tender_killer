@@ -22,6 +22,7 @@ from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
 from tender_killer.supplier_catalog_health_service import http_error_kind
 from tender_killer.supplier_catalog_health_service import response_body_preview
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
+from tender_killer.supplier_product_matcher import supplier_product_name_matches_query
 from tender_killer.supplier_search_service import build_supplier_search_queries
 from tender_killer.supplier_search_service import prepare_profile_supplier_search
 
@@ -350,6 +351,19 @@ def run_tender_supplier_price_discovery(
         prepare_profile_supplier_search(database_path, source, external_id, position_index)
         prepared_count += 1
         searched_count += 1
+        if progress_callback is not None:
+            progress_callback(
+                {
+                    "total_profiles": len(profiles),
+                    "searched_count": searched_count,
+                    "limited_count": max(0, len(searchable_profiles) - searched_count),
+                    "partial": searched_count < len(searchable_profiles),
+                    "positions": [
+                        *positions,
+                        {"position_index": position_index, "status": "searching", "staged_count": 0},
+                    ],
+                }
+            )
         try:
             result = run_profile_supplier_price_discovery(
                 database_path,
@@ -1098,13 +1112,7 @@ def _officemag_int_after(text: str, marker_pattern: str) -> int | None:
 
 
 def _catalog_product_name_matches_query(product_name: str, query_text: str) -> bool:
-    query_stems = _catalog_token_stems(query_text, remove_stop_words=True)
-    if not query_stems:
-        return True
-    name_stems = _catalog_token_stems(product_name, remove_stop_words=False)
-    if not name_stems:
-        return True
-    return bool(query_stems & name_stems)
+    return supplier_product_name_matches_query(query_text, product_name)
 
 
 def _catalog_token_stems(text: str, *, remove_stop_words: bool) -> set[str]:

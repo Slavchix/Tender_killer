@@ -121,6 +121,39 @@ def test_public_fetch_error_preserves_blocked_catalog_preview(monkeypatch) -> No
     assert captured["trust_env"] is False
 
 
+def test_officemag_search_results_reject_unrelated_product_families() -> None:
+    html = """
+    <html>
+      <body>
+        <ul>
+          <li class="listItem">
+            <a href="/catalog/goods/112464/">Office paper A4, 80 gsm</a>
+            <span class="js-productSum" data-price="493"></span>
+          </li>
+          <li class="listItem">
+            <a href="/catalog/goods/700245/">Body sponge with massage effect</a>
+            <span class="js-productSum" data-price="86"></span>
+          </li>
+          <li class="listItem">
+            <a href="/catalog/goods/271846/">Sakura W1510X cartridge for HP LaserJet Pro 4003</a>
+            <span class="js-productSum" data-price="3480"></span>
+          </li>
+        </ul>
+      </body>
+    </html>
+    """
+
+    candidates = price_discovery._officemag_visible_candidates(
+        html,
+        "https://www.officemag.ru/search/?q=cartridge",
+        "cartridge for electrophotographic printing devices",
+        "catalog_search",
+    )
+
+    assert [candidate["name"] for candidate in candidates] == ["Sakura W1510X cartridge for HP LaserJet Pro 4003"]
+    assert candidates[0]["unit_price"] == 3480
+
+
 def test_provider_catalog_collector_follows_matching_catalog_product_links() -> None:
     pages = {
         "https://petrovich.ru/search/?q=cement+mix": """
@@ -1149,6 +1182,71 @@ def test_run_tender_supplier_price_discovery_prepares_all_positions_and_summariz
     assert profiles[1]["price_candidates"][0]["provider"] == "bulk_test_catalog"
     assert "economics" not in profiles[1]["raw_payload"]
     assert profiles[2]["raw_payload"]["supplier_discovery"]["status"] == "no_candidates"
+
+
+def test_run_tender_supplier_price_discovery_reports_position_before_slow_collectors(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-discovery-progress",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-discovery-progress",
+            title="Office goods tender",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-discovery-progress",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-progress",
+                position_index=1,
+                product_name="Office paper A4",
+                normalized_name="office paper a4",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+
+    progress_events: list[dict[str, Any]] = []
+
+    class SlowCollector:
+        provider = "slow_catalog"
+
+        def collect_with_diagnostics(self, query):
+            assert progress_events[-1]["searched_count"] == 1
+            assert progress_events[-1]["positions"] == [
+                {"position_index": 1, "status": "searching", "staged_count": 0}
+            ]
+            return {
+                "candidates": [],
+                "diagnostics": {
+                    "provider": "slow_catalog",
+                    "queries_seen": 1,
+                    "links_seen": len(query.get("quick_links") or []),
+                    "links_skipped": 0,
+                    "pages_fetched": 1,
+                    "candidates_found": 0,
+                    "errors": ["no visible price"],
+                },
+            }
+
+    run_tender_supplier_price_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-discovery-progress",
+        collectors=[SlowCollector()],
+        max_positions=10,
+        progress_callback=progress_events.append,
+    )
+
+    assert progress_events[0]["searched_count"] == 0
+    assert progress_events[1]["searched_count"] == 1
+    assert progress_events[1]["positions"][0]["status"] == "searching"
+    assert progress_events[-1]["positions"][0]["status"] == "no_candidates"
 
 
 def test_run_tender_supplier_price_discovery_can_limit_positions_per_run(tmp_path) -> None:
