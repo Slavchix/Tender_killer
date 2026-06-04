@@ -450,7 +450,7 @@ function filterSummary(filters) {
   chips.push(sources.length ? sources.map((source) => sourceLabels[source] || source).join(' + ') : 'Все площадки')
   chips.push(filters.law || 'Все законы')
   chips.push(filters.status === 'active' ? 'Только активные' : filters.status || 'Все статусы')
-  if (filters.deadline_days) chips.push(`Дедлайн ≤ ${optionLabel(deadlineOptions, filters.deadline_days)}`)
+  if (filters.deadline_hours) chips.push(`Дедлайн ≤ ${optionLabel(deadlineOptions, filters.deadline_hours)}`)
   if (filters.region) chips.push(filters.region)
   if (filters.okpd2) chips.push(`ОКПД2: ${filters.okpd2}`)
   if (filters.source_family) chips.push(`Тип источника: ${optionLabel(sourceFamilyOptions, filters.source_family)}`)

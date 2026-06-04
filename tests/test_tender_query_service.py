@@ -366,14 +366,14 @@ def test_tender_query_service_active_status_hides_expired_moscow_local_deadlines
     assert payload["items"][0]["external_id"] == "actual-moscow"
 
 
-def test_tender_query_service_filters_by_deadline_days_window(tmp_path):
+def test_tender_query_service_filters_by_deadline_hours_window(tmp_path):
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()
     now = datetime.now(UTC)
     for external_id, deadline_at in (
         ("expired", now - timedelta(hours=1)),
-        ("urgent", now + timedelta(hours=12)),
-        ("later", now + timedelta(days=2)),
+        ("urgent", now + timedelta(minutes=30)),
+        ("later", now + timedelta(minutes=90)),
         ("no-deadline", None),
     ):
         store.upsert_tender(
@@ -387,7 +387,7 @@ def test_tender_query_service_filters_by_deadline_days_window(tmp_path):
             )
         )
 
-    payload = list_tenders_payload(store.database_path, {"deadline_days": "1"})
+    payload = list_tenders_payload(store.database_path, {"deadline_hours": "1"})
 
     assert payload["total"] == 1
     assert payload["items"][0]["external_id"] == "urgent"

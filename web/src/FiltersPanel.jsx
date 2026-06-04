@@ -90,9 +90,9 @@ export function FiltersPanel({
           <label>
             Дедлайн
             <select
-              name="deadline_days"
-              onChange={(event) => onUpdateFilter('deadline_days', event.target.value)}
-              value={filters.deadline_days}
+              name="deadline_hours"
+              onChange={(event) => onUpdateFilter('deadline_hours', event.target.value)}
+              value={filters.deadline_hours}
             >
               {deadlineOptions.map((option) => (
                 <option key={option.value || 'unlimited-deadline'} value={option.value}>

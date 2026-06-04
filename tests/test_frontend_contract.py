@@ -106,7 +106,7 @@ def test_tender_cockpit_exposes_normalized_metadata_filters():
     constants_source = CONSTANTS_SOURCE.read_text(encoding="utf-8")
     filters_source = FILTERS_PANEL_SOURCE.read_text(encoding="utf-8")
 
-    for key in ("source_family", "procedure_type", "customer_inn", "deadline_days"):
+    for key in ("source_family", "procedure_type", "customer_inn", "deadline_hours"):
         assert f"{key}: ''" in constants_source
 
     assert "export const regionOptions" in constants_source
@@ -115,7 +115,7 @@ def test_tender_cockpit_exposes_normalized_metadata_filters():
     assert "value: 'Краснодарский край'" in constants_source
     assert "value: 'Республика Татарстан'" in constants_source
     assert "deadlineOptions.map" in filters_source
-    assert "onUpdateFilter('deadline_days'" in filters_source
+    assert "onUpdateFilter('deadline_hours'" in filters_source
     assert "regionOptions.map" in filters_source
     assert "name=\"region\"" in filters_source
     assert "onUpdateFilter('region'" in filters_source
@@ -281,9 +281,9 @@ def test_frontend_uses_dedicated_filters_panel_module():
     assert "regionOptions.map" in filters_source
     assert "procedureTypeOptions.map" not in filters_source
     assert "sourceSelectValue(filters.source)" in filters_source
-    assert "filters.deadline_days" in filters_source
+    assert "filters.deadline_hours" in filters_source
     assert "onUpdateFilter('source'" in filters_source
-    assert "onUpdateFilter('deadline_days'" in filters_source
+    assert "onUpdateFilter('deadline_hours'" in filters_source
     assert "function FiltersPanel" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(filters_source, FILTERS_PANEL_SOURCE) == []
@@ -2286,6 +2286,19 @@ def test_analysis_tab_renders_compact_tz_passport_navigation():
     assert ".analysis-passport-nav" in styles_source
     assert ".analysis-passport-grid" not in styles_source
     assert find_mojibake(passport_source, TENDER_ANALYSIS_PASSPORT_SOURCE) == []
+
+
+def test_analysis_tab_keeps_manual_section_selection_after_passport_click():
+    analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+
+    effect_start = analysis_source.index("useEffect(() => {")
+    effect_end = analysis_source.index("}, [analysisSectionKey, primarySection])", effect_start)
+    effect_body = analysis_source[effect_start:effect_end]
+
+    assert "const analysisSectionKey = analysisSections.map((section) => section.id).join('|')" in analysis_source
+    assert "setSelectedAnalysisSection((currentSection)" in effect_body
+    assert "setSelectedAnalysisSection(primarySection)" not in effect_body
+    assert "selectedAnalysisSection" not in effect_body
 
 
 def test_analysis_documents_render_structured_evidence_model():

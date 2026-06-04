@@ -23,19 +23,22 @@ export function TenderAnalysisTab({
 }) {
   const [selectedAnalysisSection, setSelectedAnalysisSection] = useState('decision_risks')
   const analysisSections = analysisSectionItems(analysis, documents)
+  const analysisSectionKey = analysisSections.map((section) => section.id).join('|')
   const analysisActionDisabled = preparingAnalysis || downloading || extracting || analyzing
   const primarySection = analysis?.operator_view?.decision_brief?.primary_section
 
   useEffect(() => {
     const sectionIds = new Set(analysisSections.map((section) => section.id))
-    if (primarySection && sectionIds.has(primarySection)) {
-      setSelectedAnalysisSection(primarySection)
-      return
-    }
-    if (!sectionIds.has(selectedAnalysisSection)) {
-      setSelectedAnalysisSection(analysisSections[0]?.id || 'decision_risks')
-    }
-  }, [analysisSections, primarySection, selectedAnalysisSection])
+    setSelectedAnalysisSection((currentSection) => {
+      if (primarySection && sectionIds.has(primarySection)) {
+        return primarySection
+      }
+      if (!sectionIds.has(currentSection)) {
+        return analysisSections[0]?.id || 'decision_risks'
+      }
+      return currentSection
+    })
+  }, [analysisSectionKey, primarySection])
 
   return (
     <section className="detail-section active analysis-section">
