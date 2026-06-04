@@ -90,6 +90,23 @@ def test_browser_fetcher_discovers_bundled_codex_node(monkeypatch, tmp_path) -> 
     assert browser_fetcher.resolve_node_path() == str(node)
 
 
+def test_browser_fetcher_skips_windowsapps_node_proxy(monkeypatch, tmp_path) -> None:
+    local_app_data = tmp_path / "LocalAppData"
+    bundled_node = local_app_data / "OpenAI" / "Codex" / "bin" / "runtime-id" / "node.exe"
+    bundled_node.parent.mkdir(parents=True)
+    bundled_node.write_text("", encoding="utf-8")
+    windowsapps_node = (
+        "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.601.2237.0_x64__2p2nqsd0c76g0"
+        "\\app\\resources\\node.exe"
+    )
+
+    monkeypatch.setenv("TENDER_KILLER_BROWSER_NODE_PATH", windowsapps_node)
+    monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
+    monkeypatch.setattr(browser_fetcher.shutil, "which", lambda name: windowsapps_node)
+
+    assert browser_fetcher.resolve_node_path() == str(bundled_node)
+
+
 def test_browser_fetch_helper_uses_ephemeral_profile_by_default() -> None:
     script = Path("scripts/browser-fetch.mjs").read_text(encoding="utf-8")
 

@@ -61,12 +61,19 @@ def fetch_text(url: str, *, provider: str | None = None) -> str:
 
 def resolve_node_path() -> str:
     if value := _text(os.environ.get("TENDER_KILLER_BROWSER_NODE_PATH")):
-        return value
+        if not _looks_like_windowsapps_node_proxy(value):
+            return value
     if bundled_node := _bundled_codex_node_path():
         return str(bundled_node)
     if node_path := shutil.which("node"):
-        return node_path
+        if not _looks_like_windowsapps_node_proxy(node_path):
+            return node_path
     return "node"
+
+
+def _looks_like_windowsapps_node_proxy(value: str) -> bool:
+    normalized = str(value).replace("/", "\\").casefold()
+    return "\\windowsapps\\" in normalized and normalized.endswith("\\node.exe")
 
 
 def resolve_script_path() -> Path:
