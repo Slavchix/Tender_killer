@@ -72,7 +72,7 @@ def _view(
     status: str,
     fact_metrics: Any = None,
 ) -> dict[str, Any]:
-    items = [item for section in sections for item in section["items"] if item.get("type") != "document"]
+    items = [item for section in sections for item in section["items"] if _is_analysis_item(item)]
     decision = _decision_brief(analysis, sections, status)
     action_plan = _action_plan(sections, document_state)
     metrics = _metrics(items, sections, document_state, fact_metrics)
@@ -110,7 +110,7 @@ def _major_sections(
             {
                 "id": section_id,
                 "title": definition["title"],
-                "count": len(items),
+                "count": _section_count(items),
                 "tone": _section_tone(section_id, items, pending=pending),
                 "empty": definition["empty"],
                 "items": items,
@@ -203,7 +203,7 @@ def _action_plan(
 ) -> list[dict[str, Any]]:
     plan: list[dict[str, Any]] = []
     for section in sections:
-        items = [item for item in section["items"] if item.get("type") != "document"]
+        items = [item for item in section["items"] if _is_analysis_item(item)]
         section_id = section["id"]
         status = "ok"
         if section_id == "decision_risks" and items:
@@ -347,7 +347,7 @@ def _legacy_label_item(
 
 def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
     kind = str(raw_item.get("kind") or raw_item.get("type") or _fallback_kind(raw_item))
-    label = _text(raw_item.get("label")) or f"Факт {index + 1}"
+    raw_label = _text(raw_item.get("label")) or f"Факт {index + 1}"
     category = _text(raw_item.get("category")) or "general"
     severity = _text(raw_item.get("severity")) or "medium"
     source = _text(raw_item.get("document_name") or raw_item.get("source"))
@@ -358,6 +358,7 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         or category in BLOCKER_CATEGORIES
         or (severity == "high" and kind not in {"document", "subject"})
     )
+    label = _canonical_label(raw_label, category)
     is_price_factor = bool(raw_item.get("is_price_factor")) or (category in PRICE_FACTOR_CATEGORIES and kind != "subject")
     value = _text(raw_item.get("value")) or _text(raw_item.get("description")) or _text(raw_item.get("fragment"))
     fragment = _text(raw_item.get("fragment") or raw_item.get("evidence"))
@@ -370,7 +371,15 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         "kind": kind,
         "label": label,
         "value": value,
-        "description": _text(raw_item.get("description")) or value,
+        "description": _operator_description(
+            label=label,
+            raw_description=_text(raw_item.get("description")),
+            value=value,
+            fragment=fragment,
+            category=category,
+            kind=kind,
+            is_blocker=is_blocker,
+        ),
         "category": category,
         "severity": severity,
         "source": source,
@@ -381,7 +390,14 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         "fragment": fragment,
         "impact": _text(raw_item.get("impact")) or _fallback_impact(category, severity, is_blocker),
         "operator_group": _text(raw_item.get("operator_group")) or _operator_group(kind, category, is_blocker, needs_review),
-        "operator_action": _text(raw_item.get("operator_action")) or _operator_action(kind, category, is_blocker, needs_review),
+        "operator_action": _operator_action(
+            kind,
+            category,
+            is_blocker,
+            needs_review,
+            label=label,
+            raw_action=_text(raw_item.get("operator_action")),
+        ),
         "price_impact": _text(raw_item.get("price_impact")) or _price_impact(category),
         "priority": _int_metric(raw_item.get("priority"), _priority(kind, category, severity, is_blocker, needs_review)),
         "rule_id": _text(raw_item.get("rule_id")),
@@ -392,39 +408,42 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
 
 
 def _document_items(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    items: list[dict[str, Any]] = []
-    for index, document in enumerate(documents):
-        status = _text(document.get("text_status")) or "pending"
-        label = _text(document.get("name") or document.get("url")) or f"Документ {index + 1}"
-        items.append(
-            {
-                "id": f"document:{index + 1}",
-                "type": "document",
-                "kind": "document",
-                "label": label,
-                "value": "",
-                "description": _document_description(status),
-                "category": _text(document.get("document_type")) or "documents",
-                "severity": "medium" if status == "ok" else "high",
-                "status": "ok" if status == "ok" else "attention",
-                "source": _text(document.get("url")),
-                "document_name": label,
-                "source_page": None,
-                "source_label": label,
-                "source_context": "",
-                "fragment": "",
-                "impact": "",
-                "operator_group": "document",
-                "operator_action": "Проверить, что текст документа извлечен и пригоден для анализа.",
-                "price_impact": "none",
-                "priority": 5,
-                "rule_id": "",
-                "is_blocker": False,
-                "is_price_factor": False,
-                "needs_review": status != "ok",
-            }
-        )
-    return items
+    if not documents:
+        return []
+    document_state = _document_state(documents)
+    document_labels = [
+        _text(document.get("name") or document.get("url")) or f"Документ {index + 1}"
+        for index, document in enumerate(documents)
+    ]
+    return [
+        {
+            "id": "documents:summary",
+            "type": "document_summary",
+            "kind": "document_summary",
+            "label": "Документы для анализа",
+            "value": "",
+            "description": _document_summary_description(document_state),
+            "category": "documents",
+            "severity": "medium" if document_state["attention"] == 0 else "high",
+            "status": document_state["status"],
+            "source": "",
+            "document_name": "",
+            "source_page": None,
+            "source_label": "",
+            "source_context": "",
+            "fragment": "",
+            "impact": "",
+            "operator_group": "document",
+            "operator_action": document_state["next_step"],
+            "price_impact": "none",
+            "priority": 5,
+            "rule_id": "",
+            "is_blocker": False,
+            "is_price_factor": False,
+            "needs_review": document_state["status"] != "ready",
+            "documents": document_labels[:8],
+        }
+    ]
 
 
 def _document_state(documents: list[dict[str, Any]]) -> dict[str, Any]:
@@ -468,6 +487,15 @@ def _document_description(status: str) -> str:
     if status == "pending":
         return "Документ еще нужно скачать или извлечь текст."
     return "Документ требует внимания перед анализом."
+
+
+def _document_summary_description(document_state: dict[str, Any]) -> str:
+    total = document_state["total"]
+    suffix = "файл" if total == 1 else "файла" if total in {2, 3, 4} else "файлов"
+    return (
+        f"{total} {suffix}: {document_state['downloaded']} скачано, "
+        f"{document_state['text_ready']} с извлеченным текстом, {document_state['attention']} требуют внимания."
+    )
 
 
 def _section_tone(section_id: str, items: list[dict[str, Any]], *, pending: bool) -> str:
@@ -520,7 +548,24 @@ def _operator_group(kind: str, category: str, is_blocker: bool, needs_review: bo
     return "review"
 
 
-def _operator_action(kind: str, category: str, is_blocker: bool, needs_review: bool) -> str:
+def _operator_action(
+    kind: str,
+    category: str,
+    is_blocker: bool,
+    needs_review: bool,
+    *,
+    label: str = "",
+    raw_action: str = "",
+) -> str:
+    family = _semantic_family(label, category)
+    if family == "national_regime":
+        return "Проверить страну происхождения, применимый нацрежим и подтверждающие документы до участия."
+    if family == "license_sro":
+        return "Проверить, действительно ли нужна лицензия или СРО, и есть ли подтверждение у участника."
+    if family == "contract_security":
+        return "Учесть обеспечение в деньгах или гарантии и проверить возможность участия."
+    if raw_action and raw_action not in {"Проверить до участия.", "Проверить допустимость участия до расчета."}:
+        return raw_action
     if needs_review:
         return "Проверить источник факта вручную."
     if is_blocker:
@@ -619,16 +664,105 @@ def _dedupe_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str, str]] = set()
     unique: list[dict[str, Any]] = []
     for item in items:
-        key = (
-            _text(item.get("kind")),
-            _dedupe_text(item.get("label")),
-            _dedupe_text(item.get("fragment") or item.get("value")),
-        )
+        key = _dedupe_key(item)
         if key in seen:
             continue
         seen.add(key)
         unique.append(item)
     return unique
+
+
+def _dedupe_key(item: dict[str, Any]) -> tuple[str, str, str]:
+    family = _semantic_family(_text(item.get("label")), _text(item.get("category")))
+    fragment = _dedupe_text(item.get("fragment") or item.get("value"))
+    if family:
+        return ("semantic", family, fragment)
+    return (
+        _text(item.get("kind")),
+        _dedupe_text(item.get("label")),
+        fragment,
+    )
+
+
+def _canonical_label(label: str, category: str) -> str:
+    family = _semantic_family(label, category)
+    if family == "national_regime":
+        return "национальный режим/страна происхождения"
+    if family == "license_sro":
+        return "лицензия/СРО"
+    if family == "contract_security":
+        return "обеспечение исполнения контракта"
+    return label
+
+
+def _operator_description(
+    *,
+    label: str,
+    raw_description: str,
+    value: str,
+    fragment: str,
+    category: str,
+    kind: str,
+    is_blocker: bool,
+) -> str:
+    family = _semantic_family(label, category)
+    if family == "national_regime":
+        return (
+            "Это проверка применимости национального режима: страна происхождения, реестровые записи "
+            "и подтверждающие документы могут влиять на допуск заявки."
+        )
+    if family == "license_sro":
+        return (
+            "Это квалификационное ограничение: если лицензия или членство в СРО действительно требуется, "
+            "участник без подтверждения может получить отклонение заявки."
+        )
+    if family == "contract_security":
+        return (
+            "Это денежная нагрузка на исполнение: обеспечение или независимая гарантия влияет на оборотку, "
+            "резерв и решение об участии."
+        )
+    if category == "documents":
+        return "Нужно понять, какой подтверждающий документ требуется и кто сможет его предоставить к заявке или поставке."
+    if category == "standards":
+        return "Это требование к характеристикам или соответствию товара; его нужно сверить с фактическим предложением."
+    if category == "delivery":
+        return "Это влияет на логистику, сроки поставки и возможные расходы исполнения."
+    if category == "acceptance":
+        return "Это влияет на приемку, закрывающие документы и момент, когда поставку признают исполненной."
+    if category in {"financial", "payment"}:
+        return "Это влияет на денежный цикл: оплату, аванс, удержания, обеспечение или резервы."
+    if raw_description and not _description_is_only_label(raw_description, label):
+        return raw_description
+    if value and not _description_is_only_label(value, label) and value != fragment:
+        return value
+    if is_blocker:
+        return "Условие может повлиять на допуск к участию, его нужно проверить до расчета."
+    if kind == "subject":
+        return value or "Краткое описание предмета закупки."
+    return "Условие нужно сверить с документами закупки и учесть перед решением."
+
+
+def _description_is_only_label(description: str, label: str) -> bool:
+    return _dedupe_text(description) == _dedupe_text(label)
+
+
+def _semantic_family(label: str, category: str) -> str:
+    text = _dedupe_text(label)
+    if category == "national_regime" or any(marker in text for marker in ("национальн", "страна происхожд", "страны происхожд", "1875")):
+        return "national_regime"
+    if category == "legal" and any(marker in text for marker in ("сро", "лиценз", "саморегулируем")):
+        return "license_sro"
+    if category == "financial" and any(marker in text for marker in ("обеспечение исполнения", "независим", "гарант")):
+        return "contract_security"
+    return ""
+
+
+def _section_count(items: list[dict[str, Any]]) -> int:
+    return sum(1 for item in items if _is_analysis_item(item))
+
+
+def _is_analysis_item(item: dict[str, Any]) -> bool:
+    return item.get("type") not in {"document", "document_summary"}
 
 
 def _sort_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -406,6 +406,8 @@ def test_frontend_embeds_document_preparation_in_analysis_workspace():
     assert "export function AnalysisDocumentsPanel" in analysis_documents_source
     assert "function DocumentStatusSummary" in analysis_documents_source
     assert "document-table" in analysis_documents_source
+    assert "<details className=\"document-table-toggle\">" in analysis_documents_source
+    assert "Показать документы" in analysis_documents_source
     assert "document-status ${document.text_status || 'pending'}" in analysis_documents_source
     assert "<AnalysisDocumentsPanel" in analysis_source
     assert "onDownload={onDownload}" in analysis_source
@@ -1295,6 +1297,9 @@ def test_tender_analysis_renders_actionable_checklist():
 
     assert "MAJOR_ANALYSIS_SECTIONS" in source
     assert "buildMajorAnalysisSections(analysis, documents)" in source
+    assert "visibleMajorAnalysisSections" in source
+    assert "analysisSectionHasContent" in source
+    assert "document_summary" in source
     assert "'decision_risks'" in source
     assert "'product_compliance'" in source
     assert "'fulfillment_terms'" in source

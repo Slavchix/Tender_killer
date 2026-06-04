@@ -191,3 +191,18 @@ def test_analyze_tender_texts_extracts_common_delivery_acceptance_and_payment_te
     assert "короткий срок поставки" not in labels
     assert "acceptance_correction_deadline" in terms
     assert terms["acceptance_correction_deadline"]["category"] == "acceptance"
+
+
+def test_analyze_tender_texts_does_not_confuse_performance_text_with_contract_security():
+    result = analyze_tender_texts(
+        [
+            """
+            Техническое задание: поставка электроинструмента.
+            Заявка должна содержать страну происхождения товара.
+            Заказчик сообщает поставщику о недостатках, обнаруженных в ходе исполнения поставщиком обязательств.
+            Исполнение поставщиком обязательств подтверждается актом приема-передачи.
+            """
+        ]
+    )
+
+    assert "обеспечение исполнения контракта" not in result.risks

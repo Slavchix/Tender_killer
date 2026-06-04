@@ -2,7 +2,6 @@ import {
   normalizeListItems,
   analysisCategoryLabel,
   analysisSeverityLabel,
-  documentStatusCounts,
   documentStatusLabel,
 } from './formatters'
 
@@ -14,7 +13,7 @@ export const MAJOR_ANALYSIS_SECTIONS = [
 ]
 
 export function analysisSectionItems(analysis, documents = []) {
-  return buildMajorAnalysisSections(analysis, documents).map((section) => ({
+  return visibleMajorAnalysisSections(analysis, documents).map((section) => ({
     id: section.id,
     title: section.title,
     value: section.count ?? section.items?.length ?? 0,
@@ -38,9 +37,27 @@ export function AnalysisSectionRail({ sections, selectedSection, onSelectSection
 }
 
 export function AnalysisSectionBody({ sectionId, analysis, documents = [] }) {
-  const sections = buildMajorAnalysisSections(analysis, documents)
+  const sections = visibleMajorAnalysisSections(analysis, documents)
   const section = sections.find((item) => item.id === sectionId) || sections[0]
+  if (!section) {
+    return (
+      <div className="analysis-card operator-section default">
+        <p className="muted-text">В анализе пока нет условий для отображения.</p>
+      </div>
+    )
+  }
   return <AnalysisOperatorSection section={section} />
+}
+
+function visibleMajorAnalysisSections(analysis, documents = []) {
+  const sections = buildMajorAnalysisSections(analysis, documents)
+  const visibleSections = sections.filter(analysisSectionHasContent)
+  return visibleSections.length ? visibleSections : sections.slice(0, 1)
+}
+
+function analysisSectionHasContent(section) {
+  const items = Array.isArray(section?.items) ? section.items : []
+  return items.some((item) => item.type !== 'document' && item.type !== 'document_summary')
 }
 
 function buildMajorAnalysisSections(analysis, documents = []) {
@@ -62,7 +79,7 @@ function normalizeOperatorSection(section, definition) {
   return {
     id: definition.id,
     title: section?.title || definition.title,
-    count: section?.count ?? items.length,
+    count: section?.count ?? analysisItemCount(items),
     tone: section?.tone || 'default',
     empty: section?.empty || definition.empty,
     items,
@@ -149,7 +166,7 @@ function legacyMajorSections(analysis, documents = []) {
     const items = dedupeItems(buckets[definition.id]).sort((left, right) => (right.priority || 0) - (left.priority || 0))
     return {
       ...definition,
-      count: items.length,
+      count: analysisItemCount(items),
       tone: definition.id === 'decision_risks' && items.length ? 'danger' : 'default',
       items,
     }
@@ -218,26 +235,28 @@ function dedupeItems(items) {
 
 function AnalysisOperatorSection({ section }) {
   const items = Array.isArray(section.items) ? section.items : []
+  const documentSummary = items.find((item) => item.type === 'document_summary')
+  const analysisItems = items.filter((item) => item.type !== 'document' && item.type !== 'document_summary')
 
   return (
     <div className={`analysis-card operator-section ${section.tone || 'default'}`}>
       <div className="analysis-checklist-header">
         <span>{section.title}</span>
-        <strong>{section.count ?? items.length}</strong>
+        <strong>{section.count ?? analysisItems.length}</strong>
       </div>
-      {items.length ? (
+      {documentSummary && <DocumentSummaryItem item={documentSummary} />}
+      {analysisItems.length ? (
         <div className="analysis-checklist-list">
-          {items.map((item, index) => {
+          {analysisItems.map((item, index) => {
             const sourceLabel = item.source_label || item.source
             return (
               <article className={`analysis-checklist-row severity-${item.severity || 'medium'}`} key={item.id || `${item.label}-${index}`}>
                 <div className="analysis-checklist-main">
                   <strong>{item.label}</strong>
                   <div className="analysis-checklist-tags">
-                    <span>{analysisCategoryLabel(item.category)}</span>
-                    <span>{analysisSeverityLabel(item.severity)}</span>
-                    {item.status && <span>{operatorStatusLabel(item.status)}</span>}
-                    {item.price_impact && item.price_impact !== 'none' && <span>{priceImpactLabel(item.price_impact)}</span>}
+                    {analysisItemTags(item).map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
                   </div>
                 </div>
                 {item.description && <p>{item.description}</p>}
@@ -256,9 +275,28 @@ function AnalysisOperatorSection({ section }) {
           })}
         </div>
       ) : (
-        <p className="muted-text">{section.empty}</p>
+        !documentSummary && <p className="muted-text">{section.empty}</p>
       )}
     </div>
+  )
+}
+
+function DocumentSummaryItem({ item }) {
+  const documents = Array.isArray(item.documents) ? item.documents : []
+  return (
+    <details className="analysis-document-summary">
+      <summary>
+        <strong>{item.label}</strong>
+        <span>{item.description}</span>
+      </summary>
+      {documents.length ? (
+        <ul>
+          {documents.map((document) => (
+            <li key={document}>{document}</li>
+          ))}
+        </ul>
+      ) : null}
+    </details>
   )
 }
 
@@ -274,6 +312,20 @@ function priceImpactLabel(value) {
   if (value === 'reserve') return 'резерв'
   if (value === 'compliance') return 'соответствие'
   return value
+}
+
+function analysisItemTags(item) {
+  const tags = [
+    analysisCategoryLabel(item.category),
+    analysisSeverityLabel(item.severity),
+    item.status ? operatorStatusLabel(item.status) : '',
+    item.price_impact && item.price_impact !== 'none' ? priceImpactLabel(item.price_impact) : '',
+  ].filter(Boolean)
+  return [...new Set(tags)]
+}
+
+function analysisItemCount(items) {
+  return (Array.isArray(items) ? items : []).filter((item) => item.type !== 'document' && item.type !== 'document_summary').length
 }
 
 function AnalysisSectionRailItem({ title, value, active = false, onClick }) {

@@ -2610,6 +2610,44 @@ textarea:focus {
   word-break: break-word;
 }
 
+.analysis-document-summary {
+  padding: 9px 10px;
+  background: #102019;
+  border: 1px solid #345147;
+  border-radius: 6px;
+}
+
+.analysis-document-summary summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.analysis-document-summary summary::marker {
+  color: #9fe29a;
+}
+
+.analysis-document-summary strong {
+  color: #eef8f2;
+  font-size: 13px;
+}
+
+.analysis-document-summary span,
+.analysis-document-summary li {
+  color: #b8cbc4;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.analysis-document-summary ul {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
 .analysis-checklist-main {
   display: grid;
   gap: 6px;
@@ -3048,6 +3086,23 @@ textarea:focus {
 .document-table {
   display: grid;
   gap: 8px;
+}
+
+.document-table-toggle {
+  display: grid;
+  gap: 8px;
+}
+
+.document-table-toggle > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: #9fe29a;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.document-table-toggle > summary::marker {
+  color: #9fe29a;
 }
 
 .document-row {

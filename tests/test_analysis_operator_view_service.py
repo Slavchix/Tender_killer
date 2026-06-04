@@ -77,8 +77,7 @@ def test_build_analysis_operator_view_returns_only_four_major_blocks_from_legacy
     assert {item["label"] for item in sections["product_compliance"]["items"]} >= {
         "Предмет",
         "certificate",
-        "TZ.docx",
-        "Contract.pdf",
+        "Документы для анализа",
     }
     assert [item["label"] for item in sections["fulfillment_terms"]["items"]] == ["Срок поставки"]
     assert [item["label"] for item in sections["acceptance_payment"]["items"]] == ["Оплата"]
@@ -188,7 +187,7 @@ def test_build_analysis_operator_view_groups_analysis_facts_into_four_operator_b
     assert view["metrics"]["unbound_facts"] == 1
     assert [item["label"] for item in sections["decision_risks"]["items"]] == [
         "лицензия/СРО",
-        "национальный режим",
+        "национальный режим/страна происхождения",
     ]
     assert [item["label"] for item in sections["product_compliance"]["items"]] == [
         "сертификат/декларация",
@@ -196,7 +195,9 @@ def test_build_analysis_operator_view_groups_analysis_facts_into_four_operator_b
     ]
     assert [item["label"] for item in sections["fulfillment_terms"]["items"]] == ["Срок поставки"]
     assert [item["label"] for item in sections["acceptance_payment"]["items"]] == ["Оплата"]
-    assert sections["decision_risks"]["items"][0]["operator_action"] == "Проверить источник факта вручную."
+    assert sections["decision_risks"]["items"][0]["operator_action"] == (
+        "Проверить, действительно ли нужна лицензия или СРО, и есть ли подтверждение у участника."
+    )
     assert sections["product_compliance"]["items"][0]["price_impact"] == "documents"
 
 
@@ -209,4 +210,78 @@ def test_build_analysis_operator_view_returns_pending_four_block_contract_withou
     assert view["metrics"]["documents_total"] == 1
     assert [section["id"] for section in view["sections"]] == list(MAJOR_SECTION_IDS)
     assert view["sections"][1]["id"] == "product_compliance"
-    assert view["sections"][1]["items"][0]["label"] == "Spec.docx"
+    assert view["sections"][1]["items"][0]["label"] == "Документы для анализа"
+    assert view["sections"][1]["items"][0]["type"] == "document_summary"
+
+
+def test_build_analysis_operator_view_dedupes_semantic_risks_and_adds_operator_context():
+    analysis = {
+        "summary": "Поставка электроинструмента",
+        "confidence": 0.9,
+        "analysis_facts": {
+            "version": 1,
+            "metrics": {"total": 5, "blockers": 4, "price_factors": 0, "unbound": 0},
+            "items": [
+                {
+                    "kind": "blocker",
+                    "label": "национальный режим/страна происхождения",
+                    "value": "Страна происхождения указывается в заявке.",
+                    "category": "national_regime",
+                    "severity": "high",
+                    "fragment": "Заявка должна содержать наименование страны происхождения товара.",
+                    "document_name": "spec.docx",
+                    "is_blocker": True,
+                },
+                {
+                    "kind": "blocker",
+                    "label": "страна происхождения товара",
+                    "value": "Страна происхождения указывается в заявке.",
+                    "category": "national_regime",
+                    "severity": "high",
+                    "fragment": "Заявка должна содержать наименование страны происхождения товара.",
+                    "document_name": "spec.docx",
+                    "is_blocker": True,
+                },
+                {
+                    "kind": "blocker",
+                    "label": "лицензия/СРО",
+                    "value": "Требуется допуск СРО.",
+                    "category": "legal",
+                    "severity": "high",
+                    "fragment": "Участник предоставляет подтверждение членства в СРО.",
+                    "document_name": "spec.docx",
+                    "is_blocker": True,
+                },
+                {
+                    "kind": "requirement",
+                    "label": "членство в СРО",
+                    "value": "Требуется допуск СРО.",
+                    "category": "legal",
+                    "severity": "high",
+                    "fragment": "Участник предоставляет подтверждение членства в СРО.",
+                    "document_name": "spec.docx",
+                    "is_blocker": True,
+                },
+            ],
+        },
+    }
+
+    view = build_analysis_operator_view(
+        analysis,
+        [
+            {"name": "spec.docx", "local_path": "spec.docx", "text_status": "ok"},
+            {"name": "contract.docx", "local_path": "contract.docx", "text_status": "ok"},
+        ],
+    )
+    sections = {section["id"]: section for section in view["sections"]}
+    risk_labels = [item["label"] for item in sections["decision_risks"]["items"]]
+    document_items = [item for item in sections["product_compliance"]["items"] if item["type"] == "document_summary"]
+
+    assert risk_labels == ["лицензия/СРО", "национальный режим/страна происхождения"]
+    assert sections["decision_risks"]["items"][0]["description"] != sections["decision_risks"]["items"][0]["label"]
+    assert "участ" in sections["decision_risks"]["items"][0]["description"].casefold()
+    assert "СРО" in sections["decision_risks"]["items"][0]["operator_action"]
+    assert sections["product_compliance"]["count"] == 0
+    assert len(document_items) == 1
+    assert document_items[0]["label"] == "Документы для анализа"
+    assert "2 файла" in document_items[0]["description"]

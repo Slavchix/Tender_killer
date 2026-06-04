@@ -78,4 +78,4 @@ def test_build_analysis_tz_passport_returns_pending_four_block_contract_without_
         "fulfillment_terms",
         "acceptance_payment",
     ]
-    assert passport["sections"][1]["items"][0]["label"] == "tz.docx"
+    assert passport["sections"][1]["items"][0]["label"] == "Документы для анализа"
