@@ -186,9 +186,9 @@ def _build_filters(query: dict[str, str]) -> tuple[list[str], list[Any]]:
             status_filters, status_params = _text_like_any("tenders.status", status)
             filters.append(status_filters)
             params.extend(status_params)
-    if deadline_days := _deadline_days_query(query.get("deadline_days")):
+    if deadline_hours := _deadline_hours_query(query.get("deadline_hours")):
         filters.append(_deadline_window_filter())
-        deadline_modifier = f"+{deadline_days} days"
+        deadline_modifier = f"+{deadline_hours} hours"
         params.extend([deadline_modifier, deadline_modifier])
     if okpd2_values := _multi_value_tuple(query.get("okpd2")):
         filters.append(
@@ -604,12 +604,12 @@ def _float_query(value: Any) -> float | None:
         return None
 
 
-def _deadline_days_query(value: Any) -> int | None:
+def _deadline_hours_query(value: Any) -> int | None:
     try:
-        days = int(str(value or "").strip())
+        hours = int(str(value or "").strip())
     except ValueError:
         return None
-    return days if days in {1, 2, 3, 5, 12} else None
+    return hours if hours in {1, 2, 3, 5, 12} else None
 
 
 def _law_query_values(value: Any) -> tuple[str, ...]:

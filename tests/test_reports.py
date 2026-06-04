@@ -167,7 +167,11 @@ def test_build_tender_report_docx_contains_key_sections():
     assert "Маржа выглядит интересной" in document_xml
     assert "<w:tbl>" in document_xml
     assert "Краткое решение" in document_xml
-    assert "Документы и ТЗ" in document_xml
+    assert "Документы" in document_xml
+    assert "Анализ ТЗ: 4 блока" in document_xml
+    assert "Выжимка ТЗ" not in document_xml
+    assert "Требования" not in document_xml
+    assert "Красные флаги" not in document_xml
     assert "Подтверждения из ТЗ" not in document_xml
 
 
@@ -227,6 +231,12 @@ def test_build_tender_report_docx_renders_analysis_decision_and_evidence():
     assert "ТЗ.docx" in document_xml
     assert "Срок поставки 3 дня." in document_xml
     assert "Проверить допустимость участия до расчета." in document_xml
+    assert "Анализ ТЗ: 4 блока" in document_xml
+    assert "Блок" in document_xml
+    assert "Что значит" in document_xml
+    assert "Действие" in document_xml
+    assert "Выжимка ТЗ" not in document_xml
+    assert "Красные флаги" not in document_xml
     assert "Приложение: фрагменты извлеченного текста" not in document_xml
 
 
@@ -291,7 +301,7 @@ def test_build_tender_report_docx_uses_operator_analysis_contract():
     assert "contract security" not in document_xml
 
 
-def test_build_tender_report_docx_renders_operator_action_plan_and_document_state():
+def test_build_tender_report_docx_renders_styled_four_block_analysis():
     payload = {
         "source": "mosreg_market",
         "external_id": "3675299",
@@ -322,18 +332,77 @@ def test_build_tender_report_docx_renders_operator_action_plan_and_document_stat
                 },
                 "action_plan": [
                     {
-                        "id": "blockers",
-                        "title": "Проверить блокеры",
+                        "id": "decision_risks",
+                        "title": "Проверить риски участия",
                         "status": "manual_review",
                         "next_step": "Проверить допустимость участия до расчета.",
                         "items": ["национальный режим"],
                     },
                     {
-                        "id": "price_factors",
-                        "title": "Заложить в экономику",
+                        "id": "fulfillment_terms",
+                        "title": "Проверить поставку и исполнение",
                         "status": "needs_price_review",
                         "next_step": "Учесть в сроках, резерве и стоп-цене.",
                         "items": ["Срок поставки"],
+                    },
+                ],
+                "major_blocks": [
+                    {
+                        "id": "decision_risks",
+                        "title": "Итог и риски",
+                        "items": [
+                            {
+                                "label": "национальный режим",
+                                "description": "Нужно подтвердить страну происхождения.",
+                                "operator_action": "Проверить допустимость участия до расчета.",
+                                "source_label": "ТЗ.docx · стр. 2",
+                                "fragment": "Заявка должна содержать страну происхождения товара.",
+                                "priority": 1,
+                            }
+                        ],
+                    },
+                    {
+                        "id": "product_compliance",
+                        "title": "Товар и документы",
+                        "items": [
+                            {
+                                "label": f"сертификат {index}",
+                                "description": f"Подтверждающий документ {index}.",
+                                "operator_action": "Запросить у поставщика.",
+                                "source_label": "ТЗ.docx",
+                                "fragment": f"Фрагмент про сертификат {index}.",
+                                "priority": index,
+                            }
+                            for index in range(1, 9)
+                        ],
+                    },
+                    {
+                        "id": "fulfillment_terms",
+                        "title": "Поставка и исполнение",
+                        "items": [
+                            {
+                                "label": "срок поставки",
+                                "description": "Поставка в короткий срок.",
+                                "operator_action": "Заложить логистический резерв.",
+                                "source_label": "Контракт.pdf",
+                                "fragment": "Срок поставки 3 дня.",
+                                "priority": 2,
+                            }
+                        ],
+                    },
+                    {
+                        "id": "acceptance_payment",
+                        "title": "Приемка, документы и оплата",
+                        "items": [
+                            {
+                                "label": "УПД",
+                                "description": "Передать закрывающие документы.",
+                                "operator_action": "Подготовить УПД к приемке.",
+                                "source_label": "Контракт.pdf",
+                                "fragment": "Оплата после подписания УПД.",
+                                "priority": 3,
+                            }
+                        ],
                     },
                 ],
                 "sections": [],
@@ -343,15 +412,24 @@ def test_build_tender_report_docx_renders_operator_action_plan_and_document_stat
 
     content = build_tender_report_docx(payload)
     document_xml = _document_xml(content)
+    styles_xml = _styles_xml(content)
 
-    assert "План проверки ТЗ" in document_xml
-    assert "Проверить блокеры" in document_xml
+    assert "Анализ ТЗ: 4 блока" in document_xml
+    assert "Итог и риски" in document_xml
+    assert "Товар и документы" in document_xml
+    assert "Поставка и исполнение" in document_xml
+    assert "Приемка, документы и оплата" in document_xml
+    assert "сертификат 1" in document_xml
+    assert "сертификат 7" in document_xml
+    assert "сертификат 8" not in document_xml
+    assert "и еще 1 пункт — см. в интерфейсе" in document_xml
     assert "Проверить допустимость участия до расчета." in document_xml
-    assert "Заложить в экономику" in document_xml
-    assert "Состояние документов" in document_xml
-    assert "Текст извлечен не по всем документам." in document_xml
-    assert "1/2" in document_xml
-    assert "Контракт.pdf" in document_xml
+    assert "Заложить логистический резерв." in document_xml
+    assert "Подготовить УПД к приемке." in document_xml
+    assert "План проверки ТЗ" not in document_xml
+    assert "Состояние документов" not in document_xml
+    assert '<w:shd w:fill="E6F4EA"' in document_xml
+    assert 'w:color w:val="1F4D3A"' in styles_xml
     assert "Очень длинный извлеченный текст" not in document_xml
 
 
@@ -424,7 +502,8 @@ def test_build_tender_report_docx_renders_tz_passport_before_raw_analysis():
     assert "TZ.docx" in document_xml
     assert "cash reserve" in document_xml
     assert "Operator analysis sections" not in document_xml
-    assert document_xml.index("Паспорт ТЗ") < document_xml.index("Выжимка ТЗ")
+    assert "Выжимка ТЗ" not in document_xml
+    assert document_xml.index("Паспорт ТЗ") < document_xml.index("Анализ ТЗ: 4 блока")
 
 
 def test_build_tender_report_docx_renders_backend_decision_reasons():
@@ -536,8 +615,15 @@ def test_build_tender_report_docx_keeps_word_report_compact():
     assert "Позиции расчета" not in document_xml
     assert "Приложение: фрагменты извлеченного текста" not in document_xml
     assert "Очень длинный извлеченный текст" not in document_xml
+    assert "Выжимка ТЗ" not in document_xml
+    assert "Красные флаги" not in document_xml
 
 
 def _document_xml(content: bytes) -> str:
     with ZipFile(BytesIO(content)) as archive:
         return archive.read("word/document.xml").decode("utf-8")
+
+
+def _styles_xml(content: bytes) -> str:
+    with ZipFile(BytesIO(content)) as archive:
+        return archive.read("word/styles.xml").decode("utf-8")
