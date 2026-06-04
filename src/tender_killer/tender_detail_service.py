@@ -248,15 +248,7 @@ def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) 
         )
         else build_analysis_facts(payload, documents)
     )
-    operator_view = payload["raw_payload"].get("operator_view")
-    payload["operator_view"] = (
-        operator_view if (
-            isinstance(operator_view, dict)
-            and operator_view.get("version") == 2
-            and _operator_view_has_source_context(operator_view)
-        )
-        else build_analysis_operator_view(payload, documents)
-    )
+    payload["operator_view"] = build_analysis_operator_view(payload, documents)
     payload["status"] = payload.pop("recommended_status")
     return payload
 

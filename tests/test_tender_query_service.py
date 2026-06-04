@@ -201,6 +201,10 @@ def test_tender_query_service_includes_operator_decision_for_dashboard_attention
                     "id": "blocker:certificate",
                     "kind": "blocker",
                     "label": "сертификат/декларация",
+                    "value": "Поставщик предоставляет сертификат соответствия.",
+                    "fragment": "Поставщик предоставляет сертификат соответствия.",
+                    "source_label": "Spec.docx · стр. 1",
+                    "source_context": "Поставщик предоставляет сертификат соответствия.",
                     "is_blocker": True,
                     "is_price_factor": False,
                 }
@@ -248,7 +252,7 @@ def test_tender_query_service_includes_operator_decision_for_dashboard_attention
     payload = list_tenders_payload(store.database_path, {})
     item = payload["items"][0]
 
-    assert item["analysis"]["operator_view"]["version"] == 2
+    assert item["analysis"]["operator_view"]["version"] == 3
     assert item["analysis"]["analysis_facts"]["version"] == 1
     assert item["analysis"]["analysis_facts"]["metrics"]["blockers"] == 1
     assert item["decision"]["status"] == "needs_review"

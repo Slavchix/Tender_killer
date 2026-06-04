@@ -544,11 +544,7 @@ def _analysis_from_list_row(payload: dict[str, Any]) -> dict[str, Any] | None:
         tz_passport if isinstance(tz_passport, dict) and tz_passport.get("version") == 1
         else build_analysis_tz_passport(analysis, [])
     )
-    operator_view = raw_payload.get("operator_view")
-    analysis["operator_view"] = (
-        operator_view if isinstance(operator_view, dict) and operator_view.get("version") == 2
-        else build_analysis_operator_view(analysis, [])
-    )
+    analysis["operator_view"] = build_analysis_operator_view(analysis, [])
     return analysis
 
 

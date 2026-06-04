@@ -16,7 +16,7 @@ def test_build_analysis_operator_view_returns_only_four_major_blocks_from_legacy
                 "label": "contract security",
                 "category": "financial",
                 "severity": "high",
-                "evidence": "Security is 5%.",
+                "evidence": "Contract security is 5%.",
             },
             {
                 "label": "certificate",
@@ -28,7 +28,7 @@ def test_build_analysis_operator_view_returns_only_four_major_blocks_from_legacy
                 "label": "short delivery",
                 "category": "delivery",
                 "severity": "high",
-                "evidence": "Delivery in 3 days.",
+                "evidence": "Short delivery in 3 days.",
             },
         ],
         "execution_terms": [
@@ -71,7 +71,6 @@ def test_build_analysis_operator_view_returns_only_four_major_blocks_from_legacy
     sections = {section["id"]: section for section in view["sections"]}
     assert {item["label"] for item in sections["decision_risks"]["items"]} == {
         "contract security",
-        "national regime",
         "short delivery",
     }
     assert {item["label"] for item in sections["product_compliance"]["items"]} >= {
@@ -108,6 +107,7 @@ def test_build_analysis_operator_view_groups_analysis_facts_into_four_operator_b
                     "severity": "high",
                     "document_name": "spec.docx",
                     "fragment": "Указывается страна происхождения товара.",
+                    "source_context": "Указывается страна происхождения товара.",
                     "operator_action": "Проверить допустимость участия до расчета.",
                     "price_impact": "compliance",
                     "priority": 90,
@@ -123,6 +123,7 @@ def test_build_analysis_operator_view_groups_analysis_facts_into_four_operator_b
                     "severity": "medium",
                     "document_name": "spec.docx",
                     "fragment": "Поставщик предоставляет сертификат.",
+                    "source_context": "Поставщик предоставляет сертификат.",
                     "operator_action": "Подготовить подтверждающие документы.",
                     "price_impact": "documents",
                     "priority": 50,
@@ -168,6 +169,7 @@ def test_build_analysis_operator_view_groups_analysis_facts_into_four_operator_b
                     "severity": "high",
                     "document_name": "Документ не привязан",
                     "fragment": "Нужна лицензия на работы.",
+                    "source_context": "Нужна лицензия на работы.",
                     "operator_action": "Проверить источник факта вручную.",
                     "price_impact": "none",
                     "priority": 95,
