@@ -13,7 +13,8 @@ if (!targetUrl) {
 const timeoutMs = positiveEnvFloat('TENDER_KILLER_BROWSER_TIMEOUT_SECONDS', 30) * 1000
 const provider = String(process.env.TENDER_KILLER_BROWSER_PROVIDER || '').toLowerCase()
 const browserPath = resolveBrowserPath()
-const profileDir = resolveProfileDir()
+const profile = resolveProfile()
+const profileDir = profile.dir
 const headless = !['0', 'false', 'no', 'off'].includes(String(process.env.TENDER_KILLER_BROWSER_HEADLESS || '1').toLowerCase())
 
 if (!browserPath) {
@@ -50,8 +51,11 @@ try {
   if (client) {
     client.close()
   }
-  if (browserProcess && !browserProcess.killed) {
-    browserProcess.kill()
+  if (browserProcess) {
+    await stopBrowserProcess(browserProcess)
+  }
+  if (profile.cleanup) {
+    removeProfileDir(profileDir)
   }
 }
 
@@ -229,11 +233,35 @@ function resolveBrowserPath() {
   return candidates.find((candidate) => fs.existsSync(candidate)) || ''
 }
 
-function resolveProfileDir() {
+function resolveProfile() {
   if (process.env.TENDER_KILLER_BROWSER_PROFILE_DIR) {
-    return process.env.TENDER_KILLER_BROWSER_PROFILE_DIR
+    return { dir: process.env.TENDER_KILLER_BROWSER_PROFILE_DIR, cleanup: false }
   }
-  return path.join(process.cwd(), 'data', 'browser-profile', 'supplier-fetch')
+  const parentDir = path.join(process.cwd(), 'data', 'browser-profile', 'supplier-fetch-runs')
+  fs.mkdirSync(parentDir, { recursive: true })
+  return { dir: fs.mkdtempSync(path.join(parentDir, 'run-')), cleanup: true }
+}
+
+async function stopBrowserProcess(process) {
+  if (process.exitCode !== null || process.killed) {
+    return
+  }
+  process.kill()
+  await Promise.race([
+    new Promise((resolve) => process.once('exit', resolve)),
+    sleep(1500),
+  ])
+}
+
+function removeProfileDir(profileDir) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
+      return
+    } catch {
+      // Edge can keep profile files locked for a short moment after exit.
+    }
+  }
 }
 
 function positiveEnvFloat(name, fallback) {
@@ -244,4 +272,3 @@ function positiveEnvFloat(name, fallback) {
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
-

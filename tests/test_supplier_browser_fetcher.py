@@ -88,3 +88,13 @@ def test_browser_fetcher_discovers_bundled_codex_node(monkeypatch, tmp_path) -> 
     monkeypatch.setattr(browser_fetcher.shutil, "which", lambda name: None)
 
     assert browser_fetcher.resolve_node_path() == str(node)
+
+
+def test_browser_fetch_helper_uses_ephemeral_profile_by_default() -> None:
+    script = Path("scripts/browser-fetch.mjs").read_text(encoding="utf-8")
+
+    assert "supplier-fetch-runs" in script
+    assert "fs.mkdtempSync" in script
+    assert "function removeProfileDir" in script
+    assert "fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })" in script
+    assert "TENDER_KILLER_BROWSER_PROFILE_DIR" in script
