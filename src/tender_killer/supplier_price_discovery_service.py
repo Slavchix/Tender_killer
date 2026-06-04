@@ -526,14 +526,21 @@ def _run_supplier_discovery_with_queries(
     for query in queries:
         for collector in price_collectors:
             result = collector.collect_with_diagnostics(query)
-            if _diagnostics_has_signal(result["diagnostics"]):
-                _merge_diagnostics(diagnostics_by_provider, result["diagnostics"])
+            accepted_candidates: list[dict[str, Any]] = []
+            rejected_by_intent = 0
             for candidate in result["candidates"]:
+                if not _candidate_matches_profile_intent(target, candidate):
+                    rejected_by_intent += 1
+                    continue
                 key = _candidate_key(candidate)
                 if key in existing_keys:
                     continue
                 existing_keys.add(key)
-                candidates.append(candidate)
+                accepted_candidates.append(_candidate_with_profile_match(candidate))
+            diagnostics = _with_intent_rejection_diagnostics(result["diagnostics"], rejected_by_intent)
+            if _diagnostics_has_signal(diagnostics):
+                _merge_diagnostics(diagnostics_by_provider, diagnostics)
+            candidates.extend(accepted_candidates)
     if not candidates:
         if diagnostics_by_provider:
             _record_supplier_discovery_diagnostics(
@@ -554,6 +561,45 @@ def _run_supplier_discovery_with_queries(
         candidates,
         collector_diagnostics=list(diagnostics_by_provider.values()),
     )
+
+
+def _candidate_matches_profile_intent(profile: dict[str, Any], candidate: dict[str, Any]) -> bool:
+    product_name = _text(candidate.get("name") or candidate.get("product_name"))
+    profile_text = _profile_intent_text(profile, candidate)
+    if not product_name or not profile_text:
+        return True
+    return _catalog_product_name_matches_query(product_name, profile_text)
+
+
+def _profile_intent_text(profile: dict[str, Any], candidate: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for field in ("product_name", "normalized_name"):
+        value = _text(profile.get(field))
+        if value:
+            parts.append(value)
+    for phrase in _text_items(profile.get("search_phrases")):
+        parts.append(phrase)
+    source_query = _text(candidate.get("source_query"))
+    if source_query:
+        parts.append(source_query)
+    return " ".join(parts)
+
+
+def _candidate_with_profile_match(candidate: dict[str, Any]) -> dict[str, Any]:
+    updated = dict(candidate)
+    reasons = _text_items(candidate.get("match_reasons"))
+    if "profile_intent_match" not in reasons:
+        reasons.append("profile_intent_match")
+    updated["match_reasons"] = reasons
+    return updated
+
+
+def _with_intent_rejection_diagnostics(diagnostics: dict[str, Any], rejected_count: int) -> dict[str, Any]:
+    if rejected_count <= 0:
+        return diagnostics
+    updated = dict(diagnostics)
+    updated["candidates_rejected_by_intent"] = int(updated.get("candidates_rejected_by_intent") or 0) + rejected_count
+    return updated
 
 
 def _find_profile(profiles: list[dict[str, Any]], position_index: int) -> dict[str, Any] | None:
@@ -653,13 +699,28 @@ def _collector_diagnostics(provider: str) -> dict[str, Any]:
 def _merge_diagnostics(current: dict[str, dict[str, Any]], item: dict[str, Any]) -> None:
     provider = str(item.get("provider") or "unknown")
     target = current.setdefault(provider, _collector_diagnostics(provider))
-    for field in ("queries_seen", "links_seen", "links_skipped", "pages_fetched", "candidates_found"):
-        target[field] += int(item.get(field) or 0)
+    for field in (
+        "queries_seen",
+        "links_seen",
+        "links_skipped",
+        "pages_fetched",
+        "candidates_found",
+        "candidates_rejected_by_intent",
+    ):
+        value = int(item.get(field) or 0)
+        if field not in target and value == 0:
+            continue
+        target[field] = int(target.get(field) or 0) + value
     target["errors"].extend([str(error) for error in item.get("errors") or []])
 
 
 def _diagnostics_has_signal(item: dict[str, Any]) -> bool:
-    return bool(item.get("pages_fetched") or item.get("candidates_found") or item.get("errors"))
+    return bool(
+        item.get("pages_fetched")
+        or item.get("candidates_found")
+        or item.get("candidates_rejected_by_intent")
+        or item.get("errors")
+    )
 
 
 def _quick_links(query: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1364,6 +1425,17 @@ def _dict_items(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
     return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def _text_items(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items: list[str] = []
+    for item in value:
+        text = _text(item)
+        if text:
+            items.append(text)
+    return items
 
 
 def _candidate_key(candidate: dict[str, Any]) -> tuple[str, str]:

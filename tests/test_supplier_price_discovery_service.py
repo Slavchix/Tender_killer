@@ -950,6 +950,7 @@ def test_run_profile_supplier_price_discovery_stages_schema_org_product_candidat
                     "provider": "schema_org_product",
                     "confidence": "high",
                     "confidence_reasons": ["has_price", "has_url", "has_source_query"],
+                    "match_reasons": ["profile_intent_match"],
                     "review_status": "pending",
                 }
             ],
@@ -962,6 +963,242 @@ def test_run_profile_supplier_price_discovery_stages_schema_org_product_candidat
     assert profile["raw_payload"]["supplier_discovery"] == payload["supplier_discovery"]
     assert "supplier_options" not in profile["raw_payload"]
     assert "economics" not in profile["raw_payload"]
+
+
+def test_run_profile_supplier_price_discovery_filters_supplier_candidates_by_profile_intent(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-discovery-intent",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-discovery-intent",
+            title="Cartridge tender",
+            price=100000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-discovery-intent",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-intent",
+                position_index=1,
+                product_name="Cartridge for electrophotographic printing devices",
+                normalized_name="Cartridge for electrophotographic printing devices",
+                raw_payload={
+                    "supplier_search": {
+                        "status": "ready",
+                        "queries": [
+                            {
+                                "query": "cartridge for electrophotographic printing devices",
+                                "kind": "normalized_name",
+                                "priority": 1,
+                                "quick_links": [
+                                    {
+                                        "label": "OfficeMag",
+                                        "url": "https://www.officemag.ru/search/?q=cartridge",
+                                        "provider": "officemag",
+                                        "link_kind": "catalog_search",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                },
+            )
+        ],
+    )
+
+    class MixedCollector:
+        provider = "catalog_officemag"
+
+        def collect_with_diagnostics(self, query):
+            return {
+                "candidates": [
+                    {
+                        "name": "Office paper A4, 80 gsm, 500 sheets",
+                        "url": "https://www.officemag.ru/catalog/goods/paper/",
+                        "unit_price": 493.0,
+                        "availability": "in_stock",
+                        "status": "candidate",
+                        "source_query": query["query"],
+                        "source_kind": query["kind"],
+                        "provider": "officemag",
+                        "stock_quantity": 100,
+                    },
+                    {
+                        "name": "Sakura W1510X cartridge for HP LaserJet Pro 4003",
+                        "url": "https://www.officemag.ru/catalog/goods/cartridge/",
+                        "unit_price": 3480.0,
+                        "availability": "in_stock",
+                        "status": "candidate",
+                        "source_query": query["query"],
+                        "source_kind": query["kind"],
+                        "provider": "officemag",
+                        "stock_quantity": 7,
+                        "preorder_quantity": 12,
+                        "pack_quantity": 1,
+                    },
+                ],
+                "diagnostics": {
+                    "provider": self.provider,
+                    "queries_seen": 1,
+                    "links_seen": 1,
+                    "links_skipped": 0,
+                    "pages_fetched": 1,
+                    "candidates_found": 2,
+                    "errors": [],
+                },
+            }
+
+    payload = run_profile_supplier_price_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-discovery-intent",
+        1,
+        collectors=[MixedCollector()],
+    )
+
+    assert payload["staged_count"] == 1
+    assert payload["supplier_discovery"]["collector_diagnostics"] == [
+        {
+            "provider": "catalog_officemag",
+            "queries_seen": 3,
+            "links_seen": 3,
+            "links_skipped": 0,
+            "pages_fetched": 3,
+            "candidates_found": 6,
+            "candidates_rejected_by_intent": 3,
+            "errors": [],
+        }
+    ]
+    staged = payload["supplier_discovery"]["candidates"][0]
+    assert staged["name"] == "Sakura W1510X cartridge for HP LaserJet Pro 4003"
+    assert staged["url"] == "https://www.officemag.ru/catalog/goods/cartridge/"
+    assert staged["stock_quantity"] == 7
+    assert staged["preorder_quantity"] == 12
+    assert staged["pack_quantity"] == 1
+    assert "profile_intent_match" in staged["match_reasons"]
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-price-discovery-intent")
+    profile = detail["product_profiles"][0]
+    assert [candidate["name"] for candidate in profile["raw_payload"]["supplier_discovery"]["candidates"]] == [
+        "Sakura W1510X cartridge for HP LaserJet Pro 4003"
+    ]
+    price_candidates = profile["price_candidates"]
+    assert [candidate["product_name"] for candidate in price_candidates] == [
+        "Sakura W1510X cartridge for HP LaserJet Pro 4003"
+    ]
+    assert price_candidates[0]["stock_quantity"] == 7
+    assert price_candidates[0]["preorder_quantity"] == 12
+    assert price_candidates[0]["pack_quantity"] == 1
+    assert "profile_intent_match" in price_candidates[0]["match_reasons"]
+
+
+def test_run_profile_supplier_price_discovery_records_intent_rejections_without_matching_profile(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-discovery-intent-empty",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-discovery-intent-empty",
+            title="Cartridge tender",
+            price=100000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-discovery-intent-empty",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-intent-empty",
+                position_index=1,
+                product_name="Cartridge for electrophotographic printing devices",
+                raw_payload={
+                    "supplier_search": {
+                        "status": "ready",
+                        "queries": [
+                            {
+                                "query": "cartridge for electrophotographic printing devices",
+                                "kind": "normalized_name",
+                                "priority": 1,
+                                "quick_links": [
+                                    {
+                                        "label": "OfficeMag",
+                                        "url": "https://www.officemag.ru/search/?q=cartridge",
+                                        "provider": "officemag",
+                                        "link_kind": "catalog_search",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                },
+            )
+        ],
+    )
+
+    class WrongFamilyCollector:
+        provider = "catalog_officemag"
+
+        def collect_with_diagnostics(self, query):
+            return {
+                "candidates": [
+                    {
+                        "name": "Evacuation sign Direction arrow, 10 pieces",
+                        "url": "https://www.officemag.ru/catalog/goods/sign/",
+                        "unit_price": 347.0,
+                        "status": "candidate",
+                        "source_query": query["query"],
+                        "source_kind": query["kind"],
+                        "provider": "officemag",
+                    }
+                ],
+                "diagnostics": {
+                    "provider": self.provider,
+                    "queries_seen": 1,
+                    "links_seen": 1,
+                    "links_skipped": 0,
+                    "pages_fetched": 1,
+                    "candidates_found": 1,
+                    "errors": [],
+                },
+            }
+
+    with pytest.raises(ValueError, match=price_discovery.NO_SUPPLIER_CANDIDATES_MESSAGE):
+        run_profile_supplier_price_discovery(
+            store.database_path,
+            "mosreg_market",
+            "supplier-price-discovery-intent-empty",
+            1,
+            collectors=[WrongFamilyCollector()],
+        )
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-price-discovery-intent-empty")
+    profile = detail["product_profiles"][0]
+    discovery = profile["raw_payload"]["supplier_discovery"]
+    assert discovery == {
+        "status": "no_candidates",
+        "collector_diagnostics": [
+            {
+                "provider": "catalog_officemag",
+                "queries_seen": 3,
+                "links_seen": 3,
+                "links_skipped": 0,
+                "pages_fetched": 3,
+                "candidates_found": 3,
+                "candidates_rejected_by_intent": 3,
+                "errors": [],
+            }
+        ],
+        "candidates": [],
+    }
+    assert profile["profile_status"] != "matched"
+    assert profile["price_candidates"] == []
 
 
 def test_run_profile_supplier_price_discovery_refreshes_stale_russian_office_paper_queries(tmp_path) -> None:

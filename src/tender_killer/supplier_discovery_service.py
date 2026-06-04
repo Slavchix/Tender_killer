@@ -29,6 +29,10 @@ DISCOVERY_NUMBER_FIELDS = (
     "minimum_order_quantity",
     "pack_quantity",
 )
+DISCOVERY_LIST_FIELDS = (
+    "confidence_reasons",
+    "match_reasons",
+)
 DISCOVERY_CONFIDENCE_VALUES = {"high", "medium", "needs_review"}
 LOCKED_PROFILE_STATUSES = {"priced", "rejected"}
 TOKEN_PATTERN = re.compile(r"[^\w]+", re.UNICODE)
@@ -151,10 +155,14 @@ def _discovery_candidate(data: dict[str, Any]) -> dict[str, Any]:
         number = _number(data.get(field))
         if number is not None:
             candidate[field] = number
+    for field in DISCOVERY_LIST_FIELDS:
+        items = _text_items(data.get(field))
+        if items:
+            candidate[field] = items
     has_candidate_signal = any(candidate.get(field) for field in ("name", "url", "note")) or "unit_price" in candidate
     if not has_candidate_signal:
         return {}
-    confidence_reasons = _confidence_reasons(candidate)
+    confidence_reasons = _text_items(candidate.get("confidence_reasons")) or _confidence_reasons(candidate)
     candidate["confidence"] = _confidence(data.get("confidence")) or _confidence_from_reasons(confidence_reasons)
     candidate["confidence_reasons"] = confidence_reasons
     candidate.setdefault("review_status", "pending")
@@ -179,6 +187,17 @@ def _discovery_candidates(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
     return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def _text_items(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items: list[str] = []
+    for item in value:
+        text = _text(item)
+        if text:
+            items.append(text)
+    return items
 
 
 def _supplier_options(value: Any) -> list[dict[str, Any]]:

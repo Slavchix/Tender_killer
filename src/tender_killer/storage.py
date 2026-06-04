@@ -808,6 +808,8 @@ def _deserialize_price_candidate(row: sqlite3.Row) -> dict[str, Any]:
         "supplier_option_index": row["supplier_option_index"],
         "unit": raw_payload.get("unit"),
         "pack_quantity": raw_payload.get("pack_quantity"),
+        "stock_quantity": raw_payload.get("stock_quantity"),
+        "preorder_quantity": raw_payload.get("preorder_quantity"),
         "delivery_note": raw_payload.get("delivery_note"),
         "observed_at": row["observed_at"],
         "reviewed_at": row["reviewed_at"],
