@@ -5,6 +5,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from tender_killer.analysis_document_context import build_document_coverage
+from tender_killer.analysis_document_context import document_roles_summary
 from tender_killer.adapters import MoscowSupplierPortalAdapter
 from tender_killer.adapters import MosregMarketAdapter
 from tender_killer.analysis_evidence_service import build_analysis_evidence_items
@@ -12,6 +14,7 @@ from tender_killer.analysis_facts_service import build_analysis_facts
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 from tender_killer.analysis_passport_service import build_analysis_tz_passport
 from tender_killer.analysis_source_service import attach_document_sources
+from tender_killer.analysis_text_index_service import build_analysis_text_index
 from tender_killer.decision_service import build_tender_decision
 from tender_killer.document_service import document_row_to_payload
 from tender_killer.economics import build_economics_summary
@@ -226,6 +229,20 @@ def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) 
     payload["red_flags"] = _json_list(payload.pop("red_flags_json"))
     payload["raw_payload"] = _json_object(payload.pop("raw_payload_json"))
     attach_document_sources(payload["raw_payload"], documents)
+    document_coverage = payload["raw_payload"].get("document_coverage")
+    payload["document_coverage"] = (
+        document_coverage
+        if isinstance(document_coverage, dict) and document_coverage.get("version") == 1
+        else build_document_coverage(documents)
+    )
+    document_roles = payload["raw_payload"].get("document_roles")
+    payload["document_roles"] = document_roles if isinstance(document_roles, dict) else document_roles_summary(documents)
+    text_index = payload["raw_payload"].get("text_index")
+    payload["text_index"] = (
+        text_index
+        if isinstance(text_index, dict) and text_index.get("version") == 1
+        else build_analysis_text_index(documents)
+    )
     payload["checklist"] = payload["raw_payload"].get("checklist", [])
     execution_terms = payload["raw_payload"].get("execution_terms")
     payload["execution_terms"] = execution_terms if isinstance(execution_terms, list) else []

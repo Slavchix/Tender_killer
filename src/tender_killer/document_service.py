@@ -58,6 +58,7 @@ def download_tender_documents_payload(
         for row in rows:
             if _existing_local_document_path(row["local_path"]):
                 skipped += 1
+                _recover_existing_download_status(connection, source, external_id, row)
                 continue
             host = _download_host(row["url"])
             if host in failed_hosts:
@@ -80,10 +81,13 @@ def download_tender_documents_payload(
             connection.execute(
                 """
                 UPDATE tender_documents
-                SET name = COALESCE(name, ?), local_path = ?, downloaded_at = ?, text_status = CASE
-                    WHEN text_status = 'pending' THEN 'downloaded'
-                    ELSE text_status
-                END
+                SET name = COALESCE(name, ?),
+                    local_path = ?,
+                    downloaded_at = ?,
+                    text_status = 'downloaded',
+                    text_content = NULL,
+                    text_extracted_at = NULL,
+                    text_error = ''
                 WHERE source = ? AND external_id = ? AND url = ?
                 """,
                 (
@@ -192,13 +196,36 @@ def _connect(database_path: str | Path) -> sqlite3.Connection:
 def _fetch_download_rows(connection: sqlite3.Connection, source: str, external_id: str) -> list[sqlite3.Row]:
     return connection.execute(
         """
-        SELECT document_index, name, url, local_path
+        SELECT document_index, name, url, local_path, text_status, text_error
         FROM tender_documents
         WHERE source = ? AND external_id = ?
         ORDER BY document_index
         """,
         (source, external_id),
     ).fetchall()
+
+
+def _recover_existing_download_status(
+    connection: sqlite3.Connection,
+    source: str,
+    external_id: str,
+    row: sqlite3.Row,
+) -> None:
+    text_status = str(row["text_status"] or "").strip().casefold()
+    text_error = str(row["text_error"] or "").strip().casefold()
+    if text_status not in {"pending", "missing_file"} and text_error != "local file is missing":
+        return
+    connection.execute(
+        """
+        UPDATE tender_documents
+        SET text_status = 'downloaded',
+            text_content = NULL,
+            text_extracted_at = NULL,
+            text_error = ''
+        WHERE source = ? AND external_id = ? AND url = ?
+        """,
+        (source, external_id, row["url"]),
+    )
 
 
 def _existing_local_document_path(value: str | None) -> Path | None:
