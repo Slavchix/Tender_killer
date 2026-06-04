@@ -8,13 +8,9 @@ import { SummaryMetric } from './TenderDetailsShared'
 
 export function AnalysisDocumentsPanel({ documents = [], preparing, downloading, extracting, onDownload, onExtract }) {
   return (
-    <section className="analysis-documents-panel" aria-label="Подготовка документов для анализа">
-      <div className="section-heading-row">
-        <div>
-          <h4>Документы для анализа</h4>
-          <p className="muted-text">Скачивание, извлечение текста и проверка файлов перед анализом ТЗ.</p>
-        </div>
-      </div>
+    <details className="document-table-toggle analysis-documents-toggle">
+      <summary>Показать документы ({documents.length})</summary>
+      <p className="muted-text">Скачивание, извлечение текста и проверка файлов перед анализом ТЗ.</p>
       <DocumentStatusSummary
         documents={documents}
         preparing={preparing}
@@ -24,40 +20,37 @@ export function AnalysisDocumentsPanel({ documents = [], preparing, downloading,
         onExtract={onExtract}
       />
       {documents.length ? (
-        <details className="document-table-toggle">
-          <summary>Показать документы ({documents.length})</summary>
-          <div className="document-table compact">
-            {documents.map((document) => (
-              <div className="document-row" key={document.url}>
-                <div>
-                  <a href={document.url} target="_blank" rel="noreferrer">
-                    {document.name || documentLabel(document.url)}
-                  </a>
-                  <span>{document.document_type || 'тип не указан'}</span>
-                  {document.text_content && (
-                    <details className="document-preview-toggle">
-                      <summary>Показать извлеченный текст</summary>
-                      <p className="document-preview">{documentTextPreview(document.text_content)}</p>
-                    </details>
-                  )}
-                  {document.text_error && <p className="document-error">{document.text_error}</p>}
-                </div>
-                <div className="document-row-status">
-                  <strong className={`download-status ${document.local_path ? 'downloaded' : 'missing'}`}>
-                    {document.local_path ? 'скачан' : 'не скачан'}
-                  </strong>
-                  <em className={`document-status ${document.text_status || 'pending'}`}>
-                    {documentStatusLabel(document.text_status)}
-                  </em>
-                </div>
+        <div className="document-table compact">
+          {documents.map((document) => (
+            <div className="document-row" key={document.url}>
+              <div>
+                <a href={document.url} target="_blank" rel="noreferrer">
+                  {document.name || documentLabel(document.url)}
+                </a>
+                <span>{document.document_type || 'тип не указан'}</span>
+                {document.text_content && (
+                  <details className="document-preview-toggle">
+                    <summary>Показать извлеченный текст</summary>
+                    <p className="document-preview">{documentTextPreview(document.text_content)}</p>
+                  </details>
+                )}
+                {document.text_error && <p className="document-error">{document.text_error}</p>}
               </div>
-            ))}
-          </div>
-        </details>
+              <div className="document-row-status">
+                <strong className={`download-status ${document.local_path ? 'downloaded' : 'missing'}`}>
+                  {document.local_path ? 'скачан' : 'не скачан'}
+                </strong>
+                <em className={`document-status ${document.text_status || 'pending'}`}>
+                  {documentStatusLabel(document.text_status)}
+                </em>
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <p className="muted-text">Документы пока не найдены в карточке.</p>
       )}
-    </section>
+    </details>
   )
 }
 

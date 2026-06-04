@@ -160,28 +160,33 @@ def _decision_brief(
         }
 
     if blockers:
+        primary_item = blockers[0]
         return {
             "status": "manual_review",
             "tone": "danger",
             "title": "Нужна ручная проверка",
-            "summary": "В ТЗ есть условия, которые могут повлиять на участие, цену или закрывающие документы.",
-            "next_step": "Разобрать риски до расчета и решения об участии",
+            "summary": _decision_summary(primary_item, "В ТЗ есть условия, которые могут повлиять на участие, цену или закрывающие документы."),
+            "next_step": _text(primary_item.get("operator_action")) or "Разобрать риски до расчета и решения об участии",
             "confidence": confidence,
             "primary_section": "decision_risks",
-            "reasons": [item["label"] for item in blockers[:3]],
+            "reasons": [_decision_reason(item) for item in blockers[:3]],
         }
 
     non_empty_sections = [section for section in sections if section["items"]]
     if non_empty_sections:
         reasons = []
         for section in non_empty_sections:
-            reasons.extend(item["label"] for item in section["items"][:2] if item.get("type") != "document")
+            reasons.extend(_decision_reason(item) for item in section["items"][:2] if item.get("type") != "document")
+        primary_item = next(
+            (item for section in non_empty_sections for item in section["items"] if item.get("type") != "document"),
+            None,
+        )
         return {
             "status": "needs_review",
             "tone": "review",
             "title": "Проверить условия ТЗ",
-            "summary": "Критичных блокеров не видно, но условия товара, поставки, приемки и оплаты нужно сверить перед расчетом.",
-            "next_step": "Пройти четыре блока анализа и зафиксировать влияние на заявку",
+            "summary": _decision_summary(primary_item, "Критичных блокеров не видно, но условия товара, поставки, приемки и оплаты нужно сверить перед расчетом."),
+            "next_step": _text(primary_item.get("operator_action")) if primary_item else "Пройти четыре блока анализа и зафиксировать влияние на заявку",
             "confidence": confidence,
             "primary_section": "product_compliance",
             "reasons": reasons[:3],
@@ -199,6 +204,28 @@ def _decision_brief(
     }
 
 
+def _decision_summary(item: dict[str, Any] | None, fallback: str) -> str:
+    if not item:
+        return fallback
+    label = _text(item.get("label"))
+    impact = _text(item.get("impact") or item.get("description"))
+    if not label or not impact:
+        return fallback
+    return f"Сначала проверить: {label}. {_compact_text(impact, 180)}"
+
+
+def _decision_reason(item: dict[str, Any]) -> str:
+    label = _text(item.get("label")) or "условие"
+    impact = _text(item.get("impact") or item.get("description") or item.get("operator_action"))
+    source = _text(item.get("source_label") or item.get("document_name") or item.get("source"))
+    reason = label
+    if impact:
+        reason = f"{reason} — {_compact_text(impact, 150)}"
+    if source:
+        reason = f"{reason} ({source})"
+    return reason
+
+
 def _action_plan(
     sections: list[dict[str, Any]],
     document_state: dict[str, Any],
@@ -207,6 +234,7 @@ def _action_plan(
     for section in sections:
         items = [item for item in section["items"] if _is_analysis_item(item)]
         section_id = section["id"]
+        focus_item = items[0] if items else None
         status = "ok"
         if section_id == "decision_risks" and items:
             status = "manual_review"
@@ -220,8 +248,8 @@ def _action_plan(
                 "id": section_id,
                 "title": _action_title(section_id),
                 "status": status,
-                "next_step": _action_next_step(section_id, document_state),
-                "items": [item["label"] for item in items[:3]],
+                "next_step": _action_next_step(section_id, document_state, focus_item),
+                "items": [_action_item_label(item) for item in items[:3]],
             }
         )
     return plan[:4]
@@ -236,7 +264,11 @@ def _action_title(section_id: str) -> str:
     }[section_id]
 
 
-def _action_next_step(section_id: str, document_state: dict[str, Any]) -> str:
+def _action_next_step(section_id: str, document_state: dict[str, Any], focus_item: dict[str, Any] | None = None) -> str:
+    if focus_item:
+        action = _text(focus_item.get("operator_action") or focus_item.get("impact"))
+        if action:
+            return action
     if section_id == "decision_risks":
         return "Снять блокеры и ручные проверки до расчета."
     if section_id == "product_compliance":
@@ -246,6 +278,14 @@ def _action_next_step(section_id: str, document_state: dict[str, Any]) -> str:
     if section_id == "fulfillment_terms":
         return "Заложить сроки, логистику и договорные обязанности."
     return "Сверить порядок приемки, закрывающие документы и денежные условия."
+
+
+def _action_item_label(item: dict[str, Any]) -> str:
+    label = _text(item.get("label"))
+    source = _text(item.get("source_label") or item.get("document_name") or item.get("source"))
+    if label and source:
+        return f"{label} · {source}"
+    return label or source
 
 
 def _metrics(
@@ -366,6 +406,26 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
     fragment = _text(raw_item.get("fragment") or raw_item.get("evidence"))
     source_page = _source_page(raw_item.get("source_page"))
     source_label = _text(raw_item.get("source_label")) or _source_label(source, source_page)
+    impact = _operator_impact(
+        category=category,
+        severity=severity,
+        is_blocker=is_blocker,
+        label=label,
+        kind=kind,
+        raw_impact=_text(raw_item.get("impact")),
+    )
+    evidence_text = _operator_evidence_text(label=label, value=value, fragment=fragment)
+    source_context = _operator_source_context(
+        raw_context=_text(raw_item.get("source_context")),
+        source=source,
+        evidence_text=evidence_text,
+        impact=impact,
+    )
+    evidence_summary = _operator_evidence_summary(
+        source_label=source_label,
+        evidence_text=evidence_text,
+        impact=impact,
+    )
 
     return {
         "id": _text(raw_item.get("id")) or f"{kind}:{_slug(label)}",
@@ -388,9 +448,10 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         "document_name": source,
         "source_page": source_page,
         "source_label": source_label,
-        "source_context": _text(raw_item.get("source_context")),
+        "source_context": source_context,
+        "evidence_summary": evidence_summary,
         "fragment": fragment,
-        "impact": _text(raw_item.get("impact")) or _fallback_impact(category, severity, is_blocker),
+        "impact": impact,
         "operator_group": _text(raw_item.get("operator_group")) or _operator_group(kind, category, is_blocker, needs_review),
         "operator_action": _operator_action(
             kind,
@@ -400,13 +461,45 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
             label=label,
             raw_action=_text(raw_item.get("operator_action")),
         ),
-        "price_impact": _text(raw_item.get("price_impact")) or _price_impact(category),
+        "price_impact": _text(raw_item.get("price_impact")) or _price_impact(category, label=label),
         "priority": _int_metric(raw_item.get("priority"), _priority(kind, category, severity, is_blocker, needs_review)),
         "rule_id": _text(raw_item.get("rule_id")),
         "is_blocker": is_blocker,
         "is_price_factor": is_price_factor,
         "needs_review": needs_review,
     }
+
+
+def _operator_evidence_text(*, label: str, value: str, fragment: str) -> str:
+    for candidate in (fragment, value):
+        if candidate and not _description_is_only_label(candidate, label):
+            return candidate
+    return ""
+
+
+def _operator_source_context(
+    *,
+    raw_context: str,
+    source: str,
+    evidence_text: str,
+    impact: str,
+) -> str:
+    if raw_context:
+        return raw_context
+    if not source or not evidence_text or not impact:
+        return ""
+    return f"Почему важно: {_compact_text(impact, 190)}"
+
+
+def _operator_evidence_summary(*, source_label: str, evidence_text: str, impact: str) -> str:
+    parts = []
+    if source_label:
+        parts.append(source_label)
+    if evidence_text:
+        parts.append(_compact_text(evidence_text, 180))
+    if impact:
+        parts.append(f"вывод: {_compact_text(impact, 180)}")
+    return " · ".join(parts)
 
 
 def _document_items(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -524,7 +617,46 @@ def _fallback_kind(item: dict[str, Any]) -> str:
     return "requirement"
 
 
-def _fallback_impact(category: str, severity: str, is_blocker: bool) -> str:
+def _operator_impact(
+    *,
+    category: str,
+    severity: str,
+    is_blocker: bool,
+    label: str,
+    kind: str,
+    raw_impact: str,
+) -> str:
+    fallback = _fallback_impact(category, severity, is_blocker, label=label, kind=kind)
+    if fallback and (not raw_impact or _impact_is_generic(raw_impact)):
+        return fallback
+    return raw_impact or fallback
+
+
+def _fallback_impact(
+    category: str,
+    severity: str,
+    is_blocker: bool,
+    *,
+    label: str = "",
+    kind: str = "",
+) -> str:
+    family = _semantic_family(label, category)
+    if family == "national_regime":
+        return "Проверить допуск товара и заявки: страна происхождения, реестр и подтверждения могут привести к отклонению."
+    if family == "license_sro":
+        return "Проверить право участника выполнять работы: без лицензии или СРО заявку могут отклонить."
+    if family == "contract_security":
+        return "Учесть нагрузку на оборотку: обеспечение или гарантия замораживает деньги и влияет на решение об участии."
+    if family == "short_delivery":
+        return "Проверить наличие товара и срочную логистику: короткий срок может увеличить расходы или стать стоп-фактором."
+    if family == "closing_documents":
+        return "Подготовить закрывающие документы для приемки: ошибки в УПД, актах или накладных задержат оплату."
+    if family == "montage_launch":
+        return "Заложить работы, выезд специалистов, акты и возможные дополнительные расходы на монтаж или пусконаладку."
+    if family == "certificate_documents":
+        return "Проверить документы соответствия у поставщика: без сертификатов или деклараций возможна проблема с приемкой."
+    if family == "warranty":
+        return "Заложить резерв на гарантийные обязательства, замену брака и возможные выезды после поставки."
     if is_blocker or severity == "high":
         return "Проверить допустимость участия до расчета."
     if category in DOCUMENT_CATEGORIES:
@@ -534,6 +666,19 @@ def _fallback_impact(category: str, severity: str, is_blocker: bool) -> str:
     if category in ACCEPTANCE_PAYMENT_CATEGORIES:
         return "Учесть в закрывающих документах и денежном цикле."
     return ""
+
+
+def _impact_is_generic(impact: str) -> bool:
+    text = _dedupe_text(impact)
+    generic_markers = (
+        "может повлиять на возможность участия",
+        "заложить в решение или экономику",
+        "учесть в сроках",
+        "проверить наличие документа",
+        "проверить перед принятием решения",
+        "проверить допустимость участия до расчета",
+    )
+    return any(marker in text for marker in generic_markers)
 
 
 def _operator_group(kind: str, category: str, is_blocker: bool, needs_review: bool) -> str:
@@ -566,6 +711,16 @@ def _operator_action(
         return "Проверить, действительно ли нужна лицензия или СРО, и есть ли подтверждение у участника."
     if family == "contract_security":
         return "Учесть обеспечение в деньгах или гарантии и проверить возможность участия."
+    if family == "short_delivery":
+        return "Проверить наличие товара, реалистичность срока и заложить срочную логистику до расчета цены."
+    if family == "closing_documents":
+        return "Подготовить УПД, накладные или акты и проверить, без каких документов заказчик не примет и не оплатит поставку."
+    if family == "montage_launch":
+        return "Проверить, входят ли монтаж, пусконаладка или обучение в поставку, и заложить выезд специалистов."
+    if family == "certificate_documents":
+        return "Запросить у поставщика сертификаты, декларации или паспорта качества до подачи заявки."
+    if family == "warranty":
+        return "Проверить гарантийный срок, правила замены брака и резерв на гарантийные обязательства."
     if raw_action and raw_action not in {"Проверить до участия.", "Проверить допустимость участия до расчета."}:
         return raw_action
     if needs_review:
@@ -587,7 +742,16 @@ def _operator_action(
     return "Проверить условие перед решением."
 
 
-def _price_impact(category: str) -> str:
+def _price_impact(category: str, *, label: str = "") -> str:
+    family = _semantic_family(label, category)
+    if family in {"short_delivery", "montage_launch"}:
+        return "logistics"
+    if family in {"closing_documents", "contract_security"}:
+        return "working_capital"
+    if family == "certificate_documents":
+        return "documents"
+    if family == "warranty":
+        return "reserve"
     if category == "delivery":
         return "logistics"
     if category in {"financial", "payment", "acceptance"}:
@@ -752,7 +916,7 @@ def _item_text_is_relevant(item: dict[str, Any], value: str) -> bool:
     category = _text(item.get("category"))
     family = _semantic_family(label, category)
     if family == "national_regime":
-        return any(marker in text for marker in ("национальн", "страна происхожд", "страны происхожд", "1875"))
+        return any(marker in text for marker in ("национальн", "страна происхожд", "страну происхожд", "страны происхожд", "1875"))
     if family == "license_sro":
         return any(marker in text for marker in ("сро", "лиценз", "саморегулируем"))
     if family == "contract_security":
@@ -807,6 +971,31 @@ def _operator_description(
             "Это денежная нагрузка на исполнение: обеспечение или независимая гарантия влияет на оборотку, "
             "резерв и решение об участии."
         )
+    if family == "short_delivery":
+        return (
+            "Это риск физического исполнения: короткий срок поставки требует наличия товара на складе, "
+            "быстрой логистики и подтверждения, что срок реально выполнить без срыва контракта."
+        )
+    if family == "closing_documents":
+        return (
+            "Это условие приемки и оплаты: УПД, накладные, счета-фактуры или акты должны совпасть с требованиями "
+            "заказчика, иначе поставку могут не принять или задержать оплату."
+        )
+    if family == "montage_launch":
+        return (
+            "Это не просто поставка товара: монтаж, пусконаладка, ввод в эксплуатацию или обучение требуют "
+            "специалистов, допуска на объект, актов и дополнительного времени."
+        )
+    if family == "certificate_documents":
+        return (
+            "Это подтверждение соответствия товара: сертификаты, декларации, паспорта качества или другие документы "
+            "нужно получить у поставщика до заявки или до приемки."
+        )
+    if family == "warranty":
+        return (
+            "Это обязательства после поставки: гарантийный срок, замена брака и порядок ремонта могут потребовать "
+            "резерва, документов и готовности обслуживать товар после приемки."
+        )
     if category == "documents":
         return "Нужно понять, какой подтверждающий документ требуется и кто сможет его предоставить к заявке или поставке."
     if category == "standards":
@@ -840,6 +1029,55 @@ def _semantic_family(label: str, category: str) -> str:
         return "license_sro"
     if category == "financial" and any(marker in text for marker in ("обеспечение исполнения", "независим", "гарант")):
         return "contract_security"
+    if any(marker in text for marker in ("монтаж", "пусконалад", "ввод в эксплуатац", "обучение", "инструктаж")):
+        return "montage_launch"
+    if category in {"documents", "standards"} and any(
+        marker in text
+        for marker in (
+            "сертифик",
+            "деклараци",
+            "паспорт качества",
+            "паспорт издел",
+            "сгр",
+            "регистрационное удостоверение",
+            "удостоверение качества",
+        )
+    ):
+        return "certificate_documents"
+    if category in ACCEPTANCE_PAYMENT_CATEGORIES | {"documents"} and any(
+        marker in text
+        for marker in (
+            "упд",
+            "закрывающ",
+            "накладн",
+            "счет-фактур",
+            "счёт-фактур",
+            "акт прием",
+            "акт приём",
+            "акт выполн",
+            "документы о приемке",
+            "документы о приёмке",
+        )
+    ):
+        return "closing_documents"
+    if category == "delivery" and any(
+        marker in text
+        for marker in (
+            "короткий срок",
+            "срок поставки",
+            "срок исполн",
+            "поставка в течение",
+            "в течение 1",
+            "в течение 2",
+            "в течение 3",
+            "1 день",
+            "2 дня",
+            "3 дня",
+        )
+    ):
+        return "short_delivery"
+    if category in {"contract", "documents"} and any(marker in text for marker in ("гарантийн", "гарантия", "замена брака", "ремонт")):
+        return "warranty"
     return ""
 
 
@@ -894,6 +1132,13 @@ def _int_metric(value: Any, fallback: int) -> int:
 
 def _dedupe_text(value: Any) -> str:
     return re.sub(r"\s+", " ", _text(value)).strip().casefold()
+
+
+def _compact_text(value: Any, limit: int) -> str:
+    text = re.sub(r"\s+", " ", _text(value)).strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip(" .,;:") + "…"
 
 
 def _slug(value: str) -> str:

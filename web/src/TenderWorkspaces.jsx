@@ -24,7 +24,6 @@ export function TenderWorkspaces({
     analysis,
     analyzing,
     preparingAnalysis,
-    onAnalyzeTender,
     onPrepareTenderAnalysis,
   } = analysisState
   const {
@@ -107,7 +106,6 @@ export function TenderWorkspaces({
           extracting={extracting}
           onDownload={onDownloadDocuments}
           onExtract={onExtractDocumentText}
-          onAnalyze={onAnalyzeTender}
           onPrepareAnalysis={onPrepareTenderAnalysis}
           reportHref={reportHref}
           documents={documentRecords}

@@ -14,7 +14,6 @@ export function TenderAnalysisTab({
   preparingAnalysis,
   downloading,
   extracting,
-  onAnalyze,
   onPrepareAnalysis,
   onDownload,
   onExtract,
@@ -50,9 +49,6 @@ export function TenderAnalysisTab({
         <div className="analysis-actions">
           <button className="primary-button compact" disabled={analysisActionDisabled} onClick={onPrepareAnalysis} type="button">
             {preparingAnalysis ? 'Готовлю...' : 'Подготовить анализ'}
-          </button>
-          <button className="secondary-button compact" disabled={analysisActionDisabled} onClick={onAnalyze} type="button">
-            {analyzing ? 'Анализ...' : 'Проанализировать'}
           </button>
           <a className="secondary-link-button compact" href={reportHref}>
             Скачать Word
