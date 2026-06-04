@@ -50,14 +50,23 @@ export function AnalysisSectionBody({ sectionId, analysis, documents = [] }) {
 }
 
 function visibleMajorAnalysisSections(analysis, documents = []) {
-  const sections = buildMajorAnalysisSections(analysis, documents)
+  const sections = buildMajorAnalysisSections(analysis, documents).map(normalizeVisibleAnalysisSection)
   const visibleSections = sections.filter(analysisSectionHasContent)
   return visibleSections.length ? visibleSections : sections.slice(0, 1)
 }
 
 function analysisSectionHasContent(section) {
   const items = Array.isArray(section?.items) ? section.items : []
-  return items.some((item) => item.type !== 'document' && item.type !== 'document_summary')
+  return items.some(isAnalysisFactItem)
+}
+
+function normalizeVisibleAnalysisSection(section) {
+  const items = displayableAnalysisItems(section?.items)
+  return {
+    ...section,
+    count: analysisItemCount(items),
+    items,
+  }
 }
 
 function buildMajorAnalysisSections(analysis, documents = []) {
@@ -234,9 +243,9 @@ function dedupeItems(items) {
 }
 
 function AnalysisOperatorSection({ section }) {
-  const items = Array.isArray(section.items) ? section.items : []
+  const items = displayableAnalysisItems(section.items)
   const documentSummary = items.find((item) => item.type === 'document_summary')
-  const analysisItems = items.filter((item) => item.type !== 'document' && item.type !== 'document_summary')
+  const analysisItems = items.filter(isAnalysisFactItem)
 
   return (
     <div className={`analysis-card operator-section ${section.tone || 'default'}`}>
@@ -325,7 +334,137 @@ function analysisItemTags(item) {
 }
 
 function analysisItemCount(items) {
-  return (Array.isArray(items) ? items : []).filter((item) => item.type !== 'document' && item.type !== 'document_summary').length
+  return displayableAnalysisItems(items).filter(isAnalysisFactItem).length
+}
+
+function displayableAnalysisItems(items = []) {
+  const bestByKey = new Map()
+  const orderedKeys = []
+  ;(Array.isArray(items) ? items : []).forEach((item) => {
+    if (!isDisplayableContainerItem(item)) return
+    const key = semanticAnalysisItemKey(item)
+    const current = bestByKey.get(key)
+    if (!current) {
+      orderedKeys.push(key)
+      bestByKey.set(key, item)
+      return
+    }
+    if (analysisItemQuality(item) > analysisItemQuality(current)) {
+      bestByKey.set(key, item)
+    }
+  })
+  return orderedKeys.map((key) => bestByKey.get(key)).filter(Boolean)
+}
+
+function isDisplayableContainerItem(item) {
+  if (!item || typeof item !== 'object') return false
+  if (item.type === 'document_summary') return true
+  return isDisplayableAnalysisItem(item)
+}
+
+function isAnalysisFactItem(item) {
+  return isDisplayableAnalysisItem(item) && item.type !== 'document' && item.type !== 'document_summary'
+}
+
+function isDisplayableAnalysisItem(item) {
+  if (!item || typeof item !== 'object') return false
+  const kind = item.kind || item.type
+  if (kind === 'document' || kind === 'document_summary') return false
+  if (kind === 'subject') return Boolean(specificAnalysisText(item, true))
+  return analysisItemQuality(item) > 0
+}
+
+function analysisItemQuality(item) {
+  let score = 0
+  const sourceContext = cleanAnalysisText(item?.source_context)
+  const fragment = cleanAnalysisText(item?.fragment)
+  const specific = specificAnalysisText(item)
+  if (sourceContext) score += 90
+  if (fragment && isRelevantAnalysisText(item, fragment)) score += 80
+  if (hasRealAnalysisSource(item) && (!fragment || isRelevantAnalysisText(item, fragment) || sourceContext)) score += 45
+  if (specific && isRelevantAnalysisText(item, specific)) score += 35
+  return score
+}
+
+function semanticAnalysisItemKey(item) {
+  const kind = item?.kind || item?.type || 'item'
+  if (kind === 'document_summary' || kind === 'subject') {
+    return `${kind}:${normalizedAnalysisText(item?.id || item?.label)}`
+  }
+  const family = analysisSemanticFamily(item)
+  if (family) return `semantic:${family}`
+  const detail = analysisItemQuality(item) > 0 ? normalizedAnalysisText(item?.fragment || item?.value) : ''
+  return `${kind}:${normalizedAnalysisText(item?.label)}:${detail}`
+}
+
+function analysisSemanticFamily(item) {
+  const category = cleanAnalysisText(item?.category)
+  const text = normalizedAnalysisText(item?.label)
+  if (category === 'national_regime' || text.includes('национальн') || text.includes('страна происхожд') || text.includes('страны происхожд') || text.includes('1875')) {
+    return 'national_regime'
+  }
+  if (category === 'legal' && (text.includes('сро') || text.includes('лиценз') || text.includes('саморегулируем'))) {
+    return 'license_sro'
+  }
+  if (text.includes('обеспечение исполнения') || text.includes('независим') || text.includes('гарант')) {
+    return 'contract_security'
+  }
+  return ''
+}
+
+function specificAnalysisText(item, allowDescription = false) {
+  const label = normalizedAnalysisText(item?.label)
+  const fields = allowDescription ? ['value', 'description'] : ['value']
+  for (const field of fields) {
+    const value = cleanAnalysisText(item?.[field])
+    if (value && normalizedAnalysisText(value) !== label) return value
+  }
+  return ''
+}
+
+function hasRealAnalysisSource(item) {
+  const source = cleanAnalysisText(item?.source_label || item?.source || item?.document_name)
+  return Boolean(source && !normalizedAnalysisText(source).includes(normalizedAnalysisText('Документ не привязан')))
+}
+
+function isRelevantAnalysisText(item, value) {
+  const text = normalizedAnalysisText(value)
+  if (!text) return false
+  const family = analysisSemanticFamily(item)
+  if (family === 'national_regime') {
+    return text.includes('национальн') || text.includes('страна происхожд') || text.includes('страны происхожд') || text.includes('1875')
+  }
+  if (family === 'license_sro') {
+    return text.includes('сро') || text.includes('лиценз') || text.includes('саморегулируем')
+  }
+  if (family === 'contract_security') {
+    return text.includes('обеспечение исполнения') || text.includes('независим') || text.includes('гарант')
+  }
+  const tokens = meaningfulAnalysisTokens(item?.label)
+  if (!tokens.length) return true
+  if (cleanAnalysisText(item?.label).includes('/') || tokens.length === 1) {
+    return tokens.some((token) => text.includes(token))
+  }
+  return tokens.every((token) => text.includes(token))
+}
+
+function meaningfulAnalysisTokens(label) {
+  return normalizedAnalysisText(label)
+    .split(' ')
+    .filter((token) => token.length >= 4)
+}
+
+function cleanAnalysisText(value) {
+  if (value === null || value === undefined) return ''
+  return String(value).replace(/\s+/g, ' ').trim()
+}
+
+function normalizedAnalysisText(value) {
+  return cleanAnalysisText(value)
+    .toLocaleLowerCase('ru-RU')
+    .replace(/[^\wа-яё]+/giu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function AnalysisSectionRailItem({ title, value, active = false, onClick }) {

@@ -358,9 +358,6 @@ def _analysis_decision(analysis: dict[str, Any], documents: list[dict[str, Any]]
 
 
 def _analysis_operator_view(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> dict[str, Any]:
-    operator_view = analysis.get("operator_view") if isinstance(analysis, dict) else None
-    if isinstance(operator_view, dict) and operator_view.get("version") == 2:
-        return operator_view
     return build_analysis_operator_view(analysis, documents)
 
 

@@ -44,6 +44,15 @@ export const statusOptions = [
   { value: 'Заверш', label: 'Завершенные' },
 ]
 
+export const deadlineOptions = [
+  { value: '', label: 'Бессрочно' },
+  { value: '1', label: '1 день' },
+  { value: '2', label: '2 дня' },
+  { value: '3', label: '3 дня' },
+  { value: '5', label: '5 дней' },
+  { value: '12', label: '12 дней' },
+]
+
 export const regionOptions = [
   { value: '', label: 'Все регионы' },
   { value: 'Москва', label: 'Москва' },
@@ -159,6 +168,7 @@ export const initialFilters = {
   customer_inn: '',
   workflow_status: '',
   okpd2: '',
+  deadline_days: '',
   min_price: '',
   max_price: '',
 }

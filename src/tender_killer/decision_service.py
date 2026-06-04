@@ -171,7 +171,7 @@ def _document_reasons(metrics: dict[str, Any]) -> list[str]:
 
 def _operator_decision(analysis: dict[str, Any]) -> dict[str, Any]:
     operator_view = _dict(analysis.get("operator_view"))
-    if operator_view.get("version") != 2:
+    if operator_view.get("version") not in {2, 3}:
         return {}
     return _dict(operator_view.get("decision_brief"))
 
@@ -182,15 +182,19 @@ def _operator_decision_reasons(decision: dict[str, Any]) -> list[str]:
 
 def _operator_section_labels(analysis: dict[str, Any], section_id: str) -> list[str]:
     operator_view = _dict(analysis.get("operator_view"))
-    if operator_view.get("version") != 2:
+    if operator_view.get("version") not in {2, 3}:
         return []
     sections = operator_view.get("sections")
     if not isinstance(sections, list):
         return []
 
+    target_ids = {section_id}
+    if section_id == "blockers":
+        target_ids.add("decision_risks")
+
     labels: list[str] = []
     for section in sections:
-        if not isinstance(section, dict) or section.get("id") != section_id:
+        if not isinstance(section, dict) or section.get("id") not in target_ids:
             continue
         items = section.get("items")
         if not isinstance(items, list):

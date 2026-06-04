@@ -186,6 +186,10 @@ def _build_filters(query: dict[str, str]) -> tuple[list[str], list[Any]]:
             status_filters, status_params = _text_like_any("tenders.status", status)
             filters.append(status_filters)
             params.extend(status_params)
+    if deadline_days := _deadline_days_query(query.get("deadline_days")):
+        filters.append(_deadline_window_filter())
+        deadline_modifier = f"+{deadline_days} days"
+        params.extend([deadline_modifier, deadline_modifier])
     if okpd2_values := _multi_value_tuple(query.get("okpd2")):
         filters.append(
             "("
@@ -432,6 +436,32 @@ def _active_deadline_filter() -> str:
     """
 
 
+def _deadline_window_filter() -> str:
+    return """
+        (
+            tenders.deadline_at IS NOT NULL
+            AND (
+                (
+                    (
+                        tenders.deadline_at LIKE '%+__:__'
+                        OR tenders.deadline_at LIKE '%-__:__'
+                        OR tenders.deadline_at LIKE '%Z'
+                    )
+                    AND datetime(tenders.deadline_at) >= datetime('now')
+                    AND datetime(tenders.deadline_at) <= datetime('now', ?)
+                )
+                OR (
+                    tenders.deadline_at NOT LIKE '%+__:__'
+                    AND tenders.deadline_at NOT LIKE '%-__:__'
+                    AND tenders.deadline_at NOT LIKE '%Z'
+                    AND datetime(tenders.deadline_at) >= datetime('now', 'localtime')
+                    AND datetime(tenders.deadline_at) <= datetime('now', 'localtime', ?)
+                )
+            )
+        )
+    """
+
+
 def _row_to_list_item(row: sqlite3.Row, database_path: str | Path) -> dict[str, Any]:
     payload = dict(row)
     documents = _json_list(payload.pop("documents_json"))
@@ -514,11 +544,7 @@ def _analysis_from_list_row(payload: dict[str, Any]) -> dict[str, Any] | None:
         tz_passport if isinstance(tz_passport, dict) and tz_passport.get("version") == 1
         else build_analysis_tz_passport(analysis, [])
     )
-    operator_view = raw_payload.get("operator_view")
-    analysis["operator_view"] = (
-        operator_view if isinstance(operator_view, dict) and operator_view.get("version") == 2
-        else build_analysis_operator_view(analysis, [])
-    )
+    analysis["operator_view"] = build_analysis_operator_view(analysis, [])
     return analysis
 
 
@@ -576,6 +602,14 @@ def _float_query(value: Any) -> float | None:
         return float(value) if value not in (None, "") else None
     except ValueError:
         return None
+
+
+def _deadline_days_query(value: Any) -> int | None:
+    try:
+        days = int(str(value or "").strip())
+    except ValueError:
+        return None
+    return days if days in {1, 2, 3, 5, 12} else None
 
 
 def _law_query_values(value: Any) -> tuple[str, ...]:

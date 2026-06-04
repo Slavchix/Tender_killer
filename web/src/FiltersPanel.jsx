@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronUp, Filter, Search } from 'lucide-react'
 import {
+  deadlineOptions,
   lawOptions,
   regionOptions,
   sourceOptions,
@@ -80,6 +81,21 @@ export function FiltersPanel({
             >
               {statusOptions.map((option) => (
                 <option key={option.label} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Дедлайн
+            <select
+              name="deadline_days"
+              onChange={(event) => onUpdateFilter('deadline_days', event.target.value)}
+              value={filters.deadline_days}
+            >
+              {deadlineOptions.map((option) => (
+                <option key={option.value || 'unlimited-deadline'} value={option.value}>
                   {option.label}
                 </option>
               ))}
