@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import httpx
+import sqlite3
 
 from tender_killer import document_service
 from tender_killer.models import Tender
@@ -43,6 +44,59 @@ def test_document_service_downloads_records_without_web_api_dependency(tmp_path)
     assert payload["downloaded"] == 1
     assert payload["failed"] == []
     assert payload["document_records"][0]["local_path"].endswith("Техническое задание.docx")
+
+
+def test_document_service_retry_download_recovers_missing_file_status(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="3668200",
+            url="https://market.mosreg.ru/Trade/ViewTrade/3668200",
+            title="Supply",
+            document_records=[
+                TenderDocument(
+                    url="https://example.test/spec.docx",
+                    name="spec.docx",
+                    document_type="Spec",
+                    source_document_id="doc-1",
+                )
+            ],
+        )
+    )
+    with sqlite3.connect(store.database_path) as connection:
+        connection.execute(
+            """
+            UPDATE tender_documents
+            SET text_status = ?, text_error = ?
+            WHERE source = ? AND external_id = ? AND url = ?
+            """,
+            (
+                "missing_file",
+                "local file is missing",
+                "mosreg_market",
+                "3668200",
+                "https://example.test/spec.docx",
+            ),
+        )
+
+    def fake_downloader(url, target_path):
+        target_path.write_bytes(b"document")
+
+    payload = download_tender_documents_payload(
+        store.database_path,
+        "mosreg_market",
+        "3668200",
+        tmp_path / "documents",
+        downloader=fake_downloader,
+    )
+
+    assert payload["downloaded"] == 1
+    document = payload["document_records"][0]
+    assert document["local_path"].endswith("spec.docx")
+    assert document["text_status"] == "downloaded"
+    assert document["text_error"] == ""
 
 
 def test_document_file_downloader_ignores_system_proxy_environment(monkeypatch, tmp_path):

@@ -80,10 +80,13 @@ def download_tender_documents_payload(
             connection.execute(
                 """
                 UPDATE tender_documents
-                SET name = COALESCE(name, ?), local_path = ?, downloaded_at = ?, text_status = CASE
-                    WHEN text_status = 'pending' THEN 'downloaded'
-                    ELSE text_status
-                END
+                SET name = COALESCE(name, ?),
+                    local_path = ?,
+                    downloaded_at = ?,
+                    text_status = 'downloaded',
+                    text_content = NULL,
+                    text_extracted_at = NULL,
+                    text_error = ''
                 WHERE source = ? AND external_id = ? AND url = ?
                 """,
                 (
