@@ -362,6 +362,33 @@ def test_tender_query_service_active_status_hides_expired_moscow_local_deadlines
     assert payload["items"][0]["external_id"] == "actual-moscow"
 
 
+def test_tender_query_service_filters_by_deadline_days_window(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    now = datetime.now(UTC)
+    for external_id, deadline_at in (
+        ("expired", now - timedelta(hours=1)),
+        ("urgent", now + timedelta(hours=12)),
+        ("later", now + timedelta(days=2)),
+        ("no-deadline", None),
+    ):
+        store.upsert_tender(
+            Tender(
+                source="mosreg_market",
+                external_id=external_id,
+                url=f"https://example.test/{external_id}",
+                title=f"Deadline tender {external_id}",
+                status="Active",
+                deadline_at=deadline_at,
+            )
+        )
+
+    payload = list_tenders_payload(store.database_path, {"deadline_days": "1"})
+
+    assert payload["total"] == 1
+    assert payload["items"][0]["external_id"] == "urgent"
+
+
 def test_tender_query_service_expands_construction_material_search_query(tmp_path):
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()

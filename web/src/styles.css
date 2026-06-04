@@ -826,7 +826,7 @@ label,
 }
 
 .top-filter-form {
-  grid-template-columns: minmax(240px, 1.4fr) repeat(5, minmax(128px, 0.72fr)) minmax(220px, 0.8fr) auto;
+  grid-template-columns: minmax(220px, 1.2fr) repeat(6, minmax(112px, 0.62fr)) minmax(200px, 0.8fr) auto;
   align-items: end;
   gap: 10px;
 }

@@ -106,12 +106,16 @@ def test_tender_cockpit_exposes_normalized_metadata_filters():
     constants_source = CONSTANTS_SOURCE.read_text(encoding="utf-8")
     filters_source = FILTERS_PANEL_SOURCE.read_text(encoding="utf-8")
 
-    for key in ("source_family", "procedure_type", "customer_inn"):
+    for key in ("source_family", "procedure_type", "customer_inn", "deadline_days"):
         assert f"{key}: ''" in constants_source
 
     assert "export const regionOptions" in constants_source
+    assert "export const deadlineOptions" in constants_source
+    assert "value: '12'" in constants_source
     assert "value: 'Краснодарский край'" in constants_source
     assert "value: 'Республика Татарстан'" in constants_source
+    assert "deadlineOptions.map" in filters_source
+    assert "onUpdateFilter('deadline_days'" in filters_source
     assert "regionOptions.map" in filters_source
     assert "name=\"region\"" in filters_source
     assert "onUpdateFilter('region'" in filters_source
@@ -273,10 +277,13 @@ def test_frontend_uses_dedicated_filters_panel_module():
     assert "aria-expanded={!collapsed}" in filters_source
     assert "onToggleCollapsed" in filters_source
     assert "sourceOptions.map" in filters_source
+    assert "deadlineOptions.map" in filters_source
     assert "regionOptions.map" in filters_source
     assert "procedureTypeOptions.map" not in filters_source
     assert "sourceSelectValue(filters.source)" in filters_source
+    assert "filters.deadline_days" in filters_source
     assert "onUpdateFilter('source'" in filters_source
+    assert "onUpdateFilter('deadline_days'" in filters_source
     assert "function FiltersPanel" not in app_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(filters_source, FILTERS_PANEL_SOURCE) == []
@@ -2099,7 +2106,7 @@ def test_tender_workbench_has_top_filters_and_list_first_layout():
     assert ".tender-detail-screen" in styles_source
     assert ".top-filters-panel" in styles_source
     assert ".top-filters-panel.is-collapsed" in styles_source
-    assert "grid-template-columns: minmax(240px, 1.4fr) repeat(5, minmax(128px, 0.72fr)) minmax(220px, 0.8fr) auto" in styles_source
+    assert "grid-template-columns: minmax(220px, 1.2fr) repeat(6, minmax(112px, 0.62fr)) minmax(200px, 0.8fr) auto" in styles_source
     assert "overflow-x: hidden" in styles_source
     assert find_mojibake(app_source, APP_SOURCE) == []
     assert find_mojibake(filters_source, FILTERS_PANEL_SOURCE) == []
