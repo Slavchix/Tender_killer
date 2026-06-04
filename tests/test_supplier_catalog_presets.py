@@ -26,6 +26,17 @@ def test_supplier_catalog_presets_match_office_and_building_profiles() -> None:
     assert [preset["provider"] for preset in building_presets] == ["petrovich", "vseinstrumenti"]
 
 
+def test_supplier_catalog_presets_match_real_russian_office_paper_without_okpd2() -> None:
+    presets = supplier_catalog_presets_for_profile(
+        {
+            "product_name": "Бумага для офисной техники",
+            "normalized_name": "Бумага офисная",
+        }
+    )
+
+    assert [preset["provider"] for preset in presets] == ["officemag", "komus"]
+
+
 def test_supplier_catalog_presets_match_printer_consumables_to_office_catalogs() -> None:
     presets = supplier_catalog_presets_for_profile(
         {

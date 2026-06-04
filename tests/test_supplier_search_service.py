@@ -139,6 +139,38 @@ def test_build_supplier_search_queries_includes_matching_catalog_presets() -> No
     assert queries[0]["quick_links"] == expected_office_links("office paper a4")
 
 
+def test_build_supplier_search_queries_expands_real_russian_office_paper_terms() -> None:
+    queries = build_supplier_search_queries(
+        {
+            "product_name": "Бумага для офисной техники",
+            "normalized_name": "Бумага для офисной техники",
+            "search_phrases": ["Бумага для офисной техники"],
+            "okpd2": "17.12.14.110",
+        }
+    )
+
+    assert [query["query"] for query in queries] == [
+        "Бумага для офисной техники",
+        "бумага офисная",
+        "бумага офисная а4",
+        "бумага для принтера",
+        "17.12.14.110 Бумага для офисной техники",
+    ]
+    office_links = [
+        link
+        for query in queries
+        for link in query["quick_links"]
+        if link.get("provider") == "officemag"
+    ]
+    assert [link["url"] for link in office_links] == [
+        "https://www.officemag.ru/search/?q=%D0%91%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%B4%D0%BB%D1%8F+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%BE%D0%B9+%D1%82%D0%B5%D1%85%D0%BD%D0%B8%D0%BA%D0%B8",
+        "https://www.officemag.ru/search/?q=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%B0%D1%8F",
+        "https://www.officemag.ru/search/?q=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%B0%D1%8F+%D0%B04",
+        "https://www.officemag.ru/search/?q=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%B4%D0%BB%D1%8F+%D0%BF%D1%80%D0%B8%D0%BD%D1%82%D0%B5%D1%80%D0%B0",
+        "https://www.officemag.ru/search/?q=17.12.14.110+%D0%91%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%B4%D0%BB%D1%8F+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%BE%D0%B9+%D1%82%D0%B5%D1%85%D0%BD%D0%B8%D0%BA%D0%B8",
+    ]
+
+
 def test_prepare_profile_supplier_search_persists_queries_and_preserves_options(tmp_path) -> None:
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()

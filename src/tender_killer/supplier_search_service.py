@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
@@ -15,6 +16,7 @@ SUPPLIER_SEARCH_TARGETS = (
     ("Google", "https://www.google.com/search?q={query}"),
     ("Yandex", "https://yandex.ru/search/?text={query}"),
 )
+TOKEN_RE = re.compile(r"[0-9a-zа-яё]+", re.IGNORECASE)
 
 
 def build_supplier_search_queries(profile: dict[str, Any]) -> list[dict[str, Any]]:
@@ -26,6 +28,9 @@ def build_supplier_search_queries(profile: dict[str, Any]) -> list[dict[str, Any
     if base_query:
         kind = "normalized_name" if _text(profile.get("normalized_name")) else "product_name"
         _append_query(queries, seen, base_query, kind, supplier_catalogs)
+
+    for expanded_query in _expanded_supplier_queries(profile, base_query):
+        _append_query(queries, seen, expanded_query, "catalog_hint", supplier_catalogs)
 
     for phrase in _text_items(profile.get("search_phrases")):
         _append_query(queries, seen, phrase, "search_phrase", supplier_catalogs)
@@ -112,6 +117,62 @@ def _append_query(
             "quick_links": build_supplier_search_links(normalized, supplier_catalogs),
         }
     )
+
+
+def _expanded_supplier_queries(profile: dict[str, Any], base_query: str | None) -> list[str]:
+    profile_text = _profile_search_text(profile, base_query)
+    tokens = TOKEN_RE.findall(profile_text.casefold())
+    if not _looks_like_office_paper(profile_text, tokens):
+        return []
+
+    paper_format = _office_paper_format(tokens)
+    return _unique_texts(
+        [
+            "бумага офисная",
+            f"бумага офисная {paper_format}",
+            "бумага для принтера",
+        ]
+    )
+
+
+def _profile_search_text(profile: dict[str, Any], base_query: str | None) -> str:
+    parts: list[str] = []
+    if base_query:
+        parts.append(base_query)
+    for field in ("product_name", "normalized_name", "category", "okpd2", "classifier_code", "details"):
+        if text := _text(profile.get(field)):
+            parts.append(text)
+    parts.extend(_text_items(profile.get("search_phrases")))
+    return " ".join(parts)
+
+
+def _looks_like_office_paper(profile_text: str, tokens: list[str]) -> bool:
+    has_paper = any(token.startswith("бумаг") for token in tokens)
+    has_office_context = any(
+        token.startswith(("офис", "принтер", "оргтехник"))
+        for token in tokens
+    )
+    return has_paper and (has_office_context or "17.12" in profile_text)
+
+
+def _office_paper_format(tokens: list[str]) -> str:
+    for paper_format in ("а3", "a3", "а5", "a5", "а4", "a4"):
+        if paper_format in tokens:
+            return paper_format.replace("a", "а")
+    return "а4"
+
+
+def _unique_texts(values: list[str]) -> list[str]:
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = " ".join(value.split())
+        key = normalized.casefold()
+        if not normalized or key in seen:
+            continue
+        seen.add(key)
+        unique.append(normalized)
+    return unique
 
 
 def _supplier_catalogs(profile: dict[str, Any]) -> list[dict[str, str]]:

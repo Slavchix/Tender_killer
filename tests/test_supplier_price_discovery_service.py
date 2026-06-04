@@ -351,6 +351,86 @@ def test_provider_catalog_collector_extracts_officemag_search_result_cards() -> 
     ]
 
 
+def test_provider_catalog_collector_extracts_real_russian_officemag_search_result_cards() -> None:
+    html = """
+        <html>
+          <body>
+            <ul class="listItems">
+              <li class="listItem js-productListItem" data-list-name="search">
+                <a class="listItemPhoto__link" href="/catalog/goods/111111/">
+                  <img alt="Бумага офисная А4, 500 листов, белая, 80 г/м2">
+                </a>
+                <a href="/catalog/goods/111111/">
+                  Бумага офисная А4, 500 листов, белая, 80 г/м2
+                </a>
+                <div class="ProductSpecial__item js-ProductSpecialRow ProductSpecial__item--active" data-count="1" data-price="520.00">
+                  От <span class="ProductSpecial__count">1</span> шт.
+                </div>
+                <div class="ProductSpecial__item js-ProductSpecialRow" data-count="10" data-price="498.00">
+                  От <span class="ProductSpecial__count">10</span> шт.
+                </div>
+                <div class="listItemBuy__available">
+                  <table>
+                    <tr>
+                      <td>Наличие на складе</td>
+                      <td>123 шт.</td>
+                    </tr>
+                    <tr>
+                      <td>Под заказ от 3-4 д.</td>
+                      <td>+200 шт.</td>
+                    </tr>
+                  </table>
+                </div>
+                <div class="ProductState ProductState--stepCount">
+                  <div class="ProductState">Мин. партия: 1.</div>
+                  <div class="ProductState">В упаковке: 5</div>
+                </div>
+              </li>
+            </ul>
+          </body>
+        </html>
+    """
+    collector = price_discovery.ProviderCatalogCollector(
+        "officemag",
+        fetch_text=lambda url: html,
+        max_product_pages=0,
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "бумага офисная а4",
+            "kind": "catalog_hint",
+            "quick_links": [
+                {
+                    "label": "OfficeMag",
+                    "url": "https://www.officemag.ru/search/?q=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%B0%D1%8F+%D0%B04",
+                    "provider": "officemag",
+                    "link_kind": "catalog_search",
+                    "preset_id": "officemag_office_supplies",
+                }
+            ],
+        }
+    )
+
+    assert result["diagnostics"]["pages_fetched"] == 1
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"] == [
+        {
+            "name": "Бумага офисная А4, 500 листов, белая, 80 г/м2",
+            "url": "https://www.officemag.ru/catalog/goods/111111/",
+            "unit_price": 498.0,
+            "currency": "RUB",
+            "availability": "in_stock",
+            "delivery_note": "OfficeMag: цена от 1 шт. 520 RUB; цена от 10 шт. 498 RUB; склад 123 шт.; под заказ +200 шт.; мин. партия 1; в упаковке 5.",
+            "status": "candidate",
+            "source_query": "бумага офисная а4",
+            "source_kind": "catalog_hint",
+            "note": "OfficeMag catalog search result from https://www.officemag.ru/search/?q=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%B0%D1%8F+%D0%B04.",
+            "provider": "officemag",
+        }
+    ]
+
+
 def test_provider_catalog_collector_extracts_officemag_product_detail_terms() -> None:
     html = """
         <html>
@@ -794,6 +874,116 @@ def test_run_profile_supplier_price_discovery_stages_schema_org_product_candidat
     assert profile["raw_payload"]["supplier_discovery"] == payload["supplier_discovery"]
     assert "supplier_options" not in profile["raw_payload"]
     assert "economics" not in profile["raw_payload"]
+
+
+def test_run_profile_supplier_price_discovery_refreshes_stale_russian_office_paper_queries(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-russian-paper",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-russian-paper",
+            title="Paper tender",
+            price=100000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-russian-paper",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-russian-paper",
+                position_index=1,
+                product_name="Бумага для офисной техники",
+                normalized_name="Бумага для офисной техники",
+                search_phrases=["Бумага для офисной техники"],
+                okpd2="17.12.14.110",
+                quantity=85,
+                unit="Пачка",
+                raw_payload={
+                    "supplier_search": {
+                        "status": "ready",
+                        "queries": [
+                            {
+                                "query": "Бумага для офисной техники",
+                                "kind": "normalized_name",
+                                "priority": 1,
+                                "quick_links": [
+                                    {
+                                        "label": "OfficeMag",
+                                        "url": "https://www.officemag.ru/search/?q=%D0%91%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%B4%D0%BB%D1%8F+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%BE%D0%B9+%D1%82%D0%B5%D1%85%D0%BD%D0%B8%D0%BA%D0%B8",
+                                        "provider": "officemag",
+                                        "link_kind": "catalog_search",
+                                        "preset_id": "officemag_office_supplies",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                },
+            )
+        ],
+    )
+    seen_queries: list[str] = []
+
+    class RussianPaperCollector:
+        provider = "catalog_officemag"
+
+        def collect_with_diagnostics(self, query):
+            query_text = query["query"]
+            seen_queries.append(query_text)
+            candidates = []
+            if query_text == "бумага офисная а4":
+                candidates = [
+                    {
+                        "name": "Бумага офисная А4, 500 листов",
+                        "url": "https://www.officemag.ru/catalog/goods/111111/",
+                        "unit_price": 498.0,
+                        "availability": "in_stock",
+                        "status": "candidate",
+                        "source_query": query_text,
+                        "source_kind": query["kind"],
+                        "note": "OfficeMag catalog search result.",
+                        "provider": "officemag",
+                    }
+                ]
+            return {
+                "candidates": candidates,
+                "diagnostics": {
+                    "provider": self.provider,
+                    "queries_seen": 1,
+                    "links_seen": len(query.get("quick_links") or []),
+                    "links_skipped": 0,
+                    "pages_fetched": 1 if candidates else 0,
+                    "candidates_found": len(candidates),
+                    "errors": [],
+                },
+            }
+
+    payload = run_profile_supplier_price_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-russian-paper",
+        1,
+        collectors=[RussianPaperCollector()],
+    )
+
+    assert seen_queries == [
+        "Бумага для офисной техники",
+        "бумага офисная",
+        "бумага офисная а4",
+        "бумага для принтера",
+        "17.12.14.110 Бумага для офисной техники",
+    ]
+    assert payload["staged_count"] == 1
+    detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-price-russian-paper")
+    profile = detail["product_profiles"][0]
+    assert [query["query"] for query in profile["raw_payload"]["supplier_search"]["queries"]] == seen_queries
+    assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["url"] == (
+        "https://www.officemag.ru/catalog/goods/111111/"
+    )
 
 
 def test_run_tender_supplier_price_discovery_prepares_all_positions_and_summarizes_diagnostics(tmp_path) -> None:
@@ -1342,7 +1532,7 @@ def test_run_profile_supplier_price_discovery_records_diagnostics_without_candid
     }
 
 
-def test_run_profile_supplier_price_discovery_rejects_missing_prepared_queries(tmp_path) -> None:
+def test_run_profile_supplier_price_discovery_prepares_missing_queries_from_profile_terms(tmp_path) -> None:
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()
     store.upsert_tender(
@@ -1366,10 +1556,48 @@ def test_run_profile_supplier_price_discovery_rejects_missing_prepared_queries(t
         ],
     )
 
-    with pytest.raises(ValueError, match="Сначала подготовь поиск поставщиков"):
-        run_profile_supplier_price_discovery(
-            store.database_path,
-            "mosreg_market",
-            "supplier-price-discovery-empty",
-            1,
-        )
+    seen_queries: list[str] = []
+
+    class ProfileTermCollector:
+        provider = "profile_term_collector"
+
+        def collect_with_diagnostics(self, query):
+            seen_queries.append(query["query"])
+            return {
+                "candidates": [
+                    {
+                        "name": "Office paper A4",
+                        "url": "https://supplier.example/office-paper-a4",
+                        "unit_price": 920.0,
+                        "availability": "in_stock",
+                        "status": "candidate",
+                        "source_query": query["query"],
+                        "source_kind": query["kind"],
+                        "note": "Profile term collector offer.",
+                        "provider": "supplier_example",
+                    }
+                ],
+                "diagnostics": {
+                    "provider": self.provider,
+                    "queries_seen": 1,
+                    "links_seen": len(query.get("quick_links") or []),
+                    "links_skipped": 0,
+                    "pages_fetched": 1,
+                    "candidates_found": 1,
+                    "errors": [],
+                },
+            }
+
+    payload = run_profile_supplier_price_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-discovery-empty",
+        1,
+        collectors=[ProfileTermCollector()],
+    )
+
+    assert seen_queries == ["Office paper A4"]
+    assert payload["staged_count"] == 1
+    detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-price-discovery-empty")
+    profile = detail["product_profiles"][0]
+    assert profile["raw_payload"]["supplier_search"]["queries"][0]["query"] == "Office paper A4"

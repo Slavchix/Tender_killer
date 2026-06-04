@@ -717,7 +717,7 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_url(tmp_p
     assert "economics" not in profile["raw_payload"]
 
 
-def test_handle_post_request_reports_supplier_discovery_missing_prepared_queries(tmp_path) -> None:
+def test_handle_post_request_prepares_supplier_discovery_queries_when_missing(tmp_path) -> None:
     store = _store_with_tender(tmp_path)
     store.upsert_product_profiles(
         "mosreg_market",
@@ -728,6 +728,7 @@ def test_handle_post_request_reports_supplier_discovery_missing_prepared_queries
                 tender_external_id="3668200",
                 position_index=1,
                 product_name="Office paper A4",
+                raw_payload={"supplier_catalog_preset_ids": []},
             )
         ],
     )
@@ -739,8 +740,12 @@ def test_handle_post_request_reports_supplier_discovery_missing_prepared_queries
     )
 
     assert response.status == 400
-    assert response.payload["error"] == "Сначала подготовь поиск поставщиков."
-    assert response.payload["product_profiles"][0]["position_index"] == 1
+    assert response.payload["error"] == "Новых кандидатов поставщиков не найдено."
+    profile = response.payload["product_profiles"][0]
+    assert profile["position_index"] == 1
+    supplier_search = profile["raw_payload"]["supplier_search"]
+    assert supplier_search["status"] == "ready"
+    assert [query["query"] for query in supplier_search["queries"]] == ["Office paper A4"]
 
 
 def test_handle_post_request_reports_supplier_discovery_no_new_candidates(tmp_path) -> None:

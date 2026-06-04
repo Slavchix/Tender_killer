@@ -22,6 +22,7 @@ from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
 from tender_killer.supplier_catalog_health_service import http_error_kind
 from tender_killer.supplier_catalog_health_service import response_body_preview
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
+from tender_killer.supplier_search_service import build_supplier_search_queries
 from tender_killer.supplier_search_service import prepare_profile_supplier_search
 
 
@@ -252,9 +253,15 @@ def run_profile_supplier_price_discovery(
         raise KeyError(f"Product profile position {position_index} not found.")
 
     raw_payload = dict(target.get("raw_payload") or {})
-    queries = _supplier_search_queries(raw_payload.get("supplier_search"))
+    queries = _refreshed_supplier_search_queries(target, raw_payload)
     if not queries:
         raise ValueError("Сначала подготовь поиск поставщиков.")
+    supplier_search = dict(raw_payload.get("supplier_search") or {})
+    supplier_search["status"] = supplier_search.get("status") or "ready"
+    supplier_search["queries"] = queries
+    raw_payload["supplier_search"] = supplier_search
+    target["raw_payload"] = raw_payload
+    store.upsert_product_profiles(source, external_id, profiles)
 
     existing_keys = _existing_candidate_keys(raw_payload)
     price_collectors = default_price_collectors() if collectors is None else collectors
@@ -531,6 +538,29 @@ def _supplier_search_queries(value: Any) -> list[dict[str, Any]]:
     if not isinstance(queries, list):
         return []
     return [dict(item) for item in queries if isinstance(item, dict)]
+
+
+def _refreshed_supplier_search_queries(profile: dict[str, Any], raw_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    existing_queries = _supplier_search_queries(raw_payload.get("supplier_search"))
+    fresh_queries = build_supplier_search_queries(profile)
+    if not existing_queries:
+        return fresh_queries
+    return _unique_supplier_search_queries([*existing_queries, *fresh_queries])
+
+
+def _unique_supplier_search_queries(queries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    unique: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for query in queries:
+        query_text = _text(query.get("query"))
+        if not query_text:
+            continue
+        key = query_text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(dict(query))
+    return unique
 
 
 def _record_supplier_discovery_diagnostics(
