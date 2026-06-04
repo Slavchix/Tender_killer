@@ -1293,7 +1293,12 @@ def test_tender_analysis_renders_actionable_checklist():
     source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
     styles = STYLES_SOURCE.read_text(encoding="utf-8")
 
-    assert "<AnalysisChecklist items={analysis.checklist} />" in source
+    assert "MAJOR_ANALYSIS_SECTIONS" in source
+    assert "buildMajorAnalysisSections(analysis, documents)" in source
+    assert "'decision_risks'" in source
+    assert "'product_compliance'" in source
+    assert "'fulfillment_terms'" in source
+    assert "'acceptance_payment'" in source
     assert "export function AnalysisChecklist" in source
     assert "Проверочный список" in source
     assert "analysis-checklist" in source
@@ -2201,7 +2206,8 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     assert "aria-pressed={active}" in analysis_sections_source
     assert "analysis-evidence-panel" not in analysis_source
     assert "from './TenderAnalysisEvidenceModel'" in analysis_evidence_source
-    assert "from './TenderAnalysisEvidenceModel'" in analysis_sections_source
+    assert "from './TenderAnalysisEvidenceModel'" not in analysis_sections_source
+    assert "MAJOR_ANALYSIS_SECTIONS" in analysis_sections_source
     assert "export function buildDocumentEvidenceItems" in analysis_evidence_model_source
     assert ".analysis-workspace" in styles_source
     assert "grid-template-columns: 1fr" in styles_source
@@ -2232,7 +2238,9 @@ def test_analysis_tab_renders_decision_first_brief():
     assert "Ключевые причины" in decision_source
     assert "reasons.slice(0, 3)" in decision_source
     assert "onOpenSection?.(primarySection)" in decision_source
-    assert "onOpenSection?.('evidence')" in decision_source
+    assert "onOpenSection?.('evidence')" not in decision_source
+    assert "'decision_risks'" in decision_source
+    assert "'product_compliance'" in decision_source
     assert ".analysis-decision-brief" in styles_source
     assert ".analysis-reason-list" in styles_source
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
@@ -2274,11 +2282,12 @@ def test_analysis_documents_render_structured_evidence_model():
     model_source = TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
-    assert "buildDocumentEvidenceItems(analysis, documents)" in sections_source
+    assert "buildDocumentEvidenceItems(analysis, documents)" not in sections_source
     assert "buildDocumentEvidenceItems(analysis, documents)" in evidence_source
-    assert "analysis-document-evidence-grid" in sections_source
+    assert "TenderAnalysisEvidenceModel" not in sections_source
+    assert "analysis-source-context" in sections_source
     assert "analysis-evidence-item" in evidence_source
-    assert "analysis-evidence-item" in sections_source
+    assert "item.fragment" in sections_source
     assert "item.typeLabel" in evidence_source
     assert "item.importanceLabel" in evidence_source
     assert "item.documentName" in evidence_source

@@ -159,3 +159,35 @@ def test_analyze_tender_texts_extracts_execution_terms_for_operator_view():
 
     assert "penalties" in terms
     assert terms["penalties"]["category"] == "financial"
+
+
+def test_analyze_tender_texts_extracts_common_delivery_acceptance_and_payment_terms():
+    result = analyze_tender_texts(
+        [
+            """
+            Техническое задание: поставка хозяйственных товаров.
+            Поставщик осуществляет доставку и разгрузку товара своими силами.
+            Поставка осуществляется отдельными партиями по заявкам заказчика.
+            При поставке предоставляются УПД, накладная, счет-фактура, паспорт изделия и гарантийный талон.
+            Товар подлежит маркировке Честный ЗНАК, серийные номера указываются в акте приема-передачи.
+            Приемочная комиссия проводит экспертизу поставленного товара.
+            Замечания устраняются поставщиком в течение 3 рабочих дней.
+            """
+        ]
+    )
+
+    labels = {item["label"] for item in result.checklist}
+    terms = {term["type"]: term for term in result.execution_terms}
+
+    assert "доставка и разгрузка силами поставщика" in labels
+    assert "поставка партиями" in labels
+    assert "УПД/накладная/счет-фактура" in labels
+    assert "паспорт изделия" in labels
+    assert "гарантийный талон" in labels
+    assert "маркировка/Честный ЗНАК" in labels
+    assert "серийные номера/IMEI" in labels
+    assert "акт приема-передачи" in labels
+    assert "приемочная комиссия/экспертиза" in labels
+    assert "короткий срок поставки" not in labels
+    assert "acceptance_correction_deadline" in terms
+    assert terms["acceptance_correction_deadline"]["category"] == "acceptance"

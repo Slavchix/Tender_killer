@@ -3,7 +3,7 @@ from __future__ import annotations
 from tender_killer.analysis_passport_service import build_analysis_tz_passport
 
 
-def test_build_analysis_tz_passport_groups_operator_ready_sections():
+def test_build_analysis_tz_passport_uses_four_block_operator_contract():
     analysis = {
         "summary": "Поставка снаряжения альпинистского",
         "status": "needs_review",
@@ -34,11 +34,11 @@ def test_build_analysis_tz_passport_groups_operator_ready_sections():
                 "document_name": "contract.docx",
             },
             {
-                "type": "contract_security",
-                "label": "Обеспечение исполнения",
-                "value": "5 процентов от цены контракта",
-                "category": "financial",
-                "severity": "high",
+                "type": "payment_terms",
+                "label": "Оплата",
+                "value": "в течение 7 рабочих дней",
+                "category": "payment",
+                "severity": "medium",
                 "document_name": "contract.docx",
             },
         ],
@@ -46,37 +46,36 @@ def test_build_analysis_tz_passport_groups_operator_ready_sections():
 
     passport = build_analysis_tz_passport(analysis, [])
 
-    assert passport["version"] == 1
-    assert passport["title"] == "Поставка снаряжения альпинистского"
+    assert passport["version"] == 2
+    assert passport["status"] == "manual_review"
+    assert passport["confidence"] == 0.82
     assert [section["id"] for section in passport["sections"]] == [
-        "subject",
-        "execution",
-        "supplier_documents",
-        "blockers",
-        "price_factors",
+        "decision_risks",
+        "product_compliance",
+        "fulfillment_terms",
+        "acceptance_payment",
     ]
-
     sections = {section["id"]: section for section in passport["sections"]}
-    assert sections["subject"]["items"][0]["value"] == "Поставка снаряжения альпинистского"
-    assert [item["label"] for item in sections["execution"]["items"]] == [
-        "Срок поставки",
-        "Обеспечение исполнения",
+    assert [item["label"] for item in sections["decision_risks"]["items"]] == [
+        "национальный режим/страна происхождения"
     ]
-    assert sections["execution"]["items"][0]["source"] == "contract.docx"
-    assert [item["label"] for item in sections["supplier_documents"]["items"]] == [
-        "сертификат/декларация"
-    ]
-    assert [item["label"] for item in sections["blockers"]["items"]] == [
-        "национальный режим/страна происхождения",
-        "Обеспечение исполнения",
-    ]
-    assert sections["price_factors"]["items"][0]["label"] == "Срок поставки"
+    assert {item["label"] for item in sections["product_compliance"]["items"]} == {
+        "Кратко",
+        "сертификат/декларация",
+    }
+    assert [item["label"] for item in sections["fulfillment_terms"]["items"]] == ["Срок поставки"]
+    assert [item["label"] for item in sections["acceptance_payment"]["items"]] == ["Оплата"]
 
 
-def test_build_analysis_tz_passport_returns_pending_contract_without_analysis():
+def test_build_analysis_tz_passport_returns_pending_four_block_contract_without_analysis():
     passport = build_analysis_tz_passport(None, [{"name": "tz.docx", "text_status": "pending"}])
 
-    assert passport["version"] == 1
+    assert passport["version"] == 2
     assert passport["status"] == "pending"
-    assert passport["sections"][0]["id"] == "subject"
-    assert passport["sections"][0]["items"] == []
+    assert [section["id"] for section in passport["sections"]] == [
+        "decision_risks",
+        "product_compliance",
+        "fulfillment_terms",
+        "acceptance_payment",
+    ]
+    assert passport["sections"][1]["items"][0]["label"] == "tz.docx"

@@ -226,7 +226,7 @@ def test_build_tender_report_docx_renders_analysis_decision_and_evidence():
     assert "Документы" in document_xml
     assert "ТЗ.docx" in document_xml
     assert "Срок поставки 3 дня." in document_xml
-    assert "Может повлиять на возможность участия." in document_xml
+    assert "Проверить допустимость участия до расчета." in document_xml
     assert "Приложение: фрагменты извлеченного текста" not in document_xml
 
 

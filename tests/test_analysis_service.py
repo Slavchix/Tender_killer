@@ -145,7 +145,7 @@ def test_analyze_tender_payload_binds_execution_terms_to_source_documents(tmp_pa
         item for item in payload["analysis"]["evidence_items"] if item["label"] == "сертификат/декларация"
     )
     execution_section = next(
-        section for section in payload["analysis"]["operator_view"]["sections"] if section["id"] == "execution_terms"
+        section for section in payload["analysis"]["operator_view"]["sections"] if section["id"] == "fulfillment_terms"
     )
     passport_sections = {
         section["id"]: section for section in payload["analysis"]["tz_passport"]["sections"]
@@ -155,8 +155,11 @@ def test_analyze_tender_payload_binds_execution_terms_to_source_documents(tmp_pa
     assert security_term["document_name"] == "contract.docx"
     assert certificate_evidence["document_name"] == "spec.docx"
     assert execution_section["items"][0]["source"] == "contract.docx"
-    assert passport_sections["execution"]["items"][0]["source"] == "contract.docx"
-    assert passport_sections["supplier_documents"]["items"][0]["source"] == "spec.docx"
+    assert passport_sections["fulfillment_terms"]["items"][0]["source"].startswith("contract.docx")
+    certificate_passport_item = next(
+        item for item in passport_sections["product_compliance"]["items"] if item["label"] == "сертификат/декларация"
+    )
+    assert certificate_passport_item["source"].startswith("spec.docx")
     delivery_fact = next(
         fact for fact in payload["analysis"]["analysis_facts"]["items"] if fact["label"] == "Срок поставки"
     )
@@ -210,10 +213,10 @@ def test_analyze_tender_payload_attaches_source_page_and_context(tmp_path):
     certificate_fact = next(
         fact for fact in payload["analysis"]["analysis_facts"]["items"] if fact["label"] == "сертификат/декларация"
     )
-    requirements_section = next(
-        section for section in payload["analysis"]["operator_view"]["sections"] if section["id"] == "requirements"
+    product_section = next(
+        section for section in payload["analysis"]["operator_view"]["sections"] if section["id"] == "product_compliance"
     )
-    operator_item = next(item for item in requirements_section["items"] if item["label"] == "сертификат/декларация")
+    operator_item = next(item for item in product_section["items"] if item["label"] == "сертификат/декларация")
 
     assert certificate["document_name"] == "Техническое задание.docx"
     assert certificate["source_page"] == 2
@@ -330,10 +333,10 @@ def test_get_tender_payload_rebuilds_stale_analysis_source_context(tmp_path):
         )
 
     detail = get_tender_payload(store.database_path, "mosreg_market", "3675300")
-    requirements_section = next(
-        section for section in detail["analysis"]["operator_view"]["sections"] if section["id"] == "requirements"
+    product_section = next(
+        section for section in detail["analysis"]["operator_view"]["sections"] if section["id"] == "product_compliance"
     )
-    operator_item = requirements_section["items"][0]
+    operator_item = next(item for item in product_section["items"] if item["label"] == "сертификат/декларация")
     certificate_fact = next(
         fact for fact in detail["analysis"]["analysis_facts"]["items"] if fact["label"] == "сертификат/декларация"
     )

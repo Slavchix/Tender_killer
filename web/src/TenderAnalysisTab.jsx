@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AnalysisDecisionBrief } from './TenderAnalysisDecisionBrief'
 import { AnalysisDocumentsPanel } from './TenderAnalysisDocumentsPanel'
 import { AnalysisPassport } from './TenderAnalysisPassport'
@@ -21,9 +21,21 @@ export function TenderAnalysisTab({
   reportHref,
   documents = [],
 }) {
-  const [selectedAnalysisSection, setSelectedAnalysisSection] = useState('blockers')
+  const [selectedAnalysisSection, setSelectedAnalysisSection] = useState('decision_risks')
   const analysisSections = analysisSectionItems(analysis, documents)
   const analysisActionDisabled = preparingAnalysis || downloading || extracting || analyzing
+  const primarySection = analysis?.operator_view?.decision_brief?.primary_section
+
+  useEffect(() => {
+    const sectionIds = new Set(analysisSections.map((section) => section.id))
+    if (primarySection && sectionIds.has(primarySection)) {
+      setSelectedAnalysisSection(primarySection)
+      return
+    }
+    if (!sectionIds.has(selectedAnalysisSection)) {
+      setSelectedAnalysisSection(analysisSections[0]?.id || 'decision_risks')
+    }
+  }, [analysisSections, primarySection, selectedAnalysisSection])
 
   return (
     <section className="detail-section active analysis-section">
