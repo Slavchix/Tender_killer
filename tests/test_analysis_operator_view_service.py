@@ -391,3 +391,64 @@ def test_build_analysis_operator_view_explains_typical_tz_conditions_for_operato
     assert "сертифик" in certificate["description"].casefold()
     assert "поставщик" in certificate["operator_action"].casefold()
     assert certificate["price_impact"] == "documents"
+
+
+def test_build_analysis_operator_view_prioritizes_actions_and_source_context():
+    analysis = {
+        "summary": "Поставка бумаги",
+        "confidence": 0.91,
+        "analysis_facts": {
+            "version": 1,
+            "items": [
+                {
+                    "kind": "blocker",
+                    "label": "страна происхождения товара",
+                    "value": "Заявка должна содержать страну происхождения товара и реестровый номер.",
+                    "category": "national_regime",
+                    "severity": "high",
+                    "fragment": "Участник указывает страну происхождения товара в заявке.",
+                    "document_name": "ТЗ.docx",
+                    "source_page": 4,
+                    "is_blocker": True,
+                },
+                {
+                    "kind": "supplier_document",
+                    "label": "сертификат/декларация",
+                    "value": "Поставщик предоставляет сертификат соответствия.",
+                    "category": "documents",
+                    "severity": "medium",
+                    "fragment": "При поставке предоставляется сертификат соответствия.",
+                    "document_name": "ТЗ.docx",
+                    "source_page": 6,
+                },
+                {
+                    "kind": "execution_term",
+                    "label": "оплата после приемки",
+                    "value": "Оплата производится после подписания документов о приемке.",
+                    "category": "payment",
+                    "severity": "medium",
+                    "fragment": "Оплата после подписания документов о приемке.",
+                    "document_name": "Контракт.docx",
+                },
+            ],
+        },
+    }
+
+    view = build_analysis_operator_view(analysis, [{"name": "ТЗ.docx", "local_path": "tz.docx", "text_status": "ok"}])
+    sections = {section["id"]: section for section in view["sections"]}
+    national = sections["decision_risks"]["items"][0]
+    certificate = sections["product_compliance"]["items"][0]
+    decision_step = next(item for item in view["action_plan"] if item["id"] == "decision_risks")
+    product_step = next(item for item in view["action_plan"] if item["id"] == "product_compliance")
+
+    assert view["decision_brief"]["next_step"] == national["operator_action"]
+    assert view["decision_brief"]["reasons"][0].startswith("национальный режим/страна происхождения")
+    assert "отклон" in view["decision_brief"]["reasons"][0].casefold()
+    assert "Почему важно" in national["source_context"]
+    assert "допуск" in national["source_context"].casefold()
+    assert national["evidence_summary"].startswith("ТЗ.docx · стр. 4")
+    assert "Участник указывает страну происхождения" in national["evidence_summary"]
+    assert decision_step["next_step"] == national["operator_action"]
+    assert decision_step["items"][0] == "национальный режим/страна происхождения · ТЗ.docx · стр. 4"
+    assert product_step["next_step"] == certificate["operator_action"]
+    assert product_step["items"][0] == "сертификат/декларация · ТЗ.docx · стр. 6"
