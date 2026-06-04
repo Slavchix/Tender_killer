@@ -24,7 +24,9 @@ export function TenderWorkspaces({
     analysis,
     analyzing,
     preparingAnalysis,
+    savingAnalysisFeedbackId,
     onPrepareTenderAnalysis,
+    onAnalysisFeedback,
   } = analysisState
   const {
     productProfiles,
@@ -107,6 +109,8 @@ export function TenderWorkspaces({
           onDownload={onDownloadDocuments}
           onExtract={onExtractDocumentText}
           onPrepareAnalysis={onPrepareTenderAnalysis}
+          onAnalysisFeedback={onAnalysisFeedback}
+          savingAnalysisFeedbackId={savingAnalysisFeedbackId}
           reportHref={reportHref}
           documents={documentRecords}
         />

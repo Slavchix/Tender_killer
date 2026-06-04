@@ -88,6 +88,7 @@ def _checklist_fact(
         is_price_factor=is_price_factor,
         impact=_impact(category, severity),
         metadata=structured,
+        semantic_key=_semantic_key(label, category),
     )
 
 
@@ -132,6 +133,7 @@ def _execution_term_fact(
         is_price_factor=is_price_factor,
         impact=_impact(category, severity),
         metadata=structured,
+        semantic_key=_semantic_key(label, category),
     )
 
 
@@ -153,6 +155,7 @@ def _fact(
     is_price_factor: bool = False,
     impact: str = "",
     metadata: dict[str, Any] | None = None,
+    semantic_key: str = "",
 ) -> dict[str, Any]:
     bound_document = _text(document_name)
     page_number = _page_number(source_page)
@@ -180,6 +183,9 @@ def _fact(
         "is_price_factor": is_price_factor,
         "needs_review": needs_review,
         "impact": impact,
+        "semantic_key": semantic_key,
+        "related_labels": [label],
+        "evidence_sources": _evidence_sources(bound_document, display_source_label, fragment),
         **_clean_metadata(metadata),
         **operator,
     }
@@ -389,19 +395,132 @@ def _metrics(items: list[dict[str, Any]]) -> dict[str, int]:
 
 def _dedupe_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: list[tuple[str, str, str]] = []
+    semantic_seen: dict[tuple[str, str], dict[str, Any]] = {}
     unique: list[dict[str, Any]] = []
     for item in items:
         if item.get("kind") == "subject":
             unique.append(item)
             continue
+        semantic_key = _text(item.get("semantic_key"))
         label_key = _dedupe_text(item.get("label"))
         fragment_key = _dedupe_text(item.get("fragment") or item.get("value"))
         category_key = _text(item.get("category"))
+        if semantic_key:
+            semantic_seen_key = (semantic_key, category_key)
+            existing = semantic_seen.get(semantic_seen_key)
+            if existing is not None:
+                _merge_fact(existing, item)
+                continue
+            semantic_seen[semantic_seen_key] = item
         if _seen_equivalent_fact(seen, label_key, fragment_key, category_key):
             continue
         seen.append((label_key, fragment_key, category_key))
         unique.append(item)
     return unique
+
+
+def _merge_fact(target: dict[str, Any], duplicate: dict[str, Any]) -> None:
+    target["related_labels"] = _unique_texts(
+        [
+            *target.get("related_labels", []),
+            duplicate.get("label"),
+            *duplicate.get("related_labels", []),
+        ]
+    )
+    target["evidence_sources"] = _unique_sources(
+        [
+            *target.get("evidence_sources", []),
+            *duplicate.get("evidence_sources", []),
+        ]
+    )
+    if not target.get("source") and duplicate.get("source"):
+        for key in ("document_name", "source", "source_page", "source_label", "source_context", "fragment"):
+            target[key] = duplicate.get(key)
+    if duplicate.get("severity") == "high":
+        target["severity"] = "high"
+    target["is_blocker"] = bool(target.get("is_blocker") or duplicate.get("is_blocker"))
+    target["is_price_factor"] = bool(target.get("is_price_factor") or duplicate.get("is_price_factor"))
+    target["needs_review"] = bool(target.get("needs_review") or duplicate.get("needs_review"))
+    target["priority"] = max(int(target.get("priority") or 0), int(duplicate.get("priority") or 0))
+
+
+def _unique_texts(values: list[Any]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = _text(value)
+        key = _dedupe_text(text)
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        result.append(text)
+    return result
+
+
+def _unique_sources(values: list[Any]) -> list[dict[str, Any]]:
+    seen: set[tuple[str, str, str]] = set()
+    result: list[dict[str, Any]] = []
+    for value in values:
+        if not isinstance(value, dict):
+            continue
+        source = {
+            "document_name": _text(value.get("document_name")),
+            "source_label": _text(value.get("source_label")),
+            "fragment": _text(value.get("fragment")),
+        }
+        key = (source["document_name"], source["source_label"], source["fragment"])
+        if not source["fragment"] or key in seen:
+            continue
+        seen.add(key)
+        result.append(source)
+    return result
+
+
+def _evidence_sources(document_name: str, source_label: str, fragment: str) -> list[dict[str, Any]]:
+    if not _text(fragment):
+        return []
+    return [
+        {
+            "document_name": _text(document_name),
+            "source_label": _text(source_label),
+            "fragment": _text(fragment),
+        }
+    ]
+
+
+def _semantic_key(label: str, category: str) -> str:
+    combined = _normalized_text(f"{label} {category}")
+    if category == "national_regime" or any(
+        marker in combined
+        for marker in (
+            "национальн",
+            "страна происхожд",
+            "страны происхожд",
+            "1875",
+            "national",
+            "nacional",
+            "proiskhozhden",
+            "origin",
+        )
+    ):
+        return "national_regime"
+    if category == "legal" and any(
+        marker in combined
+        for marker in ("сро", "лиценз", "саморегулируем", "sro", "license", "licence")
+    ):
+        return "license_sro"
+    if any(
+        marker in combined
+        for marker in (
+            "обеспечение исполнения",
+            "независим",
+            "contract_security",
+            "obespechenie ispolneniya",
+            "security",
+        )
+    ):
+        return "contract_security"
+    return ""
 
 
 def _seen_equivalent_fact(

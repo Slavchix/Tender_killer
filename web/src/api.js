@@ -113,6 +113,14 @@ export function runTenderAnalysis(tender) {
   })
 }
 
+export function saveAnalysisFeedback(tender, payload) {
+  return apiJson(`${tenderPath(tender)}/analysis/feedback`, {
+    method: 'POST',
+    body: payload,
+    errorMessage: 'Не удалось сохранить метку анализа',
+  })
+}
+
 export function refreshTenderDetails(tender) {
   return apiJson(`${tenderPath(tender)}/details/refresh`, {
     method: 'POST',

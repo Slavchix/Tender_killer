@@ -2588,6 +2588,43 @@ textarea:focus {
   border-left-color: #f0c1a7;
 }
 
+.analysis-checklist-row.feedback-ignored {
+  opacity: 0.72;
+}
+
+.analysis-feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.analysis-feedback-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: #b8cbc4;
+  background: #22302a;
+  border: 1px solid #3a5048;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.analysis-feedback-actions button:hover,
+.analysis-feedback-actions button.active {
+  color: #0e160f;
+  background: #8bdc7a;
+  border-color: #8bdc7a;
+}
+
+.analysis-feedback-actions button:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
 .analysis-checklist-row p {
   color: #c8d8d2;
   font-size: 12px;

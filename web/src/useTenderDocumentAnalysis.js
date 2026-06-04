@@ -3,6 +3,7 @@ import {
   downloadTenderDocuments,
   extractTenderDocumentText,
   runTenderAnalysis,
+  saveAnalysisFeedback,
 } from './api'
 import { documentRecordsForTender } from './formatters'
 
@@ -19,6 +20,7 @@ export function useTenderDocumentAnalysis(tender) {
   const [extracting, setExtracting] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [preparingAnalysis, setPreparingAnalysis] = useState(false)
+  const [savingAnalysisFeedbackId, setSavingAnalysisFeedbackId] = useState('')
   const [downloadStatus, setDownloadStatus] = useState('')
   const [extractStatus, setExtractStatus] = useState('')
 
@@ -35,6 +37,7 @@ export function useTenderDocumentAnalysis(tender) {
     setExtracting(false)
     setAnalyzing(false)
     setPreparingAnalysis(false)
+    setSavingAnalysisFeedbackId('')
     setDownloadStatus('')
     setExtractStatus('')
   }, [tender.source, tender.external_id, tender.analysis, tender.document_records, tender.documents])
@@ -138,6 +141,24 @@ export function useTenderDocumentAnalysis(tender) {
     }
   }
 
+  function saveFactFeedback(factId, state) {
+    if (!factId) return Promise.resolve()
+    setSavingAnalysisFeedbackId(factId)
+    return saveAnalysisFeedback(tender, { fact_id: factId, state })
+      .then((payload) => {
+        setAnalysis(payload.analysis || null)
+      })
+      .catch((err) => {
+        setAnalysis((currentAnalysis) => ({
+          ...(currentAnalysis || {}),
+          feedback_error: err.message,
+        }))
+      })
+      .finally(() => {
+        setSavingAnalysisFeedbackId('')
+      })
+  }
+
   return {
     documentRecords,
     setDocumentRecords,
@@ -147,12 +168,14 @@ export function useTenderDocumentAnalysis(tender) {
     extracting,
     analyzing,
     preparingAnalysis,
+    savingAnalysisFeedbackId,
     downloadStatus,
     extractStatus,
     downloadDocuments,
     extractDocumentText,
     analyzeTender,
     prepareTenderAnalysis,
+    saveFactFeedback,
   }
 }
 

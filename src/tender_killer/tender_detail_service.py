@@ -10,7 +10,10 @@ from tender_killer.analysis_document_context import document_roles_summary
 from tender_killer.adapters import MoscowSupplierPortalAdapter
 from tender_killer.adapters import MosregMarketAdapter
 from tender_killer.analysis_evidence_service import build_analysis_evidence_items
+from tender_killer.analysis_feedback import apply_analysis_feedback
 from tender_killer.analysis_facts_service import build_analysis_facts
+from tender_killer.analysis_missing_checks import build_missing_checks
+from tender_killer.analysis_missing_checks import missing_checklist_items
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 from tender_killer.analysis_passport_service import build_analysis_tz_passport
 from tender_killer.analysis_source_service import attach_document_sources
@@ -229,6 +232,8 @@ def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) 
     payload["red_flags"] = _json_list(payload.pop("red_flags_json"))
     payload["raw_payload"] = _json_object(payload.pop("raw_payload_json"))
     attach_document_sources(payload["raw_payload"], documents)
+    feedback = payload["raw_payload"].get("analysis_feedback")
+    payload["analysis_feedback"] = feedback if isinstance(feedback, dict) else {}
     document_coverage = payload["raw_payload"].get("document_coverage")
     payload["document_coverage"] = (
         document_coverage
@@ -243,7 +248,12 @@ def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) 
         if isinstance(text_index, dict) and text_index.get("version") == 1
         else build_analysis_text_index(documents)
     )
-    payload["checklist"] = payload["raw_payload"].get("checklist", [])
+    missing_checks = payload["raw_payload"].get("missing_checks")
+    payload["missing_checks"] = missing_checks if isinstance(missing_checks, list) else build_missing_checks(payload)
+    payload["checklist"] = _checklist_with_missing_items(
+        payload["raw_payload"].get("checklist", []),
+        payload["missing_checks"],
+    )
     execution_terms = payload["raw_payload"].get("execution_terms")
     payload["execution_terms"] = execution_terms if isinstance(execution_terms, list) else []
     tz_passport = payload["raw_payload"].get("tz_passport")
@@ -266,8 +276,16 @@ def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) 
         else build_analysis_facts(payload, documents)
     )
     payload["operator_view"] = build_analysis_operator_view(payload, documents)
+    apply_analysis_feedback(payload)
     payload["status"] = payload.pop("recommended_status")
     return payload
+
+
+def _checklist_with_missing_items(checklist: Any, missing_checks: list[dict[str, Any]]) -> list[Any]:
+    items = list(checklist) if isinstance(checklist, list) else []
+    if any(isinstance(item, dict) and item.get("type") == "missing_check" for item in items):
+        return items
+    return [*items, *missing_checklist_items(missing_checks)]
 
 
 def _json_list(value: str | None) -> list[Any]:
