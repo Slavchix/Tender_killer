@@ -122,17 +122,27 @@ def _append_query(
 def _expanded_supplier_queries(profile: dict[str, Any], base_query: str | None) -> list[str]:
     profile_text = _profile_search_text(profile, base_query)
     tokens = TOKEN_RE.findall(profile_text.casefold())
-    if not _looks_like_office_paper(profile_text, tokens):
-        return []
+    if _looks_like_office_paper(profile_text, tokens):
+        paper_format = _office_paper_format(tokens)
+        return _unique_texts(
+            [
+                f"бумага офисная белая {paper_format} 80 г/м2 500 листов",
+                f"бумага офисная {paper_format} 80 г/м2 500 листов",
+                "бумага офисная",
+                f"бумага офисная {paper_format}",
+                "бумага для принтера",
+            ]
+        )
 
-    paper_format = _office_paper_format(tokens)
-    return _unique_texts(
-        [
-            "бумага офисная",
-            f"бумага офисная {paper_format}",
-            "бумага для принтера",
-        ]
-    )
+    if _looks_like_cartridge(profile_text, tokens):
+        return _unique_texts(
+            [
+                "картридж лазерный",
+                "картридж для принтера",
+            ]
+        )
+
+    return []
 
 
 def _profile_search_text(profile: dict[str, Any], base_query: str | None) -> str:
@@ -153,6 +163,19 @@ def _looks_like_office_paper(profile_text: str, tokens: list[str]) -> bool:
         for token in tokens
     )
     return has_paper and (has_office_context or "17.12" in profile_text)
+
+
+def _looks_like_cartridge(profile_text: str, tokens: list[str]) -> bool:
+    has_cartridge = any(
+        token.startswith(("картридж", "тонер", "фотобарабан"))
+        or token in {"cartridge", "toner", "drum"}
+        for token in tokens
+    )
+    has_print_context = any(
+        token.startswith(("принтер", "печата", "мфу", "laserjet", "printer"))
+        for token in tokens
+    )
+    return has_cartridge or ("28.23" in profile_text and has_print_context)
 
 
 def _office_paper_format(tokens: list[str]) -> str:

@@ -1023,7 +1023,7 @@ def test_run_profile_supplier_price_discovery_refreshes_stale_russian_office_pap
             query_text = query["query"]
             seen_queries.append(query_text)
             candidates = []
-            if query_text == "бумага офисная а4":
+            if query_text == "бумага офисная белая а4 80 г/м2 500 листов":
                 candidates = [
                     {
                         "name": "Бумага офисная А4, 500 листов",
@@ -1060,6 +1060,8 @@ def test_run_profile_supplier_price_discovery_refreshes_stale_russian_office_pap
 
     assert seen_queries == [
         "Бумага для офисной техники",
+        "бумага офисная белая а4 80 г/м2 500 листов",
+        "бумага офисная а4 80 г/м2 500 листов",
         "бумага офисная",
         "бумага офисная а4",
         "бумага для принтера",

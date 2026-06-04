@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import quote_plus
+
 import pytest
 
 from tender_killer.models import ProductProfile
@@ -12,7 +14,7 @@ from tender_killer.tender_detail_service import get_tender_payload
 
 
 def expected_office_links(query: str) -> list[dict[str, str]]:
-    encoded = query.replace(" ", "+")
+    encoded = quote_plus(query)
     return [
         {"label": "Google", "url": f"https://www.google.com/search?q={encoded}"},
         {"label": "Yandex", "url": f"https://yandex.ru/search/?text={encoded}"},
@@ -151,6 +153,8 @@ def test_build_supplier_search_queries_expands_real_russian_office_paper_terms()
 
     assert [query["query"] for query in queries] == [
         "Бумага для офисной техники",
+        "бумага офисная белая а4 80 г/м2 500 листов",
+        "бумага офисная а4 80 г/м2 500 листов",
         "бумага офисная",
         "бумага офисная а4",
         "бумага для принтера",
@@ -164,10 +168,32 @@ def test_build_supplier_search_queries_expands_real_russian_office_paper_terms()
     ]
     assert [link["url"] for link in office_links] == [
         "https://www.officemag.ru/search/?q=%D0%91%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%B4%D0%BB%D1%8F+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%BE%D0%B9+%D1%82%D0%B5%D1%85%D0%BD%D0%B8%D0%BA%D0%B8",
+        "https://www.officemag.ru/search/?q=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%B0%D1%8F+%D0%B1%D0%B5%D0%BB%D0%B0%D1%8F+%D0%B04+80+%D0%B3%2F%D0%BC2+500+%D0%BB%D0%B8%D1%81%D1%82%D0%BE%D0%B2",
+        "https://www.officemag.ru/search/?q=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%B0%D1%8F+%D0%B04+80+%D0%B3%2F%D0%BC2+500+%D0%BB%D0%B8%D1%81%D1%82%D0%BE%D0%B2",
         "https://www.officemag.ru/search/?q=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%B0%D1%8F",
         "https://www.officemag.ru/search/?q=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%B0%D1%8F+%D0%B04",
         "https://www.officemag.ru/search/?q=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%B4%D0%BB%D1%8F+%D0%BF%D1%80%D0%B8%D0%BD%D1%82%D0%B5%D1%80%D0%B0",
         "https://www.officemag.ru/search/?q=17.12.14.110+%D0%91%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%B4%D0%BB%D1%8F+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%BE%D0%B9+%D1%82%D0%B5%D1%85%D0%BD%D0%B8%D0%BA%D0%B8",
+    ]
+
+
+def test_build_supplier_search_queries_expands_real_russian_cartridge_terms() -> None:
+    product_name = "Картридж однокомпонентный лазерного принтера"
+
+    queries = build_supplier_search_queries(
+        {
+            "product_name": product_name,
+            "normalized_name": product_name,
+            "search_phrases": [product_name],
+            "okpd2": "28.23.25.000",
+        }
+    )
+
+    assert [query["query"] for query in queries] == [
+        product_name,
+        "картридж лазерный",
+        "картридж для принтера",
+        f"28.23.25.000 {product_name}",
     ]
 
 
