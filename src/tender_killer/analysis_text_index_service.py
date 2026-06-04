@@ -31,6 +31,8 @@ ROLE_MARKERS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "participant_requirements",
         (
+            "participant requirements",
+            "requirements for participant",
             "единые требования",
             "требования к участнику",
             "требования участников",
