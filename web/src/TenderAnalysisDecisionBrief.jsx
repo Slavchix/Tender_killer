@@ -5,7 +5,7 @@ export function AnalysisDecisionBrief({ analysis, documents = [], onOpenSection 
   const decision = operatorView?.decision_brief || fallbackAnalysisDecision(analysis, documents)
   const actionPlan = operatorView?.action_plan || []
   const documentState = operatorView?.document_state
-  const primarySection = decision.primary_section || 'blockers'
+  const primarySection = decision.primary_section || 'decision_risks'
 
   return (
     <section className={`analysis-decision-brief ${decision.tone || 'pending'}`} aria-label="Короткое решение по анализу ТЗ">
@@ -35,7 +35,7 @@ export function AnalysisDecisionBrief({ analysis, documents = [], onOpenSection 
             <button
               className={`analysis-action-card ${item.status || 'pending'}`}
               key={item.id || item.title}
-              onClick={() => onOpenSection?.(item.id === 'documents' ? 'evidence' : item.id)}
+              onClick={() => onOpenSection?.(item.id || primarySection)}
               type="button"
             >
               <strong>{item.title}</strong>
@@ -58,9 +58,6 @@ export function AnalysisDecisionBrief({ analysis, documents = [], onOpenSection 
         <button className="secondary-button compact" onClick={() => onOpenSection?.(primarySection)} type="button">
           Открыть главное
         </button>
-        <button className="secondary-button compact" onClick={() => onOpenSection?.('evidence')} type="button">
-          Открыть доказательства
-        </button>
       </div>
     </section>
   )
@@ -73,7 +70,7 @@ function fallbackAnalysisDecision(analysis, documents = []) {
       title: 'Нужен анализ ТЗ',
       summary: 'Сначала извлеки текст документов и запусти анализ.',
       reasons: documents.length ? [`Документов в карточке: ${documents.length}`] : [],
-      primary_section: 'documents',
+      primary_section: 'product_compliance',
     }
   }
 
@@ -97,7 +94,7 @@ function fallbackAnalysisDecision(analysis, documents = []) {
       title: 'Нужна ручная проверка',
       summary: `${statusText}, уверенность ${confidenceText}. Сначала проверь критичные условия.`,
       reasons,
-      primary_section: 'blockers',
+      primary_section: 'decision_risks',
     }
   }
 
@@ -107,16 +104,16 @@ function fallbackAnalysisDecision(analysis, documents = []) {
       title: 'Проверить условия',
       summary: `${statusText}, уверенность ${confidenceText}. Существенных блокеров нет, но условия надо сверить.`,
       reasons,
-      primary_section: 'requirements',
+      primary_section: 'product_compliance',
     }
   }
 
   return {
     tone: 'ok',
     title: 'Критичных рисков не видно',
-    summary: `${statusText}, уверенность ${confidenceText}. Можно переходить к экономике и поставщикам.`,
+    summary: `${statusText}, уверенность ${confidenceText}. Можно переходить к следующему этапу проверки.`,
     reasons: analysis.summary ? [analysis.summary] : ['Анализ не нашел явных рисков и требований.'],
-    primary_section: 'price_factors',
+    primary_section: 'decision_risks',
   }
 }
 
