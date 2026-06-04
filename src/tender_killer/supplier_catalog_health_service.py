@@ -80,6 +80,16 @@ def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogH
         return
     catalog["http_status"] = int(status)
     if 200 <= int(status) < 400:
+        if not _catalog_body_has_parseable_content(str(catalog.get("provider") or ""), _body):
+            catalog["status"] = "error"
+            catalog["error_kind"] = "access_blocked"
+            catalog["error"] = (
+                f"HTTP {status} did not contain parseable {catalog.get('label') or catalog.get('provider')} "
+                "product cards"
+            )
+            catalog["body_preview"] = response_body_preview(_body)
+            catalog["access_mode"] = "http"
+            return
         catalog["status"] = "ok"
         catalog["error_kind"] = ""
         catalog["error"] = ""
@@ -104,9 +114,19 @@ def _try_browser_catalog_health(catalog: dict[str, Any]) -> bool:
     except supplier_browser_fetcher.BrowserFetchError as exc:
         catalog["browser_error"] = str(exc)
         return False
-    if not str(body or "").strip():
+    body_text = str(body or "")
+    if not body_text.strip():
         catalog["browser_error"] = "browser fetch returned an empty response"
         return False
+    if not _catalog_body_has_parseable_content(provider, body_text):
+        catalog["status"] = "error"
+        catalog["http_status"] = None
+        catalog["error_kind"] = "access_blocked"
+        catalog["error"] = ""
+        catalog["body_preview"] = response_body_preview(body_text)
+        catalog["access_mode"] = "browser"
+        catalog["browser_error"] = f"browser fetch returned no parseable {catalog.get('label') or provider} product cards"
+        return True
     catalog["status"] = "ok"
     catalog["http_status"] = None
     catalog["error_kind"] = ""
@@ -114,6 +134,19 @@ def _try_browser_catalog_health(catalog: dict[str, Any]) -> bool:
     catalog["body_preview"] = ""
     catalog["access_mode"] = "browser"
     return True
+
+
+def _catalog_body_has_parseable_content(provider: str, body: str) -> bool:
+    provider_key = provider.casefold()
+    if provider_key == "officemag":
+        soup = BeautifulSoup(body, "html.parser")
+        return bool(
+            soup.select_one(
+                "li.listItem, .js-productListItem, .ProductHead__name, "
+                ".Product__price, .js-productSum, a[href*='/catalog/goods/']"
+            )
+        )
+    return bool(body.strip())
 
 
 def _fetch_catalog_status(url: str, timeout: float) -> CatalogHealthFetchResult:

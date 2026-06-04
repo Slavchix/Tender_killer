@@ -59,7 +59,7 @@ def test_supplier_catalog_health_live_mode_records_provider_errors() -> None:
             return 503, "<html><head><style>body{display:block}</style></head><body><main>maintenance</main></body></html>"
         if "vseinstrumenti" in url:
             raise RuntimeError("timed out")
-        return 200, "<html></html>"
+        return 200, "<html><body><li class='js-productListItem'>Office paper A4</li></body></html>"
 
     payload = get_supplier_catalog_health_payload(live=True, timeout=1.5, fetcher=fetcher)
 
@@ -118,3 +118,42 @@ def test_supplier_catalog_health_uses_browser_fallback_for_officemag_access_bloc
     assert statuses["officemag"]["error"] == ""
     assert statuses["officemag"]["body_preview"] == ""
     assert payload["ok"] is True
+
+
+def test_supplier_catalog_health_rejects_officemag_browser_check_without_product_cards(monkeypatch) -> None:
+    def fetcher(url: str, timeout: float) -> tuple[int, str]:
+        if "officemag" in url:
+            return 503, "<html><body>browser verification required</body></html>"
+        return 200, "<html></html>"
+
+    def fake_browser_fetch(url: str, *, provider: str | None = None) -> str:
+        return "<html><body>browser verification required</body></html>"
+
+    monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", raising=False)
+    monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", raising=False)
+    monkeypatch.setattr(health.supplier_browser_fetcher, "fetch_text", fake_browser_fetch)
+
+    payload = get_supplier_catalog_health_payload(live=True, timeout=1.5, fetcher=fetcher)
+
+    statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
+    assert payload["ok"] is False
+    assert statuses["officemag"]["status"] == "error"
+    assert statuses["officemag"]["access_mode"] == "browser"
+    assert statuses["officemag"]["error_kind"] == "access_blocked"
+    assert statuses["officemag"]["browser_error"] == "browser fetch returned no parseable OfficeMag product cards"
+
+
+def test_supplier_catalog_health_rejects_officemag_http_success_without_product_cards() -> None:
+    def fetcher(url: str, timeout: float) -> tuple[int, str]:
+        if "officemag" in url:
+            return 200, "<html><body>browser verification required</body></html>"
+        return 200, "<html></html>"
+
+    payload = get_supplier_catalog_health_payload(live=True, timeout=1.5, fetcher=fetcher)
+
+    statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
+    assert payload["ok"] is False
+    assert statuses["officemag"]["status"] == "error"
+    assert statuses["officemag"]["http_status"] == 200
+    assert statuses["officemag"]["error_kind"] == "access_blocked"
+    assert statuses["officemag"]["error"] == "HTTP 200 did not contain parseable OfficeMag product cards"

@@ -53,6 +53,9 @@ function supplierCatalogHealthDetail(catalog) {
     return 'Каталог ответил на автоматическую проверку.'
   }
   if (catalog.status === 'error' && catalog.error_kind === 'access_blocked') {
+    if (catalog.browser_error) {
+      return 'Автопроверка открыла каталог, но не увидела карточки товаров. Открой каталог вручную или добавь ссылку поставщика.'
+    }
     const preview = String(catalog.body_preview || '').toLowerCase()
     if (preview.includes('капч')) return 'Сайт просит пройти капчу. Открой каталог вручную или добавь ссылку поставщика.'
     if (preview.includes('провер')) return 'Сайт требует браузерную проверку. Автопарсер пока не может читать этот каталог напрямую.'
