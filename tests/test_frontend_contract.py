@@ -412,9 +412,13 @@ def test_frontend_embeds_document_preparation_in_analysis_workspace():
     assert "from './TenderAnalysisDocumentsPanel'" in analysis_source
     assert "export function AnalysisDocumentsPanel" in analysis_documents_source
     assert "function DocumentStatusSummary" in analysis_documents_source
+    assert "<section className=\"analysis-documents-panel\"" not in analysis_documents_source
+    assert "<h4>Документы для анализа</h4>" not in analysis_documents_source
     assert "document-table" in analysis_documents_source
-    assert "<details className=\"document-table-toggle\">" in analysis_documents_source
+    assert "<details className=\"document-table-toggle analysis-documents-toggle\">" in analysis_documents_source
     assert "Показать документы" in analysis_documents_source
+    assert "<DocumentStatusSummary" in analysis_documents_source
+    assert analysis_documents_source.index("<details className=\"document-table-toggle analysis-documents-toggle\">") < analysis_documents_source.index("<DocumentStatusSummary")
     assert "document-status ${document.text_status || 'pending'}" in analysis_documents_source
     assert "<AnalysisDocumentsPanel" in analysis_source
     assert "onDownload={onDownload}" in analysis_source
@@ -2201,6 +2205,8 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     assert "documents={documentRecords}" in workspaces_source
     assert "analysis-action-row" in analysis_source
     assert "Скачать Word" in analysis_source
+    assert "Проанализировать" not in analysis_source
+    assert "onClick={onAnalyze}" not in analysis_source
     assert "onDownload={onDownload}" in analysis_source
     assert "onExtract={onExtract}" in analysis_source
     assert "downloadStatusLabel" not in analysis_source
