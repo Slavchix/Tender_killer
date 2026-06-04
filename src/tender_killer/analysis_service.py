@@ -12,6 +12,7 @@ from tender_killer.analysis_facts_service import build_analysis_facts
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 from tender_killer.analysis_passport_service import build_analysis_tz_passport
 from tender_killer.analysis_source_service import attach_document_sources
+from tender_killer.analysis_text_index_service import build_analysis_text_index
 from tender_killer.schema import ensure_analysis_table
 from tender_killer.schema import ensure_documents_table
 from tender_killer.tender_detail_service import get_tender_payload
@@ -29,7 +30,7 @@ def analyze_tender_payload(database_path: str | Path, source: str, external_id: 
             raise KeyError(f"Tender {source}/{external_id} not found.")
         rows = connection.execute(
             """
-            SELECT name, url, text_status, text_content
+            SELECT name, url, document_type, text_status, text_content
             FROM tender_documents
             WHERE source = ? AND external_id = ? AND text_status = 'ok'
             ORDER BY document_index
@@ -39,6 +40,7 @@ def analyze_tender_payload(database_path: str | Path, source: str, external_id: 
         documents = [dict(row) for row in rows]
         result = analyze_tender_texts([str(row["text_content"] or "") for row in rows])
         raw_payload = result.to_dict()
+        raw_payload["text_index"] = build_analysis_text_index(documents)
         attach_document_sources(raw_payload, documents)
         raw_payload["analysis_facts"] = build_analysis_facts(raw_payload, documents)
         raw_payload["tz_passport"] = build_analysis_tz_passport(raw_payload, documents)
@@ -82,4 +84,3 @@ def _connect(database_path: str | Path) -> sqlite3.Connection:
     connection = sqlite3.connect(database_path)
     connection.row_factory = sqlite3.Row
     return connection
-

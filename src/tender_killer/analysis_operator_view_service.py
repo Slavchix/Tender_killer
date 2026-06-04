@@ -452,6 +452,13 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         "evidence_summary": evidence_summary,
         "fragment": fragment,
         "impact": impact,
+        "document_role": _text(raw_item.get("document_role")),
+        "document_stage": _text(raw_item.get("document_stage")),
+        "amount_percent": raw_item.get("amount_percent"),
+        "amount_type": _text(raw_item.get("amount_type")),
+        "days": raw_item.get("days"),
+        "deadline_type": _text(raw_item.get("deadline_type")),
+        "responsible_party": _text(raw_item.get("responsible_party")),
         "operator_group": _text(raw_item.get("operator_group")) or _operator_group(kind, category, is_blocker, needs_review),
         "operator_action": _operator_action(
             kind,

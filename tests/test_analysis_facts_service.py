@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from tender_killer.analysis import analyze_tender_texts
 from tender_killer.analysis_facts_service import build_analysis_facts
+from tender_killer.analysis_text_index_service import build_analysis_text_index
 
 
 def test_build_analysis_facts_binds_each_fact_to_document_evidence():
@@ -168,3 +169,70 @@ def test_build_analysis_facts_routes_domain_specific_requirements_to_operator_ta
     assert by_label["квалифицированный персонал"]["operator_group"] == "prepare"
     assert by_label["квалифицированный персонал"]["is_blocker"] is False
     assert by_label["акт выполненных работ"]["price_impact"] == "working_capital"
+
+
+def test_build_analysis_facts_adds_document_roles_and_typed_fields_from_evidence():
+    documents = [
+        {
+            "name": "Описание объекта закупки.docx",
+            "document_type": "Описание объекта закупки",
+            "text_status": "ok",
+            "text_content": (
+                "Поставщик предоставляет сертификат соответствия при поставке товара. "
+                "Проверка сертификата проводится заказчиком при приемке."
+            ),
+        },
+        {
+            "name": "Проект контракта.docx",
+            "document_type": "Проект контракта",
+            "text_status": "ok",
+            "text_content": (
+                "Срок поставки товара: в течение 5 рабочих дней с даты заключения контракта поставщиком. "
+                "Обеспечение исполнения контракта составляет 10% от цены контракта."
+            ),
+        },
+    ]
+    analysis = {
+        "summary": "Поставка бумаги",
+        "confidence": 0.91,
+        "text_index": build_analysis_text_index(documents),
+        "checklist": [
+            {
+                "label": "сертификат/декларация",
+                "category": "documents",
+                "severity": "medium",
+                "evidence": "Поставщик предоставляет сертификат соответствия при поставке товара.",
+            }
+        ],
+        "execution_terms": [
+            {
+                "type": "delivery_deadline",
+                "label": "Срок поставки",
+                "category": "delivery",
+                "severity": "medium",
+                "value": "Срок поставки товара: в течение 5 рабочих дней с даты заключения контракта поставщиком.",
+                "evidence": "Срок поставки товара: в течение 5 рабочих дней с даты заключения контракта поставщиком.",
+            },
+            {
+                "type": "contract_security",
+                "label": "Обеспечение исполнения",
+                "category": "financial",
+                "severity": "high",
+                "value": "Обеспечение исполнения контракта составляет 10% от цены контракта.",
+                "evidence": "Обеспечение исполнения контракта составляет 10% от цены контракта.",
+            },
+        ],
+    }
+
+    facts = build_analysis_facts(analysis, documents)
+    by_label = {item["label"]: item for item in facts["items"]}
+
+    assert by_label["сертификат/декларация"]["document_role"] == "technical_specification"
+    assert by_label["сертификат/декларация"]["document_stage"] == "delivery_or_acceptance"
+    assert by_label["Срок поставки"]["document_role"] == "contract"
+    assert by_label["Срок поставки"]["days"] == 5
+    assert by_label["Срок поставки"]["deadline_type"] == "delivery"
+    assert by_label["Срок поставки"]["responsible_party"] == "supplier"
+    assert by_label["Обеспечение исполнения"]["document_role"] == "contract"
+    assert by_label["Обеспечение исполнения"]["amount_percent"] == 10
+    assert by_label["Обеспечение исполнения"]["amount_type"] == "contract_security"

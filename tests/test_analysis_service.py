@@ -93,8 +93,16 @@ def test_analyze_tender_payload_binds_execution_terms_to_source_documents(tmp_pa
             url="https://zakupki.mos.ru/auction/10212588",
             title="Mountaineering equipment tender",
             document_records=[
-                TenderDocument(url="https://example.test/spec.docx", name="spec.docx"),
-                TenderDocument(url="https://example.test/contract.docx", name="contract.docx"),
+                TenderDocument(
+                    url="https://example.test/spec.docx",
+                    name="spec.docx",
+                    document_type="Описание объекта закупки",
+                ),
+                TenderDocument(
+                    url="https://example.test/contract.docx",
+                    name="contract.docx",
+                    document_type="Проект контракта",
+                ),
             ],
         )
     )
@@ -134,6 +142,7 @@ def test_analyze_tender_payload_binds_execution_terms_to_source_documents(tmp_pa
         )
 
     payload = analyze_tender_payload(store.database_path, "moscow_supplier_portal", "Auction10212588")
+    text_index = payload["analysis"]["text_index"]
 
     delivery_term = next(
         term for term in payload["analysis"]["execution_terms"] if term["type"] == "delivery_deadline"
@@ -160,6 +169,17 @@ def test_analyze_tender_payload_binds_execution_terms_to_source_documents(tmp_pa
         item for item in passport_sections["product_compliance"]["items"] if item["label"] == "сертификат/декларация"
     )
     assert certificate_passport_item["source"].startswith("spec.docx")
+    roles = {document["name"]: document["document_role"] for document in text_index["documents"]}
+    assert text_index["version"] == 1
+    assert text_index["metrics"]["documents"] == 2
+    assert text_index["metrics"]["chunks"] >= 2
+    assert roles == {"spec.docx": "technical_specification", "contract.docx": "contract"}
+    assert any(
+        chunk["page"] == 1 and "Срок поставки товара" in chunk["text"]
+        for document in text_index["documents"]
+        if document["name"] == "contract.docx"
+        for chunk in document["chunks"]
+    )
     delivery_fact = next(
         fact for fact in payload["analysis"]["analysis_facts"]["items"] if fact["label"] == "Срок поставки"
     )
@@ -167,9 +187,19 @@ def test_analyze_tender_payload_binds_execution_terms_to_source_documents(tmp_pa
         fact for fact in payload["analysis"]["analysis_facts"]["items"] if fact["label"] == "Обеспечение исполнения"
     )
     assert delivery_fact["document_name"] == "contract.docx"
+    assert delivery_fact["document_role"] == "contract"
+    assert delivery_fact["days"] == 5
+    assert delivery_fact["deadline_type"] == "delivery"
+    assert delivery_fact["responsible_party"] == "supplier"
     assert delivery_fact["is_price_factor"] is True
     assert security_fact["document_name"] == "contract.docx"
+    assert security_fact["document_role"] == "contract"
+    assert security_fact["amount_percent"] == 5
+    assert security_fact["amount_type"] == "contract_security"
     assert security_fact["is_blocker"] is True
+
+    detail = get_tender_payload(store.database_path, "moscow_supplier_portal", "Auction10212588")
+    assert detail["analysis"]["text_index"] == text_index
 
 
 def test_analyze_tender_payload_attaches_source_page_and_context(tmp_path):

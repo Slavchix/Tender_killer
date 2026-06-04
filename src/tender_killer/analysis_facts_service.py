@@ -4,6 +4,8 @@ import re
 from typing import Any
 
 from tender_killer.analysis_source_service import document_source_for_fragment
+from tender_killer.analysis_text_index_service import document_roles_from_text_index
+from tender_killer.analysis_text_index_service import infer_document_role
 
 
 BLOCKER_CATEGORIES = {"legal", "national_regime"}
@@ -21,6 +23,7 @@ def build_analysis_facts(
         return {"version": 1, "items": [], "metrics": _metrics([])}
 
     items: list[dict[str, Any]] = []
+    document_roles = _document_roles(analysis, document_rows)
     summary = _text(analysis.get("summary"))
     if summary:
         items.append(
@@ -36,10 +39,10 @@ def build_analysis_facts(
         )
 
     for item in _dict_items(analysis.get("execution_terms")):
-        items.append(_execution_term_fact(item, analysis, document_rows))
+        items.append(_execution_term_fact(item, analysis, document_rows, document_roles))
 
     for item in _dict_items(analysis.get("checklist")):
-        items.append(_checklist_fact(item, analysis, document_rows))
+        items.append(_checklist_fact(item, analysis, document_rows, document_roles))
 
     items = _dedupe_items(items)
     return {"version": 1, "items": items, "metrics": _metrics(items)}
@@ -49,6 +52,7 @@ def _checklist_fact(
     item: dict[str, Any],
     analysis: dict[str, Any],
     documents: list[dict[str, Any]],
+    document_roles: dict[str, str],
 ) -> dict[str, Any]:
     label = _text(item.get("label")) or "Условие"
     category = _text(item.get("category")) or "general"
@@ -58,6 +62,15 @@ def _checklist_fact(
     is_price_factor = category in PRICE_FACTOR_CATEGORIES and not is_blocker
     kind = "blocker" if is_blocker else "supplier_document" if category in SUPPLIER_DOCUMENT_CATEGORIES else "requirement"
     source = _document_source(item, fragment, documents)
+    document_name = _text(source.get("document_name"))
+    structured = _structured_metadata(
+        label=label,
+        category=category,
+        term_type="checklist",
+        text=fragment or label,
+        document_name=document_name,
+        document_roles=document_roles,
+    )
     return _fact(
         kind=kind,
         label=label,
@@ -67,13 +80,14 @@ def _checklist_fact(
         confidence=analysis.get("confidence"),
         rule_id=f"checklist:{label}",
         fragment=fragment,
-        document_name=source.get("document_name", ""),
+        document_name=document_name,
         source_page=source.get("source_page"),
         source_label=source.get("source_label", ""),
         source_context=source.get("source_context", ""),
         is_blocker=is_blocker,
         is_price_factor=is_price_factor,
         impact=_impact(category, severity),
+        metadata=structured,
     )
 
 
@@ -81,6 +95,7 @@ def _execution_term_fact(
     item: dict[str, Any],
     analysis: dict[str, Any],
     documents: list[dict[str, Any]],
+    document_roles: dict[str, str],
 ) -> dict[str, Any]:
     label = _text(item.get("label")) or "Условие исполнения"
     category = _text(item.get("category")) or "general"
@@ -90,22 +105,33 @@ def _execution_term_fact(
     is_blocker = severity == "high" and category in {"financial", "legal", "national_regime"}
     is_price_factor = category in PRICE_FACTOR_CATEGORIES
     source = _document_source(item, fragment, documents)
+    document_name = _text(source.get("document_name"))
+    value = _text(item.get("value")) or fragment or label
+    structured = _structured_metadata(
+        label=label,
+        category=category,
+        term_type=term_type,
+        text=" ".join(part for part in (value, fragment) if part),
+        document_name=document_name,
+        document_roles=document_roles,
+    )
     return _fact(
         kind="blocker" if is_blocker else "execution_term",
         label=label,
-        value=_text(item.get("value")) or fragment or label,
+        value=value,
         category=category,
         severity=severity,
         confidence=analysis.get("confidence"),
         rule_id=f"execution_term:{term_type}",
         fragment=fragment,
-        document_name=source.get("document_name", ""),
+        document_name=document_name,
         source_page=source.get("source_page"),
         source_label=source.get("source_label", ""),
         source_context=source.get("source_context", ""),
         is_blocker=is_blocker,
         is_price_factor=is_price_factor,
         impact=_impact(category, severity),
+        metadata=structured,
     )
 
 
@@ -126,6 +152,7 @@ def _fact(
     is_blocker: bool = False,
     is_price_factor: bool = False,
     impact: str = "",
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     bound_document = _text(document_name)
     page_number = _page_number(source_page)
@@ -153,8 +180,136 @@ def _fact(
         "is_price_factor": is_price_factor,
         "needs_review": needs_review,
         "impact": impact,
+        **_clean_metadata(metadata),
         **operator,
     }
+
+
+def _document_roles(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> dict[str, str]:
+    roles = document_roles_from_text_index(analysis.get("text_index"))
+    for document in documents:
+        name = _text(document.get("name") or document.get("url"))
+        if name:
+            roles.setdefault(name, infer_document_role(document))
+    return roles
+
+
+def _structured_metadata(
+    *,
+    label: str,
+    category: str,
+    term_type: str,
+    text: str,
+    document_name: str,
+    document_roles: dict[str, str],
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    role = _text(document_roles.get(document_name))
+    if role:
+        metadata["document_role"] = role
+
+    stage = _document_stage(label=label, category=category, text=text)
+    if stage:
+        metadata["document_stage"] = stage
+
+    amount_percent = _amount_percent(text)
+    if amount_percent is not None:
+        metadata["amount_percent"] = amount_percent
+        amount_type = _amount_type(label=label, category=category, term_type=term_type, text=text)
+        if amount_type:
+            metadata["amount_type"] = amount_type
+
+    days = _days(text)
+    if days is not None:
+        metadata["days"] = days
+        deadline_type = _deadline_type(label=label, category=category, term_type=term_type, text=text)
+        if deadline_type:
+            metadata["deadline_type"] = deadline_type
+
+    responsible_party = _responsible_party(text) or ("supplier" if category == "delivery" else "")
+    if responsible_party:
+        metadata["responsible_party"] = responsible_party
+
+    return metadata
+
+
+def _clean_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    if not metadata:
+        return {}
+    return {key: value for key, value in metadata.items() if value not in (None, "")}
+
+
+def _amount_percent(text: str) -> int | float | None:
+    match = re.search(r"(\d+(?:[,.]\d+)?)\s*(?:%|процент(?:а|ов)?)", text, flags=re.IGNORECASE)
+    if not match:
+        return None
+    raw_value = match.group(1).replace(",", ".")
+    value = float(raw_value)
+    return int(value) if value.is_integer() else value
+
+
+def _amount_type(*, label: str, category: str, term_type: str, text: str) -> str:
+    combined = _normalized_text(" ".join((label, category, term_type, text)))
+    if "обеспечение исполнения" in combined or term_type == "contract_security":
+        return "contract_security"
+    if "аванс" in combined:
+        return "advance"
+    if "штраф" in combined or "пени" in combined or "пеня" in combined:
+        return "penalty"
+    if category in {"financial", "payment"}:
+        return "financial_condition"
+    return ""
+
+
+def _days(text: str) -> int | None:
+    patterns = (
+        r"(?:в течение|не позднее|срок[^.]{0,80}?)(\d{1,3})\s*(?:рабочих|календарных)?\s*дн",
+        r"(\d{1,3})\s*(?:рабочих|календарных)?\s*дн",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def _deadline_type(*, label: str, category: str, term_type: str, text: str) -> str:
+    combined = _normalized_text(" ".join((label, category, term_type, text)))
+    if category == "delivery" or "поставк" in combined or term_type == "delivery_deadline":
+        return "delivery"
+    if category == "payment" or "оплат" in combined:
+        return "payment"
+    if category == "acceptance" or "приемк" in combined or "приёмк" in combined:
+        return "acceptance"
+    if "устран" in combined and "замечан" in combined:
+        return "correction"
+    return ""
+
+
+def _responsible_party(text: str) -> str:
+    combined = _normalized_text(text)
+    if any(marker in combined for marker in ("поставщик", "поставщиком", "исполнитель", "исполнителем")):
+        return "supplier"
+    if any(marker in combined for marker in ("заказчик", "заказчиком")):
+        return "customer"
+    return ""
+
+
+def _document_stage(*, label: str, category: str, text: str) -> str:
+    combined = _normalized_text(" ".join((label, category, text)))
+    if category in {"national_regime", "legal", "qualification"} or "заявк" in combined or "участ" in combined:
+        return "bid"
+    if category == "documents":
+        if any(marker in combined for marker in ("приемк", "приёмк", "поставк", "товар")):
+            return "delivery_or_acceptance"
+        return "preparation"
+    if category == "delivery" or "поставк" in combined:
+        return "delivery"
+    if category in {"acceptance", "payment"} or "приемк" in combined or "приёмк" in combined:
+        return "acceptance"
+    if category in {"financial", "contract"}:
+        return "contract_execution"
+    return ""
 
 
 def _resolve_document_name(item: dict[str, Any], fragment: str, documents: list[dict[str, Any]]) -> str:

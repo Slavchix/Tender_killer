@@ -12,6 +12,7 @@ from tender_killer.analysis_facts_service import build_analysis_facts
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 from tender_killer.analysis_passport_service import build_analysis_tz_passport
 from tender_killer.analysis_source_service import attach_document_sources
+from tender_killer.analysis_text_index_service import build_analysis_text_index
 from tender_killer.decision_service import build_tender_decision
 from tender_killer.document_service import document_row_to_payload
 from tender_killer.economics import build_economics_summary
@@ -226,6 +227,12 @@ def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) 
     payload["red_flags"] = _json_list(payload.pop("red_flags_json"))
     payload["raw_payload"] = _json_object(payload.pop("raw_payload_json"))
     attach_document_sources(payload["raw_payload"], documents)
+    text_index = payload["raw_payload"].get("text_index")
+    payload["text_index"] = (
+        text_index
+        if isinstance(text_index, dict) and text_index.get("version") == 1
+        else build_analysis_text_index(documents)
+    )
     payload["checklist"] = payload["raw_payload"].get("checklist", [])
     execution_terms = payload["raw_payload"].get("execution_terms")
     payload["execution_terms"] = execution_terms if isinstance(execution_terms, list) else []
