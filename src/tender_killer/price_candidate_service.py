@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -145,7 +146,16 @@ def evaluate_price_candidate_quality(profile: dict[str, Any], candidate: dict[st
 def normalize_price_candidate(profile: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
     normalized = {**candidate}
     raw_payload = _raw_payload(candidate)
+    profile_quantity = _number(profile.get("quantity"))
+    profile_unit = _token(profile.get("unit"))
+    candidate_unit = _token(candidate.get("unit") or raw_payload.get("unit") or raw_payload.get("uom"))
+    pack_quantity = _first_number(candidate, raw_payload, PACK_QUANTITY_FIELDS)
+    price_breaks = _price_breaks(candidate.get("price_breaks") or raw_payload.get("price_breaks"))
+    price_break_quantity = _price_break_selection_quantity(profile_quantity, profile_unit, candidate_unit, pack_quantity)
+    selected_price_break = _select_price_break(price_breaks, price_break_quantity)
     original_unit_price = _number(candidate.get("unit_price") or raw_payload.get("unit_price"))
+    if selected_price_break:
+        original_unit_price = _number(selected_price_break.get("price"))
     if original_unit_price is None:
         original_unit_price = 0.0
     unit_price = original_unit_price
@@ -155,9 +165,19 @@ def normalize_price_candidate(profile: dict[str, Any], candidate: dict[str, Any]
         "source": candidate.get("source_kind") or raw_payload.get("source_kind"),
     }
 
-    profile_unit = _token(profile.get("unit"))
-    candidate_unit = _token(candidate.get("unit") or raw_payload.get("unit") or raw_payload.get("uom"))
-    pack_quantity = _first_number(candidate, raw_payload, PACK_QUANTITY_FIELDS)
+    if price_breaks:
+        normalized["price_breaks"] = price_breaks
+        raw_payload["price_breaks"] = price_breaks
+    if selected_price_break:
+        normalized["selected_price_break"] = selected_price_break
+        raw_payload["selected_price_break"] = selected_price_break
+        normalization["selected_price_break"] = selected_price_break
+        match_reasons.append("price_break_selected")
+    if price_break_quantity is not None:
+        normalized["price_break_selection_quantity"] = price_break_quantity
+        raw_payload["price_break_selection_quantity"] = price_break_quantity
+        normalization["price_break_selection_quantity"] = price_break_quantity
+
     if _is_pack_unit(candidate_unit) and _is_piece_unit(profile_unit) and pack_quantity and pack_quantity > 0:
         unit_price = unit_price / pack_quantity
         normalized["unit"] = profile.get("unit")
@@ -572,6 +592,7 @@ def _economics_price_source(
         number = _first_number(candidate, raw_payload, fields)
         if number is not None:
             source[field] = number
+    _copy_price_break_fields(source, candidate, raw_payload)
     return source
 
 
@@ -605,6 +626,7 @@ def _supplier_option_from_candidate(candidate: dict[str, Any]) -> dict[str, Any]
         number = _first_number(candidate, raw_payload, source_fields)
         if number is not None:
             option[option_key] = number
+    _copy_price_break_fields(option, candidate, raw_payload)
     return {key: value for key, value in option.items() if value is not None}
 
 
@@ -675,6 +697,7 @@ def _candidate_from_supplier_source(
         "delivery_note": source_candidate.get("delivery_note"),
         "delivery_cost": source_candidate.get("delivery_cost"),
         "unit": source_candidate.get("unit") or source_candidate.get("uom") or profile.get("unit"),
+        "price_breaks": _price_breaks(source_candidate.get("price_breaks")),
         "pack_quantity": _first_number(source_candidate, raw_payload, PACK_QUANTITY_FIELDS),
         "stock_quantity": _first_number(source_candidate, raw_payload, SUPPLIER_STOCK_FIELDS),
         "preorder_quantity": _first_number(source_candidate, raw_payload, SUPPLIER_PREORDER_FIELDS),
@@ -781,6 +804,64 @@ def _first_number(candidate: dict[str, Any], raw_payload: dict[str, Any], fields
         if number is not None:
             return number
     return None
+
+
+def _price_breaks(value: Any) -> list[dict[str, float]]:
+    if not isinstance(value, list):
+        return []
+    breaks: list[dict[str, float]] = []
+    seen: set[tuple[float, float]] = set()
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        count = _number(item.get("count") or item.get("quantity") or item.get("min_quantity"))
+        price = _number(item.get("price") or item.get("unit_price"))
+        if count is None or count <= 0 or price is None or price <= 0:
+            continue
+        key = (float(count), float(price))
+        if key in seen:
+            continue
+        seen.add(key)
+        breaks.append({"count": float(count), "price": float(price)})
+    return sorted(breaks, key=lambda item: (item["count"], item["price"]))
+
+
+def _price_break_selection_quantity(
+    profile_quantity: float | None,
+    profile_unit: str,
+    candidate_unit: str,
+    pack_quantity: float | None,
+) -> float | None:
+    if profile_quantity is None or profile_quantity <= 0:
+        return None
+    if _is_pack_unit(candidate_unit) and _is_piece_unit(profile_unit) and pack_quantity and pack_quantity > 0:
+        return float(math.ceil(profile_quantity / pack_quantity))
+    return float(profile_quantity)
+
+
+def _select_price_break(price_breaks: list[dict[str, float]], selection_quantity: float | None) -> dict[str, float] | None:
+    if not price_breaks:
+        return None
+    if selection_quantity is None or selection_quantity <= 0:
+        return min(price_breaks, key=lambda item: item["price"])
+    eligible = [item for item in price_breaks if item["count"] <= selection_quantity]
+    if eligible:
+        return max(eligible, key=lambda item: (item["count"], -item["price"]))
+    return min(price_breaks, key=lambda item: item["count"])
+
+
+def _copy_price_break_fields(target: dict[str, Any], candidate: dict[str, Any], raw_payload: dict[str, Any]) -> None:
+    price_breaks = _price_breaks(candidate.get("price_breaks") or raw_payload.get("price_breaks"))
+    if price_breaks:
+        target["price_breaks"] = price_breaks
+    selected = candidate.get("selected_price_break") or raw_payload.get("selected_price_break")
+    if isinstance(selected, dict):
+        selected_break = _select_price_break(_price_breaks([selected]), _number(selected.get("count")))
+        if selected_break:
+            target["selected_price_break"] = selected_break
+    selection_quantity = _number(candidate.get("price_break_selection_quantity") or raw_payload.get("price_break_selection_quantity"))
+    if selection_quantity is not None:
+        target["price_break_selection_quantity"] = selection_quantity
 
 
 def _string_list(value: Any) -> list[str]:

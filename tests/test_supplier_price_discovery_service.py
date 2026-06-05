@@ -374,6 +374,10 @@ def test_provider_catalog_collector_extracts_officemag_search_result_cards() -> 
             "name": 'Папка на 2 кольцах, ПРОЧНАЯ, картон/ПВХ, BRAUBERG "Office", ЧЕРНАЯ, 75 мм, до 500 листов, 271846',
             "url": "https://www.officemag.ru/catalog/goods/271846/",
             "unit_price": 458.45,
+            "price_breaks": [
+                {"count": 1, "price": 482.58},
+                {"count": 3, "price": 458.45},
+            ],
             "currency": "RUB",
             "availability": "in_stock",
             "stock_quantity": 39,
@@ -458,6 +462,10 @@ def test_provider_catalog_collector_extracts_real_russian_officemag_search_resul
             "name": "Бумага офисная А4, 500 листов, белая, 80 г/м2",
             "url": "https://www.officemag.ru/catalog/goods/111111/",
             "unit_price": 498.0,
+            "price_breaks": [
+                {"count": 1, "price": 520.0},
+                {"count": 10, "price": 498.0},
+            ],
             "currency": "RUB",
             "availability": "in_stock",
             "stock_quantity": 123,
@@ -565,6 +573,10 @@ def test_provider_catalog_collector_extracts_officemag_product_detail_terms() ->
 
     assert result["diagnostics"]["candidates_found"] == 1
     assert result["candidates"][0]["unit_price"] == 458.45
+    assert result["candidates"][0]["price_breaks"] == [
+        {"count": 1, "price": 482.58},
+        {"count": 3, "price": 458.45},
+    ]
     assert result["candidates"][0]["delivery_note"] == (
         "OfficeMag: цена от 1 шт. 482.58 RUB; цена от 3 шт. 458.45 RUB; "
         "склад 39 шт.; под заказ +6634 шт.; мин. партия 1; в упаковке 12."

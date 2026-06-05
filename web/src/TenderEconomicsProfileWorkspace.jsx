@@ -2,6 +2,7 @@ import { ProductAutoEconomicsPanel } from './TenderEconomicsAuto'
 import { ProductEconomicsForm } from './TenderEconomicsCostForm'
 import { ProductEconomicsAssumptionsForm } from './TenderEconomicsForms'
 import { ProductSupplierOptionsForm } from './TenderEconomicsSuppliers'
+import { formatQuantity } from './formatters'
 
 export function TenderEconomicsProfileWorkspace({
   economics,
@@ -43,6 +44,7 @@ export function TenderEconomicsProfileWorkspace({
         <div className="economics-position-heading">
           <span>Позиция #{selectedEconomicsProfile.position_index || selectedEconomicsProfileIndex + 1}</span>
           <strong>{selectedEconomicsProfile.product_name || 'Без названия'}</strong>
+          <small>{formatQuantity(selectedEconomicsProfile.quantity, selectedEconomicsProfile.unit)}</small>
         </div>
         <ProductAutoEconomicsPanel
           profile={selectedEconomicsProfile}

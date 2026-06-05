@@ -4,7 +4,7 @@ import {
 } from './TenderEconomicsSupplierDiscovery'
 import { SupplierInputForm } from './TenderEconomicsSupplierInputForm'
 import { SupplierOptionsList } from './TenderEconomicsSupplierOptions'
-import { formatMoney, supplierConfidenceLabel } from './formatters'
+import { formatMoney, formatQuantity as formatTenderQuantity, supplierConfidenceLabel } from './formatters'
 
 export function ProductSupplierOptionsForm({
   profile,
@@ -48,6 +48,7 @@ export function ProductSupplierOptionsForm({
   return (
     <section className="profile-block supplier-options-block">
       <PriceCandidatesList
+        profile={profile}
         price_candidates={visiblePriceCandidates}
         reviewingPriceCandidateId={reviewingPriceCandidateId}
         onConfirm={(candidate) => onPriceCandidateConfirm?.(profile, candidate)}
@@ -93,6 +94,7 @@ export function ProductSupplierOptionsForm({
 }
 
 function PriceCandidatesList({
+  profile,
   price_candidates = [],
   reviewingPriceCandidateId = null,
   onConfirm,
@@ -112,6 +114,13 @@ function PriceCandidatesList({
         const busy = reviewingPriceCandidateId === candidate.id
         const qualityFlags = Array.isArray(candidate.quality_flags) ? candidate.quality_flags : []
         const stockText = formatSupplierStock(candidate)
+        const profileQuantity = numberOrNull(profile?.quantity)
+        const candidateUnitPrice = numberOrNull(candidate.unit_price)
+        const totalCost = profileQuantity != null && candidateUnitPrice != null
+          ? profileQuantity * candidateUnitPrice
+          : null
+        const priceBreaks = priceBreaksForCandidate(candidate)
+        const selectedPriceBreak = selectedPriceBreakForCandidate(candidate)
         return (
           <div
             className={`price-candidate-row ${candidate.review_status || 'pending'} quality-${candidate.quality_status || 'unknown'}`}
@@ -133,7 +142,28 @@ function PriceCandidatesList({
                 {candidate.auto_eligible ? ' · авто готово' : ''}
               </p>
               {candidate.source_query && <p>Запрос: {candidate.source_query}</p>}
+              <p className="price-candidate-quantity-line">
+                Количество в закупке: <strong>{formatTenderQuantity(profile?.quantity, profile?.unit)}</strong>
+                {totalCost != null ? ` · Итого по позиции: ${formatMoney(totalCost)}` : ''}
+              </p>
               {stockText && <p>{stockText}</p>}
+              {priceBreaks.length > 0 && (
+                <div className="price-break-strip" aria-label="Ценовые ступени поставщика">
+                  {priceBreaks.map((priceBreak) => (
+                    <span
+                      className={samePriceBreak(priceBreak, selectedPriceBreak) ? 'selected' : ''}
+                      key={`${priceBreak.count}-${priceBreak.price}`}
+                    >
+                      от {formatQuantity(priceBreak.count)} шт.: {formatMoney(priceBreak.price)}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {selectedPriceBreak && (
+                <p className="price-candidate-selected-break">
+                  В расчет выбрана ступень от {formatQuantity(selectedPriceBreak.count)} шт.
+                </p>
+              )}
               {qualityFlags.length > 0 && (
                 <ul className="price-candidate-flags">
                   {qualityFlags.slice(0, 4).map((flag) => (
@@ -144,7 +174,11 @@ function PriceCandidatesList({
                 </ul>
               )}
             </div>
-            <span>{formatMoney(candidate.unit_price)}</span>
+            <div className="price-candidate-price-summary">
+              <strong>{formatMoney(candidate.unit_price)}</strong>
+              <small>за ед.</small>
+              {totalCost != null && <em>{formatMoney(totalCost)} итого</em>}
+            </div>
             <div className="price-candidate-actions">
               <button
                 className="secondary-button compact"
@@ -168,6 +202,34 @@ function PriceCandidatesList({
       })}
     </div>
   )
+}
+
+function priceBreaksForCandidate(candidate = {}) {
+  const rawBreaks = Array.isArray(candidate.price_breaks)
+    ? candidate.price_breaks
+    : Array.isArray(candidate.raw_payload?.price_breaks)
+      ? candidate.raw_payload.price_breaks
+      : []
+  return rawBreaks
+    .map((item) => ({
+      count: numberOrNull(item?.count),
+      price: numberOrNull(item?.price ?? item?.unit_price),
+    }))
+    .filter((item) => item.count != null && item.count > 0 && item.price != null && item.price > 0)
+    .sort((left, right) => left.count - right.count || left.price - right.price)
+}
+
+function selectedPriceBreakForCandidate(candidate = {}) {
+  const selected = candidate.selected_price_break || candidate.raw_payload?.selected_price_break
+  if (!selected || typeof selected !== 'object') return null
+  const count = numberOrNull(selected.count)
+  const price = numberOrNull(selected.price ?? selected.unit_price)
+  return count != null && price != null ? { count, price } : null
+}
+
+function samePriceBreak(left, right) {
+  if (!left || !right) return false
+  return Number(left.count) === Number(right.count) && Number(left.price) === Number(right.price)
 }
 
 function formatSupplierStock(candidate = {}) {

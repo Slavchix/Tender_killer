@@ -214,6 +214,45 @@ def test_normalize_price_candidate_applies_vat_and_pack_conversion() -> None:
     assert normalized["raw_payload"]["normalization"]["vat_rate_percent"] == 20.0
 
 
+def test_normalize_price_candidate_selects_price_break_by_profile_quantity() -> None:
+    profile = {
+        "position_index": 1,
+        "product_name": "Office paper A4",
+        "quantity": 60,
+        "unit": "pack",
+    }
+    candidate = {
+        "provider": "officemag",
+        "name": "Office paper A4, 500 sheets",
+        "unit_price": 364.0,
+        "currency": "RUB",
+        "vat_mode": "vat_included",
+        "availability": "in_stock",
+        "delivery_note": "Delivery included",
+        "unit": "pack",
+        "pack_quantity": 5,
+        "confidence": "high",
+        "price_breaks": [
+            {"count": 1, "price": 364.0},
+            {"count": 5, "price": 361.0},
+            {"count": 10, "price": 359.0},
+        ],
+    }
+
+    normalized = normalize_price_candidate(profile, candidate)
+
+    assert normalized["unit_price"] == 359.0
+    assert normalized["price_breaks"] == [
+        {"count": 1, "price": 364.0},
+        {"count": 5, "price": 361.0},
+        {"count": 10, "price": 359.0},
+    ]
+    assert normalized["selected_price_break"] == {"count": 10, "price": 359.0}
+    assert normalized["price_break_selection_quantity"] == 60.0
+    assert normalized["raw_payload"]["normalization"]["selected_price_break"] == {"count": 10, "price": 359.0}
+    assert normalized["raw_payload"]["normalization"]["price_break_selection_quantity"] == 60.0
+
+
 def test_confirm_profile_price_candidate_applies_price_to_economics_and_marks_review(tmp_path) -> None:
     store = _store_with_profile(tmp_path)
     saved = store.upsert_price_candidates(
@@ -292,6 +331,80 @@ def test_confirm_profile_price_candidate_applies_price_to_economics_and_marks_re
         "quality_flags": [],
     }
     assert detail["economics"]["supplier_cost"] == 8800.0
+
+
+def test_confirm_profile_price_candidate_applies_price_break_total_by_quantity(tmp_path) -> None:
+    store = _store_with_profile(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "price-review",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-review",
+                position_index=1,
+                product_name="Office paper A4",
+                quantity=60,
+                unit="pack",
+            )
+        ],
+    )
+    saved = store.upsert_price_candidates(
+        "mosreg_market",
+        "price-review",
+        1,
+        [
+            normalize_price_candidate(
+                {
+                    "position_index": 1,
+                    "product_name": "Office paper A4",
+                    "quantity": 60,
+                    "unit": "pack",
+                },
+                {
+                    "provider": "officemag",
+                    "name": "Office paper A4, 500 sheets",
+                    "url": "https://www.officemag.ru/catalog/goods/110532/",
+                    "unit_price": 364.0,
+                    "currency": "RUB",
+                    "vat_mode": "vat_included",
+                    "availability": "in_stock",
+                    "confidence": "high",
+                    "delivery_note": "Delivery included",
+                    "unit": "pack",
+                    "pack_quantity": 5,
+                    "stock_quantity": 14194,
+                    "price_breaks": [
+                        {"count": 1, "price": 364.0},
+                        {"count": 5, "price": 361.0},
+                        {"count": 10, "price": 359.0},
+                    ],
+                },
+            )
+        ],
+        origin="supplier_discovery",
+    )
+
+    review_profile_price_candidate(
+        store.database_path,
+        "mosreg_market",
+        "price-review",
+        1,
+        int(saved[0]["id"]),
+        review_status="confirmed",
+    )
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "price-review")
+    profile = detail["product_profiles"][0]
+    candidate = profile["price_candidates"][0]
+    assert candidate["unit_price"] == 359.0
+    assert candidate["selected_price_break"] == {"count": 10, "price": 359.0}
+    assert profile["raw_payload"]["economics"] == {"unit_cost": 359.0}
+    assert profile["raw_payload"]["economics_price_source"]["selected_price_break"] == {"count": 10, "price": 359.0}
+    assert detail["economics"]["items"][0]["quantity"] == 60.0
+    assert detail["economics"]["items"][0]["unit_cost"] == 359.0
+    assert detail["economics"]["items"][0]["total_cost"] == 21540.0
+    assert detail["economics"]["supplier_cost"] == 21540.0
 
 
 def test_stage_tender_price_candidates_from_saved_sources_normalizes_quality(tmp_path) -> None:

@@ -1011,6 +1011,8 @@ def _officemag_candidate_from_scope(
         "note": note,
         "provider": "officemag",
     }
+    if price_breaks:
+        candidate["price_breaks"] = price_breaks
     if stock_quantity is not None:
         candidate["stock_quantity"] = stock_quantity
     if preorder_quantity is not None:

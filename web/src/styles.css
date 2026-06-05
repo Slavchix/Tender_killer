@@ -3329,6 +3329,17 @@ textarea:focus {
   font-size: 14px;
 }
 
+.economics-position-heading small {
+  width: fit-content;
+  padding: 3px 7px;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
 .economics-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3484,7 +3495,7 @@ textarea:focus {
 
 .economics-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 8px;
   align-items: center;
   padding: 8px 9px;
@@ -4153,11 +4164,60 @@ textarea:focus {
   overflow-wrap: anywhere;
 }
 
-.price-candidate-row > span {
+.price-candidate-price-summary {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  min-width: 92px;
+}
+
+.price-candidate-price-summary strong {
   color: var(--color-primary);
   font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
+}
+
+.price-candidate-price-summary small,
+.price-candidate-price-summary em {
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.price-candidate-quantity-line strong {
+  color: var(--color-text-secondary);
+}
+
+.price-break-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0 0;
+}
+
+.price-break-strip span {
+  padding: 2px 6px;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.price-break-strip span.selected {
+  color: var(--color-text-inverse);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.price-candidate-selected-break {
+  color: var(--color-primary) !important;
+  font-weight: 900;
 }
 
 .price-candidate-flags {

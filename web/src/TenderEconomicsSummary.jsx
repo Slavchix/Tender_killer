@@ -82,6 +82,7 @@ export function EconomicsSummary({ economics, tender }) {
             <div className="economics-item" key={`${item.product_name}-${index}`}>
               <strong>{item.product_name}</strong>
               <span>{formatQuantity(item.quantity, item.unit)}</span>
+              <span>{item.unit_cost != null ? `${formatMoney(item.unit_cost)} за ед.` : 'цена не указана'}</span>
               <span>{formatMoney(item.total_cost)}</span>
             </div>
           ))}
