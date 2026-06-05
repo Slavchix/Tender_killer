@@ -34,22 +34,22 @@ def test_check_dev_site_verifies_api_frontend_proxy_and_ui_text():
             return 200, '{"sources": []}'
         if url == "http://127.0.0.1:8000/api/supplier-catalogs/health":
             return 200, '{"ok": true, "catalogs": []}'
-        if url == "http://127.0.0.1:5173/":
+        if url == "http://127.0.0.1:5175/":
             return 200, '<html><body><div id="root"></div><script type="module" src="/src/App.jsx"></script></body></html>'
-        if url == "http://127.0.0.1:5173/api/health":
+        if url == "http://127.0.0.1:5175/api/health":
             return 200, (
                 '{"ok": true, "capabilities": '
                 '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health", "supplier_discovery_url", "web_auto_search", "market_state_import", "dashboard_queues", "price_candidate_auto_stage", "price_auto_apply", "price_discovery_run", "price_discovery_jobs"]}'
             )
-        if url == "http://127.0.0.1:5173/api/sources/status":
+        if url == "http://127.0.0.1:5175/api/sources/status":
             return 200, '{"sources": []}'
-        if url == "http://127.0.0.1:5173/api/supplier-catalogs/health":
+        if url == "http://127.0.0.1:5175/api/supplier-catalogs/health":
             return 200, '{"ok": true, "catalogs": []}'
         raise AssertionError(url)
 
     payload = check_dev_site(
         api_base_url="http://127.0.0.1:8000",
-        web_base_url="http://127.0.0.1:5173",
+        web_base_url="http://127.0.0.1:5175",
         app_source_path=app_source,
         fetcher=fetcher,
     )
@@ -86,7 +86,7 @@ def test_check_dev_site_reports_missing_page_size_label():
 
     payload = check_dev_site(
         api_base_url="http://127.0.0.1:8000",
-        web_base_url="http://127.0.0.1:5173",
+        web_base_url="http://127.0.0.1:5175",
         app_source_path=app_source,
         fetcher=fetcher,
     )

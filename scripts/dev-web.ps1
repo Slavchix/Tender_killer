@@ -1,9 +1,14 @@
+param(
+    [int]$ApiPort = $(if ($env:TENDER_KILLER_API_PORT) { [int]$env:TENDER_KILLER_API_PORT } else { 8000 }),
+    [int]$WebPort = $(if ($env:TENDER_KILLER_WEB_PORT) { [int]$env:TENDER_KILLER_WEB_PORT } else { 5175 })
+)
+
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
 $python = Join-Path $root ".venv\Scripts\python.exe"
-$apiBaseUrl = "http://127.0.0.1:8000"
-$webBaseUrl = "http://127.0.0.1:5173"
+$apiBaseUrl = "http://127.0.0.1:$ApiPort"
+$webBaseUrl = "http://127.0.0.1:$WebPort"
 $logsDir = Join-Path $root "logs"
 
 function Repair-ProcessPathEnvironment {
@@ -144,8 +149,8 @@ function Stop-StalePortProcess {
     if (-not $ownerPid) {
         return
     }
-    if ($Port -eq 8000) {
-        Write-Host "Port 8000 is already in use by a stale or unhealthy API process. Restarting it. $Reason"
+    if ($Port -eq $ApiPort) {
+        Write-Host "Port $Port is already in use by a stale or unhealthy API process. Restarting it. $Reason"
     }
     else {
         Write-Host "Port $Port is already in use by a stale or unhealthy dev process. Restarting it. $Reason"
@@ -175,7 +180,7 @@ function Test-WebHealth {
 }
 
 function Start-ApiProcess {
-    $apiArgs = @("-m", "tender_killer.web_api", "--host", "127.0.0.1", "--port", "8000")
+    $apiArgs = @("-m", "tender_killer.web_api", "--host", "127.0.0.1", "--port", "$ApiPort")
     Start-Process `
         -FilePath $python `
         -ArgumentList $apiArgs `
@@ -195,7 +200,7 @@ function Start-StaticWebProcess {
         "-m", "tender_killer.dev_static_proxy",
         "--root", $distRoot,
         "--host", "127.0.0.1",
-        "--port", "5173",
+        "--port", "$WebPort",
         "--api-base-url", $apiBaseUrl
     )
     Start-Process `
@@ -212,7 +217,7 @@ function Start-ViteProcess {
     param([string]$NpmPath)
     Start-Process `
         -FilePath $NpmPath `
-        -ArgumentList @("--prefix", (Join-Path $root "web"), "run", "dev") `
+        -ArgumentList @("--prefix", (Join-Path $root "web"), "run", "dev", "--", "--host", "127.0.0.1", "--port", "$WebPort") `
         -WorkingDirectory $root `
         -WindowStyle Hidden `
         -RedirectStandardOutput (Join-Path $logsDir "web-vite.out.log") `
@@ -227,7 +232,7 @@ function Start-ViteNodeProcess {
     )
     Start-Process `
         -FilePath $NodePath `
-        -ArgumentList @($ViteScript, "--host", "127.0.0.1", "--port", "5173") `
+        -ArgumentList @($ViteScript, "--host", "127.0.0.1", "--port", "$WebPort") `
         -WorkingDirectory (Join-Path $root "web") `
         -WindowStyle Hidden `
         -RedirectStandardOutput (Join-Path $logsDir "web-vite.out.log") `
@@ -271,8 +276,8 @@ Write-Host "- Press Ctrl+C to stop managed processes."
 try {
     while ($true) {
         if (-not (Test-ApiHealth)) {
-            if (Test-TcpPort -HostName "127.0.0.1" -Port 8000) {
-                Stop-StalePortProcess -Port 8000 -Reason "API health check failed."
+            if (Test-TcpPort -HostName "127.0.0.1" -Port $ApiPort) {
+                Stop-StalePortProcess -Port $ApiPort -Reason "API health check failed."
             }
             $apiProcess = Restart-ManagedProcess -Process $apiProcess -Start { Start-ApiProcess }
             $deadline = (Get-Date).AddSeconds(15)
@@ -285,8 +290,8 @@ try {
         }
 
         if (-not (Test-WebHealth)) {
-            if (Test-TcpPort -HostName "127.0.0.1" -Port 5173) {
-                Stop-StalePortProcess -Port 5173 -Reason "Web health check failed."
+            if (Test-TcpPort -HostName "127.0.0.1" -Port $WebPort) {
+                Stop-StalePortProcess -Port $WebPort -Reason "Web health check failed."
             }
             if ($webMode -eq "vite") {
                 if ($npm) {

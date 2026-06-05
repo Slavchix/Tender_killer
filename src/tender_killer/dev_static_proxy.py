@@ -98,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="tender-killer-dev-static-proxy")
     parser.add_argument("--root", type=Path, default=Path("web/dist"))
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=5173)
+    parser.add_argument("--port", type=int, default=5175)
     parser.add_argument("--api-base-url", default="http://127.0.0.1:8000")
     args = parser.parse_args(argv)
 

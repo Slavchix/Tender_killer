@@ -21,7 +21,7 @@ UI_SOURCE_SIBLINGS = ("TenderList.jsx", "FiltersPanel.jsx", "PaginationBar.jsx")
 
 def check_dev_site(
     api_base_url: str = "http://127.0.0.1:8000",
-    web_base_url: str = "http://127.0.0.1:5173",
+    web_base_url: str = "http://127.0.0.1:5175",
     timeout: float = 2.0,
     app_source_path: str | Path = Path("web/src/App.jsx"),
     fetcher: TextFetcher | None = None,
@@ -61,7 +61,7 @@ def check_dev_site(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="tender-killer-dev-smoke")
     parser.add_argument("--api-base-url", default="http://127.0.0.1:8000")
-    parser.add_argument("--web-base-url", default="http://127.0.0.1:5173")
+    parser.add_argument("--web-base-url", default="http://127.0.0.1:5175")
     parser.add_argument("--timeout", type=float, default=2.0)
     parser.add_argument("--app-source", type=Path, default=Path("web/src/App.jsx"))
     parser.add_argument("--json", action="store_true", help="Print the raw JSON result.")
