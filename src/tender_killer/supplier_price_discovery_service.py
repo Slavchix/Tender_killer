@@ -953,7 +953,7 @@ def _officemag_visible_candidates(
         return [candidate] if candidate else []
 
     candidates: list[dict[str, Any]] = []
-    for item in soup.select("li.listItem"):
+    for item in _officemag_product_scopes(soup):
         product_url = _officemag_product_url(item, source_url)
         if not product_url:
             continue
@@ -967,6 +967,18 @@ def _officemag_visible_candidates(
         if candidate:
             candidates.append(candidate)
     return candidates
+
+
+def _officemag_product_scopes(soup: BeautifulSoup) -> list[Any]:
+    scopes: list[Any] = []
+    seen: set[int] = set()
+    for item in soup.select("li.listItem, .js-productListItem"):
+        key = id(item)
+        if key in seen:
+            continue
+        seen.add(key)
+        scopes.append(item)
+    return scopes
 
 
 def _officemag_candidate_from_scope(

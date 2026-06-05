@@ -79,8 +79,26 @@ def test_russian_stationery_queries_reject_other_stationery_families() -> None:
     ) is True
     assert supplier_product_name_matches_query(
         "\u0420\u0443\u0447\u043a\u0430 \u043a\u0430\u043d\u0446\u0435\u043b\u044f\u0440\u0441\u043a\u0430\u044f",
+        "\u0411\u0443\u043c\u0430\u0433\u0430 \u043e\u0444\u0438\u0441\u043d\u0430\u044f A4, 80 \u0433/\u043c2",
+    ) is False
+    assert supplier_product_name_matches_query(
+        "\u0420\u0443\u0447\u043a\u0430 \u043a\u0430\u043d\u0446\u0435\u043b\u044f\u0440\u0441\u043a\u0430\u044f",
         "\u0417\u043d\u0430\u043a \u043f\u043e\u0436\u0430\u0440\u043d\u043e\u0439 "
         "\u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u0438",
+    ) is False
+    assert supplier_product_name_matches_query(
+        "\u0424\u0430\u0439\u043b-\u0432\u043a\u043b\u0430\u0434\u044b\u0448",
+        "\u0424\u0430\u0439\u043b-\u0432\u043a\u043b\u0430\u0434\u044b\u0448 "
+        "\u043f\u0435\u0440\u0444\u043e\u0440\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0439 A4, 100 \u043c\u043a\u043c",
+    ) is True
+    assert supplier_product_name_matches_query(
+        "\u0424\u0430\u0439\u043b-\u0432\u043a\u043b\u0430\u0434\u044b\u0448",
+        "\u041f\u0430\u043f\u043a\u0430 \u043a\u0430\u0440\u0442\u043e\u043d\u043d\u0430\u044f "
+        "\u043d\u0430 \u0437\u0430\u0432\u044f\u0437\u043a\u0430\u0445",
+    ) is False
+    assert supplier_product_name_matches_query(
+        "\u0424\u0430\u0439\u043b-\u0432\u043a\u043b\u0430\u0434\u044b\u0448",
+        "\u0411\u0443\u043c\u0430\u0433\u0430 \u043e\u0444\u0438\u0441\u043d\u0430\u044f A4, 80 \u0433/\u043c2",
     ) is False
     assert supplier_product_name_matches_query(
         "\u041a\u043b\u0435\u0439\u043a\u0430\u044f \u043b\u0435\u043d\u0442\u0430",
@@ -96,6 +114,25 @@ def test_russian_stationery_queries_reject_other_stationery_families() -> None:
         "\u043a\u0430\u043d\u0446\u0435\u043b\u044f\u0440\u0441\u043a\u0430\u044f "
         "\u0434\u043b\u044f \u043a\u0430\u0440\u0430\u043d\u0434\u0430\u0448\u0435\u0439",
         "1",
+    ) is False
+
+
+def test_russian_folder_query_requires_specific_material_when_present() -> None:
+    query = "\u041f\u0430\u043f\u043a\u0430 \u043a\u0430\u0440\u0442\u043e\u043d\u043d\u0430\u044f"
+
+    assert supplier_product_name_matches_query(
+        query,
+        "\u041f\u0430\u043f\u043a\u0430 \u043a\u0430\u0440\u0442\u043e\u043d\u043d\u0430\u044f "
+        "\u043d\u0430 \u0437\u0430\u0432\u044f\u0437\u043a\u0430\u0445, 280 \u0433/\u043c2",
+    ) is True
+    assert supplier_product_name_matches_query(
+        query,
+        "\u041f\u0430\u043f\u043a\u0430 \u043f\u043b\u0430\u0441\u0442\u0438\u043a\u043e\u0432\u0430\u044f "
+        "\u043d\u0430 \u043c\u043e\u043b\u043d\u0438\u0438",
+    ) is False
+    assert supplier_product_name_matches_query(
+        query,
+        "\u0411\u0443\u043c\u0430\u0433\u0430 \u043e\u0444\u0438\u0441\u043d\u0430\u044f A4, 80 \u0433/\u043c2",
     ) is False
 
 

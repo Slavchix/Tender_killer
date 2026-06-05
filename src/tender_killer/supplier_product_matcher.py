@@ -187,6 +187,15 @@ FAMILY_REJECT_PREFIXES = {
     },
 }
 
+FAMILY_STRICT_MODIFIER_FAMILIES = {"folder_binder"}
+
+FAMILY_WEAK_MODIFIER_PREFIXES = {
+    "office",
+    "офис",
+    "канцеляр",
+    "прочн",
+}
+
 COLORED_PAPER_PREFIXES = {
     "color",
     "colour",
@@ -225,6 +234,8 @@ def supplier_product_name_matches_query(query_text: Any, product_name: Any) -> b
 
         query_stems = _strong_stems(query_tokens)
         product_stems = _strong_stems(product_tokens)
+        if not _family_modifiers_match(query_family, query_tokens, product_tokens):
+            return False
         return bool(query_stems & product_stems)
 
     query_models = _model_tokens(query_tokens)
@@ -270,11 +281,36 @@ def _strong_stems(tokens: list[str]) -> set[str]:
     return stems
 
 
+def _family_modifiers_match(query_family: str, query_tokens: list[str], product_tokens: list[str]) -> bool:
+    if query_family not in FAMILY_STRICT_MODIFIER_FAMILIES:
+        return True
+    query_modifiers = _family_modifier_stems(query_tokens, query_family)
+    if not query_modifiers:
+        return True
+    product_modifiers = _family_modifier_stems(product_tokens, query_family)
+    return bool(query_modifiers & product_modifiers)
+
+
+def _family_modifier_stems(tokens: list[str], family: str) -> set[str]:
+    family_prefixes = FAMILY_PREFIXES.get(family, set())
+    modifiers: set[str] = set()
+    for token in tokens:
+        if token.isdigit() or len(token) < 4 or token in STOP_WORDS:
+            continue
+        if any(token.startswith(prefix) for prefix in family_prefixes):
+            continue
+        if any(token.startswith(prefix) for prefix in FAMILY_WEAK_MODIFIER_PREFIXES):
+            continue
+        modifiers.add(_stem_token(token))
+    return modifiers
+
+
 def _stem_token(token: str) -> str:
     if _is_cyrillic_token(token):
         for ending in RUSSIAN_STEM_ENDINGS:
             if token.endswith(ending) and len(token) - len(ending) >= 4:
-                return token[: -len(ending)]
+                stem = token[: -len(ending)]
+                return stem[:-1] if stem.endswith("нн") and len(stem) > 4 else stem
     return token[:6]
 
 

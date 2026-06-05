@@ -111,6 +111,8 @@ def test_browser_fetch_helper_uses_ephemeral_profile_by_default() -> None:
     script = Path("scripts/browser-fetch.mjs").read_text(encoding="utf-8")
 
     assert "supplier-fetch-runs" in script
+    assert "os.tmpdir()" in script
+    assert "process.cwd(), 'data'" not in script
     assert "fs.mkdtempSync" in script
     assert "function removeProfileDir" in script
     assert "fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })" in script

@@ -394,6 +394,60 @@ def test_provider_catalog_collector_extracts_officemag_search_result_cards() -> 
     ]
 
 
+def test_provider_catalog_collector_extracts_officemag_js_product_item_cards() -> None:
+    html = """
+        <html>
+          <body>
+            <div class="catalog-grid">
+              <div class="js-productListItem" data-list-name="search">
+                <a class="item-title" href="/catalog/goods/143985/">
+                  Ручка шариковая с грипом BRAUBERG «X-ONE», СИНЯЯ, корпус прозрачный, узел 0,5 мм, 143985
+                </a>
+                <div class="ProductSpecial__item js-ProductSpecialRow" data-count="12" data-price="44.75"></div>
+                <div class="ProductSpecial__item js-ProductSpecialRow" data-count="24" data-price="42.51"></div>
+                <div>Наличие на складе 3996 шт.</div>
+                <div>Под заказ от 3-4 д. +400639 шт.</div>
+              </div>
+            </div>
+          </body>
+        </html>
+    """
+    collector = price_discovery.ProviderCatalogCollector(
+        "officemag",
+        fetch_text=lambda url: html,
+        max_product_pages=0,
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "Ручка канцелярская",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "OfficeMag",
+                    "url": "https://www.officemag.ru/search/?q=%D0%A0%D1%83%D1%87%D0%BA%D0%B0",
+                    "provider": "officemag",
+                    "link_kind": "catalog_search",
+                    "preset_id": "officemag_office_supplies",
+                }
+            ],
+        }
+    )
+
+    assert result["diagnostics"]["pages_fetched"] == 1
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"][0]["name"] == (
+        "Ручка шариковая с грипом BRAUBERG \"X-ONE\", СИНЯЯ, корпус прозрачный, узел 0,5 мм, 143985"
+    )
+    assert result["candidates"][0]["unit_price"] == 42.51
+    assert result["candidates"][0]["price_breaks"] == [
+        {"count": 12, "price": 44.75},
+        {"count": 24, "price": 42.51},
+    ]
+    assert result["candidates"][0]["stock_quantity"] == 3996
+    assert result["candidates"][0]["preorder_quantity"] == 400639
+
+
 def test_provider_catalog_collector_extracts_real_russian_officemag_search_result_cards() -> None:
     html = """
         <html>

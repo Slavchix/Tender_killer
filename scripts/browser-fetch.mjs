@@ -237,7 +237,7 @@ function resolveProfile() {
   if (process.env.TENDER_KILLER_BROWSER_PROFILE_DIR) {
     return { dir: process.env.TENDER_KILLER_BROWSER_PROFILE_DIR, cleanup: false }
   }
-  const parentDir = path.join(process.cwd(), 'data', 'browser-profile', 'supplier-fetch-runs')
+  const parentDir = path.join(os.tmpdir(), 'tender-killer', 'browser-profile', 'supplier-fetch-runs')
   fs.mkdirSync(parentDir, { recursive: true })
   return { dir: fs.mkdtempSync(path.join(parentDir, 'run-')), cleanup: true }
 }
