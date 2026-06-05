@@ -433,6 +433,92 @@ def test_build_tender_report_docx_renders_styled_four_block_analysis():
     assert "Очень длинный извлеченный текст" not in document_xml
 
 
+def test_build_tender_report_docx_renders_participation_map():
+    payload = {
+        "source": "mosreg_market",
+        "external_id": "3677777",
+        "url": "https://market.mosreg.ru/Trade/ViewTrade/3677777",
+        "title": "Поставка бумаги",
+        "customer": "Комитет закупок",
+        "price": 49015,
+        "deadline_at": "2026-06-29T14:37:00",
+        "document_records": [
+            {"name": "ТЗ.docx", "document_type": "Описание объекта закупки", "text_status": "ok"},
+            {"name": "Контракт.docx", "document_type": "Проект контракта", "text_status": "ok"},
+        ],
+        "analysis": {
+            "status": "needs_review",
+            "confidence": 0.95,
+            "operator_view": {
+                "version": 3,
+                "decision_brief": {
+                    "title": "Нужна ручная проверка",
+                    "summary": "В ТЗ есть условия, которые влияют на участие и цену.",
+                    "reasons": ["лицензия/СРО", "национальный режим"],
+                },
+                "action_plan": [
+                    {
+                        "title": "Проверить итоги и риски",
+                        "next_step": "Снять блокеры до расчета.",
+                        "items": ["лицензия/СРО", "национальный режим"],
+                    }
+                ],
+                "major_blocks": [
+                    {
+                        "id": "decision_risks",
+                        "title": "Итог и риски",
+                        "items": [
+                            {
+                                "label": "лицензия/СРО",
+                                "description": "Проверить, действительно ли требуется лицензия.",
+                                "operator_action": "Проверить до участия.",
+                                "source_label": "ТЗ.docx · стр. 2",
+                                "fragment": "Требуется лицензия.",
+                                "source_binding": {"label": "источник подтвержден"},
+                                "confidence_level": {"label": "уверенность высокая"},
+                                "priority": 1,
+                            }
+                        ],
+                    },
+                    {
+                        "id": "product_compliance",
+                        "title": "Товар и документы",
+                        "items": [
+                            {
+                                "label": "сертификат/декларация",
+                                "description": "Подготовить подтверждающие документы.",
+                                "operator_action": "Запросить документы у поставщика.",
+                                "source_label": "ТЗ.docx · стр. 4",
+                                "fragment": "Поставщик предоставляет сертификат.",
+                                "source_binding": {"label": "источник подтвержден"},
+                                "confidence_level": {"label": "уверенность высокая"},
+                                "priority": 2,
+                            }
+                        ],
+                    },
+                    {"id": "fulfillment_terms", "title": "Поставка и исполнение", "items": []},
+                    {"id": "acceptance_payment", "title": "Приемка, документы и оплата", "items": []},
+                ],
+            },
+        },
+    }
+
+    content = build_tender_report_docx(payload)
+    document_xml = _document_xml(content)
+
+    assert "КАРТА УЧАСТИЯ" in document_xml
+    assert "Краткое решение" in document_xml
+    assert "Таблица рисков" in document_xml
+    assert "Чеклист участия" in document_xml
+    assert "Источники" in document_xml
+    assert "Приложения" in document_xml
+    assert "Нужна ручная проверка" in document_xml
+    assert "лицензия/СРО" in document_xml
+    assert "ТЗ.docx · стр. 2" in document_xml
+    assert "источник подтвержден" in document_xml
+    assert "уверенность высокая" in document_xml
+
+
 def test_build_tender_report_docx_renders_tz_passport_before_raw_analysis():
     payload = {
         "source": "moscow_supplier_portal",

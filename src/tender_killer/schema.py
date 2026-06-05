@@ -11,6 +11,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
     ensure_workflow_table(connection)
     ensure_documents_table(connection)
     ensure_analysis_table(connection)
+    ensure_analysis_history_table(connection)
     ensure_product_profiles_table(connection)
     ensure_price_candidates_table(connection)
     ensure_source_runs_table(connection)
@@ -177,6 +178,33 @@ def ensure_analysis_table(connection: sqlite3.Connection) -> None:
             FOREIGN KEY (source, external_id) REFERENCES tenders(source, external_id)
                 ON DELETE CASCADE
         )
+        """
+    )
+
+
+def ensure_analysis_history_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tender_analysis_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            run_number INTEGER NOT NULL,
+            analyzed_at TEXT NOT NULL,
+            status TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            summary TEXT NOT NULL,
+            snapshot_json TEXT NOT NULL,
+            changes_json TEXT NOT NULL,
+            FOREIGN KEY (source, external_id) REFERENCES tenders(source, external_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_tender_analysis_history_lookup
+        ON tender_analysis_history(source, external_id, run_number DESC)
         """
     )
 

@@ -11,6 +11,7 @@ from tender_killer.adapters import MoscowSupplierPortalAdapter
 from tender_killer.adapters import MosregMarketAdapter
 from tender_killer.analysis_evidence_service import build_analysis_evidence_items
 from tender_killer.analysis_feedback import apply_analysis_feedback
+from tender_killer.analysis_history_service import list_analysis_history
 from tender_killer.analysis_facts_service import build_analysis_facts
 from tender_killer.analysis_missing_checks import build_missing_checks
 from tender_killer.analysis_missing_checks import missing_checklist_items
@@ -28,6 +29,7 @@ from tender_killer.product_profile_service import build_profiles
 from tender_killer.product_profile_service import product_profile_summary
 from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
 from tender_killer.schema import ensure_documents_table
+from tender_killer.schema import ensure_analysis_history_table
 from tender_killer.schema import ensure_items_table
 from tender_killer.schema import ensure_workflow_table
 from tender_killer.storage import TenderStore
@@ -88,6 +90,7 @@ def get_tender_payload(
         ensure_workflow_table(connection)
         ensure_items_table(connection)
         ensure_documents_table(connection)
+        ensure_analysis_history_table(connection)
         row = connection.execute(
             """
             SELECT tenders.source, tenders.external_id, url, title, customer, region, price, currency, status,
@@ -133,6 +136,7 @@ def get_tender_payload(
             """,
             (source, external_id),
         ).fetchone()
+        analysis_history = list_analysis_history(connection, source=source, external_id=external_id)
     if row is None:
         raise KeyError(f"Tender {source}/{external_id} not found.")
     payload = dict(row)
@@ -140,6 +144,8 @@ def get_tender_payload(
     payload["items"] = [_item_row_to_payload(item_row) for item_row in item_rows]
     payload["document_records"] = [document_row_to_payload(document_row) for document_row in document_rows]
     payload["analysis"] = _analysis_row_to_payload(analysis_row, payload["document_records"]) if analysis_row else None
+    if payload["analysis"] is not None:
+        payload["analysis"]["analysis_history"] = analysis_history
     if include_product_profiles:
         store = TenderStore(database_path)
         store.initialize()

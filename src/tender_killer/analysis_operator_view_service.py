@@ -426,6 +426,14 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         evidence_text=evidence_text,
         impact=impact,
     )
+    source_binding = _operator_source_binding(
+        raw_item=raw_item,
+        source=source,
+        source_label=source_label,
+        source_context=source_context,
+        fragment=fragment,
+        needs_review=needs_review,
+    )
 
     return {
         "id": _text(raw_item.get("id")) or f"{kind}:{_slug(label)}",
@@ -451,6 +459,13 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         "source_context": source_context,
         "evidence_summary": evidence_summary,
         "fragment": fragment,
+        "source_binding": source_binding,
+        "confidence_level": _operator_confidence_level(
+            raw_item,
+            source_binding,
+            fragment=fragment,
+            source_context=source_context,
+        ),
         "impact": impact,
         "document_role": _text(raw_item.get("document_role")),
         "document_stage": _text(raw_item.get("document_stage")),
@@ -474,6 +489,97 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         "is_blocker": is_blocker,
         "is_price_factor": is_price_factor,
         "needs_review": needs_review,
+    }
+
+
+def _operator_source_binding(
+    *,
+    raw_item: dict[str, Any],
+    source: str,
+    source_label: str,
+    source_context: str,
+    fragment: str,
+    needs_review: bool,
+) -> dict[str, str]:
+    raw_binding = raw_item.get("source_binding")
+    if isinstance(raw_binding, dict) and raw_binding.get("level"):
+        return {
+            "level": _text(raw_binding.get("level")),
+            "label": _text(raw_binding.get("label")),
+            "detail": _text(raw_binding.get("detail")),
+            "document_name": _text(raw_binding.get("document_name")) or source,
+            "source_label": _text(raw_binding.get("source_label")) or source_label,
+        }
+    if needs_review:
+        return {
+            "level": "unbound",
+            "label": "нужна ручная проверка",
+            "detail": "Факт не удалось надежно связать с документом.",
+            "document_name": source,
+            "source_label": source_label,
+        }
+    if source and fragment:
+        return {
+            "level": "explicit",
+            "label": "источник подтвержден",
+            "detail": "Факт найден в документе и связан с фрагментом текста.",
+            "document_name": source,
+            "source_label": source_label,
+        }
+    if source or source_context:
+        return {
+            "level": "context",
+            "label": "источник по контексту",
+            "detail": "Факт связан с документом или контекстом, но требует быстрой сверки формулировки.",
+            "document_name": source,
+            "source_label": source_label,
+        }
+    return {
+        "level": "inferred",
+        "label": "вывод без источника",
+        "detail": "Факт получен из анализа без точной документальной привязки.",
+        "document_name": source,
+        "source_label": source_label,
+    }
+
+
+def _operator_confidence_level(
+    raw_item: dict[str, Any],
+    source_binding: dict[str, str],
+    *,
+    fragment: str,
+    source_context: str,
+) -> dict[str, str]:
+    raw_level = raw_item.get("confidence_level")
+    if isinstance(raw_level, dict) and raw_level.get("level"):
+        return {
+            "level": _text(raw_level.get("level")),
+            "label": _text(raw_level.get("label")),
+            "detail": _text(raw_level.get("detail")),
+        }
+    level = source_binding.get("level")
+    if level == "unbound":
+        return {
+            "level": "low",
+            "label": "уверенность низкая",
+            "detail": "Нет надежной привязки к документу, нужна ручная проверка.",
+        }
+    if level == "explicit" and fragment and source_context:
+        return {
+            "level": "high",
+            "label": "уверенность высокая",
+            "detail": "Есть документ, фрагмент и контекст источника.",
+        }
+    if level in {"explicit", "context"}:
+        return {
+            "level": "medium",
+            "label": "уверенность средняя",
+            "detail": "Есть источник или контекст, но формулировку стоит сверить вручную.",
+        }
+    return {
+        "level": "low",
+        "label": "уверенность низкая",
+        "detail": "Вывод сделан без точного источника.",
     }
 
 

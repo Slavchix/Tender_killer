@@ -63,6 +63,18 @@ def test_build_analysis_facts_binds_each_fact_to_document_evidence():
     assert by_label["сертификат/декларация"]["operator_action"] == "Подготовить подтверждающие документы."
     assert by_label["сертификат/декларация"]["price_impact"] == "documents"
     assert by_label["сертификат/декларация"]["priority"] == 50
+    assert by_label["сертификат/декларация"]["source_binding"] == {
+        "level": "explicit",
+        "label": "источник подтвержден",
+        "detail": "Факт найден в документе и связан с фрагментом текста.",
+        "document_name": "spec.docx",
+        "source_label": "spec.docx · стр. не определена",
+    }
+    assert by_label["сертификат/декларация"]["confidence_level"] == {
+        "level": "high",
+        "label": "уверенность высокая",
+        "detail": "Есть документ, фрагмент и контекст источника.",
+    }
     assert by_label["Срок поставки"]["kind"] == "execution_term"
     assert by_label["Срок поставки"]["document_name"] == "contract.docx"
     assert by_label["Срок поставки"]["is_price_factor"] is True
@@ -104,6 +116,10 @@ def test_build_analysis_facts_marks_unbound_evidence_for_operator_review():
     assert license_fact["operator_group"] == "manual_review"
     assert license_fact["operator_action"] == "Проверить источник факта вручную."
     assert license_fact["priority"] == 95
+    assert license_fact["source_binding"]["level"] == "unbound"
+    assert license_fact["source_binding"]["label"] == "нужна ручная проверка"
+    assert license_fact["confidence_level"]["level"] == "low"
+    assert license_fact["confidence_level"]["label"] == "уверенность низкая"
     assert facts["metrics"]["unbound"] == 1
 
 
@@ -138,6 +154,9 @@ def test_build_analysis_facts_derives_page_and_context_from_document_text():
     assert certificate["document_name"] == "contract.pdf"
     assert certificate["source_page"] == 2
     assert certificate["source_label"] == "contract.pdf · стр. 2"
+    assert certificate["source_binding"]["level"] == "explicit"
+    assert certificate["source_binding"]["source_label"] == "contract.pdf · стр. 2"
+    assert certificate["confidence_level"]["detail"] == "Есть документ, фрагмент и контекст источника."
     assert "Раздел 2. Подтверждающие документы" in certificate["source_context"]
     assert "Проверка сертификата проводится заказчиком" in certificate["source_context"]
     assert certificate["needs_review"] is False

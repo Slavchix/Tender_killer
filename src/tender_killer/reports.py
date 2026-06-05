@@ -20,8 +20,10 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
     documents = tender.get("document_records") or []
     product_profiles = tender.get("product_profiles") or []
     product_profile_summary = _product_profile_summary(tender, product_profiles)
+    operator_view = _report_operator_view(analysis, documents)
     elements: list[DocxElement] = [
-        _p("Tender Killer: отчет по закупке", "title"),
+        *_participation_map_elements(tender, analysis, documents, operator_view),
+        _p("Tender Killer: отчет по закупке", "heading2"),
         _p("Краткое решение", "heading"),
         _table(
             [
@@ -135,6 +137,156 @@ def _table(rows: list[list[Any]], style: str = "") -> DocxElement:
 
 def _list_elements(values: list[Any]) -> list[DocxElement]:
     return [_p(f"- {_value(value)}", "normal") for value in values]
+
+
+def _participation_map_elements(
+    tender: dict[str, Any],
+    analysis: dict[str, Any],
+    documents: list[dict[str, Any]],
+    operator_view: dict[str, Any],
+) -> list[DocxElement]:
+    decision = _analysis_decision(analysis, documents)
+    title = _value(tender.get("title"))
+    elements: list[DocxElement] = [
+        _p("КАРТА УЧАСТИЯ", "title"),
+        _table(
+            [
+                ["Закупка", title],
+                ["Заказчик", _value(tender.get("customer"))],
+                ["НМЦК", _money(tender.get("price"))],
+                ["Дедлайн", _value(tender.get("deadline_at"))],
+                ["Площадка", _value(tender.get("source"))],
+                ["Ссылка", _value(tender.get("url"))],
+            ]
+        ),
+        _p("Краткое решение", "heading"),
+        _table(
+            [
+                ["Решение", decision["title"]],
+                ["Комментарий", decision["summary"]],
+                ["Уверенность анализа", _confidence(analysis.get("confidence") if isinstance(analysis, dict) else None)],
+                ["Ключевые причины", "; ".join(decision.get("reasons") or []) or "нет явных причин"],
+            ]
+        ),
+    ]
+    risk_rows = _participation_risk_rows(operator_view)
+    if len(risk_rows) > 1:
+        elements.extend([_p("Таблица рисков", "heading"), _table(risk_rows, "analysis")])
+    checklist_rows = _participation_checklist_rows(operator_view)
+    if len(checklist_rows) > 1:
+        elements.extend([_p("Чеклист участия", "heading"), _table(checklist_rows, "analysis")])
+    source_rows = _participation_source_rows(operator_view)
+    if len(source_rows) > 1:
+        elements.extend([_p("Источники", "heading"), _table(source_rows, "analysis")])
+    elements.extend([_p("Приложения", "heading"), *_participation_appendix_elements(documents)])
+    return elements
+
+
+def _participation_risk_rows(operator_view: dict[str, Any]) -> list[list[Any]]:
+    rows: list[list[Any]] = [["Риск", "Влияние", "Действие", "Источник", "Уверенность"]]
+    for item in _operator_items_by_section(operator_view, {"decision_risks"})[:10]:
+        rows.append(
+            [
+                _short_text(item.get("label"), 80),
+                _short_text(item.get("description") or item.get("impact") or item.get("value"), 150),
+                _short_text(item.get("operator_action") or item.get("next_step"), 150),
+                _short_text(_source_label_for_item(item), 120),
+                _source_confidence_text(item),
+            ]
+        )
+    return rows
+
+
+def _participation_checklist_rows(operator_view: dict[str, Any]) -> list[list[Any]]:
+    rows: list[list[Any]] = [["Шаг", "Что сделать", "Пункты"]]
+    action_plan = operator_view.get("action_plan") if isinstance(operator_view, dict) else None
+    if isinstance(action_plan, list) and action_plan:
+        for step in action_plan[:8]:
+            if not isinstance(step, dict):
+                continue
+            rows.append(
+                [
+                    _short_text(step.get("title") or step.get("id"), 80),
+                    _short_text(step.get("next_step"), 180),
+                    _short_text(", ".join(_text_list(step.get("items"))), 180),
+                ]
+            )
+        return rows
+    for item in _operator_items_by_section(operator_view, set(MAJOR_SECTION_IDS))[:12]:
+        rows.append(
+            [
+                _short_text(item.get("label"), 80),
+                _short_text(item.get("operator_action") or item.get("description"), 180),
+                _short_text(_source_label_for_item(item), 180),
+            ]
+        )
+    return rows
+
+
+def _participation_source_rows(operator_view: dict[str, Any]) -> list[list[Any]]:
+    rows: list[list[Any]] = [["Пункт", "Источник", "Фрагмент", "Привязка"]]
+    seen: set[tuple[str, str]] = set()
+    for item in _operator_items_by_section(operator_view, set(MAJOR_SECTION_IDS))[:7]:
+        source = _source_label_for_item(item)
+        if not source:
+            continue
+        key = (_short_text(item.get("label"), 80).lower(), source.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(
+            [
+                _short_text(item.get("label"), 80),
+                _short_text(source, 120),
+                _short_text(item.get("fragment") or item.get("source_context"), 180),
+                _source_confidence_text(item),
+            ]
+        )
+    return rows
+
+
+def _participation_appendix_elements(documents: list[dict[str, Any]]) -> list[DocxElement]:
+    if not documents:
+        return [_p("Документы не найдены или еще не скачаны.", "normal")]
+    rows = [["Документ", "Тип", "Текст"]]
+    for document in documents:
+        rows.append(
+            [
+                _value(document.get("name")),
+                _value(document.get("document_type"), ""),
+                _value(document.get("text_status")),
+            ]
+        )
+    return [_table(rows)]
+
+
+def _operator_items_by_section(operator_view: dict[str, Any], section_ids: set[str]) -> list[dict[str, Any]]:
+    sections = operator_view.get("major_blocks") or operator_view.get("sections") or []
+    items: list[dict[str, Any]] = []
+    for section in sections:
+        if not isinstance(section, dict) or section.get("id") not in section_ids:
+            continue
+        for item in section.get("items") or []:
+            if isinstance(item, dict) and item.get("type") != "document_summary" and item.get("kind") != "document_summary":
+                items.append(item)
+    return sorted(items, key=lambda item: _int_value(item.get("priority")))
+
+
+def _source_label_for_item(item: dict[str, Any]) -> str:
+    binding = item.get("source_binding")
+    if isinstance(binding, dict):
+        source_label = _value(binding.get("source_label"), "").strip()
+        if source_label:
+            return source_label
+    return _value(item.get("source_label") or item.get("document_name") or item.get("source"), "").strip()
+
+
+def _source_confidence_text(item: dict[str, Any]) -> str:
+    binding = item.get("source_binding")
+    confidence = item.get("confidence_level")
+    binding_label = _value(binding.get("label"), "") if isinstance(binding, dict) else ""
+    confidence_label = _value(confidence.get("label"), "") if isinstance(confidence, dict) else ""
+    return " / ".join(part for part in (binding_label, confidence_label) if part) or "нужна сверка"
 
 
 def _tender_decision_elements(decision: Any) -> list[DocxElement]:
