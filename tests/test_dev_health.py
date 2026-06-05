@@ -134,66 +134,15 @@ def test_check_api_health_reports_stale_backend_missing_supplier_catalog_health(
     assert "expected HTTP 2xx" in catalog_health["error"]
 
 
-def test_dev_web_script_runs_api_health_check_before_frontend():
+def test_dev_web_script_delegates_to_python_dev_control():
     script = Path("scripts/dev-web.ps1").read_text(encoding="utf-8")
 
-    assert "tender_killer.dev_health" in script
-    assert "capabilities" in script
-    assert "Port $Port is already in use" in script
-    assert "TENDER_KILLER_PDF_OCR_COMMAND" in script
-    assert "ocr-pdf.ps1" in script
-
-
-def test_dev_web_script_runs_persistent_supervisor_with_static_fallback():
-    script = Path("scripts/dev-web.ps1").read_text(encoding="utf-8")
-
-    assert "TENDER_KILLER_WEB_PORT" in script
-    assert "http://127.0.0.1:$WebPort" in script
-    assert '"--port", "$WebPort"' in script
-    assert "Port $Port is already in use" in script
-    assert "while ($true)" in script
-    assert "Restart-ManagedProcess" in script
-    assert "Find-LocalViteScript" in script
-    assert "Start-ViteNodeProcess" in script
-    assert "node_modules\\vite\\bin\\vite.js" in script
-    assert "tender_killer.dev_static_proxy" in script
-    assert "TENDER_KILLER_DEV_FORCE_STATIC" in script
-    assert "Stop-StalePortProcess" in script
-    assert "Repair-ProcessPathEnvironment" in script
-    assert 'SetEnvironmentVariable("PATH", $null, "Process")' in script
-    assert "npm.cmd not found" not in script
-
-
-def test_restart_dev_script_is_bounded_and_uses_unique_logs():
-    script = Path("scripts/restart-dev.ps1").read_text(encoding="utf-8")
-    worker = Path("scripts/restart-dev-worker.ps1").read_text(encoding="utf-8")
-    launcher = Path("scripts/restart-dev.mjs").read_text(encoding="utf-8")
-
-    assert "restart-dev.mjs" in script
-    assert "OpenAI\\Codex\\bin" in script
-    assert "restart-dev-worker.ps1" in launcher
-    assert "detached: true" in launcher
-    assert "child.unref()" in launcher
-    assert "schtasks.exe" not in script
-    assert "Start-Process" not in script
-    assert "scripts\\dev-web.ps1" not in worker
-    assert "while ($true)" not in worker
-    assert "TENDER_KILLER_WEB_PORT" in script
-    assert "TENDER_KILLER_WEB_PORT" in worker
-    assert "$runId = Get-Date" in worker
-    assert "api-dev-$ApiPort-$runId.err.log" in worker
-    assert "web-vite-$WebPort-$runId.err.log" in worker
-    assert "$deadline = (Get-Date).AddSeconds($TimeoutSeconds)" in worker
-    assert "while ((Get-Date) -lt $deadline -and -not ($apiReady -and $webReady))" in worker
-    assert "Stop-PortOwners" in worker
-
-
-def test_restart_worker_does_not_run_nested_supervisor():
-    script = Path("scripts/restart-dev-worker.ps1").read_text(encoding="utf-8")
-
-    assert "scripts\\dev-web.ps1" not in script
+    assert "tender_killer.dev_control" in script
+    assert "restart" in script
+    assert "status" in script
     assert "while ($true)" not in script
-    assert "Start-Process" in script
+    assert "Start-Process" not in script
+    assert "restart-dev.ps1" not in script
 
 
 def test_ocr_pdf_script_wraps_local_ocr_backends_for_pdf_text_fallback():
