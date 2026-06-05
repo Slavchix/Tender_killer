@@ -41,7 +41,6 @@ export function DashboardView({
     (tenders || []).filter((tender) => tender.decision).length,
   )
   const marketMetric = currentOfferCount ? `${currentOfferCount} с ценой` : (noParticipantsCount ? `${noParticipantsCount} без участников` : 'нет данных')
-  const queue = dashboardQueueKpis(dashboardQueues, workflowCounts)
   const queueColumns = dashboardQueueColumns(dashboardQueues, tenders)
   const urgentQueue = queueById(dashboardQueues, 'urgent_deadline')
   const documentsQueue = queueById(dashboardQueues, 'documents_review')
@@ -62,31 +61,34 @@ export function DashboardView({
         <Metric label="API" value={error || dashboardQueueError ? 'ошибка' : 'ok'} tone={error || dashboardQueueError ? 'danger' : 'good'} />
       </section>
       {searchSummary && <div className="run-summary">{searchSummary}</div>}
-      <section className="dashboard-grid dashboard-command-grid">
-        <section className="dashboard-panel dashboard-queue-panel" aria-label="Очередь решений">
-          <div className="panel-title"><Layers size={18} /> Очередь закупок</div>
-          <p className="dashboard-panel-lead">Быстрый разбор того, что мешает участию: ТЗ, цена, лимит и готовность заявки.</p>
-          <div className="dashboard-queue-board">
-            {queueColumns.map((column) => (
-              <DashboardQueueColumn column={column} key={column.id} onOpenTenders={onOpenTenders} />
-            ))}
-          </div>
-          <div className="dashboard-kpis dashboard-queue-pulse">
-            {queue.map((item) => (
-              <div key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
+      <section className="dashboard-grid dashboard-main-layout">
+        <div className="dashboard-left-stack">
+          <section className="dashboard-panel dashboard-queue-panel" aria-label="Очередь решений">
+            <div className="dashboard-queue-heading">
+              <div>
+                <div className="panel-title"><Layers size={18} /> Очередь закупок</div>
+                <p className="dashboard-panel-lead">Быстрый разбор того, что мешает участию: ТЗ, цена, лимит и готовность заявки.</p>
               </div>
-            ))}
-          </div>
-          <div className="dashboard-queue-footer">
-            <span>Ставки: {marketMetric}</span>
-            {dashboardQueueError && <span className="source-status-error">{dashboardQueueError}</span>}
-            <button className="primary-button dashboard-open-button" onClick={onOpenTenders} type="button">
-              Открыть закупки
-            </button>
-          </div>
-        </section>
+              <div className="dashboard-queue-summary">
+                <span>Ставки: {marketMetric}</span>
+                {dashboardQueueError && <span className="source-status-error">{dashboardQueueError}</span>}
+                <button className="primary-button dashboard-open-button" onClick={onOpenTenders} type="button">
+                  Открыть закупки
+                </button>
+              </div>
+            </div>
+            <div className="dashboard-queue-board">
+              {queueColumns.map((column) => (
+                <DashboardQueueColumn column={column} key={column.id} onOpenTenders={onOpenTenders} />
+              ))}
+            </div>
+          </section>
+
+          <section className="dashboard-secondary-grid">
+            <DashboardTenderPreview onOpenTenders={onOpenTenders} tenders={tenders} />
+            <DashboardWorkInProgressPanel onOpenTenders={onOpenTenders} tenders={tenders} />
+          </section>
+        </div>
 
         <aside className="dashboard-right-rail">
           <DashboardDeadlinePanel onOpenTenders={onOpenTenders} queue={urgentQueue} />
@@ -106,10 +108,6 @@ export function DashboardView({
             sources={sources}
           />
         </aside>
-      </section>
-      <section className="dashboard-secondary-grid">
-        <DashboardTenderPreview onOpenTenders={onOpenTenders} tenders={tenders} />
-        <DashboardWorkInProgressPanel onOpenTenders={onOpenTenders} tenders={tenders} />
       </section>
     </section>
   )
