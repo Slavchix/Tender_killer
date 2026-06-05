@@ -39,7 +39,12 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         "analysis_cost_drivers": analysis_cost_drivers,
         "analysis_reserve_hint": _analysis_reserve_hint(analysis_cost_drivers),
     }
-    profiles = [profile for profile in tender.get("product_profiles") or [] if isinstance(profile, dict)]
+    item_fallbacks = _items_by_position(tender.get("items"))
+    profiles = [
+        _profile_with_item_fallback(profile, item_fallbacks.get(_positive_int(profile.get("position_index")) or 0))
+        for profile in tender.get("product_profiles") or []
+        if isinstance(profile, dict)
+    ]
     items: list[dict[str, Any]] = []
     missing_cost_inputs: list[str] = []
     supplier_cost = 0.0
@@ -235,6 +240,29 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
         "target_margin_percent": _round_percent(target_margin_percent) if target_margin_percent is not None else None,
         "target_price": target_price,
     }
+
+
+def _items_by_position(items: Any) -> dict[int, dict[str, Any]]:
+    if not isinstance(items, list):
+        return {}
+    result: dict[int, dict[str, Any]] = {}
+    for index, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            continue
+        position_index = _positive_int(item.get("position_index")) or index
+        if position_index > 0:
+            result[position_index] = item
+    return result
+
+
+def _profile_with_item_fallback(profile: dict[str, Any], item: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(item, dict):
+        return profile
+    enriched = dict(profile)
+    for key in ("quantity", "unit"):
+        if enriched.get(key) in (None, "") and item.get(key) not in (None, ""):
+            enriched[key] = item.get(key)
+    return enriched
 
 
 def _market_state(tender: dict[str, Any]) -> dict[str, Any]:

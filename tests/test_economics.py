@@ -91,6 +91,40 @@ def test_build_economics_summary_does_not_assume_single_unit_when_quantity_missi
     assert summary["items"][0]["total_cost"] is None
 
 
+def test_build_economics_summary_uses_tender_item_quantity_for_legacy_profile():
+    summary = build_economics_summary(
+        {
+            "price": 19890.0,
+            "items": [
+                {
+                    "position_index": 1,
+                    "name": "Office paper A4",
+                    "quantity": 60,
+                    "unit": "pack",
+                    "unit_price": 331.5,
+                    "total_price": 19890.0,
+                }
+            ],
+            "product_profiles": [
+                {
+                    "position_index": 1,
+                    "product_name": "Paper tender title",
+                    "quantity": None,
+                    "unit": None,
+                    "raw_payload": {"economics": {"unit_cost": 359.0}},
+                }
+            ],
+        }
+    )
+
+    assert summary["status"] == "low_margin"
+    assert summary["supplier_cost"] == 21540.0
+    assert summary["items"][0]["quantity"] == 60.0
+    assert summary["items"][0]["unit"] == "pack"
+    assert summary["items"][0]["unit_cost"] == 359.0
+    assert summary["items"][0]["total_cost"] == 21540.0
+
+
 def test_build_economics_summary_returns_bid_thresholds():
     summary = build_economics_summary(
         {

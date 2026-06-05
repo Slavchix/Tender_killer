@@ -1,4 +1,4 @@
-from tender_killer.models import ProductProfile, Tender
+from tender_killer.models import ProductProfile, Tender, TenderItem
 from tender_killer.price_candidate_service import apply_tender_auto_prices
 from tender_killer.price_candidate_service import confirm_ready_price_candidates
 from tender_killer.price_candidate_service import normalize_price_candidate
@@ -251,6 +251,87 @@ def test_normalize_price_candidate_selects_price_break_by_profile_quantity() -> 
     assert normalized["price_break_selection_quantity"] == 60.0
     assert normalized["raw_payload"]["normalization"]["selected_price_break"] == {"count": 10, "price": 359.0}
     assert normalized["raw_payload"]["normalization"]["price_break_selection_quantity"] == 60.0
+
+
+def test_stage_price_candidates_uses_tender_item_quantity_for_legacy_profile(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="legacy-profile-paper",
+            url="https://market.mosreg.ru/Trade/ViewTrade/legacy-profile-paper",
+            title="Paper tender",
+            price=19890.0,
+            items=[
+                TenderItem(
+                    name="Office paper A4",
+                    quantity=60,
+                    unit="pack",
+                    unit_price=331.5,
+                    total_price=19890.0,
+                )
+            ],
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "legacy-profile-paper",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="legacy-profile-paper",
+                position_index=1,
+                product_name="Paper tender title",
+                raw_payload={
+                    "supplier_discovery": {
+                        "candidates": [
+                            {
+                                "provider": "officemag",
+                                "name": "Office paper A4, 500 sheets",
+                                "url": "https://www.officemag.ru/catalog/goods/110532/",
+                                "unit_price": 364.0,
+                                "currency": "RUB",
+                                "vat_mode": "vat_included",
+                                "availability": "in_stock",
+                                "delivery_note": "Delivery included",
+                                "unit": "pack",
+                                "pack_quantity": 5,
+                                "confidence": "high",
+                                "price_breaks": [
+                                    {"count": 1, "price": 364.0},
+                                    {"count": 5, "price": 361.0},
+                                    {"count": 10, "price": 359.0},
+                                ],
+                            }
+                        ]
+                    }
+                },
+            )
+        ],
+    )
+
+    result = stage_tender_price_candidates(store.database_path, "mosreg_market", "legacy-profile-paper")
+
+    assert result["staged_count"] == 1
+    candidate = store.list_price_candidates("mosreg_market", "legacy-profile-paper", 1)[0]
+    assert candidate["unit_price"] == 359.0
+    assert candidate["selected_price_break"] == {"count": 10.0, "price": 359.0}
+    assert candidate["price_break_selection_quantity"] == 60.0
+
+    review_profile_price_candidate(
+        store.database_path,
+        "mosreg_market",
+        "legacy-profile-paper",
+        1,
+        int(candidate["id"]),
+        review_status="confirmed",
+    )
+    detail = get_tender_payload(store.database_path, "mosreg_market", "legacy-profile-paper")
+    assert detail["economics"]["items"][0]["quantity"] == 60.0
+    assert detail["economics"]["items"][0]["unit"] == "pack"
+    assert detail["economics"]["items"][0]["unit_cost"] == 359.0
+    assert detail["economics"]["items"][0]["total_cost"] == 21540.0
 
 
 def test_confirm_profile_price_candidate_applies_price_to_economics_and_marks_review(tmp_path) -> None:

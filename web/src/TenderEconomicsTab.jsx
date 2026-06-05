@@ -46,7 +46,7 @@ export function TenderEconomicsTab({
   priceDiscoveryJob = null,
   onSupplierCatalogHealthRefresh,
 }) {
-  const profiles = productProfiles || []
+  const profiles = enrichEconomicsProfiles(productProfiles, tender?.items)
   const hasSupplierOptions = profiles.some((profile) => {
     const supplierOptions = profile?.raw_payload?.supplier_options
     return Array.isArray(supplierOptions) && supplierOptions.length > 0
@@ -143,6 +143,31 @@ function ignoreEconomicsActionError(result) {
   if (result?.catch) {
     result.catch(() => {})
   }
+}
+
+function enrichEconomicsProfiles(productProfiles = [], tenderItems = []) {
+  const itemByPosition = new Map()
+  ;(Array.isArray(tenderItems) ? tenderItems : []).forEach((item, index) => {
+    if (!item || typeof item !== 'object') return
+    const positionIndex = Number(item.position_index || index + 1)
+    if (Number.isFinite(positionIndex) && positionIndex > 0) {
+      itemByPosition.set(positionIndex, item)
+    }
+  })
+
+  return (Array.isArray(productProfiles) ? productProfiles : []).map((profile) => {
+    if (!profile || typeof profile !== 'object') return profile
+    const positionIndex = Number(profile.position_index || 0)
+    const item = itemByPosition.get(positionIndex)
+    if (!item) return profile
+    const enriched = { ...profile }
+    ;['quantity', 'unit'].forEach((key) => {
+      if ((enriched[key] == null || enriched[key] === '') && item[key] != null && item[key] !== '') {
+        enriched[key] = item[key]
+      }
+    })
+    return enriched
+  })
 }
 
 function priceDiscoveryJobStatusText(job) {

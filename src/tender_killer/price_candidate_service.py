@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import re
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -247,7 +248,7 @@ def stage_tender_price_candidates(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = ensure_product_profiles(database_path, source, external_id)
+    profiles = _ensure_profiles_with_item_fallback(database_path, source, external_id)
     staged_count = 0
     ready_count = 0
     review_count = 0
@@ -316,7 +317,7 @@ def review_profile_price_candidate(
     status = _review_status(review_status)
     store = TenderStore(database_path)
     store.initialize()
-    profiles = ensure_product_profiles(database_path, source, external_id)
+    profiles = _ensure_profiles_with_item_fallback(database_path, source, external_id)
     target = _find_profile(profiles, position_index)
     candidate = _find_candidate(store, source, external_id, position_index, candidate_id)
 
@@ -349,7 +350,7 @@ def confirm_ready_price_candidates(
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
-    profiles = ensure_product_profiles(database_path, source, external_id)
+    profiles = _ensure_profiles_with_item_fallback(database_path, source, external_id)
 
     confirmed: list[dict[str, int | None]] = []
     review_updates: list[tuple[int, dict[str, Any], int | None]] = []
@@ -408,7 +409,7 @@ def apply_tender_auto_prices(
 ) -> dict[str, Any]:
     stage = stage_tender_price_candidates(database_path, source, external_id)
     ready_review = confirm_ready_price_candidates(database_path, source, external_id)
-    profiles = ensure_product_profiles(database_path, source, external_id)
+    profiles = _ensure_profiles_with_item_fallback(database_path, source, external_id)
 
     priced_positions: list[int] = []
     missing_cost_positions: list[int] = []
@@ -648,6 +649,54 @@ def _profile_has_positive_cost(profile: dict[str, Any]) -> bool:
     unit_cost = _number(economics.get("unit_cost"))
     total_cost = _number(economics.get("total_cost"))
     return bool((unit_cost is not None and unit_cost > 0) or (total_cost is not None and total_cost > 0))
+
+
+def _ensure_profiles_with_item_fallback(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+) -> list[dict[str, Any]]:
+    profiles = ensure_product_profiles(database_path, source, external_id)
+    item_fallbacks = _tender_items_by_position(database_path, source, external_id)
+    if not item_fallbacks:
+        return profiles
+    return [
+        _profile_with_item_fallback(profile, item_fallbacks.get(int(profile.get("position_index") or 0)))
+        for profile in profiles
+    ]
+
+
+def _tender_items_by_position(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+) -> dict[int, dict[str, Any]]:
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            """
+            SELECT position_index, quantity, unit
+            FROM tender_items
+            WHERE source = ? AND external_id = ?
+            ORDER BY position_index
+            """,
+            (source, external_id),
+        ).fetchall()
+    return {
+        int(row["position_index"]): dict(row)
+        for row in rows
+        if int(row["position_index"] or 0) > 0
+    }
+
+
+def _profile_with_item_fallback(profile: dict[str, Any], item: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(item, dict):
+        return profile
+    enriched = dict(profile)
+    for key in ("quantity", "unit"):
+        if enriched.get(key) in (None, "") and item.get(key) not in (None, ""):
+            enriched[key] = item.get(key)
+    return enriched
 
 
 def _profile_candidate_sources(profile: dict[str, Any]) -> list[dict[str, Any]]:
