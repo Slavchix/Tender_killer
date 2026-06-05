@@ -1,4 +1,5 @@
-import { Bell, FileText, RefreshCcw } from 'lucide-react'
+import { useState } from 'react'
+import { Bell, CheckCircle2, Clock, FileText, Layers, RefreshCcw, WalletCards } from 'lucide-react'
 import { sourceLabels } from './constants'
 import { formatDate, formatDateTime, formatMoney, hasParticipantBid, nmcPriceValue, participantBidValue, tenderDecisionLabel } from './formatters'
 
@@ -41,27 +42,36 @@ export function DashboardView({
   )
   const marketMetric = currentOfferCount ? `${currentOfferCount} с ценой` : (noParticipantsCount ? `${noParticipantsCount} без участников` : 'нет данных')
   const queue = dashboardQueueKpis(dashboardQueues, workflowCounts)
+  const queueColumns = dashboardQueueColumns(dashboardQueues, tenders)
+  const urgentQueue = queueById(dashboardQueues, 'urgent_deadline')
+  const documentsQueue = queueById(dashboardQueues, 'documents_review')
+  const totalActive = numberOrFallback(summary.total, tenderPage.total || stats.active)
+  const tzReviewCount = queueCount(dashboardQueues, 'needs_review')
+  const noCostCount = queueCount(dashboardQueues, 'missing_prices')
+  const readyCount = queueCount(dashboardQueues, 'interesting') || decisionReadyCount
+  const deadlineTodayCount = queueCount(dashboardQueues, 'urgent_deadline')
 
   return (
     <section className="dashboard-view">
-      <section className="metrics">
-        <Metric label="Найдено" value={summary.total ?? tenderPage.total} />
-        <Metric label="Активные" value={stats.active} />
-        <Metric label="Сумма в выдаче" value={formatMoney(stats.totalPrice)} />
-        <Metric label="Ставки" value={marketMetric} />
-        <Metric label="Решения" value={decisionReadyCount ? `${decisionReadyCount} готово` : 'нет решений'} />
+      <section className="metrics dashboard-hero-metrics">
+        <Metric label="Всего активных" value={totalActive} />
+        <Metric label="На разборе ТЗ" value={tzReviewCount} tone={tzReviewCount ? 'purple' : ''} />
+        <Metric label="Без себестоимости" value={noCostCount} tone={noCostCount ? 'warning' : ''} />
+        <Metric label="Готовы к участию" value={readyCount} tone={readyCount ? 'good' : ''} />
+        <Metric label="Дедлайны сегодня" value={deadlineTodayCount} tone={deadlineTodayCount ? 'danger' : ''} />
         <Metric label="API" value={error || dashboardQueueError ? 'ошибка' : 'ok'} tone={error || dashboardQueueError ? 'danger' : 'good'} />
       </section>
       {searchSummary && <div className="run-summary">{searchSummary}</div>}
-      <section className="dashboard-grid">
-        <SourceStatusPanel
-          error={sourceStatusError}
-          onRefresh={onRefreshSources}
-          sources={sources}
-        />
-        <section className="dashboard-panel">
-          <div className="panel-title"><FileText size={18} /> Очередь решений</div>
-          <div className="dashboard-kpis">
+      <section className="dashboard-grid dashboard-command-grid">
+        <section className="dashboard-panel dashboard-queue-panel" aria-label="Очередь решений">
+          <div className="panel-title"><Layers size={18} /> Очередь закупок</div>
+          <p className="dashboard-panel-lead">Быстрый разбор того, что мешает участию: ТЗ, цена, лимит и готовность заявки.</p>
+          <div className="dashboard-queue-board">
+            {queueColumns.map((column) => (
+              <DashboardQueueColumn column={column} key={column.id} onOpenTenders={onOpenTenders} />
+            ))}
+          </div>
+          <div className="dashboard-kpis dashboard-queue-pulse">
             {queue.map((item) => (
               <div key={item.label}>
                 <span>{item.label}</span>
@@ -69,23 +79,37 @@ export function DashboardView({
               </div>
             ))}
           </div>
-          {dashboardQueueError && <div className="source-status-error">{dashboardQueueError}</div>}
-          <button className="primary-button dashboard-open-button" onClick={onOpenTenders} type="button">
-            Открыть закупки
-          </button>
+          <div className="dashboard-queue-footer">
+            <span>Ставки: {marketMetric}</span>
+            {dashboardQueueError && <span className="source-status-error">{dashboardQueueError}</span>}
+            <button className="primary-button dashboard-open-button" onClick={onOpenTenders} type="button">
+              Открыть закупки
+            </button>
+          </div>
         </section>
+
+        <aside className="dashboard-right-rail">
+          <DashboardDeadlinePanel onOpenTenders={onOpenTenders} queue={urgentQueue} />
+          <DashboardDocumentProblemsPanel onOpenTenders={onOpenTenders} queue={documentsQueue} />
+          <DashboardAttentionPanel
+            dashboardQueueError={dashboardQueueError}
+            dashboardQueues={dashboardQueues}
+            error={error}
+            onOpenTenders={onOpenTenders}
+            sources={sources}
+            tenders={tenders}
+            workflowCounts={workflowCounts}
+          />
+          <SourceStatusPanel
+            error={sourceStatusError}
+            onRefresh={onRefreshSources}
+            sources={sources}
+          />
+        </aside>
       </section>
       <section className="dashboard-secondary-grid">
-        <DashboardAttentionPanel
-          dashboardQueueError={dashboardQueueError}
-          dashboardQueues={dashboardQueues}
-          error={error}
-          onOpenTenders={onOpenTenders}
-          sources={sources}
-          tenders={tenders}
-          workflowCounts={workflowCounts}
-        />
         <DashboardTenderPreview onOpenTenders={onOpenTenders} tenders={tenders} />
+        <DashboardWorkInProgressPanel onOpenTenders={onOpenTenders} tenders={tenders} />
       </section>
     </section>
   )
@@ -94,6 +118,14 @@ export function DashboardView({
 function numberOrFallback(value, fallback) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function queueById(dashboardQueues, id) {
+  return (dashboardQueues?.queues || []).find((queue) => queue.id === id) || null
+}
+
+function queueCount(dashboardQueues, id) {
+  return Number(queueById(dashboardQueues, id)?.count || 0)
 }
 
 function dashboardQueueKpis(dashboardQueues, workflowCounts) {
@@ -107,6 +139,108 @@ function dashboardQueueKpis(dashboardQueues, workflowCounts) {
     { label: 'В работе', value: workflowCounts.in_progress || 0 },
     { label: 'Архив', value: workflowCounts.archive || 0 },
   ]
+}
+
+function dashboardQueueColumns(dashboardQueues, tenders) {
+  const queues = dashboardQueues?.queues || []
+  const queueMap = Object.fromEntries(queues.map((queue) => [queue.id, queue]))
+  const fallbackTenders = tenders || []
+  return [
+    {
+      id: 'needs_review',
+      label: 'Разобрать',
+      description: 'Проверить ТЗ, ограничения и документы до расчета.',
+      tone: 'purple',
+      icon: FileText,
+      items: queueMap.needs_review?.items || fallbackTenders.filter((tender) => !tender.decision).slice(0, 5),
+    },
+    {
+      id: 'missing_prices',
+      label: 'Посчитать',
+      description: 'Нужна себестоимость, ставка поставщика или рыночная цена.',
+      tone: 'warning',
+      icon: WalletCards,
+      items: queueMap.missing_prices?.items || fallbackTenders.filter((tender) => !hasParticipantBid(tender.market_state)).slice(0, 5),
+    },
+    {
+      id: 'with_limit',
+      label: 'Проверить лимит',
+      description: 'Есть данные для решения, нужен контроль маржи и риска.',
+      tone: 'primary',
+      icon: Clock,
+      items: queueMap.with_limit?.items || fallbackTenders.filter((tender) => tender.decision).slice(0, 5),
+    },
+    {
+      id: 'interesting',
+      label: 'Готово',
+      description: 'Можно открывать карточку и готовить заявку.',
+      tone: 'good',
+      icon: CheckCircle2,
+      items: queueMap.interesting?.items || fallbackTenders.filter((tender) => ['interesting', 'in_progress'].includes(tender.workflow_status)).slice(0, 5),
+    },
+  ]
+}
+
+function DashboardQueueColumn({ column, onOpenTenders }) {
+  const Icon = column.icon
+  const items = (column.items || []).slice(0, 4)
+  return (
+    <section className={`dashboard-queue-column ${column.tone}`}>
+      <div className="dashboard-queue-column-title">
+        <Icon size={17} />
+        <div>
+          <strong>{column.label}</strong>
+          <span>{items.length}</span>
+        </div>
+      </div>
+      <p>{column.description}</p>
+      <div className="dashboard-queue-items">
+        {items.map((item) => (
+          <button key={`${item.source}-${item.external_id}`} onClick={onOpenTenders} type="button">
+            <strong>{item.title || 'Закупка без названия'}</strong>
+            <span>{dashboardTenderLine(item)}</span>
+          </button>
+        ))}
+        {!items.length && <div className="dashboard-empty-note">Очередь пустая</div>}
+      </div>
+    </section>
+  )
+}
+
+function DashboardDeadlinePanel({ queue, onOpenTenders }) {
+  const items = (queue?.items || []).slice(0, 4)
+  return (
+    <section className="dashboard-panel dashboard-rail-panel">
+      <div className="panel-title"><Clock size={18} /> Срочные дедлайны</div>
+      <div className="dashboard-rail-list">
+        {items.map((item) => (
+          <button key={`${item.source}-${item.external_id}-deadline`} onClick={onOpenTenders} type="button">
+            <strong>{formatDate(item.deadline_at)}</strong>
+            <span>{item.title}</span>
+          </button>
+        ))}
+        {!items.length && <div className="dashboard-empty-note">Сегодня срочных дедлайнов нет</div>}
+      </div>
+    </section>
+  )
+}
+
+function DashboardDocumentProblemsPanel({ queue, onOpenTenders }) {
+  const items = (queue?.items || []).slice(0, 4)
+  return (
+    <section className="dashboard-panel dashboard-rail-panel">
+      <div className="panel-title"><FileText size={18} /> Проблемы документов</div>
+      <div className="dashboard-rail-list">
+        {items.map((item) => (
+          <button key={`${item.source}-${item.external_id}-documents`} onClick={onOpenTenders} type="button">
+            <strong>{item.customer || 'Документы'}</strong>
+            <span>{item.title}</span>
+          </button>
+        ))}
+        {!items.length && <div className="dashboard-empty-note">Критичных проблем с документами нет</div>}
+      </div>
+    </section>
+  )
 }
 
 function DashboardAttentionPanel({ dashboardQueueError, dashboardQueues, error, sources, tenders, workflowCounts, onOpenTenders }) {
@@ -124,10 +258,10 @@ function DashboardAttentionPanel({ dashboardQueueError, dashboardQueues, error, 
   }
 
   return (
-    <section className="dashboard-panel">
+    <section className="dashboard-panel dashboard-rail-panel">
       <div className="panel-title"><Bell size={18} /> Требует внимания</div>
       <div className="dashboard-attention-list">
-        {attentionItems.map((item) => (
+        {attentionItems.slice(0, 4).map((item) => (
           <button key={item.key || item.label} onClick={onOpenTenders} type="button">
             <span>{item.label}</span>
             <strong>{item.value}</strong>
@@ -166,7 +300,7 @@ function decisionAttentionItems(tenders) {
 }
 
 function DashboardTenderPreview({ tenders, onOpenTenders }) {
-  const previewTenders = (tenders || []).slice(0, 5)
+  const previewTenders = (tenders || []).slice(0, 6)
 
   return (
     <section className="dashboard-panel">
@@ -179,6 +313,49 @@ function DashboardTenderPreview({ tenders, onOpenTenders }) {
           </button>
         ))}
         {!previewTenders.length && <div className="dashboard-empty-note">Запусти поиск, чтобы увидеть свежие закупки</div>}
+      </div>
+    </section>
+  )
+}
+
+function DashboardWorkInProgressPanel({ tenders, onOpenTenders }) {
+  const [activeTab, setActiveTab] = useState('in_progress')
+  const buckets = {
+    in_progress: (tenders || []).filter((tender) => ['interesting', 'in_progress'].includes(tender.workflow_status)),
+    preparing: (tenders || []).filter((tender) => tender.decision || tender.workflow_status === 'opened'),
+    completed: (tenders || []).filter((tender) => tender.workflow_status === 'archive'),
+  }
+  const tabs = [
+    { id: 'in_progress', label: 'В работе' },
+    { id: 'preparing', label: 'Готовим заявку' },
+    { id: 'completed', label: 'Завершенные' },
+  ]
+  const activeItems = (buckets[activeTab] || []).slice(0, 6)
+
+  return (
+    <section className="dashboard-panel dashboard-work-panel">
+      <div className="panel-title"><CheckCircle2 size={18} /> Наши закупки в работе</div>
+      <div className="dashboard-work-tabs">
+        {tabs.map((tab) => (
+          <button
+            className={activeTab === tab.id ? 'active' : ''}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            type="button"
+          >
+            {tab.label}
+            <span>{buckets[tab.id].length}</span>
+          </button>
+        ))}
+      </div>
+      <div className="dashboard-tender-list">
+        {activeItems.map((tender) => (
+          <button key={`${tender.source}-${tender.external_id}-${activeTab}`} onClick={onOpenTenders} type="button">
+            <strong>{tender.title}</strong>
+            <span>{dashboardTenderLine(tender)}</span>
+          </button>
+        ))}
+        {!activeItems.length && <div className="dashboard-empty-note">В этой вкладке пока пусто</div>}
       </div>
     </section>
   )

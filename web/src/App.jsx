@@ -3,8 +3,10 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  Moon,
   PlayCircle,
   RefreshCcw,
+  Sun,
 } from 'lucide-react'
 import {
   fetchDashboardQueues,
@@ -33,6 +35,13 @@ import {
   initialTenderPage,
 } from './constants'
 
+const THEME_STORAGE_KEY = 'tender-killer-theme'
+
+function initialTheme() {
+  if (typeof window === 'undefined') return 'light'
+  return window.localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light'
+}
+
 function App() {
   const [filters, setFilters] = useState(initialFilters)
   const [appliedFilters, setAppliedFilters] = useState(initialFilters)
@@ -53,6 +62,12 @@ function App() {
   const [pageOffset, setPageOffset] = useState(0)
   const [pageLimit, setPageLimit] = useState(defaultTenderPageLimit)
   const [tenderPage, setTenderPage] = useState(initialTenderPage)
+  const [theme, setTheme] = useState(initialTheme)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme)
+  }, [theme])
 
   useEffect(() => {
     loadTenders(appliedFilters, pageOffset)
@@ -292,6 +307,10 @@ function App() {
       .finally(() => setSearching(false))
   }
 
+  function toggleTheme() {
+    setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+  }
+
   return (
     <main className="app-shell">
       <div className={sidebarCollapsed ? 'app-frame sidebar-collapsed' : 'app-frame'}>
@@ -344,6 +363,15 @@ function App() {
               </button>
               <button className="icon-button" onClick={() => { loadTenders(); loadDashboardQueues() }} title="Обновить список">
                 <RefreshCcw size={18} />
+              </button>
+              <button
+                aria-pressed={theme === 'dark'}
+                className="icon-button theme-toggle-button"
+                onClick={toggleTheme}
+                title={theme === 'dark' ? 'Светлая тема' : 'Темная тема'}
+                type="button"
+              >
+                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
               </button>
               <span className="status-pill"><Bell size={16} /> Telegram: уведомления</span>
             </div>
