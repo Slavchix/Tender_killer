@@ -536,6 +536,56 @@ def test_provider_catalog_collector_extracts_real_russian_officemag_search_resul
     ]
 
 
+def test_officemag_code_query_keeps_exact_product_and_rejects_similar_cards() -> None:
+    html = """
+        <html>
+          <body>
+            <ul class="listItems">
+              <li class="listItem js-productListItem" data-list-name="search">
+                <a href="/catalog/goods/110532/">
+                  Бумага офисная А4, 500 листов, белая, 80 г/м2
+                </a>
+                <span class="code">Код 110532</span>
+                <div class="ProductSpecial__item js-ProductSpecialRow" data-count="1" data-price="364"></div>
+              </li>
+              <li class="listItem js-productListItem" data-list-name="search">
+                <a href="/catalog/goods/112464/">
+                  Бумага офисная А4, 500 листов, белая, 80 г/м2
+                </a>
+                <span class="code">Код 112464</span>
+                <div class="ProductSpecial__item js-ProductSpecialRow" data-count="1" data-price="493"></div>
+              </li>
+            </ul>
+          </body>
+        </html>
+    """
+
+    candidates = price_discovery._officemag_visible_candidates(
+        html,
+        "https://www.officemag.ru/search/?q=110532+paper+a4",
+        "110532 Бумага офисная А4",
+        "catalog_hint",
+    )
+
+    assert candidates == [
+        {
+            "name": "Бумага офисная А4, 500 листов, белая, 80 г/м2",
+            "url": "https://www.officemag.ru/catalog/goods/110532/",
+            "product_code": "110532",
+            "unit_price": 364.0,
+            "price_breaks": [{"count": 1, "price": 364.0}],
+            "currency": "RUB",
+            "availability": "unknown",
+            "status": "candidate",
+            "source_query": "110532 Бумага офисная А4",
+            "source_kind": "catalog_hint",
+            "note": "OfficeMag catalog search result from https://www.officemag.ru/search/?q=110532+paper+a4.",
+            "provider": "officemag",
+            "delivery_note": "OfficeMag: цена от 1 шт. 364 RUB.",
+        }
+    ]
+
+
 def test_provider_catalog_collector_skips_officemag_cards_without_query_core_token() -> None:
     html = """
         <html>

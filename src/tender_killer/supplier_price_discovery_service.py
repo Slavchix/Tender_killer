@@ -992,7 +992,12 @@ def _officemag_candidate_from_scope(
     product_name = _officemag_product_name(scope)
     if not product_name:
         return None
-    if not _catalog_product_name_matches_query(product_name, query_text):
+    product_code = _officemag_product_code(scope, product_url)
+    query_codes = _officemag_query_product_codes(query_text)
+    code_matched = bool(product_code and product_code in query_codes)
+    if query_codes and product_code and not code_matched:
+        return None
+    if not code_matched and not _catalog_product_name_matches_query(product_name, query_text):
         return None
     price_breaks = _officemag_price_breaks(scope)
     prices = [item["price"] for item in price_breaks]
@@ -1025,6 +1030,8 @@ def _officemag_candidate_from_scope(
     }
     if price_breaks:
         candidate["price_breaks"] = price_breaks
+    if code_matched and product_code:
+        candidate["product_code"] = product_code
     if stock_quantity is not None:
         candidate["stock_quantity"] = stock_quantity
     if preorder_quantity is not None:
@@ -1044,6 +1051,26 @@ def _officemag_product_url(scope: BeautifulSoup, source_url: str) -> str | None:
         if href and "/catalog/goods/" in href.casefold():
             return urldefrag(urljoin(source_url, href))[0]
     return None
+
+
+def _officemag_product_code(scope: BeautifulSoup, product_url: str) -> str | None:
+    url_match = re.search(r"/catalog/goods/(\d{5,8})(?:/|$)", urlparse(product_url).path)
+    if url_match:
+        return url_match.group(1)
+    for node in scope.select(".code"):
+        code = _first_product_code(_officemag_scope_text(node))
+        if code:
+            return code
+    return _first_product_code(_officemag_scope_text(scope))
+
+
+def _officemag_query_product_codes(query_text: str) -> set[str]:
+    return set(re.findall(r"(?<!\d)\d{5,8}(?!\d)", str(query_text or "")))
+
+
+def _first_product_code(text: str) -> str | None:
+    match = re.search(r"(?<!\d)\d{5,8}(?!\d)", text)
+    return match.group(0) if match else None
 
 
 def _officemag_product_name(scope: BeautifulSoup) -> str | None:

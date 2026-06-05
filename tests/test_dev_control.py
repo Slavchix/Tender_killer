@@ -97,9 +97,51 @@ def test_windows_termination_uses_taskkill(monkeypatch):
     assert calls[0][1]["timeout"] == 4
 
 
+def test_doctor_reports_ports_logs_and_recommendations(tmp_path, capsys, monkeypatch):
+    api_log = tmp_path / "logs" / "api.err.log"
+    web_log = tmp_path / "logs" / "web.err.log"
+    api_log.parent.mkdir()
+    api_log.write_text("api booted\n", encoding="utf-8")
+    web_log.write_text("first line\nError: spawn EPERM\n", encoding="utf-8")
+    config = dev_control.DevControlConfig(root=tmp_path, api_port=8000, web_port=5175)
+    dev_control.write_manifest(
+        config.manifest_path,
+        dev_control.DevProcessManifest(
+            api_pid=111,
+            web_pid=222,
+            api=config.api_url,
+            frontend=config.frontend_url,
+            api_log=str(api_log),
+            web_log=str(web_log),
+            api_ready=True,
+            web_ready=False,
+            web_mode="static",
+        ),
+    )
+    monkeypatch.setattr(dev_control, "_http_ok", lambda url: url.endswith("/api/health"))
+    monkeypatch.setattr(dev_control, "_pid_alive", lambda pid: pid in {111, 222, 333})
+    monkeypatch.setattr(
+        dev_control,
+        "_port_owner_pids",
+        lambda port: {8000: [111], 5175: [222, 333]}.get(port, []),
+    )
+
+    exit_code = dev_control.doctor_dev(config)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["ok"] is False
+    assert payload["services"]["web"]["mode"] == "static"
+    assert payload["ports"]["web"]["owners"] == [222, 333]
+    assert "spawn EPERM" in payload["logs"]["web"]["tail"]
+    assert any("dev_control stop" in item for item in payload["recommendations"])
+    assert any("static fallback" in item for item in payload["recommendations"])
+
+
 def test_package_restart_script_uses_python_dev_control():
     package = json.loads(Path("package.json").read_text(encoding="utf-8"))
 
     assert package["scripts"]["dev:restart"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control restart"
     assert package["scripts"]["dev:status"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control status"
     assert package["scripts"]["dev:stop"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control stop"
+    assert package["scripts"]["dev:doctor"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control doctor"

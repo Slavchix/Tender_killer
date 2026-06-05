@@ -4,6 +4,7 @@
     "dev:restart": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control restart",
     "dev:status": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control status",
     "dev:stop": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control stop",
+    "dev:doctor": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control doctor",
     "dev:health": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_health",
     "dev:smoke": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_smoke",
     "dev:web": "npm --prefix web run dev",

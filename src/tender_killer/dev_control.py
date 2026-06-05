@@ -307,6 +307,57 @@ def status_dev(config: DevControlConfig) -> int:
     return 0 if payload["api_http_ok"] and payload["web_http_ok"] else 1
 
 
+def doctor_dev(config: DevControlConfig) -> int:
+    manifest = read_manifest(config.manifest_path)
+    api_http_ok = _http_ok(f"{config.api_url}/api/health")
+    web_http_ok = _http_ok(config.frontend_url)
+    api_port_pids = _unique_ints(_port_owner_pids(config.api_port))
+    web_port_pids = _unique_ints(_port_owner_pids(config.web_port))
+    services = {
+        "api": {
+            "pid": manifest.api_pid if manifest else None,
+            "alive": _pid_alive(manifest.api_pid) if manifest else False,
+            "http_ok": api_http_ok,
+            "url": f"{config.api_url}/api/health",
+        },
+        "web": {
+            "pid": manifest.web_pid if manifest else None,
+            "alive": _pid_alive(manifest.web_pid) if manifest else False,
+            "http_ok": web_http_ok,
+            "url": config.frontend_url,
+            "mode": manifest.web_mode if manifest else "unknown",
+        },
+    }
+    payload = {
+        "ok": (
+            api_http_ok
+            and web_http_ok
+            and len(api_port_pids) <= 1
+            and len(web_port_pids) <= 1
+        ),
+        "manifest": str(config.manifest_path),
+        "api": config.api_url,
+        "frontend": config.frontend_url,
+        "services": services,
+        "ports": {
+            "api": {"port": config.api_port, "owners": api_port_pids},
+            "web": {"port": config.web_port, "owners": web_port_pids},
+        },
+        "logs": {
+            "api": _log_diagnostic(manifest.api_log if manifest else ""),
+            "web": _log_diagnostic(manifest.web_log if manifest else ""),
+        },
+        "commands": {
+            "restart": _python_module_command("restart"),
+            "status": _python_module_command("status"),
+            "stop": _python_module_command("stop"),
+        },
+    }
+    payload["recommendations"] = _doctor_recommendations(payload)
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return 0 if payload["ok"] else 1
+
+
 def _spawn_service(
     command: list[str],
     *,
@@ -369,6 +420,67 @@ def _find_node(root: Path) -> str | None:
         return npm_node
     root_node = root / "node.exe"
     return str(root_node) if root_node.exists() else None
+
+
+def _python_module_command(command: str) -> str:
+    return f"{sys.executable} -m tender_killer.dev_control {command}"
+
+
+def _unique_ints(values: list[int]) -> list[int]:
+    return list(dict.fromkeys(value for value in values if value))
+
+
+def _log_diagnostic(path: str) -> dict[str, object]:
+    if not path:
+        return {"path": "", "exists": False, "tail": ""}
+    log_path = Path(path)
+    if not log_path.exists():
+        return {"path": str(log_path), "exists": False, "tail": ""}
+    return {"path": str(log_path), "exists": True, "tail": _read_log_tail(log_path)}
+
+
+def _read_log_tail(path: Path, *, max_lines: int = 24, max_chars: int = 4000) -> str:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    lines = text[-max_chars:].splitlines()
+    return "\n".join(lines[-max_lines:])
+
+
+def _doctor_recommendations(payload: dict[str, object]) -> list[str]:
+    recommendations: list[str] = []
+    commands = payload["commands"]
+    assert isinstance(commands, dict)
+    stop_command = str(commands["stop"])
+    restart_command = str(commands["restart"])
+    ports = payload["ports"]
+    assert isinstance(ports, dict)
+    api_port = ports["api"]
+    web_port = ports["web"]
+    assert isinstance(api_port, dict)
+    assert isinstance(web_port, dict)
+    if len(api_port["owners"]) > 1 or len(web_port["owners"]) > 1:
+        recommendations.append(f"Stop stale process owners with {stop_command}, then restart.")
+    services = payload["services"]
+    assert isinstance(services, dict)
+    api = services["api"]
+    web = services["web"]
+    assert isinstance(api, dict)
+    assert isinstance(web, dict)
+    if not api["http_ok"] or not web["http_ok"]:
+        recommendations.append(f"Run {restart_command} if a service is not answering HTTP.")
+    if web.get("mode") == "static":
+        recommendations.append("Frontend is running through static fallback; check the web log before expecting Vite hot reload.")
+    logs = payload["logs"]
+    assert isinstance(logs, dict)
+    web_log = logs["web"]
+    assert isinstance(web_log, dict)
+    if "spawn EPERM" in str(web_log.get("tail") or ""):
+        recommendations.append("Vite/esbuild spawn EPERM detected; static fallback keeps the UI reachable while this is investigated.")
+    if not recommendations and payload["ok"]:
+        recommendations.append("Dev stack looks healthy.")
+    return recommendations
 
 
 def _wait_for_ready(config: DevControlConfig) -> tuple[bool, bool]:
@@ -522,7 +634,7 @@ def _config_from_args(args: argparse.Namespace) -> DevControlConfig:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tender-killer-dev-control")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for name in ("restart", "worker", "status", "stop"):
+    for name in ("restart", "worker", "status", "stop", "doctor"):
         command = subparsers.add_parser(name)
         command.add_argument("--root", type=Path, default=Path.cwd())
         command.add_argument("--api-port", type=int, default=int(os.environ.get("TENDER_KILLER_API_PORT", DEFAULT_API_PORT)))
@@ -549,6 +661,8 @@ def main(argv: list[str] | None = None) -> int:
         return status_dev(config)
     if args.command == "stop":
         return stop_dev(config)
+    if args.command == "doctor":
+        return doctor_dev(config)
     raise AssertionError(args.command)
 
 
