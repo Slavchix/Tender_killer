@@ -433,6 +433,19 @@ def test_frontend_embeds_document_preparation_in_analysis_workspace():
     assert find_mojibake(analysis_documents_source, TENDER_ANALYSIS_DOCUMENTS_SOURCE) == []
 
 
+def test_analysis_tab_renders_collapsed_analysis_history():
+    analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "analysis?.analysis_history" in analysis_source
+    assert "analysis-history" in analysis_source
+    assert "История анализа" in analysis_source
+    assert "entry.changes" in analysis_source
+    assert ".analysis-history" in styles_source
+    assert ".analysis-history-row" in styles_source
+    assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
+
+
 def test_analysis_workspace_exposes_single_prepare_flow():
     tender_details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")

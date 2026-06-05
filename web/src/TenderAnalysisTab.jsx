@@ -27,6 +27,7 @@ export function TenderAnalysisTab({
   const analysisSectionKey = analysisSections.map((section) => section.id).join('|')
   const analysisActionDisabled = preparingAnalysis || downloading || extracting || analyzing
   const primarySection = analysis?.operator_view?.decision_brief?.primary_section
+  const analysisHistory = analysis?.analysis_history || []
 
   useEffect(() => {
     const sectionIds = new Set(analysisSections.map((section) => section.id))
@@ -66,6 +67,7 @@ export function TenderAnalysisTab({
         onDownload={onDownload}
         onExtract={onExtract}
       />
+      <AnalysisHistory history={analysisHistory} />
       <AnalysisSummary analysis={analysis} documents={documents} />
       <AnalysisDecisionBrief
         analysis={analysis}
@@ -97,4 +99,50 @@ export function TenderAnalysisTab({
       </div>
     </section>
   )
+}
+
+function AnalysisHistory({ history = [] }) {
+  const visibleHistory = Array.isArray(history) ? history.slice(0, 5) : []
+  if (!visibleHistory.length) {
+    return null
+  }
+  return (
+    <details className="analysis-history">
+      <summary>История анализа ({visibleHistory.length})</summary>
+      <div className="analysis-history-list">
+        {visibleHistory.map((entry) => {
+          const changes = entry.changes || {}
+          return (
+            <article className="analysis-history-row" key={entry.id || entry.run_number || entry.analyzed_at}>
+              <div>
+                <strong>Версия {entry.run_number || '1'}</strong>
+                <span>{formatAnalysisHistoryDate(entry.analyzed_at)}</span>
+              </div>
+              <p>{changes.summary || 'Изменения не зафиксированы.'}</p>
+              <small>
+                +{changes.added_count || 0} / -{changes.removed_count || 0} / Δ{changes.changed_count || 0}
+                {changes.feedback_count ? ` · меток: ${changes.feedback_count}` : ''}
+              </small>
+            </article>
+          )
+        })}
+      </div>
+    </details>
+  )
+}
+
+function formatAnalysisHistoryDate(value) {
+  if (!value) {
+    return 'дата не указана'
+  }
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value)
+  }
+  return parsed.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }

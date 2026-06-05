@@ -12,6 +12,7 @@ from tender_killer.analysis_document_context import build_document_coverage
 from tender_killer.analysis_document_context import document_roles_summary
 from tender_killer.analysis_evidence_service import build_analysis_evidence_items
 from tender_killer.analysis_facts_service import build_analysis_facts
+from tender_killer.analysis_history_service import record_analysis_history
 from tender_killer.analysis_missing_checks import build_missing_checks
 from tender_killer.analysis_missing_checks import missing_checklist_items
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
@@ -19,6 +20,7 @@ from tender_killer.analysis_passport_service import build_analysis_tz_passport
 from tender_killer.analysis_source_service import attach_document_sources
 from tender_killer.analysis_text_index_service import build_analysis_text_index
 from tender_killer.schema import ensure_analysis_table
+from tender_killer.schema import ensure_analysis_history_table
 from tender_killer.schema import ensure_documents_table
 from tender_killer.tender_detail_service import get_tender_payload
 
@@ -27,6 +29,7 @@ def analyze_tender_payload(database_path: str | Path, source: str, external_id: 
     with _connect(database_path) as connection:
         ensure_documents_table(connection)
         ensure_analysis_table(connection)
+        ensure_analysis_history_table(connection)
         exists = connection.execute(
             "SELECT 1 FROM tenders WHERE source = ? AND external_id = ?",
             (source, external_id),
@@ -68,6 +71,7 @@ def analyze_tender_payload(database_path: str | Path, source: str, external_id: 
         raw_payload["tz_passport"] = build_analysis_tz_passport(raw_payload, documents)
         raw_payload["evidence_items"] = build_analysis_evidence_items(raw_payload, documents)
         raw_payload["operator_view"] = build_analysis_operator_view(raw_payload, documents)
+        analyzed_at = datetime.now().isoformat(timespec="seconds")
         connection.execute(
             """
             INSERT INTO tender_analysis (
@@ -95,8 +99,15 @@ def analyze_tender_payload(database_path: str | Path, source: str, external_id: 
                 result.status,
                 result.confidence,
                 json.dumps(raw_payload, ensure_ascii=False),
-                datetime.now().isoformat(timespec="seconds"),
+                analyzed_at,
             ),
+        )
+        record_analysis_history(
+            connection,
+            source=source,
+            external_id=external_id,
+            analysis=raw_payload,
+            analyzed_at=analyzed_at,
         )
     detail = get_tender_payload(database_path, source, external_id)
     return {"ok": True, "analysis": detail["analysis"]}
