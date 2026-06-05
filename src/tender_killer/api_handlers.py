@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from tender_killer.analysis_feedback_service import update_analysis_feedback
 from tender_killer.analysis_service import analyze_tender_payload
 from tender_killer.api_routes import parse_database_table_path
 from tender_killer.api_routes import parse_product_profile_auto_economics_accept_path
@@ -427,6 +428,16 @@ def handle_post_request(
         if route is None:
             return ApiResponse({"error": "invalid analysis path"}, status=400)
         return ApiResponse(analyze_tender_payload(database_path, route.source, route.external_id))
+    if path.startswith("/api/tenders/") and path.endswith("/analysis/feedback"):
+        route = parse_tender_path(path, suffix="analysis/feedback")
+        if route is None:
+            return ApiResponse({"error": "invalid analysis feedback path"}, status=400)
+        try:
+            return ApiResponse(update_analysis_feedback(database_path, route.source, route.external_id, body))
+        except ValueError as exc:
+            return ApiResponse({"error": str(exc)}, status=400)
+        except KeyError as exc:
+            return ApiResponse({"error": str(exc)}, status=404)
     if path.startswith("/api/tenders/") and path.endswith("/details/refresh"):
         route = parse_tender_path(path, suffix="details/refresh")
         if route is None:

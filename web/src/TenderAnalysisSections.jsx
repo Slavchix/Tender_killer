@@ -1,3 +1,4 @@
+import { CheckCircle2, EyeOff, ShieldOff, Star } from 'lucide-react'
 import {
   normalizeListItems,
   analysisCategoryLabel,
@@ -36,7 +37,7 @@ export function AnalysisSectionRail({ sections, selectedSection, onSelectSection
   )
 }
 
-export function AnalysisSectionBody({ sectionId, analysis, documents = [] }) {
+export function AnalysisSectionBody({ sectionId, analysis, documents = [], onFeedback, savingFeedbackId }) {
   const sections = visibleMajorAnalysisSections(analysis, documents)
   const section = sections.find((item) => item.id === sectionId) || sections[0]
   if (!section) {
@@ -46,7 +47,7 @@ export function AnalysisSectionBody({ sectionId, analysis, documents = [] }) {
       </div>
     )
   }
-  return <AnalysisOperatorSection section={section} />
+  return <AnalysisOperatorSection section={section} onFeedback={onFeedback} savingFeedbackId={savingFeedbackId} />
 }
 
 function visibleMajorAnalysisSections(analysis, documents = []) {
@@ -242,7 +243,7 @@ function dedupeItems(items) {
   })
 }
 
-function AnalysisOperatorSection({ section }) {
+function AnalysisOperatorSection({ section, onFeedback, savingFeedbackId }) {
   const items = displayableAnalysisItems(section.items)
   const documentSummary = items.find((item) => item.type === 'document_summary')
   const analysisItems = items.filter(isAnalysisFactItem)
@@ -259,7 +260,7 @@ function AnalysisOperatorSection({ section }) {
           {analysisItems.map((item, index) => {
             const sourceLabel = item.source_label || item.source
             return (
-              <article className={`analysis-checklist-row severity-${item.severity || 'medium'}`} key={item.id || `${item.label}-${index}`}>
+              <article className={`analysis-checklist-row severity-${item.severity || 'medium'} feedback-${item.feedback_state || 'none'}`} key={item.id || `${item.label}-${index}`}>
                 <div className="analysis-checklist-main">
                   <strong>{item.label}</strong>
                   <div className="analysis-checklist-tags">
@@ -268,6 +269,11 @@ function AnalysisOperatorSection({ section }) {
                     ))}
                   </div>
                 </div>
+                <AnalysisFeedbackControls
+                  disabled={!item.id || !onFeedback || savingFeedbackId === item.id}
+                  item={item}
+                  onFeedback={onFeedback}
+                />
                 {item.description && <p>{item.description}</p>}
                 {item.operator_action && <em className="analysis-evidence-impact">{item.operator_action}</em>}
                 {item.impact && item.impact !== item.operator_action && <em className="analysis-evidence-impact">{item.impact}</em>}
@@ -327,10 +333,43 @@ function analysisItemTags(item) {
   const tags = [
     analysisCategoryLabel(item.category),
     analysisSeverityLabel(item.severity),
+    item.feedback_label || '',
     item.status ? operatorStatusLabel(item.status) : '',
     item.price_impact && item.price_impact !== 'none' ? priceImpactLabel(item.price_impact) : '',
   ].filter(Boolean)
   return [...new Set(tags)]
+}
+
+const ANALYSIS_FEEDBACK_ACTIONS = [
+  { state: 'confirmed', label: 'Подтвердить', icon: CheckCircle2 },
+  { state: 'important', label: 'Важно', icon: Star },
+  { state: 'not_risk', label: 'Не риск', icon: ShieldOff },
+  { state: 'ignored', label: 'Скрыть', icon: EyeOff },
+]
+
+function AnalysisFeedbackControls({ item, onFeedback, disabled = false }) {
+  if (!onFeedback || !item?.id) return null
+  return (
+    <div className="analysis-feedback-actions" aria-label="Метки анализа">
+      {ANALYSIS_FEEDBACK_ACTIONS.map((action) => {
+        const Icon = action.icon
+        const active = item.feedback_state === action.state
+        return (
+          <button
+            aria-label={action.label}
+            className={active ? 'active' : ''}
+            disabled={disabled}
+            key={action.state}
+            onClick={() => onFeedback(item.id, active ? 'clear' : action.state)}
+            title={action.label}
+            type="button"
+          >
+            <Icon aria-hidden="true" size={15} strokeWidth={2.4} />
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 function analysisItemCount(items) {

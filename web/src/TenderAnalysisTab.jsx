@@ -17,6 +17,8 @@ export function TenderAnalysisTab({
   onPrepareAnalysis,
   onDownload,
   onExtract,
+  onAnalysisFeedback,
+  savingAnalysisFeedbackId,
   reportHref,
   documents = [],
 }) {
@@ -84,6 +86,8 @@ export function TenderAnalysisTab({
               sectionId={selectedAnalysisSection}
               analysis={analysis}
               documents={documents}
+              onFeedback={onAnalysisFeedback}
+              savingFeedbackId={savingAnalysisFeedbackId}
             />
           ) : (
             <p className="muted-text">Сначала извлеки текст документов, затем запусти анализ ТЗ.</p>
