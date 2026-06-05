@@ -1057,3 +1057,102 @@ Local dev supervisor note, 2026-06-03: `scripts/dev-web.ps1` now keeps API `127.
 - This is still review-only. The run does not write product-profile economics and does not select suppliers; calculation changes still require confirming an individual candidate or using the existing ready-candidate bulk confirmation action.
 - React economics now exposes `Найти цены (N)` in the full-screen economics header for positions that still need costs. The loading state reuses the existing price-candidate review sentinel, so the hook order stays stable.
 - Next economics steps: improve provider coverage/scoring, expose richer provider diagnostics in the modal, and only then consider narrower auto-confirm rules for very high-confidence candidates.
+
+## Full handoff before new session
+
+Date: 2026-06-05.
+
+Primary branch and worktree state:
+
+- Shared/preview repository: `C:\Users\zinin.v.a\Documents\tender_killer`, branch `codex/moscow-mo-parser`.
+- Dedicated economics repository/worktree: `C:\Users\zinin.v.a\Documents\tender_killer_economics`, branch `codex/economics-flow`.
+- Current shared commit at handoff: `6f8c4b6 Use tender item quantities in economics`.
+- The economics commit was pushed to both `codex/economics-flow` and `codex/moscow-mo-parser`.
+- Keep the working rule: economics changes go through the economics worktree first. Before pushing the shared branch, fetch origin, merge `origin/codex/moscow-mo-parser` into the economics branch, verify `origin/codex/moscow-mo-parser` is an ancestor of `HEAD`, then push the economics branch and finally `HEAD:codex/moscow-mo-parser`. Do not force-push.
+- The preview repository should only be fast-forwarded when clean. If it is dirty, preserve those changes first and report it.
+
+Local runtime state:
+
+- API target: `http://127.0.0.1:8000`.
+- User-facing preview target at the end of this session: `http://127.0.0.1:5175`.
+- `scripts/dev-web.ps1` in the repo still defaults to frontend port `5173`; previous sessions also left stale `5173/5174` listeners. When debugging "connection refused" or `chrome-error://chromewebdata`, check actual listeners and restart only the intended API/web pair.
+- Browser console warnings from `contentscript.js`, `ObjectMultiplex`, and similar are likely injected browser-extension noise, not Tender Killer code.
+
+Last economics implementation checkpoint:
+
+- Commit `6f8c4b6 Use tender item quantities in economics` fixed old product profiles that had no `quantity`/`unit`.
+- Backend economics now falls back from product profiles to `tender_items` by `position_index` when profile quantity/unit are missing.
+- Price staging, review, and auto-price calculation use the same fallback, so old saved tenders can still calculate totals.
+- React economics enriches profiles from `tender.items` before rendering/calculation, so the modal can show quantities even when old profile payloads are incomplete.
+- Tests were added/updated in:
+  - `tests/test_economics.py`
+  - `tests/test_price_candidate_service.py`
+- Changed economics files:
+  - `src/tender_killer/economics.py`
+  - `src/tender_killer/price_candidate_service.py`
+  - `web/src/TenderEconomicsTab.jsx`
+- Targeted verification after merge: `66 passed` for `tests\test_economics.py tests\test_price_candidate_service.py tests\test_supplier_price_discovery_service.py tests\test_economics_service.py tests\test_economics_auto.py -p no:cacheprovider --basetemp pytest-cache-files-economics-after-merge`.
+- `npm run build` could not be run from the normal shell because `npm` was not on PATH. Use the bundled Node/Vite path or the dev supervisor/static proxy fallback when needed.
+
+OfficeMag and supplier catalog state:
+
+- OfficeMag is the current proving ground for automatic supplier prices.
+- The desired future pattern is not "patch per product", but a robust pipeline:
+  1. tender position and quantity/unit;
+  2. normalized search intent and candidate queries;
+  3. provider collector result pages/product pages;
+  4. parsed product cards with source URL, price tiers, stock, package/minimum order, VAT/delivery hints;
+  5. matcher/scorer with category/noun/unit/quantity gates;
+  6. staged price candidates;
+  7. operator confirm/reject;
+  8. confirmed unit cost applied to the exact product position;
+  9. tender-level economics recalculation.
+- Current unresolved bug: OfficeMag can be shown as available by health check but product discovery may still find no candidates, or it can return irrelevant candidates.
+- Current bad examples from the UI:
+  - Query for cartridges can return paper/sign/mop-like products.
+  - Query for "Ручка канцелярская", "Файл-вкладыш", "Папка картонная" found no candidates even though OfficeMag was marked available.
+  - Candidate lists sometimes show prices without enough evidence/link/stock context.
+  - Applying a candidate can update summary totals while the selected product row still looks empty.
+- Current OfficeMag paper reference:
+  - Product code `110532`.
+  - Product name: `Бумага офисная A4, 80 г/м², 500 л., марка C, ОФИСМАГ, Россия, 146% (CIE), 110532`.
+  - Price tiers visible on the page: `364` from 1, `361` from 5, `359` from 10.
+  - Stock shown by user: Moscow stock `14194`, preorder `+2047`, package/minimum context `в упаковке: 5`.
+  - For a 60-pack tender, pricing should choose the `359` tier and calculate total `21540`, not a one-pack or one-piece total.
+- Next OfficeMag work should start by instrumenting/logging the matcher path for one failing position, then adding tests that reject unrelated paper/sign/mop candidates for cartridge/stationery positions.
+
+Economics UX direction:
+
+- The economics modal is currently too dense. After the pipeline is technically reliable, redesign the modal around a smaller number of understandable zones:
+  - top decision and calculated totals;
+  - position list with quantity/unit and cost status;
+  - selected position detail;
+  - price candidates with source links, stock, tiers, and match reasons;
+  - assumptions and manual cost overrides.
+- Quantity must be visible directly in economics for every position. The operator should not have to infer quantity from another screen.
+- If a supplier has tier pricing, show all meaningful tiers and explain which tier was used for the calculation based on tender quantity/package/minimum order.
+- A supplier price is evidence until confirmed. It should not silently become economics cost without operator confirmation or a future explicitly trusted auto-rule.
+
+Parallel analysis/UI state from the recent sessions:
+
+- Documents were folded into the analysis workspace. The separate documents card/button should stay out of the short tender summary.
+- Product details were folded into economics. The separate products card/button should stay out of the short tender summary.
+- Analysis workspace now handles document download, text extraction, analysis, evidence, and Word export in one place.
+- Desired Word output is a compact 5-8 page operator brief. Do not revive the old long raw text report.
+- Analysis now has backend-owned evidence/fact/passport/operator-view layers. Future work should reduce duplication between `Паспорт ТЗ`, evidence, and operator blocks.
+- The user wants every important extracted fact to show where it came from: document name and page when available, or at least document name plus enough surrounding context to manually verify.
+- Agent-based analysis can improve deep interpretation later, but current pre-agent analysis should still avoid unexplained fragments.
+
+Main UI state from the recent sessions:
+
+- The main procurement page moved toward full-width tender list mode with collapsible top filters.
+- Clicking a tender opens a full-screen tender card.
+- The short tender card should stay a quick decision screen: core facts, source/refresh, compact economics and analysis cards, next step/status.
+- Filters were questioned: platform is useful now; region should eventually become a dropdown over Russian regions when more platforms are added; source type/procedure type need clearer purpose before more UI weight is spent on them.
+- Do not re-expand the right rail with duplicate NMC/bid/margin blocks. Keep the top decision strip as the single source for those metrics in the short card.
+
+Boundaries and safety:
+
+- Tender Killer must not submit bids/applications, sign documents, log into portals for the user, store portal passwords, bearer tokens, cookies, SMS codes, or electronic-signature data.
+- Local Moscow bid import is safe only as pasted response JSON from `GetBetUpdate` and must continue rejecting sensitive keys recursively.
+- Supplier catalog scraping is brittle and should remain review-first until a reliable official/API-like channel is proven.
