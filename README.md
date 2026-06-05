@@ -2,9 +2,39 @@
 
 ## Current Handoff Snapshot
 
-Date: 2026-05-29.
+Date: 2026-06-05.
 
 Current branch: `codex/moscow-mo-parser`.
+
+Current handoff branches and worktrees:
+
+- Shared/preview branch: `codex/moscow-mo-parser` in `C:\Users\zinin.v.a\Documents\tender_killer`.
+- Dedicated economics branch: `codex/economics-flow` in `C:\Users\zinin.v.a\Documents\tender_killer_economics`.
+- The economics branch should merge fresh `origin/codex/moscow-mo-parser` before pushing back into the shared branch. Never force-push and never reset the shared preview worktree without explicit confirmation.
+- Current preview watched by the user is `http://127.0.0.1:5175`; API is `http://127.0.0.1:8000`. The checked-in `scripts/dev-web.ps1` still defaults to web port `5173`, so if the user says the active preview is `5175`, kill stale `5173/5174` listeners and restart the intended preview explicitly.
+
+Latest verified checkpoint:
+
+- Last shared commit in this handoff: `6f8c4b6 Use tender item quantities in economics`.
+- That commit is pushed to both `codex/economics-flow` and `codex/moscow-mo-parser`.
+- Economics targeted verification after the merge: `66 passed` for `tests\test_economics.py`, `tests\test_price_candidate_service.py`, `tests\test_supplier_price_discovery_service.py`, `tests\test_economics_service.py`, and `tests\test_economics_auto.py` with `--basetemp pytest-cache-files-economics-after-merge`.
+- `npm run build` was not available in the normal shell because `npm` was not on PATH; the dev stack has been run through the bundled Node/Vite path or the Python static proxy fallback.
+
+Current product/UI state:
+
+- The main procurement page has moved toward a full-width tender list with collapsible top filters. Clicking a tender opens a full-screen tender card instead of keeping analysis/economics cramped in a right rail.
+- The short card summary should stay decision-first: top metrics, source/refresh, compact economics and analysis cards, and working status. Product details now belong inside economics; documents now belong inside analysis.
+- The analysis workspace owns document download, text extraction, rule-based TZ analysis, and Word export. The desired Word report is a compact 5-8 page operator brief, not a long raw dump.
+- Analysis is moving toward a fact/evidence model: every important condition should show source document/page or at least source document plus fragment/context, so the operator can verify it manually.
+- The economics workspace owns product positions, quantities, supplier price discovery, price candidates, manual cost inputs, assumptions, auto-estimate, and final participation economics.
+
+Current economics focus for the next session:
+
+- Work only in the economics worktree unless the user explicitly asks for shared docs or non-economics changes.
+- OfficeMag is the active proving ground. Public catalog access is unstable: it can show `доступен`, `блокировка 503`, or "opened catalog but saw no product cards" depending on browser/server checks.
+- Do not patch one product at a time. The next fix should trace the full pipeline: tender position -> generated search queries -> OfficeMag fetch/browser fetch -> parsed product cards -> normalized price candidates -> matcher/scoring -> UI -> confirmed unit cost -> tender economics.
+- Known bad behavior to fix: searches for cartridges or stationery can return unrelated paper/sign/mop items; found prices can appear without a clear source link; accepted prices may update the summary but not the selected position row; quantity and unit price breaks must drive totals.
+- OfficeMag paper example used for tests: product code `110532`, prices `364` from 1, `361` from 5, `359` from 10, package 5, Moscow stock 14194, preorder +2047. For a 60-pack tender, the selected unit price should be `359`, total `21540`.
 
 Current product shape:
 
