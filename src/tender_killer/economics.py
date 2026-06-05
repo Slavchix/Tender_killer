@@ -189,10 +189,12 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
 def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
     economics = _economics_payload(profile)
     assumptions = _assumptions_payload(profile)
-    quantity = _number(profile.get("quantity")) or 1.0
+    quantity = _number(profile.get("quantity"))
+    if quantity is not None and quantity <= 0:
+        quantity = None
     unit_cost = _first_number(economics, ("unit_cost", "unit_cost_rub", "supplier_unit_price", "supplier_unit_price_rub"))
     total_cost = _first_number(economics, ("total_cost", "total_cost_rub", "supplier_total_price", "supplier_total_price_rub"))
-    if total_cost is None and unit_cost is not None:
+    if total_cost is None and unit_cost is not None and quantity is not None:
         total_cost = quantity * unit_cost
     extra_costs = sum(
         _first_number(economics, (key,)) or 0.0

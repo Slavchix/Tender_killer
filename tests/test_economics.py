@@ -67,6 +67,30 @@ def test_build_economics_summary_requires_manual_costs_before_margin_decision():
     assert summary["recommendation"] == "Нужно добавить закупочную себестоимость по позициям."
 
 
+def test_build_economics_summary_does_not_assume_single_unit_when_quantity_missing():
+    summary = build_economics_summary(
+        {
+            "price": 19890.0,
+            "product_profiles": [
+                {
+                    "product_name": "Office paper",
+                    "quantity": None,
+                    "unit": "pack",
+                    "raw_payload": {"economics": {"unit_cost": 359.0}},
+                }
+            ],
+        }
+    )
+
+    assert summary["status"] == "needs_costs"
+    assert summary["supplier_cost"] is None
+    assert summary["estimated_total_cost"] is None
+    assert summary["missing_cost_inputs"] == ["Office paper"]
+    assert summary["items"][0]["quantity"] is None
+    assert summary["items"][0]["unit_cost"] == 359.0
+    assert summary["items"][0]["total_cost"] is None
+
+
 def test_build_economics_summary_returns_bid_thresholds():
     summary = build_economics_summary(
         {
