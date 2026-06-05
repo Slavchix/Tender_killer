@@ -41,9 +41,50 @@ STOP_WORDS = {
     "\u044d\u043b\u0435\u043a\u0442\u0440\u043e\u0444\u043e\u0442\u043e\u0433\u0440\u0430\u0444\u0438\u0447\u0435\u0441\u043a\u0438\u0445",
     "\u043e\u0444\u0438\u0441\u043d\u0430\u044f",
     "\u043e\u0444\u0438\u0441\u043d\u043e\u0439",
+    "\u0437\u0430\u043a\u0443\u043f\u043a\u0430",
+    "\u0437\u0430\u043a\u0443\u043f\u043a\u0438",
+    "\u043f\u043e\u043a\u0443\u043f\u043a\u0430",
+    "\u043f\u043e\u043a\u0443\u043f\u043a\u0438",
+    "\u043f\u043e\u0441\u0442\u0430\u0432\u043a\u0430",
+    "\u043f\u043e\u0441\u0442\u0430\u0432\u043a\u0438",
+    "\u043f\u0440\u0438\u043e\u0431\u0440\u0435\u0442\u0435\u043d\u0438\u0435",
     "\u0442\u0435\u0445\u043d\u0438\u043a\u0430",
     "\u0442\u0435\u0445\u043d\u0438\u043a\u0438",
 }
+
+RUSSIAN_STEM_ENDINGS = (
+    "\u0438\u044f\u043c\u0438",
+    "\u044f\u043c\u0438",
+    "\u0430\u043c\u0438",
+    "\u043e\u0433\u043e",
+    "\u0435\u0433\u043e",
+    "\u0435\u043c\u0443",
+    "\u044b\u043c\u0438",
+    "\u0438\u043c\u0438",
+    "\u0430\u044f",
+    "\u044f\u044f",
+    "\u043e\u0435",
+    "\u0435\u0435",
+    "\u044b\u0439",
+    "\u0438\u0439",
+    "\u043e\u0439",
+    "\u0443\u044e",
+    "\u044e\u044e",
+    "\u0430\u0445",
+    "\u044f\u0445",
+    "\u0430\u043c",
+    "\u044f\u043c",
+    "\u043e\u043c",
+    "\u0435\u043c",
+    "\u0430",
+    "\u044f",
+    "\u044b",
+    "\u0438",
+    "\u0443",
+    "\u044e",
+    "\u0435",
+    "\u043e",
+)
 
 FAMILY_PREFIXES = {
     "cartridge": {
@@ -225,8 +266,20 @@ def _strong_stems(tokens: list[str]) -> set[str]:
     for token in tokens:
         if token.isdigit() or len(token) < 4 or token in STOP_WORDS:
             continue
-        stems.add(token[:6])
+        stems.add(_stem_token(token))
     return stems
+
+
+def _stem_token(token: str) -> str:
+    if _is_cyrillic_token(token):
+        for ending in RUSSIAN_STEM_ENDINGS:
+            if token.endswith(ending) and len(token) - len(ending) >= 4:
+                return token[: -len(ending)]
+    return token[:6]
+
+
+def _is_cyrillic_token(token: str) -> bool:
+    return any("\u0430" <= char <= "\u044f" for char in token)
 
 
 def _model_tokens(tokens: list[str]) -> set[str]:

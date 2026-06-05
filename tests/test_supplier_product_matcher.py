@@ -53,6 +53,24 @@ def test_russian_office_paper_query_rejects_colored_and_safety_goods() -> None:
     ) is False
 
 
+def test_russian_office_paper_procurement_title_matches_plain_office_paper() -> None:
+    query = "\u041f\u043e\u0441\u0442\u0430\u0432\u043a\u0430 \u0431\u0443\u043c\u0430\u0433\u0438 \u0434\u043b\u044f \u043e\u0444\u0438\u0441\u043d\u043e\u0439 \u0442\u0435\u0445\u043d\u0438\u043a\u0438"
+
+    assert supplier_product_name_matches_query(
+        query,
+        "\u0411\u0443\u043c\u0430\u0433\u0430 \u043e\u0444\u0438\u0441\u043d\u0430\u044f A4, 80 \u0433/\u043c2, 500 \u043b\u0438\u0441\u0442\u043e\u0432",
+    ) is True
+    assert supplier_product_name_matches_query(
+        query,
+        "\u0417\u043d\u0430\u043a \u044d\u0432\u0430\u043a\u0443\u0430\u0446\u0438\u043e\u043d\u043d\u044b\u0439 "
+        "\u041d\u0430\u043f\u0440\u0430\u0432\u043b\u044f\u044e\u0449\u0430\u044f \u0441\u0442\u0440\u0435\u043b\u043a\u0430",
+    ) is False
+    assert supplier_product_name_matches_query(
+        query,
+        "\u041a\u0430\u0440\u0442\u0440\u0438\u0434\u0436 Sakura W1510X \u0434\u043b\u044f HP LaserJet Pro 4003",
+    ) is False
+
+
 def test_russian_stationery_queries_reject_other_stationery_families() -> None:
     assert supplier_product_name_matches_query(
         "\u0420\u0443\u0447\u043a\u0430 \u043a\u0430\u043d\u0446\u0435\u043b\u044f\u0440\u0441\u043a\u0430\u044f",
