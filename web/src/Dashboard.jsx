@@ -23,6 +23,7 @@ export function DashboardView({
   searchSummary,
   error,
   onRefreshSources,
+  onOpenTender,
   onOpenTenders,
   tenders,
 }) {
@@ -72,32 +73,32 @@ export function DashboardView({
               <div className="dashboard-queue-summary">
                 <span>Ставки: {marketMetric}</span>
                 {dashboardQueueError && <span className="source-status-error">{dashboardQueueError}</span>}
-                <button className="primary-button dashboard-open-button" onClick={onOpenTenders} type="button">
+                <button className="primary-button dashboard-open-button" onClick={() => onOpenTenders()} type="button">
                   Открыть закупки
                 </button>
               </div>
             </div>
             <div className="dashboard-queue-board">
               {queueColumns.map((column) => (
-                <DashboardQueueColumn column={column} key={column.id} onOpenTenders={onOpenTenders} />
+                <DashboardQueueColumn column={column} key={column.id} onOpenTender={onOpenTender} />
               ))}
             </div>
           </section>
 
           <section className="dashboard-secondary-grid">
-            <DashboardTenderPreview onOpenTenders={onOpenTenders} tenders={tenders} />
-            <DashboardWorkInProgressPanel onOpenTenders={onOpenTenders} tenders={tenders} />
+            <DashboardTenderPreview onOpenTender={onOpenTender} tenders={tenders} />
+            <DashboardWorkInProgressPanel onOpenTender={onOpenTender} tenders={tenders} />
           </section>
         </div>
 
         <aside className="dashboard-right-rail">
-          <DashboardDeadlinePanel onOpenTenders={onOpenTenders} queue={urgentQueue} />
-          <DashboardDocumentProblemsPanel onOpenTenders={onOpenTenders} queue={documentsQueue} />
+          <DashboardDeadlinePanel onOpenTender={onOpenTender} queue={urgentQueue} />
+          <DashboardDocumentProblemsPanel onOpenTender={onOpenTender} queue={documentsQueue} />
           <DashboardAttentionPanel
             dashboardQueueError={dashboardQueueError}
             dashboardQueues={dashboardQueues}
             error={error}
-            onOpenTenders={onOpenTenders}
+            onOpenTender={onOpenTender}
             sources={sources}
             tenders={tenders}
             workflowCounts={workflowCounts}
@@ -179,7 +180,7 @@ function dashboardQueueColumns(dashboardQueues, tenders) {
   ]
 }
 
-function DashboardQueueColumn({ column, onOpenTenders }) {
+function DashboardQueueColumn({ column, onOpenTender }) {
   const Icon = column.icon
   const items = (column.items || []).slice(0, 4)
   return (
@@ -194,7 +195,7 @@ function DashboardQueueColumn({ column, onOpenTenders }) {
       <p>{column.description}</p>
       <div className="dashboard-queue-items">
         {items.map((item) => (
-          <button key={`${item.source}-${item.external_id}`} onClick={onOpenTenders} type="button">
+          <button key={`${item.source}-${item.external_id}`} onClick={() => onOpenTender(item)} type="button">
             <strong>{item.title || 'Закупка без названия'}</strong>
             <span>{dashboardTenderLine(item)}</span>
           </button>
@@ -205,14 +206,14 @@ function DashboardQueueColumn({ column, onOpenTenders }) {
   )
 }
 
-function DashboardDeadlinePanel({ queue, onOpenTenders }) {
+function DashboardDeadlinePanel({ queue, onOpenTender }) {
   const items = (queue?.items || []).slice(0, 4)
   return (
     <section className="dashboard-panel dashboard-rail-panel">
       <div className="panel-title"><Clock size={18} /> Срочные дедлайны</div>
       <div className="dashboard-rail-list">
         {items.map((item) => (
-          <button key={`${item.source}-${item.external_id}-deadline`} onClick={onOpenTenders} type="button">
+          <button key={`${item.source}-${item.external_id}-deadline`} onClick={() => onOpenTender(item)} type="button">
             <strong>{formatDate(item.deadline_at)}</strong>
             <span>{item.title}</span>
           </button>
@@ -223,14 +224,14 @@ function DashboardDeadlinePanel({ queue, onOpenTenders }) {
   )
 }
 
-function DashboardDocumentProblemsPanel({ queue, onOpenTenders }) {
+function DashboardDocumentProblemsPanel({ queue, onOpenTender }) {
   const items = (queue?.items || []).slice(0, 4)
   return (
     <section className="dashboard-panel dashboard-rail-panel">
       <div className="panel-title"><FileText size={18} /> Проблемы документов</div>
       <div className="dashboard-rail-list">
         {items.map((item) => (
-          <button key={`${item.source}-${item.external_id}-documents`} onClick={onOpenTenders} type="button">
+          <button key={`${item.source}-${item.external_id}-documents`} onClick={() => onOpenTender(item)} type="button">
             <strong>{item.customer || 'Документы'}</strong>
             <span>{item.title}</span>
           </button>
@@ -241,7 +242,7 @@ function DashboardDocumentProblemsPanel({ queue, onOpenTenders }) {
   )
 }
 
-function DashboardAttentionPanel({ dashboardQueueError, dashboardQueues, error, sources, tenders, workflowCounts, onOpenTenders }) {
+function DashboardAttentionPanel({ dashboardQueueError, dashboardQueues, error, sources, tenders, workflowCounts, onOpenTender }) {
   const sourceErrors = (sources || []).filter((source) => source.last_error)
   const attentionItems = []
 
@@ -260,10 +261,17 @@ function DashboardAttentionPanel({ dashboardQueueError, dashboardQueues, error, 
       <div className="panel-title"><Bell size={18} /> Требует внимания</div>
       <div className="dashboard-attention-list">
         {attentionItems.slice(0, 4).map((item) => (
-          <button key={item.key || item.label} onClick={onOpenTenders} type="button">
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
-          </button>
+          item.tender ? (
+            <button key={item.key || item.label} onClick={() => onOpenTender(item.tender)} type="button">
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </button>
+          ) : (
+            <div className="dashboard-attention-note" key={item.key || item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          )
         ))}
         {!attentionItems.length && <div className="dashboard-empty-note">Критичных событий нет</div>}
       </div>
@@ -281,6 +289,7 @@ function dashboardQueueItems(dashboardQueues) {
       return {
         key: `dashboard-queue-${queue.id}`,
         label: 'Очередь решений',
+        tender: firstItem,
         value: `${queue.label}: ${queue.count}${preview}`,
       }
     })
@@ -293,11 +302,12 @@ function decisionAttentionItems(tenders) {
     .map((tender) => ({
       key: `${tender.source}-${tender.external_id}-decision`,
       label: 'ТЗ/решение',
+      tender,
       value: `${tenderDecisionLabel(tender)}: ${tender.decision.blockers[0]}`,
     }))
 }
 
-function DashboardTenderPreview({ tenders, onOpenTenders }) {
+function DashboardTenderPreview({ tenders, onOpenTender }) {
   const previewTenders = (tenders || []).slice(0, 6)
 
   return (
@@ -305,7 +315,7 @@ function DashboardTenderPreview({ tenders, onOpenTenders }) {
       <div className="panel-title"><FileText size={18} /> Последние закупки</div>
       <div className="dashboard-tender-list">
         {previewTenders.map((tender) => (
-          <button key={`${tender.source}-${tender.external_id}`} onClick={onOpenTenders} type="button">
+          <button key={`${tender.source}-${tender.external_id}`} onClick={() => onOpenTender(tender)} type="button">
             <strong>{tender.title}</strong>
             <span>{dashboardTenderLine(tender)}</span>
           </button>
@@ -316,7 +326,7 @@ function DashboardTenderPreview({ tenders, onOpenTenders }) {
   )
 }
 
-function DashboardWorkInProgressPanel({ tenders, onOpenTenders }) {
+function DashboardWorkInProgressPanel({ tenders, onOpenTender }) {
   const [activeTab, setActiveTab] = useState('in_progress')
   const buckets = {
     in_progress: (tenders || []).filter((tender) => ['interesting', 'in_progress'].includes(tender.workflow_status)),
@@ -348,7 +358,7 @@ function DashboardWorkInProgressPanel({ tenders, onOpenTenders }) {
       </div>
       <div className="dashboard-tender-list">
         {activeItems.map((tender) => (
-          <button key={`${tender.source}-${tender.external_id}-${activeTab}`} onClick={onOpenTenders} type="button">
+          <button key={`${tender.source}-${tender.external_id}-${activeTab}`} onClick={() => onOpenTender(tender)} type="button">
             <strong>{tender.title}</strong>
             <span>{dashboardTenderLine(tender)}</span>
           </button>

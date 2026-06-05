@@ -209,6 +209,11 @@ function App() {
     setSelected(tender)
   }
 
+  function openTenderFromDashboard(tender) {
+    setView('tenders')
+    openTenderDetails(tender)
+  }
+
   function closeTenderDetails() {
     setSelected(null)
     setDetails(null)
@@ -382,6 +387,7 @@ function App() {
               dashboardQueueError={dashboardQueueError}
               dashboardQueues={dashboardQueues}
               error={error}
+              onOpenTender={openTenderFromDashboard}
               onOpenTenders={() => changeView('tenders')}
               onRefreshSources={loadSourceStatus}
               searchSummary={searchSummary}

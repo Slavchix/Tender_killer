@@ -71,3 +71,17 @@ def test_dashboard_uses_queue_rail_and_work_panels():
     assert ".dashboard-right-rail" in styles_source
     assert ".dashboard-work-tabs" in styles_source
     assert find_mojibake(dashboard_source, DASHBOARD_SOURCE) == []
+
+
+def test_dashboard_cards_open_exact_tender_details():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
+
+    assert "function openTenderFromDashboard(tender)" in app_source
+    assert "openTenderDetails(tender)" in app_source
+    assert "onOpenTender={openTenderFromDashboard}" in app_source
+    assert "onClick={() => onOpenTender(item)}" in dashboard_source
+    assert "onClick={() => onOpenTender(tender)}" in dashboard_source
+    assert "onClick={onOpenTenders}" not in dashboard_source
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(dashboard_source, DASHBOARD_SOURCE) == []
