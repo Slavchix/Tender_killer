@@ -259,6 +259,8 @@ function AnalysisOperatorSection({ section, onFeedback, savingFeedbackId }) {
         <div className="analysis-checklist-list">
           {analysisItems.map((item, index) => {
             const sourceLabel = item.source_label || item.source
+            const sourceBinding = analysisSourceBinding(item)
+            const confidenceLevel = analysisConfidenceLevel(item)
             return (
               <article className={`analysis-checklist-row severity-${item.severity || 'medium'} feedback-${item.feedback_state || 'none'}`} key={item.id || `${item.label}-${index}`}>
                 <div className="analysis-checklist-main">
@@ -278,9 +280,14 @@ function AnalysisOperatorSection({ section, onFeedback, savingFeedbackId }) {
                 {item.operator_action && <em className="analysis-evidence-impact">{item.operator_action}</em>}
                 {item.impact && item.impact !== item.operator_action && <em className="analysis-evidence-impact">{item.impact}</em>}
                 {sourceLabel && (
-                  <div className="analysis-source-context">
-                    <span>Источник</span>
+                  <div className="analysis-source-context" aria-label="Источник">
+                    <div className="analysis-source-meta">
+                      <span className={`analysis-source-binding-${sourceBinding.level}`}>{sourceBinding.label}</span>
+                      <span className={`analysis-confidence-${confidenceLevel.level}`}>{confidenceLevel.label}</span>
+                    </div>
                     <strong>{sourceLabel}</strong>
+                    {sourceBinding.detail && <p>{sourceBinding.detail}</p>}
+                    {confidenceLevel.detail && <p>{confidenceLevel.detail}</p>}
                     {item.source_context && <p>{item.source_context}</p>}
                     {item.fragment && <p>{item.fragment}</p>}
                   </div>
@@ -294,6 +301,39 @@ function AnalysisOperatorSection({ section, onFeedback, savingFeedbackId }) {
       )}
     </div>
   )
+}
+
+function analysisSourceBinding(item) {
+  const binding = item?.source_binding && typeof item.source_binding === 'object' ? item.source_binding : {}
+  const level = cleanAnalysisText(binding.level) || (item?.needs_review ? 'unbound' : hasRealAnalysisSource(item) ? 'context' : 'inferred')
+  return {
+    level,
+    label: cleanAnalysisText(binding.label) || sourceBindingLabel(level),
+    detail: cleanAnalysisText(binding.detail),
+  }
+}
+
+function sourceBindingLabel(level) {
+  if (level === 'explicit') return 'источник подтвержден'
+  if (level === 'context') return 'источник по контексту'
+  if (level === 'unbound') return 'нужна ручная проверка'
+  return 'вывод без источника'
+}
+
+function analysisConfidenceLevel(item) {
+  const confidence = item?.confidence_level && typeof item.confidence_level === 'object' ? item.confidence_level : {}
+  const level = cleanAnalysisText(confidence.level) || (item?.needs_review ? 'low' : item?.source_context && item?.fragment ? 'high' : 'medium')
+  return {
+    level,
+    label: cleanAnalysisText(confidence.label) || confidenceLevelLabel(level),
+    detail: cleanAnalysisText(confidence.detail),
+  }
+}
+
+function confidenceLevelLabel(level) {
+  if (level === 'high') return 'уверенность высокая'
+  if (level === 'low') return 'уверенность низкая'
+  return 'уверенность средняя'
 }
 
 function DocumentSummaryItem({ item }) {

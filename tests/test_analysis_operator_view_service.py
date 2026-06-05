@@ -200,7 +200,11 @@ def test_build_analysis_operator_view_groups_analysis_facts_into_four_operator_b
     assert sections["decision_risks"]["items"][0]["operator_action"] == (
         "Проверить, действительно ли нужна лицензия или СРО, и есть ли подтверждение у участника."
     )
+    assert sections["decision_risks"]["items"][0]["source_binding"]["level"] == "unbound"
+    assert sections["decision_risks"]["items"][0]["confidence_level"]["level"] == "low"
     assert sections["product_compliance"]["items"][0]["price_impact"] == "documents"
+    assert sections["product_compliance"]["items"][0]["source_binding"]["label"] == "источник подтвержден"
+    assert sections["product_compliance"]["items"][0]["confidence_level"]["label"] == "уверенность высокая"
 
 
 def test_build_analysis_operator_view_returns_pending_four_block_contract_without_analysis():

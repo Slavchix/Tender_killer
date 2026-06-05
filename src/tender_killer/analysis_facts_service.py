@@ -164,6 +164,13 @@ def _fact(
         bound_document = "Документ не привязан"
     display_source_label = _text(source_label) or (bound_document if needs_review else _source_label(bound_document, page_number))
     operator = _operator_metadata(kind, category, severity, is_blocker, is_price_factor, needs_review)
+    source_binding = _source_binding(
+        document_name=bound_document,
+        source_label=display_source_label,
+        source_context=source_context,
+        fragment=fragment,
+        needs_review=needs_review,
+    )
     return {
         "id": f"{kind}:{_slug(label)}",
         "kind": kind,
@@ -179,6 +186,13 @@ def _fact(
         "source_label": display_source_label,
         "source_context": _text(source_context),
         "fragment": fragment,
+        "source_binding": source_binding,
+        "confidence_level": _confidence_level(
+            confidence=_confidence(confidence),
+            source_binding_level=source_binding["level"],
+            has_fragment=bool(fragment),
+            has_context=bool(_text(source_context)),
+        ),
         "is_blocker": is_blocker,
         "is_price_factor": is_price_factor,
         "needs_review": needs_review,
@@ -188,6 +202,85 @@ def _fact(
         "evidence_sources": _evidence_sources(bound_document, display_source_label, fragment),
         **_clean_metadata(metadata),
         **operator,
+    }
+
+
+def _source_binding(
+    *,
+    document_name: str,
+    source_label: str,
+    source_context: str,
+    fragment: str,
+    needs_review: bool,
+) -> dict[str, str]:
+    if needs_review:
+        return {
+            "level": "unbound",
+            "label": "нужна ручная проверка",
+            "detail": "Факт не удалось надежно связать с документом.",
+            "document_name": document_name,
+            "source_label": source_label,
+        }
+    if document_name and fragment:
+        return {
+            "level": "explicit",
+            "label": "источник подтвержден",
+            "detail": "Факт найден в документе и связан с фрагментом текста.",
+            "document_name": document_name,
+            "source_label": source_label,
+        }
+    if document_name or source_context:
+        return {
+            "level": "context",
+            "label": "источник по контексту",
+            "detail": "Факт связан с документом или контекстом, но требует быстрой сверки формулировки.",
+            "document_name": document_name,
+            "source_label": source_label,
+        }
+    return {
+        "level": "inferred",
+        "label": "вывод без источника",
+        "detail": "Факт получен из анализа без точной документальной привязки.",
+        "document_name": document_name,
+        "source_label": source_label,
+    }
+
+
+def _confidence_level(
+    *,
+    confidence: float | None,
+    source_binding_level: str,
+    has_fragment: bool,
+    has_context: bool,
+) -> dict[str, str]:
+    if source_binding_level == "unbound":
+        return {
+            "level": "low",
+            "label": "уверенность низкая",
+            "detail": "Нет надежной привязки к документу, нужна ручная проверка.",
+        }
+    if source_binding_level == "explicit" and has_fragment and has_context:
+        return {
+            "level": "high",
+            "label": "уверенность высокая",
+            "detail": "Есть документ, фрагмент и контекст источника.",
+        }
+    if confidence is not None and confidence >= 0.85 and source_binding_level == "explicit":
+        return {
+            "level": "high",
+            "label": "уверенность высокая",
+            "detail": "Есть документальная привязка и высокая общая уверенность анализа.",
+        }
+    if source_binding_level in {"explicit", "context"}:
+        return {
+            "level": "medium",
+            "label": "уверенность средняя",
+            "detail": "Есть источник или контекст, но формулировку стоит сверить вручную.",
+        }
+    return {
+        "level": "low",
+        "label": "уверенность низкая",
+        "detail": "Вывод сделан без точного источника.",
     }
 
 

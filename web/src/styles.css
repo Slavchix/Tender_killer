@@ -3034,11 +3034,49 @@ textarea:focus {
   border-radius: 6px;
 }
 
+.analysis-source-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
 .analysis-source-context span {
   color: var(--color-text-muted);
   font-size: 10px;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.analysis-source-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+.analysis-source-binding-explicit,
+.analysis-confidence-high {
+  color: var(--color-success) !important;
+  background: var(--color-success-soft);
+  border-color: var(--color-success) !important;
+}
+
+.analysis-source-binding-context,
+.analysis-confidence-medium {
+  color: var(--color-warning) !important;
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning) !important;
+}
+
+.analysis-source-binding-unbound,
+.analysis-source-binding-inferred,
+.analysis-confidence-low {
+  color: var(--color-danger) !important;
+  background: var(--color-danger-soft);
+  border-color: var(--color-danger) !important;
 }
 
 .analysis-source-context strong {
