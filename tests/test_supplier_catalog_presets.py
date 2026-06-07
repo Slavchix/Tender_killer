@@ -1,6 +1,19 @@
 from __future__ import annotations
 
 from tender_killer.supplier_catalog_presets import supplier_catalog_presets_for_profile
+from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
+
+
+def test_supplier_catalog_presets_keep_real_cyrillic_keywords() -> None:
+    keywords_by_provider = {
+        str(preset["provider"]): tuple(str(keyword) for keyword in preset["match_keywords"])
+        for preset in SUPPLIER_CATALOG_PRESETS
+    }
+
+    assert any("\u0431\u0443\u043c\u0430\u0433" in keyword for keyword in keywords_by_provider["officemag"])
+    assert any("\u043a\u0430\u043d\u0446\u0435\u043b" in keyword for keyword in keywords_by_provider["komus"])
+    assert any("\u0446\u0435\u043c\u0435\u043d\u0442" in keyword for keyword in keywords_by_provider["petrovich"])
+    assert any("\u0448\u0443\u0440\u0443\u043f\u043e\u0432\u0435\u0440\u0442" in keyword for keyword in keywords_by_provider["vseinstrumenti"])
 
 
 def test_supplier_catalog_presets_match_office_and_building_profiles() -> None:

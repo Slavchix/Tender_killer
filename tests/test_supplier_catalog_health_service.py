@@ -1,8 +1,31 @@
 from __future__ import annotations
 
+import time
+from pathlib import Path
+
 from tender_killer import supplier_catalog_health_service as health
 from tender_killer.supplier_catalog_health_service import get_cached_supplier_catalog_health_payload
 from tender_killer.supplier_catalog_health_service import get_supplier_catalog_health_payload
+
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures" / "supplier_catalog_health"
+
+
+def _fixture_body(provider: str) -> str:
+    return (FIXTURES_DIR / f"{provider}_search.html").read_text(encoding="utf-8")
+
+
+def _fixture_body_for_url(url: str) -> str:
+    for provider in ("officemag", "komus", "petrovich", "vseinstrumenti"):
+        if provider in url:
+            return _fixture_body(provider)
+    raise AssertionError(url)
+
+
+def _workspace_tmp_path(name: str) -> Path:
+    path = Path("logs") / "supplier-catalog-health-tests" / f"{name}-{time.time_ns()}"
+    path.mkdir(parents=True, exist_ok=False)
+    return path
 
 
 def test_supplier_catalog_health_lists_configured_builtin_catalogs_without_network() -> None:
@@ -17,6 +40,12 @@ def test_supplier_catalog_health_lists_configured_builtin_catalogs_without_netwo
         "vseinstrumenti",
     ]
     assert [catalog["status"] for catalog in payload["catalogs"]] == [
+        "configured",
+        "configured",
+        "configured",
+        "configured",
+    ]
+    assert [catalog["connection_state"] for catalog in payload["catalogs"]] == [
         "configured",
         "configured",
         "configured",
@@ -75,17 +104,21 @@ def test_supplier_catalog_health_live_mode_records_provider_errors() -> None:
     assert all(call[1] == 1.5 for call in calls)
     statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
     assert statuses["officemag"]["status"] == "ok"
+    assert statuses["officemag"]["connection_state"] == "reachable"
     assert statuses["officemag"]["http_status"] == 200
     assert statuses["komus"]["status"] == "error"
+    assert statuses["komus"]["connection_state"] == "blocked"
     assert statuses["komus"]["http_status"] == 403
     assert statuses["komus"]["error_kind"] == "access_blocked"
     assert statuses["komus"]["body_preview"] == "HTML response without readable text"
     assert statuses["petrovich"]["status"] == "error"
+    assert statuses["petrovich"]["connection_state"] == "blocked"
     assert statuses["petrovich"]["http_status"] == 503
     assert statuses["petrovich"]["error"] == "expected HTTP 2xx/3xx, got 503"
     assert statuses["petrovich"]["error_kind"] == "access_blocked"
     assert statuses["petrovich"]["body_preview"] == "maintenance"
     assert statuses["vseinstrumenti"]["status"] == "error"
+    assert statuses["vseinstrumenti"]["connection_state"] == "timeout"
     assert statuses["vseinstrumenti"]["http_status"] is None
     assert statuses["vseinstrumenti"]["error"] == "timed out"
     assert statuses["vseinstrumenti"]["error_kind"] == "network_error"
@@ -100,7 +133,7 @@ def test_supplier_catalog_health_uses_browser_fallback_for_officemag_access_bloc
         calls.append((url, timeout))
         if "officemag" in url:
             return 503, "<html><body>Ваш браузер не смог пройти проверку.</body></html>"
-        return 200, "<html></html>"
+        return 200, _fixture_body_for_url(url)
 
     def fake_browser_fetch(
         url: str,
@@ -120,6 +153,7 @@ def test_supplier_catalog_health_uses_browser_fallback_for_officemag_access_bloc
     statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
     assert browser_calls == [("https://www.officemag.ru/search/?q=office+paper+a4", "officemag", 1.5)]
     assert statuses["officemag"]["status"] == "ok"
+    assert statuses["officemag"]["connection_state"] == "reachable"
     assert statuses["officemag"]["access_mode"] == "browser"
     assert statuses["officemag"]["error"] == ""
     assert statuses["officemag"]["body_preview"] == ""
@@ -130,7 +164,7 @@ def test_supplier_catalog_health_rejects_officemag_browser_check_without_product
     def fetcher(url: str, timeout: float) -> tuple[int, str]:
         if "officemag" in url:
             return 503, "<html><body>browser verification required</body></html>"
-        return 200, "<html></html>"
+        return 200, _fixture_body_for_url(url)
 
     def fake_browser_fetch(
         url: str,
@@ -149,28 +183,87 @@ def test_supplier_catalog_health_rejects_officemag_browser_check_without_product
     statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
     assert payload["ok"] is False
     assert statuses["officemag"]["status"] == "error"
+    assert statuses["officemag"]["connection_state"] == "blocked"
     assert statuses["officemag"]["access_mode"] == "browser"
     assert statuses["officemag"]["error_kind"] == "access_blocked"
     assert statuses["officemag"]["browser_error"] == "browser fetch returned no parseable OfficeMag product cards"
 
 
-def test_supplier_catalog_health_rejects_officemag_http_success_without_product_cards() -> None:
+def test_supplier_catalog_health_rejects_officemag_http_success_without_product_cards(monkeypatch) -> None:
     def fetcher(url: str, timeout: float) -> tuple[int, str]:
         if "officemag" in url:
-            return 200, "<html><body>browser verification required</body></html>"
-        return 200, "<html></html>"
+            return 200, "<html><body>empty search page without products</body></html>"
+        return 200, _fixture_body_for_url(url)
 
     payload = get_supplier_catalog_health_payload(live=True, timeout=1.5, fetcher=fetcher)
 
     statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
     assert payload["ok"] is False
     assert statuses["officemag"]["status"] == "error"
+    assert statuses["officemag"]["connection_state"] == "no_cards"
     assert statuses["officemag"]["http_status"] == 200
     assert statuses["officemag"]["error_kind"] == "access_blocked"
     assert statuses["officemag"]["error"] == "HTTP 200 did not contain parseable OfficeMag product cards"
 
 
-def test_supplier_catalog_health_live_result_is_cached_for_dashboard(tmp_path, monkeypatch) -> None:
+def test_supplier_catalog_health_tries_browser_for_http_success_without_cards(monkeypatch) -> None:
+    browser_calls: list[tuple[str, str | None, float | None]] = []
+
+    def fetcher(url: str, timeout: float) -> tuple[int, str]:
+        if "officemag" in url:
+            return 200, "<html><body>browser verification required</body></html>"
+        return 200, _fixture_body_for_url(url)
+
+    def fake_browser_fetch(
+        url: str,
+        *,
+        provider: str | None = None,
+        timeout_seconds: float | None = None,
+    ) -> str:
+        browser_calls.append((url, provider, timeout_seconds))
+        return _fixture_body("officemag")
+
+    monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", raising=False)
+    monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", raising=False)
+    monkeypatch.setattr(health.supplier_browser_fetcher, "fetch_text", fake_browser_fetch)
+
+    payload = get_supplier_catalog_health_payload(live=True, timeout=1.5, fetcher=fetcher)
+
+    statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
+    assert browser_calls == [("https://www.officemag.ru/search/?q=office+paper+a4", "officemag", 1.5)]
+    assert statuses["officemag"]["status"] == "ok"
+    assert statuses["officemag"]["connection_state"] == "reachable"
+    assert statuses["officemag"]["access_mode"] == "browser"
+
+
+def test_supplier_catalog_health_classifies_captcha_response(monkeypatch) -> None:
+    def fetcher(url: str, timeout: float) -> tuple[int, str]:
+        if "officemag" in url:
+            return 403, "<html><body>captcha required</body></html>"
+        return 200, _fixture_body_for_url(url)
+
+    monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "0")
+
+    payload = get_supplier_catalog_health_payload(live=True, timeout=1.5, fetcher=fetcher)
+
+    statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
+    assert statuses["officemag"]["status"] == "error"
+    assert statuses["officemag"]["connection_state"] == "captcha"
+    assert statuses["officemag"]["error_kind"] == "access_blocked"
+
+
+def test_supplier_catalog_health_uses_catalog_fixtures_for_parseability() -> None:
+    for provider in ("officemag", "komus", "petrovich", "vseinstrumenti"):
+        html = (FIXTURES_DIR / f"{provider}_search.html").read_text(encoding="utf-8")
+        assert health._catalog_body_has_parseable_content(provider, html) is True
+
+    blocked_html = (FIXTURES_DIR / "blocked.html").read_text(encoding="utf-8")
+    for provider in ("officemag", "komus", "petrovich", "vseinstrumenti"):
+        assert health._catalog_body_has_parseable_content(provider, blocked_html) is False
+
+
+def test_supplier_catalog_health_live_result_is_cached_for_dashboard(monkeypatch) -> None:
+    tmp_path = _workspace_tmp_path("cache")
     database_path = tmp_path / "tenders.sqlite"
     calls: list[str] = []
 
@@ -178,7 +271,7 @@ def test_supplier_catalog_health_live_result_is_cached_for_dashboard(tmp_path, m
         calls.append(url)
         if "officemag" in url:
             return 503, "<html><body>browser verification required</body></html>"
-        return 200, "<html><body>ok</body></html>"
+        return 200, _fixture_body_for_url(url)
 
     monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "0")
 

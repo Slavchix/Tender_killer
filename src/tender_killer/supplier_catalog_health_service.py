@@ -28,6 +28,14 @@ CATALOG_SAMPLE_QUERIES = {
     "vseinstrumenti": "cement mix",
 }
 SUPPLIER_CATALOG_HEALTH_CACHE_KEY = "supplier_catalog_health.last_live"
+CATALOG_CONNECTION_CONFIGURED = "configured"
+CATALOG_CONNECTION_REACHABLE = "reachable"
+CATALOG_CONNECTION_BLOCKED = "blocked"
+CATALOG_CONNECTION_CAPTCHA = "captcha"
+CATALOG_CONNECTION_NO_CARDS = "no_cards"
+CATALOG_CONNECTION_PARSER_BROKEN = "parser_broken"
+CATALOG_CONNECTION_TIMEOUT = "timeout"
+CATALOG_CONNECTION_NETWORK_ERROR = "network_error"
 
 
 def get_supplier_catalog_health_payload(
@@ -89,6 +97,7 @@ def _catalog_health_item(preset: dict[str, Any]) -> dict[str, Any]:
         "sample_query": sample_query,
         "sample_url": sample_url,
         "status": "configured",
+        "connection_state": CATALOG_CONNECTION_CONFIGURED,
         "http_status": None,
         "error_kind": "",
         "error": "",
@@ -151,6 +160,7 @@ def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogH
         if _try_browser_catalog_health(catalog, timeout):
             return
         catalog["status"] = "error"
+        catalog["connection_state"] = _exception_connection_state(exc)
         catalog["http_status"] = None
         catalog["error_kind"] = "network_error"
         catalog["error"] = str(exc)
@@ -160,7 +170,10 @@ def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogH
     catalog["http_status"] = int(status)
     if 200 <= int(status) < 400:
         if not _catalog_body_has_parseable_content(str(catalog.get("provider") or ""), _body):
+            if _try_browser_catalog_health(catalog, timeout):
+                return
             catalog["status"] = "error"
+            catalog["connection_state"] = _unparseable_body_connection_state(_body)
             catalog["error_kind"] = "access_blocked"
             catalog["error"] = (
                 f"HTTP {status} did not contain parseable {catalog.get('label') or catalog.get('provider')} "
@@ -170,6 +183,7 @@ def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogH
             catalog["access_mode"] = "http"
             return
         catalog["status"] = "ok"
+        catalog["connection_state"] = CATALOG_CONNECTION_REACHABLE
         catalog["error_kind"] = ""
         catalog["error"] = ""
         catalog["body_preview"] = ""
@@ -178,6 +192,7 @@ def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogH
     if http_error_kind(int(status)) == "access_blocked" and _try_browser_catalog_health(catalog, timeout):
         return
     catalog["status"] = "error"
+    catalog["connection_state"] = _http_connection_state(int(status), _body)
     catalog["error_kind"] = http_error_kind(int(status))
     catalog["error"] = f"expected HTTP 2xx/3xx, got {status}"
     catalog["body_preview"] = response_body_preview(_body)
@@ -203,6 +218,7 @@ def _try_browser_catalog_health(catalog: dict[str, Any], timeout: float) -> bool
         return False
     if not _catalog_body_has_parseable_content(provider, body_text):
         catalog["status"] = "error"
+        catalog["connection_state"] = _unparseable_body_connection_state(body_text)
         catalog["http_status"] = None
         catalog["error_kind"] = "access_blocked"
         catalog["error"] = ""
@@ -211,6 +227,7 @@ def _try_browser_catalog_health(catalog: dict[str, Any], timeout: float) -> bool
         catalog["browser_error"] = f"browser fetch returned no parseable {catalog.get('label') or provider} product cards"
         return True
     catalog["status"] = "ok"
+    catalog["connection_state"] = CATALOG_CONNECTION_REACHABLE
     catalog["http_status"] = None
     catalog["error_kind"] = ""
     catalog["error"] = ""
@@ -221,14 +238,22 @@ def _try_browser_catalog_health(catalog: dict[str, Any], timeout: float) -> bool
 
 def _catalog_body_has_parseable_content(provider: str, body: str) -> bool:
     provider_key = provider.casefold()
+    soup = BeautifulSoup(body, "html.parser")
+    if _body_has_schema_product(soup):
+        return True
     if provider_key == "officemag":
-        soup = BeautifulSoup(body, "html.parser")
         return bool(
             soup.select_one(
                 "li.listItem, .js-productListItem, .ProductHead__name, "
                 ".Product__price, .js-productSum, a[href*='/catalog/goods/']"
             )
         )
+    if provider_key == "komus":
+        return bool(soup.select_one("a[href*='/p/'], .product-card, [data-qa*='product' i]"))
+    if provider_key == "petrovich":
+        return bool(soup.select_one("a[href^='/product/'], a[href*='/product/'], .product-card, [data-test*='product' i]"))
+    if provider_key == "vseinstrumenti":
+        return bool(soup.select_one("a[href*='/product/'], .product-card, [data-qa*='product' i]"))
     return bool(body.strip())
 
 
@@ -247,6 +272,64 @@ def http_error_kind(status: int) -> str:
     if status in {401, 403, 429, 503}:
         return "access_blocked"
     return "http_error"
+
+
+def _http_connection_state(status: int, body: str) -> str:
+    if _looks_like_captcha(body):
+        return CATALOG_CONNECTION_CAPTCHA
+    if http_error_kind(status) == "access_blocked":
+        return CATALOG_CONNECTION_BLOCKED
+    return CATALOG_CONNECTION_NETWORK_ERROR
+
+
+def _exception_connection_state(exc: Exception) -> str:
+    text = str(exc).casefold()
+    if "timed out" in text or "timeout" in text:
+        return CATALOG_CONNECTION_TIMEOUT
+    return CATALOG_CONNECTION_NETWORK_ERROR
+
+
+def _unparseable_body_connection_state(body: str) -> str:
+    if _looks_like_captcha(body):
+        return CATALOG_CONNECTION_CAPTCHA
+    if _looks_like_browser_or_access_block(body):
+        return CATALOG_CONNECTION_BLOCKED
+    if _looks_like_product_data_without_known_cards(body):
+        return CATALOG_CONNECTION_PARSER_BROKEN
+    return CATALOG_CONNECTION_NO_CARDS
+
+
+def _body_has_schema_product(soup: BeautifulSoup) -> bool:
+    for script in soup.find_all("script", attrs={"type": re.compile("ld\\+json", re.IGNORECASE)}):
+        text = script.string or script.get_text()
+        if re.search(r'"@type"\s*:\s*(?:"Product"|\[[^\]]*"Product")', text, re.IGNORECASE):
+            return True
+    return False
+
+
+def _looks_like_captcha(body: str) -> bool:
+    text = response_body_preview(body).casefold()
+    return any(marker in text for marker in ("captcha", "капча", "капчу"))
+
+
+def _looks_like_browser_or_access_block(body: str) -> bool:
+    text = response_body_preview(body).casefold()
+    return any(
+        marker in text
+        for marker in (
+            "browser verification",
+            "verification required",
+            "access denied",
+            "проверку",
+            "проверка",
+            "доступ огранич",
+        )
+    )
+
+
+def _looks_like_product_data_without_known_cards(body: str) -> bool:
+    text = str(body or "")
+    return bool(re.search(r'"@type"|itemprop=|data-price|товар|цена', text, re.IGNORECASE))
 
 
 def response_body_preview(body: str) -> str:

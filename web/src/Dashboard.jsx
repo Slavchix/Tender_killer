@@ -457,8 +457,12 @@ function SupplierCatalogStatusPanel({ catalogHealth, error, loading, onRefresh }
 }
 
 function SupplierCatalogStatusRow({ catalog }) {
-  const status = catalog.status || 'configured'
-  const tone = status === 'ok' ? 'good' : status === 'error' ? 'danger' : 'idle'
+  const state = catalog.connection_state || catalog.status || 'configured'
+  const tone = state === 'reachable' || catalog.status === 'ok'
+    ? 'good'
+    : ['blocked', 'captcha', 'timeout', 'no_cards', 'parser_broken', 'network_error'].includes(state)
+      ? 'danger'
+      : 'idle'
   return (
     <div className={`source-status-row ${tone}`}>
       <span className="source-status-dot" />
@@ -468,7 +472,8 @@ function SupplierCatalogStatusRow({ catalog }) {
           <span>{supplierCatalogStatusText(catalog)}</span>
         </div>
         <div className="source-status-meta">
-          <span>{catalog.access_mode || 'configured'}</span>
+          <span>{state}</span>
+          {catalog.access_mode && <span>{catalog.access_mode}</span>}
           {catalog.http_status && <span>HTTP {catalog.http_status}</span>}
           {catalog.error_kind && <span>{catalog.error_kind}</span>}
           {(catalog.browser_error || catalog.error || catalog.body_preview) && (
@@ -481,11 +486,27 @@ function SupplierCatalogStatusRow({ catalog }) {
 }
 
 function supplierCatalogStatusText(catalog) {
-  if (catalog.status === 'ok') {
+  const state = catalog.connection_state || catalog.status || 'configured'
+  if (state === 'reachable' || catalog.status === 'ok') {
     return catalog.access_mode === 'browser' ? 'browser ok' : 'ok'
   }
+  if (state === 'captcha') {
+    return 'капча'
+  }
+  if (state === 'blocked') {
+    return 'блокировка'
+  }
+  if (state === 'timeout') {
+    return 'таймаут'
+  }
+  if (state === 'no_cards') {
+    return 'нет карточек'
+  }
+  if (state === 'parser_broken') {
+    return 'проверить парсер'
+  }
   if (catalog.status === 'error') {
-    return catalog.error_kind === 'access_blocked' ? 'блокировка' : 'ошибка'
+    return 'ошибка'
   }
   return 'настроен'
 }

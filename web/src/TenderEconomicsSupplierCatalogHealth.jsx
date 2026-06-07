@@ -28,7 +28,7 @@ export function SupplierCatalogHealthPanel({ supplierCatalogHealth, loading = fa
             >
               <strong>{catalog.label || catalog.provider}</strong>
               <span>{catalog.provider}</span>
-              <em>{supplierCatalogHealthStatusLabel(catalog.status, catalog.http_status, catalog.error_kind)}</em>
+              <em>{supplierCatalogHealthStatusLabel(catalog)}</em>
               <small>{supplierCatalogHealthDetail(catalog)}</small>
             </a>
           ))}
@@ -38,21 +38,31 @@ export function SupplierCatalogHealthPanel({ supplierCatalogHealth, loading = fa
   )
 }
 
-function supplierCatalogHealthStatusLabel(status, httpStatus, errorKind = '') {
-  if (status === 'ok') return httpStatus ? `HTTP ${httpStatus}` : 'доступен'
-  if (status === 'error' && errorKind === 'access_blocked') {
+function supplierCatalogHealthStatusLabel(catalog) {
+  const state = catalog.connection_state || catalog.status || 'configured'
+  const httpStatus = catalog.http_status
+  if (state === 'reachable' || catalog.status === 'ok') return httpStatus ? `HTTP ${httpStatus}` : 'доступен'
+  if (state === 'captcha') return httpStatus ? `капча ${httpStatus}` : 'капча'
+  if (state === 'blocked') {
     return httpStatus ? `блокировка ${httpStatus}` : 'блокировка'
   }
-  if (status === 'error' && errorKind === 'network_error') return 'сеть недоступна'
-  if (status === 'error') return httpStatus ? `ошибка ${httpStatus}` : 'ошибка'
+  if (state === 'timeout') return 'таймаут'
+  if (state === 'network_error') return 'сеть недоступна'
+  if (state === 'no_cards') return 'нет карточек'
+  if (state === 'parser_broken') return 'парсер требует проверки'
+  if (catalog.status === 'error') return httpStatus ? `ошибка ${httpStatus}` : 'ошибка'
   return 'настроен'
 }
 
 function supplierCatalogHealthDetail(catalog) {
-  if (catalog.status === 'ok') {
+  const state = catalog.connection_state || catalog.status || 'configured'
+  if (state === 'reachable' || catalog.status === 'ok') {
     return 'Каталог ответил на автоматическую проверку.'
   }
-  if (catalog.status === 'error' && catalog.error_kind === 'access_blocked') {
+  if (state === 'captcha') {
+    return 'Сайт просит пройти капчу. Открой каталог вручную или добавь прямую ссылку поставщика.'
+  }
+  if (state === 'blocked') {
     if (catalog.browser_error) {
       return 'Автопроверка открыла каталог, но не увидела карточки товаров. Открой каталог вручную или добавь ссылку поставщика.'
     }
@@ -60,6 +70,15 @@ function supplierCatalogHealthDetail(catalog) {
     if (preview.includes('капч')) return 'Сайт просит пройти капчу. Открой каталог вручную или добавь ссылку поставщика.'
     if (preview.includes('провер')) return 'Сайт требует браузерную проверку. Автопарсер пока не может читать этот каталог напрямую.'
     return 'Сайт ограничивает автоматический доступ. Ручная ссылка поставщика остается рабочим вариантом.'
+  }
+  if (state === 'timeout') {
+    return catalog.error || 'Каталог не ответил за отведенное время.'
+  }
+  if (state === 'no_cards') {
+    return 'Каталог открылся, но автоматическая проверка не увидела карточки товаров.'
+  }
+  if (state === 'parser_broken') {
+    return 'Каталог отдал товарные данные в неожиданной разметке. Нужно обновить parser fixture.'
   }
   if (catalog.status === 'error' && catalog.error_kind === 'network_error') {
     return catalog.error || 'Не удалось подключиться к каталогу.'
