@@ -169,8 +169,8 @@ def test_dev_web_script_delegates_to_python_dev_control():
 
     assert "tender_killer.dev_control" in script
     assert "restart" in script
-    assert "status" in script
     assert "while ($true)" not in script
+    assert "Start-Sleep" not in script
     assert "Start-Process" not in script
     assert "restart-dev.ps1" not in script
 

@@ -86,6 +86,14 @@ class DevProcessManifest:
     web_spawn_pid: int | None = None
 
 
+@dataclass(frozen=True)
+class PortBackedProcess:
+    pid: int
+
+    def poll(self) -> int | None:
+        return None if _pid_alive(self.pid) else 1
+
+
 def restart_worker_command(config: DevControlConfig) -> list[str]:
     command = [
         sys.executable,
@@ -126,17 +134,13 @@ def static_web_command(config: DevControlConfig) -> list[str]:
 
 
 def detached_spawn_kwargs(cwd: Path) -> dict[str, object]:
-    creationflags = 0
-    if os.name == "nt":
-        creationflags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-        creationflags |= getattr(subprocess, "DETACHED_PROCESS", 0)
     return {
         "cwd": str(cwd),
         "stdin": subprocess.DEVNULL,
         "stdout": subprocess.DEVNULL,
         "stderr": subprocess.DEVNULL,
         "close_fds": True,
-        "creationflags": creationflags,
+        "creationflags": _detached_creationflags(),
     }
 
 
@@ -249,7 +253,7 @@ def run_worker(config: DevControlConfig) -> int:
         api_ready,
         web_ready,
     )
-    print(json.dumps(asdict(manifest), ensure_ascii=False, indent=2))
+    _print_json(asdict(manifest))
     if config.monitor:
         return _supervise_services(config, env, node, run_id, api_process, web_process, api_log, web_log, web_mode)
     return 0 if api_ready and web_ready else 1
@@ -259,7 +263,7 @@ def stop_dev(config: DevControlConfig) -> int:
     write_generation(config.root, f"stopped-{time.time_ns()}-{os.getpid()}")
     stopped = _stop_managed_processes(config)
     stopped.extend(_stop_configured_port_owners(config))
-    print(json.dumps({"stopped_pids": sorted(set(stopped))}, ensure_ascii=False, indent=2))
+    _print_json({"stopped_pids": sorted(set(stopped))})
     return 0
 
 
@@ -290,7 +294,7 @@ def status_dev(config: DevControlConfig) -> int:
             "web_log": manifest.web_log,
             "started_at": manifest.started_at,
         }
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    _print_json(payload)
     return 0 if payload["api_http_ok"] and payload["web_http_ok"] else 1
 
 
@@ -346,7 +350,7 @@ def doctor_dev(config: DevControlConfig) -> int:
         },
     }
     payload["recommendations"] = _doctor_recommendations(payload)
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    _print_json(payload)
     return 0 if payload["ok"] else 1
 
 
@@ -362,10 +366,6 @@ def _spawn_service(
     stdout = stdout_path.open("ab", buffering=0)
     stderr = stderr_path.open("ab", buffering=0)
     try:
-        creationflags = 0
-        if os.name == "nt":
-            creationflags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-            creationflags |= getattr(subprocess, "DETACHED_PROCESS", 0)
         return subprocess.Popen(
             command,
             cwd=str(cwd),
@@ -374,7 +374,7 @@ def _spawn_service(
             stdout=stdout,
             stderr=stderr,
             close_fds=True,
-            creationflags=creationflags,
+            creationflags=_detached_creationflags(),
         )
     finally:
         stdout.close()
@@ -411,6 +411,13 @@ def _spawn_web_service(
     node: str,
     run_id: str,
 ) -> tuple[subprocess.Popen[bytes], Path, str]:
+    existing_web_pids = _port_owner_pids(config.web_port)
+    if existing_web_pids and _http_ok(config.frontend_url):
+        web_log = config.logs_dir / f"web-existing-{config.web_port}-{run_id}.err.log"
+        web_log.parent.mkdir(parents=True, exist_ok=True)
+        web_log.touch(exist_ok=True)
+        return PortBackedProcess(existing_web_pids[-1]), web_log, "vite"  # type: ignore[return-value]
+
     web_mode = "vite"
     web_log = config.logs_dir / f"web-vite-{config.web_port}-{run_id}.err.log"
     process = _spawn_service(
@@ -481,6 +488,7 @@ def _supervise_services(
     web_mode: str,
 ) -> int:
     poll_seconds = max(0.5, float(config.supervisor_poll_seconds))
+    _supervisor_log(config, "Supervisor loop started.")
     while generation_is_current(config):
         time.sleep(poll_seconds)
         try:
@@ -514,7 +522,25 @@ def _supervise_services(
                 )
         except Exception:  # noqa: BLE001 - supervisor must keep dev services recoverable.
             _supervisor_log(config, "Supervisor loop failed:\n" + traceback.format_exc())
+    _supervisor_log(config, "Supervisor loop exiting because generation changed.")
     return 0
+
+
+def _detached_creationflags() -> int:
+    if os.name != "nt":
+        return 0
+    creationflags = 0
+    creationflags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    creationflags |= getattr(subprocess, "DETACHED_PROCESS", 0)
+    creationflags |= getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0x01000000)
+    return creationflags
+
+
+def _print_json(payload: object) -> None:
+    try:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    except UnicodeEncodeError:
+        print(json.dumps(payload, ensure_ascii=True, indent=2))
 
 
 def _service_needs_restart(
@@ -734,14 +760,29 @@ def _terminate_pid(pid: int) -> bool:
                 timeout=4,
                 check=False,
             )
-            return result.returncode == 0
+            if result.returncode == 0 and _wait_for_pid_exit(pid):
+                return True
         except (OSError, subprocess.SubprocessError):
+            pass
+        try:
+            os.kill(pid, signal.SIGTERM)
+            return _wait_for_pid_exit(pid)
+        except OSError:
             return False
     try:
         os.kill(pid, signal.SIGTERM)
-        return True
+        return _wait_for_pid_exit(pid)
     except OSError:
         return False
+
+
+def _wait_for_pid_exit(pid: int, timeout_seconds: float = 2.0) -> bool:
+    deadline = time.monotonic() + max(0.1, timeout_seconds)
+    while time.monotonic() < deadline:
+        if not _pid_alive(pid):
+            return True
+        time.sleep(0.1)
+    return not _pid_alive(pid)
 
 
 def _port_owner_pids(port: int) -> list[int]:
@@ -826,7 +867,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = _config_from_args(args)
     if args.command == "restart":
-        print(json.dumps(start_restart_worker(config), ensure_ascii=False, indent=2))
+        _print_json(start_restart_worker(config))
         return 0
     if args.command == "worker":
         return run_worker(config)

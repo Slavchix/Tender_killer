@@ -3,12 +3,20 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from tender_killer import dev_control
 
 
-def test_restart_worker_command_uses_python_module_not_shell_wrappers(tmp_path):
+def _workspace_tmp_path(name: str) -> Path:
+    path = Path("logs") / "pytest-dev-control" / f"{name}-{time.time_ns()}"
+    path.mkdir(parents=True, exist_ok=False)
+    return path
+
+
+def test_restart_worker_command_uses_python_module_not_shell_wrappers():
+    tmp_path = _workspace_tmp_path("restart-command")
     config = dev_control.DevControlConfig(
         root=tmp_path,
         api_port=8000,
@@ -43,7 +51,69 @@ def test_detached_spawn_kwargs_do_not_keep_codex_exec_streams_open():
     assert kwargs["close_fds"] is True
 
 
-def test_dev_manifest_round_trip(tmp_path):
+def test_print_json_falls_back_to_ascii_when_console_encoding_rejects(monkeypatch):
+    class RejectingStdout:
+        def __init__(self):
+            self.parts = []
+
+        def write(self, text):
+            if "✓" in text:
+                raise UnicodeEncodeError("cp1251", text, text.index("✓"), text.index("✓") + 1, "reject")
+            self.parts.append(text)
+
+        def flush(self):
+            return None
+
+    stdout = RejectingStdout()
+    monkeypatch.setattr(dev_control.sys, "stdout", stdout)
+
+    dev_control._print_json({"status": "✓"})
+
+    assert "\\u2713" in "".join(stdout.parts)
+
+
+def test_detached_spawn_kwargs_breaks_away_from_parent_job_on_windows(monkeypatch):
+    monkeypatch.setattr(dev_control.os, "name", "nt")
+    monkeypatch.setattr(dev_control.subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200, raising=False)
+    monkeypatch.setattr(dev_control.subprocess, "DETACHED_PROCESS", 0x00000008, raising=False)
+    monkeypatch.setattr(dev_control.subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0x01000000, raising=False)
+
+    kwargs = dev_control.detached_spawn_kwargs(Path.cwd())
+
+    assert int(kwargs["creationflags"]) & 0x01000000
+
+
+def test_spawn_service_breaks_away_from_parent_job_on_windows(monkeypatch):
+    tmp_path = _workspace_tmp_path("spawn-service")
+    monkeypatch.setattr(dev_control.os, "name", "nt")
+    monkeypatch.setattr(dev_control.subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200, raising=False)
+    monkeypatch.setattr(dev_control.subprocess, "DETACHED_PROCESS", 0x00000008, raising=False)
+    monkeypatch.setattr(dev_control.subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0x01000000, raising=False)
+    captured = {}
+
+    class FakeProcess:
+        pid = 123
+
+    def fake_popen(command, **kwargs):
+        captured.update(kwargs)
+        return FakeProcess()
+
+    monkeypatch.setattr(dev_control.subprocess, "Popen", fake_popen)
+
+    process = dev_control._spawn_service(
+        [sys.executable, "-V"],
+        cwd=tmp_path,
+        env={},
+        stdout_path=tmp_path / "out.log",
+        stderr_path=tmp_path / "err.log",
+    )
+
+    assert process.pid == 123
+    assert int(captured["creationflags"]) & 0x01000000
+
+
+def test_dev_manifest_round_trip():
+    tmp_path = _workspace_tmp_path("manifest")
     manifest_path = tmp_path / "logs" / "dev-processes.json"
     manifest = dev_control.DevProcessManifest(
         api_pid=123,
@@ -62,14 +132,16 @@ def test_dev_manifest_round_trip(tmp_path):
     assert dev_control.read_manifest(manifest_path) == manifest
 
 
-def test_generation_guard_rejects_stale_worker(tmp_path):
+def test_generation_guard_rejects_stale_worker():
+    tmp_path = _workspace_tmp_path("generation")
     config = dev_control.DevControlConfig(root=tmp_path, generation="old")
     dev_control.write_generation(config.root, "new")
 
     assert dev_control.generation_is_current(config) is False
 
 
-def test_static_web_command_uses_python_proxy(tmp_path):
+def test_static_web_command_uses_python_proxy():
+    tmp_path = _workspace_tmp_path("static-web")
     config = dev_control.DevControlConfig(root=tmp_path, web_port=5175)
 
     command = dev_control.static_web_command(config)
@@ -82,10 +154,31 @@ def test_static_web_command_uses_python_proxy(tmp_path):
     assert "vite" not in " ".join(command).lower()
 
 
+def test_spawn_web_service_reuses_existing_healthy_frontend_port(monkeypatch):
+    tmp_path = _workspace_tmp_path("reuse-web")
+    config = dev_control.DevControlConfig(root=tmp_path, web_port=5175)
+    monkeypatch.setattr(dev_control, "_port_owner_pids", lambda port: [321] if port == 5175 else [])
+    monkeypatch.setattr(dev_control, "_http_ok", lambda url: url == config.frontend_url)
+    monkeypatch.setattr(dev_control, "_pid_alive", lambda pid: pid == 321)
+    monkeypatch.setattr(
+        dev_control.subprocess,
+        "Popen",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("should reuse existing web port")),
+    )
+
+    process, log_path, web_mode = dev_control._spawn_web_service(config, {}, "node.exe", "run")
+
+    assert process.pid == 321
+    assert process.poll() is None
+    assert log_path.name == "web-existing-5175-run.err.log"
+    assert web_mode == "vite"
+
+
 def test_windows_termination_uses_taskkill(monkeypatch):
     calls = []
     monkeypatch.setattr(dev_control, "_pid_alive", lambda pid: True)
     monkeypatch.setattr(dev_control.os, "name", "nt")
+    monkeypatch.setattr(dev_control, "_wait_for_pid_exit", lambda pid: True)
     monkeypatch.setattr(
         dev_control.subprocess,
         "run",
@@ -96,6 +189,23 @@ def test_windows_termination_uses_taskkill(monkeypatch):
 
     assert calls[0][0] == ["taskkill", "/PID", "12345", "/T", "/F"]
     assert calls[0][1]["timeout"] == 4
+
+
+def test_windows_termination_falls_back_to_os_kill_when_taskkill_fails(monkeypatch):
+    killed = []
+    monkeypatch.setattr(dev_control.os, "name", "nt")
+    monkeypatch.setattr(dev_control, "_pid_alive", lambda pid: True)
+    monkeypatch.setattr(
+        dev_control.subprocess,
+        "run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 1),
+    )
+    monkeypatch.setattr(dev_control.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+    monkeypatch.setattr(dev_control, "_wait_for_pid_exit", lambda pid: bool(killed))
+
+    assert dev_control._terminate_pid(12345) is True
+
+    assert killed == [(12345, dev_control.signal.SIGTERM)]
 
 
 def test_windows_pid_alive_rejects_exited_process_handles(monkeypatch):
@@ -116,7 +226,8 @@ def test_windows_pid_alive_rejects_exited_process_handles(monkeypatch):
     assert dev_control._windows_pid_alive(12345) is False
 
 
-def test_stop_managed_processes_includes_spawn_and_worker_pids(tmp_path, monkeypatch):
+def test_stop_managed_processes_includes_spawn_and_worker_pids(monkeypatch):
+    tmp_path = _workspace_tmp_path("stop-managed")
     config = dev_control.DevControlConfig(root=tmp_path)
     dev_control.write_manifest(
         config.manifest_path,
@@ -167,7 +278,8 @@ def test_service_needs_restart_when_process_port_or_http_is_unhealthy(monkeypatc
     assert dev_control._service_needs_restart(FakeProcess(None), "127.0.0.1", 8000, "http://127.0.0.1:8000/api/health") is False
 
 
-def test_doctor_reports_ports_logs_and_recommendations(tmp_path, capsys, monkeypatch):
+def test_doctor_reports_ports_logs_and_recommendations(capsys, monkeypatch):
+    tmp_path = _workspace_tmp_path("doctor")
     api_log = tmp_path / "logs" / "api.err.log"
     web_log = tmp_path / "logs" / "web.err.log"
     api_log.parent.mkdir()
@@ -211,6 +323,7 @@ def test_doctor_reports_ports_logs_and_recommendations(tmp_path, capsys, monkeyp
 def test_package_restart_script_uses_python_dev_control():
     package = json.loads(Path("package.json").read_text(encoding="utf-8"))
 
+    assert package["scripts"]["dev"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control restart"
     assert package["scripts"]["dev:restart"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control restart"
     assert package["scripts"]["dev:status"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control status"
     assert package["scripts"]["dev:stop"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control stop"

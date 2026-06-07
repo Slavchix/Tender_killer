@@ -17,13 +17,4 @@ if (-not (Test-Path -LiteralPath $python)) {
     --api-port $ApiPort `
     --web-port $WebPort `
     --timeout-seconds $TimeoutSeconds
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
-
-Start-Sleep -Seconds 3
-& $python -m tender_killer.dev_control status `
-    --root $root `
-    --api-port $ApiPort `
-    --web-port $WebPort
 exit $LASTEXITCODE
