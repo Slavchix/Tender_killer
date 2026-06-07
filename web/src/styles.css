@@ -1800,6 +1800,55 @@ textarea:focus {
   margin-top: 3px;
 }
 
+.decision-tree {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.decision-tree-branch {
+  min-width: 0;
+  padding: 8px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 7px;
+}
+
+.decision-tree-branch.positive {
+  border-left-color: var(--color-success);
+}
+
+.decision-tree-branch.negative {
+  border-left-color: var(--color-warning);
+}
+
+.decision-tree-branch.actions {
+  border-left-color: var(--color-primary);
+}
+
+.decision-tree-branch span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.decision-tree-branch p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.decision-tree-branch p + p {
+  margin-top: 3px;
+}
+
 .price-change-banner {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

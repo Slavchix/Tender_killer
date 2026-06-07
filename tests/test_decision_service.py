@@ -50,6 +50,53 @@ def test_decision_marks_guarded_bid_when_economics_has_limit():
     assert decision["metrics"]["bid_count"] == 2
 
 
+def test_decision_returns_reason_tree_with_pros_cons_and_actions():
+    decision = build_tender_decision(
+        {
+            "economics": {
+                "status": "manual_review",
+                "margin_percent": 18,
+                "risk_reserve": 6000,
+                "participation_decision": {
+                    "status": "guarded_bid",
+                    "label": "участвовать осторожно",
+                    "limit_price": 214000,
+                    "recommendation": "Маржа после расходов 18%, но нужны документы поставщика.",
+                },
+            },
+            "analysis": {
+                "status": "needs_review",
+                "risks": ["нужна разгрузка силами поставщика"],
+                "red_flags": [],
+                "requirements": ["не подтверждена декларация"],
+                "operator_view": {
+                    "version": 3,
+                    "decision_brief": {
+                        "summary": "Есть условия для проверки перед участием.",
+                        "next_step": "Запросить документы у поставщика",
+                        "reasons": ["срок поставки 3 дня"],
+                    },
+                },
+            },
+            "document_records": [{"text_status": "ok"}],
+            "product_profiles": [{"profile_status": "priced"}],
+        }
+    )
+
+    tree = decision["reason_tree"]
+
+    assert tree["title"] == "участвовать осторожно"
+    assert "Маржа после расходов: 18%" in tree["positive"]
+    assert "Товарные позиции с ценами: 1/1" in tree["positive"]
+    assert "не подтверждена декларация" in tree["negative"]
+    assert "нужна разгрузка силами поставщика" in tree["negative"]
+    assert tree["actions"] == [
+        "Запросить документы у поставщика",
+        "Проверить лимит ставки",
+        "Не падать ниже 214 000.00 ₽",
+    ]
+
+
 def test_decision_requires_analysis_review_for_red_flags():
     decision = build_tender_decision(
         {

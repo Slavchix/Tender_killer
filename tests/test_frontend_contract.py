@@ -849,8 +849,15 @@ def test_frontend_uses_dedicated_tender_decision_strip_module():
     assert "tender.decision?.metrics" in strip_source
     assert "tender.decision?.reasons" in strip_source
     assert "tender.decision?.blockers" in strip_source
+    assert "tender.decision?.reason_tree" in strip_source
+    assert "decision-tree" in strip_source
+    assert "decisionTree.positive" in strip_source
+    assert "decisionTree.negative" in strip_source
+    assert "decisionTree.actions" in strip_source
     assert "decision-strip-explanation" in strip_source
     assert "decision-strip-blockers" in strip_source
+    assert ".decision-tree" in styles_source
+    assert ".decision-tree-branch" in styles_source
     assert ".decision-strip-explanation" in styles_source
     assert ".decision-strip-blockers" in styles_source
     assert "function decisionLabel" not in strip_source

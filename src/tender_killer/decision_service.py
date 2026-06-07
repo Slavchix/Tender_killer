@@ -13,6 +13,13 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
     profiles = _list_of_dicts(tender.get("product_profiles"))
     participation = _dict(economics.get("participation_decision"))
     metrics = _decision_metrics(economics, market_state, documents, profiles)
+    context = {
+        "economics": economics,
+        "analysis": analysis,
+        "metrics": metrics,
+        "participation": participation,
+        "operator_decision": _operator_decision(analysis),
+    }
 
     missing_costs = _text_list(economics.get("missing_cost_inputs"))
     red_flags = _text_list(analysis.get("red_flags"))
@@ -40,6 +47,7 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
             blockers=blockers,
             limit_price=None,
             metrics=metrics,
+            context=context,
         )
 
     if participation_status == "do_not_bid":
@@ -53,6 +61,7 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
             blockers=_compact_reasons([participation.get("label"), *analysis_blockers]),
             limit_price=participation.get("limit_price"),
             metrics=metrics,
+            context=context,
         )
 
     if analysis_blockers:
@@ -69,6 +78,7 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
             blockers=analysis_blockers,
             limit_price=participation.get("limit_price"),
             metrics=metrics,
+            context=context,
         )
 
     if participation_status in {"guarded_bid", "low_margin"}:
@@ -82,6 +92,7 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
             blockers=risks,
             limit_price=participation.get("limit_price"),
             metrics=metrics,
+            context=context,
         )
 
     if participation_status == "can_bid" and not risks:
@@ -95,6 +106,7 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
             blockers=[],
             limit_price=participation.get("limit_price"),
             metrics=metrics,
+            context=context,
         )
 
     return _decision(
@@ -107,6 +119,7 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
         blockers=risks,
         limit_price=participation.get("limit_price"),
         metrics=metrics,
+        context=context,
     )
 
 
@@ -121,18 +134,103 @@ def _decision(
     blockers: list[str],
     limit_price: Any,
     metrics: dict[str, Any],
+    context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    compact_reasons = _compact_reasons(reasons)[:5]
+    compact_blockers = _compact_reasons(blockers)[:5]
     return {
         "status": status,
         "label": label,
         "tone": tone,
         "summary": summary,
         "next_step": next_step,
-        "reasons": _compact_reasons(reasons)[:5],
-        "blockers": _compact_reasons(blockers)[:5],
+        "reasons": compact_reasons,
+        "blockers": compact_blockers,
         "limit_price": limit_price,
         "metrics": metrics,
+        "reason_tree": _reason_tree(
+            label=label,
+            summary=summary,
+            next_step=next_step,
+            reasons=compact_reasons,
+            blockers=compact_blockers,
+            limit_price=limit_price,
+            metrics=metrics,
+            context=context or {},
+        ),
     }
+
+
+def _reason_tree(
+    *,
+    label: str,
+    summary: str,
+    next_step: str,
+    reasons: list[str],
+    blockers: list[str],
+    limit_price: Any,
+    metrics: dict[str, Any],
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    economics = _dict(context.get("economics"))
+    analysis = _dict(context.get("analysis"))
+    participation = _dict(context.get("participation"))
+    operator_decision = _dict(context.get("operator_decision"))
+    positive = _positive_decision_reasons(economics, metrics, participation)
+    negative = _compact_reasons([*blockers, *_text_list(analysis.get("risks")), *_text_list(analysis.get("requirements"))])[:6]
+    actions = _decision_actions(
+        next_step=next_step,
+        operator_next_step=_text(operator_decision.get("next_step"), ""),
+        limit_price=limit_price,
+        metrics=metrics,
+    )
+    return {
+        "title": label,
+        "summary": summary,
+        "positive": positive[:5],
+        "negative": negative[:6],
+        "context": [reason for reason in reasons if reason not in positive and reason not in negative][:5],
+        "actions": actions[:5],
+    }
+
+
+def _positive_decision_reasons(
+    economics: dict[str, Any],
+    metrics: dict[str, Any],
+    participation: dict[str, Any],
+) -> list[str]:
+    reasons: list[Any] = []
+    margin = _number(economics.get("margin_percent"))
+    if margin is not None:
+        reasons.append(f"Маржа после расходов: {_format_percent(margin)}")
+    positions_total = _int_or_none(metrics.get("positions_total"))
+    positions_priced = _int_or_none(metrics.get("positions_priced"))
+    if positions_total:
+        reasons.append(f"Товарные позиции с ценами: {positions_priced or 0}/{positions_total}")
+    bid_count = _int_or_none(metrics.get("bid_count"))
+    if bid_count is not None:
+        reasons.append(f"Ставок участников: {bid_count}")
+    recommendation = _text(participation.get("recommendation"), "")
+    if recommendation:
+        reasons.append(recommendation)
+    return _compact_reasons(reasons)
+
+
+def _decision_actions(
+    *,
+    next_step: str,
+    operator_next_step: str,
+    limit_price: Any,
+    metrics: dict[str, Any],
+) -> list[str]:
+    actions = _compact_reasons([operator_next_step, next_step])
+    if limit_price not in (None, ""):
+        actions.append(f"Не падать ниже {_money(limit_price)}")
+    total = _int_or_none(metrics.get("documents_total")) or 0
+    ready = _int_or_none(metrics.get("documents_ready")) or 0
+    if total and ready < total:
+        actions.append(f"Дочитать документы: {ready}/{total}")
+    return _compact_reasons(actions)
 
 
 def _decision_metrics(
@@ -261,6 +359,31 @@ def _text(value: Any, fallback: str) -> str:
     if value in (None, ""):
         return fallback
     return str(value)
+
+
+def _number(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _int_or_none(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _format_percent(value: float) -> str:
+    return f"{value:.0f}%" if value.is_integer() else f"{value:.2f}%"
+
+
+def _money(value: Any) -> str:
+    number = _number(value)
+    if number is None:
+        return "не указано"
+    return f"{number:,.2f} ₽".replace(",", " ")
 
 
 def _first_value(*values: Any) -> Any:

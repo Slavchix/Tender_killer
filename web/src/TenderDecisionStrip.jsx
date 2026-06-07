@@ -27,7 +27,13 @@ export function TenderDecisionStrip({ tender, economics, productProfiles = [], d
   const documentsTotal = numericMetric(decisionMetrics.documents_total, documents.length)
   const decisionReasons = Array.isArray(tender.decision?.reasons) ? tender.decision.reasons.filter(Boolean).slice(0, 2) : []
   const decisionBlockers = Array.isArray(tender.decision?.blockers) ? tender.decision.blockers.filter(Boolean).slice(0, 2) : []
-  const hasDecisionExplanation = decisionReasons.length > 0 || decisionBlockers.length > 0
+  const decisionTree = tender.decision?.reason_tree || null
+  const hasDecisionTree = decisionTree && (
+    nonEmptyList(decisionTree.positive).length
+    || nonEmptyList(decisionTree.negative).length
+    || nonEmptyList(decisionTree.actions).length
+  )
+  const hasDecisionExplanation = !hasDecisionTree && (decisionReasons.length > 0 || decisionBlockers.length > 0)
 
   return (
     <section className="decision-strip" aria-label="Решение по закупке">
@@ -61,8 +67,38 @@ export function TenderDecisionStrip({ tender, economics, productProfiles = [], d
           )}
         </div>
       )}
+      {hasDecisionTree && <DecisionTree decisionTree={decisionTree} />}
     </section>
   )
+}
+
+function DecisionTree({ decisionTree }) {
+  return (
+    <div className="decision-tree" aria-label="Дерево причин решения">
+      <DecisionTreeBranch title="Помогает" tone="positive" items={decisionTree.positive} />
+      <DecisionTreeBranch title="Мешает" tone="negative" items={decisionTree.negative} />
+      <DecisionTreeBranch title="Что сделать" tone="actions" items={decisionTree.actions} />
+    </div>
+  )
+}
+
+function DecisionTreeBranch({ title, tone, items }) {
+  const branchItems = nonEmptyList(items).slice(0, 4)
+  if (!branchItems.length) {
+    return null
+  }
+  return (
+    <div className={`decision-tree-branch ${tone}`}>
+      <span>{title}</span>
+      {branchItems.map((item) => (
+        <p key={item}>{item}</p>
+      ))}
+    </div>
+  )
+}
+
+function nonEmptyList(value) {
+  return Array.isArray(value) ? value.filter(Boolean) : []
 }
 
 function numericMetric(value, fallback) {
