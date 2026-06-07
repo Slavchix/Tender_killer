@@ -40,6 +40,36 @@ def test_check_api_health_requires_health_and_source_status_endpoints():
     ]
 
 
+def test_check_api_health_accepts_blocked_supplier_catalog_diagnostics():
+    def fetcher(url: str, timeout: float):
+        if url.endswith("/api/health"):
+            return 200, {
+                "ok": True,
+                "capabilities": [
+                    "supplier_search_prepare",
+                    "supplier_catalog_presets",
+                    "supplier_catalog_health",
+                    "supplier_discovery_url",
+                    "web_auto_search",
+                    "market_state_import",
+                    "dashboard_queues",
+                    "price_candidate_auto_stage",
+                    "price_auto_apply",
+                    "price_discovery_run",
+                    "price_discovery_jobs",
+                ],
+            }
+        if url.endswith("/api/sources/status"):
+            return 200, {"sources": []}
+        if url.endswith("/api/supplier-catalogs/health"):
+            return 200, {"ok": False, "catalogs": [{"provider": "officemag", "status": "error"}]}
+        raise AssertionError(url)
+
+    payload = check_api_health("http://127.0.0.1:8000", fetcher=fetcher)
+
+    assert payload["ok"] is True
+
+
 def test_check_api_health_reports_stale_backend_missing_supplier_capabilities():
     def fetcher(url: str, timeout: float):
         if url.endswith("/api/health"):

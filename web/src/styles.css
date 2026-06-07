@@ -596,6 +596,22 @@ h1 {
   grid-template-columns: 1fr;
 }
 
+.supplier-catalog-dashboard .source-status-list {
+  grid-template-columns: 1fr;
+}
+
+.supplier-catalog-dashboard .source-status-main > div:first-child span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.supplier-catalog-dashboard .icon-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
 .dashboard-rail-panel {
   min-height: auto;
   padding: 14px;

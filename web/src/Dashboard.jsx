@@ -20,9 +20,13 @@ export function DashboardView({
   workflowCounts,
   sources,
   sourceStatusError,
+  supplierCatalogHealth,
+  supplierCatalogHealthError,
+  supplierCatalogHealthLoading,
   searchSummary,
   error,
   onRefreshSources,
+  onRefreshSupplierCatalogs,
   onOpenTender,
   onOpenTenders,
   tenders,
@@ -107,6 +111,12 @@ export function DashboardView({
             error={sourceStatusError}
             onRefresh={onRefreshSources}
             sources={sources}
+          />
+          <SupplierCatalogStatusPanel
+            catalogHealth={supplierCatalogHealth}
+            error={supplierCatalogHealthError}
+            loading={supplierCatalogHealthLoading}
+            onRefresh={onRefreshSupplierCatalogs}
           />
         </aside>
       </section>
@@ -412,4 +422,70 @@ function SourceStatusRow({ source }) {
       </div>
     </div>
   )
+}
+
+function SupplierCatalogStatusPanel({ catalogHealth, error, loading, onRefresh }) {
+  const catalogs = catalogHealth?.catalogs || []
+  return (
+    <section className="source-status-panel supplier-catalog-dashboard">
+      <div className="source-status-header">
+        <div className="panel-title"><RefreshCcw size={18} /> Каталоги поставщиков</div>
+        <button
+          className="icon-button small"
+          disabled={loading}
+          onClick={onRefresh}
+          title="Проверить каталоги поставщиков"
+          type="button"
+        >
+          <RefreshCcw size={16} />
+        </button>
+      </div>
+      {error && <div className="source-status-error">{error}</div>}
+      <div className="source-status-meta">
+        <span>{catalogHealth?.checked_at ? `проверка: ${formatDateTime(catalogHealth.checked_at)}` : 'live-проверки еще не было'}</span>
+        {catalogHealth?.cached && <span>последний сохраненный статус</span>}
+        {loading && <span>проверяю...</span>}
+      </div>
+      <div className="source-status-list">
+        {catalogs.map((catalog) => (
+          <SupplierCatalogStatusRow catalog={catalog} key={catalog.preset_id || catalog.provider} />
+        ))}
+        {!catalogs.length && !error && <span className="source-status-empty">Каталоги поставщиков пока не проверялись</span>}
+      </div>
+    </section>
+  )
+}
+
+function SupplierCatalogStatusRow({ catalog }) {
+  const status = catalog.status || 'configured'
+  const tone = status === 'ok' ? 'good' : status === 'error' ? 'danger' : 'idle'
+  return (
+    <div className={`source-status-row ${tone}`}>
+      <span className="source-status-dot" />
+      <div className="source-status-main">
+        <div>
+          <strong>{catalog.label || catalog.provider}</strong>
+          <span>{supplierCatalogStatusText(catalog)}</span>
+        </div>
+        <div className="source-status-meta">
+          <span>{catalog.access_mode || 'configured'}</span>
+          {catalog.http_status && <span>HTTP {catalog.http_status}</span>}
+          {catalog.error_kind && <span>{catalog.error_kind}</span>}
+          {(catalog.browser_error || catalog.error || catalog.body_preview) && (
+            <span className="source-status-message">{catalog.browser_error || catalog.error || catalog.body_preview}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function supplierCatalogStatusText(catalog) {
+  if (catalog.status === 'ok') {
+    return catalog.access_mode === 'browser' ? 'browser ok' : 'ok'
+  }
+  if (catalog.status === 'error') {
+    return catalog.error_kind === 'access_blocked' ? 'блокировка' : 'ошибка'
+  }
+  return 'настроен'
 }

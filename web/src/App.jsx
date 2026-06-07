@@ -11,6 +11,7 @@ import {
 import {
   fetchDashboardQueues,
   fetchSourceStatus,
+  fetchSupplierCatalogHealth,
   fetchTenderDetail,
   fetchTenderPage,
   runSearch as runSearchRequest,
@@ -57,6 +58,9 @@ function App() {
   const [filtersCollapsed, setFiltersCollapsed] = useState(false)
   const [sourceStatus, setSourceStatus] = useState([])
   const [sourceStatusError, setSourceStatusError] = useState('')
+  const [supplierCatalogHealth, setSupplierCatalogHealth] = useState(null)
+  const [supplierCatalogHealthError, setSupplierCatalogHealthError] = useState('')
+  const [supplierCatalogHealthLoading, setSupplierCatalogHealthLoading] = useState(false)
   const [dashboardQueues, setDashboardQueues] = useState(null)
   const [dashboardQueueError, setDashboardQueueError] = useState('')
   const [pageOffset, setPageOffset] = useState(0)
@@ -79,6 +83,7 @@ function App() {
 
   useEffect(() => {
     loadSourceStatus()
+    loadSupplierCatalogHealth(false)
   }, [])
 
   useEffect(() => {
@@ -133,6 +138,15 @@ function App() {
     return fetchSourceStatus()
       .then((payload) => setSourceStatus(payload.sources || []))
       .catch((err) => setSourceStatusError(err.message))
+  }
+
+  function loadSupplierCatalogHealth(live = false) {
+    setSupplierCatalogHealthError('')
+    setSupplierCatalogHealthLoading(true)
+    return fetchSupplierCatalogHealth({ live })
+      .then(setSupplierCatalogHealth)
+      .catch((err) => setSupplierCatalogHealthError(err.message))
+      .finally(() => setSupplierCatalogHealthLoading(false))
   }
 
   function loadDashboardQueues(nextAppliedFilters = appliedFilters) {
@@ -390,9 +404,13 @@ function App() {
               onOpenTender={openTenderFromDashboard}
               onOpenTenders={() => changeView('tenders')}
               onRefreshSources={loadSourceStatus}
+              onRefreshSupplierCatalogs={() => loadSupplierCatalogHealth(true)}
               searchSummary={searchSummary}
               sourceStatusError={sourceStatusError}
               sources={sourceStatus}
+              supplierCatalogHealth={supplierCatalogHealth}
+              supplierCatalogHealthError={supplierCatalogHealthError}
+              supplierCatalogHealthLoading={supplierCatalogHealthLoading}
               stats={stats}
               tenderPage={tenderPage}
               tenders={tenders}

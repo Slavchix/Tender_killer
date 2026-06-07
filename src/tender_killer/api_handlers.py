@@ -45,7 +45,7 @@ from tender_killer.product_profile_service import rebuild_product_profiles as re
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
 from tender_killer.search_service import run_search_payload
 from tender_killer.source_run_service import list_source_runs_payload
-from tender_killer.supplier_catalog_health_service import get_supplier_catalog_health_payload
+from tender_killer.supplier_catalog_health_service import get_cached_supplier_catalog_health_payload
 from tender_killer.supplier_catalog_preset_service import update_profile_supplier_catalog_presets
 from tender_killer.supplier_discovery_service import import_profile_supplier_candidate
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
@@ -338,7 +338,12 @@ def handle_get_request(database_path: str | Path, path: str, query: dict[str, st
     if path == "/api/sources/status":
         return ApiResponse(list_source_runs_payload(database_path))
     if path == "/api/supplier-catalogs/health":
-        return ApiResponse(get_supplier_catalog_health_payload(live=_truthy_query_value(query.get("live"))))
+        return ApiResponse(
+            get_cached_supplier_catalog_health_payload(
+                database_path,
+                live=_truthy_query_value(query.get("live")),
+            )
+        )
     if path == "/api/dashboard/queues":
         return ApiResponse(build_dashboard_queues_payload(database_path, query))
     if path.startswith("/api/price-discovery/jobs/"):

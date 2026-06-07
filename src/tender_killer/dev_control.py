@@ -518,7 +518,15 @@ def _stop_managed_processes(config: DevControlConfig) -> list[int]:
     manifest = read_manifest(config.manifest_path)
     if not manifest:
         return []
-    return _stop_pids([manifest.api_pid, manifest.web_pid])
+    return _stop_pids(
+        [
+            manifest.api_pid,
+            manifest.web_pid,
+            manifest.api_spawn_pid or 0,
+            manifest.web_spawn_pid or 0,
+            manifest.worker_pid or 0,
+        ]
+    )
 
 
 def _stop_configured_port_owners(config: DevControlConfig) -> list[int]:
@@ -606,13 +614,19 @@ def _port_owner_pids(port: int) -> list[int]:
 
 
 def _windows_pid_alive(pid: int) -> bool:
+    still_active = 259
     process_query_limited_information = 0x1000
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     handle = kernel32.OpenProcess(process_query_limited_information, False, int(pid))
-    if handle:
-        kernel32.CloseHandle(handle)
+    if not handle:
+        return ctypes.get_last_error() == 5
+    try:
+        exit_code = ctypes.c_ulong()
+        if kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            return int(exit_code.value) == still_active
         return True
-    return ctypes.get_last_error() == 5
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def _config_from_args(args: argparse.Namespace) -> DevControlConfig:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from tender_killer import supplier_catalog_health_service as health
+from tender_killer.supplier_catalog_health_service import get_cached_supplier_catalog_health_payload
 from tender_killer.supplier_catalog_health_service import get_supplier_catalog_health_payload
 
 
@@ -93,7 +94,7 @@ def test_supplier_catalog_health_live_mode_records_provider_errors() -> None:
 
 def test_supplier_catalog_health_uses_browser_fallback_for_officemag_access_block(monkeypatch) -> None:
     calls: list[tuple[str, float]] = []
-    browser_calls: list[tuple[str, str | None]] = []
+    browser_calls: list[tuple[str, str | None, float | None]] = []
 
     def fetcher(url: str, timeout: float) -> tuple[int, str]:
         calls.append((url, timeout))
@@ -101,8 +102,13 @@ def test_supplier_catalog_health_uses_browser_fallback_for_officemag_access_bloc
             return 503, "<html><body>Ваш браузер не смог пройти проверку.</body></html>"
         return 200, "<html></html>"
 
-    def fake_browser_fetch(url: str, *, provider: str | None = None) -> str:
-        browser_calls.append((url, provider))
+    def fake_browser_fetch(
+        url: str,
+        *,
+        provider: str | None = None,
+        timeout_seconds: float | None = None,
+    ) -> str:
+        browser_calls.append((url, provider, timeout_seconds))
         return "<html><body><li class='js-productListItem'>OfficeMag ok</li></body></html>"
 
     monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", raising=False)
@@ -112,7 +118,7 @@ def test_supplier_catalog_health_uses_browser_fallback_for_officemag_access_bloc
     payload = get_supplier_catalog_health_payload(live=True, timeout=1.5, fetcher=fetcher)
 
     statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
-    assert browser_calls == [("https://www.officemag.ru/search/?q=office+paper+a4", "officemag")]
+    assert browser_calls == [("https://www.officemag.ru/search/?q=office+paper+a4", "officemag", 1.5)]
     assert statuses["officemag"]["status"] == "ok"
     assert statuses["officemag"]["access_mode"] == "browser"
     assert statuses["officemag"]["error"] == ""
@@ -126,7 +132,12 @@ def test_supplier_catalog_health_rejects_officemag_browser_check_without_product
             return 503, "<html><body>browser verification required</body></html>"
         return 200, "<html></html>"
 
-    def fake_browser_fetch(url: str, *, provider: str | None = None) -> str:
+    def fake_browser_fetch(
+        url: str,
+        *,
+        provider: str | None = None,
+        timeout_seconds: float | None = None,
+    ) -> str:
         return "<html><body>browser verification required</body></html>"
 
     monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", raising=False)
@@ -157,3 +168,47 @@ def test_supplier_catalog_health_rejects_officemag_http_success_without_product_
     assert statuses["officemag"]["http_status"] == 200
     assert statuses["officemag"]["error_kind"] == "access_blocked"
     assert statuses["officemag"]["error"] == "HTTP 200 did not contain parseable OfficeMag product cards"
+
+
+def test_supplier_catalog_health_live_result_is_cached_for_dashboard(tmp_path, monkeypatch) -> None:
+    database_path = tmp_path / "tenders.sqlite"
+    calls: list[str] = []
+
+    def fetcher(url: str, timeout: float) -> tuple[int, str]:
+        calls.append(url)
+        if "officemag" in url:
+            return 503, "<html><body>browser verification required</body></html>"
+        return 200, "<html><body>ok</body></html>"
+
+    monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "0")
+
+    live_payload = get_cached_supplier_catalog_health_payload(
+        database_path,
+        live=True,
+        timeout=1.0,
+        fetcher=fetcher,
+        now_factory=lambda: "2026-06-07T10:00:00+00:00",
+    )
+    cached_payload = get_cached_supplier_catalog_health_payload(
+        database_path,
+        live=False,
+        fetcher=lambda url, timeout: (_ for _ in ()).throw(AssertionError("cache should avoid network")),
+    )
+
+    live_statuses = {catalog["provider"]: catalog for catalog in live_payload["catalogs"]}
+    cached_statuses = {catalog["provider"]: catalog for catalog in cached_payload["catalogs"]}
+    assert calls == [
+        "https://www.officemag.ru/search/?q=office+paper+a4",
+        "https://www.komus.ru/search/?text=office+paper+a4",
+        "https://petrovich.ru/search/?q=cement+mix",
+        "https://www.vseinstrumenti.ru/search/?q=cement+mix",
+    ]
+    assert live_payload["cached"] is False
+    assert live_payload["checked_at"] == "2026-06-07T10:00:00+00:00"
+    assert live_statuses["officemag"]["status"] == "error"
+    assert live_statuses["officemag"]["http_status"] == 503
+    assert live_statuses["officemag"]["error_kind"] == "access_blocked"
+    assert cached_payload["cached"] is True
+    assert cached_payload["live"] is False
+    assert cached_payload["checked_at"] == "2026-06-07T10:00:00+00:00"
+    assert cached_statuses["officemag"]["http_status"] == 503

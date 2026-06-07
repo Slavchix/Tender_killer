@@ -36,6 +36,29 @@ def test_browser_fetcher_runs_configured_helper(monkeypatch, tmp_path) -> None:
     assert captured["encoding"] == "utf-8"
 
 
+def test_browser_fetcher_uses_explicit_timeout_for_helper(monkeypatch, tmp_path) -> None:
+    script = tmp_path / "browser-fetch.mjs"
+    script.write_text("// fake helper", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    def fake_run(command, **kwargs):
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(command, 0, stdout="<html>ok</html>", stderr="")
+
+    monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "1")
+    monkeypatch.setenv("TENDER_KILLER_BROWSER_NODE_PATH", "node-test.exe")
+    monkeypatch.setenv("TENDER_KILLER_BROWSER_SCRIPT_PATH", str(script))
+    monkeypatch.setattr(browser_fetcher.subprocess, "run", fake_run)
+
+    browser_fetcher.fetch_text(
+        "https://www.officemag.ru/search/?q=paper",
+        provider="officemag",
+        timeout_seconds=1.25,
+    )
+
+    assert captured["timeout"] == 6.25
+
+
 def test_browser_fetcher_defaults_to_officemag_only(monkeypatch) -> None:
     monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", raising=False)
     monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", raising=False)

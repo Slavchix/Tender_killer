@@ -44,7 +44,7 @@ def check_dev_site(
             "/api/supplier-catalogs/health",
             timeout,
             fetch,
-            lambda payload: payload.get("ok") is True and isinstance(payload.get("catalogs"), list),
+            lambda payload: isinstance(payload.get("ok"), bool) and isinstance(payload.get("catalogs"), list),
             name="vite_proxy_supplier_catalogs",
         ),
         _ui_text_check(Path(app_source_path)),

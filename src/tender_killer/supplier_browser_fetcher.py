@@ -24,7 +24,7 @@ def is_enabled_for_provider(provider: str | None) -> bool:
     return "*" in allowed or provider_name in allowed
 
 
-def fetch_text(url: str, *, provider: str | None = None) -> str:
+def fetch_text(url: str, *, provider: str | None = None, timeout_seconds: float | None = None) -> str:
     if not is_enabled_for_provider(provider):
         raise BrowserFetchError(f"browser fetch is not enabled for provider {provider or '<unknown>'}")
 
@@ -37,7 +37,7 @@ def fetch_text(url: str, *, provider: str | None = None) -> str:
     if provider:
         env["TENDER_KILLER_BROWSER_PROVIDER"] = provider
 
-    timeout = _positive_env_float("TENDER_KILLER_BROWSER_TIMEOUT_SECONDS", 30.0) + 5.0
+    timeout = _browser_timeout_seconds(timeout_seconds) + 5.0
     try:
         result = subprocess.run(
             command,
@@ -80,6 +80,17 @@ def resolve_script_path() -> Path:
     if value := _text(os.environ.get("TENDER_KILLER_BROWSER_SCRIPT_PATH")):
         return Path(value)
     return Path(__file__).resolve().parents[2] / "scripts" / "browser-fetch.mjs"
+
+
+def _browser_timeout_seconds(value: float | None) -> float:
+    if value is not None:
+        try:
+            timeout = float(value)
+        except (TypeError, ValueError):
+            timeout = 0.0
+        if timeout > 0:
+            return timeout
+    return _positive_env_float("TENDER_KILLER_BROWSER_TIMEOUT_SECONDS", 30.0)
 
 
 def _bundled_codex_node_path() -> Path | None:

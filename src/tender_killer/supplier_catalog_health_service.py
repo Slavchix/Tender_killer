@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import json
 import re
+import sqlite3
 from collections.abc import Callable
+from datetime import UTC
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
 
@@ -9,6 +14,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from tender_killer import supplier_browser_fetcher
+from tender_killer.schema import initialize_schema
 from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
 
 
@@ -21,6 +27,7 @@ CATALOG_SAMPLE_QUERIES = {
     "petrovich": "cement mix",
     "vseinstrumenti": "cement mix",
 }
+SUPPLIER_CATALOG_HEALTH_CACHE_KEY = "supplier_catalog_health.last_live"
 
 
 def get_supplier_catalog_health_payload(
@@ -46,6 +53,31 @@ def get_supplier_catalog_health_payload(
     }
 
 
+def get_cached_supplier_catalog_health_payload(
+    database_path: str | Path,
+    *,
+    live: bool = False,
+    timeout: float = 2.0,
+    fetcher: CatalogHealthFetcher | None = None,
+    now_factory: Callable[[], str] | None = None,
+) -> dict[str, Any]:
+    if live:
+        payload = get_supplier_catalog_health_payload(live=True, timeout=timeout, fetcher=fetcher)
+        payload["checked_at"] = _now_iso(now_factory)
+        payload["cached"] = False
+        _write_cached_catalog_health(database_path, payload)
+        return payload
+
+    cached = _read_cached_catalog_health(database_path)
+    if cached is not None:
+        return {**cached, "live": False, "cached": True}
+
+    payload = get_supplier_catalog_health_payload(live=False, timeout=timeout, fetcher=fetcher)
+    payload["checked_at"] = None
+    payload["cached"] = False
+    return payload
+
+
 def _catalog_health_item(preset: dict[str, Any]) -> dict[str, Any]:
     provider = str(preset["provider"])
     sample_query = CATALOG_SAMPLE_QUERIES.get(provider.casefold(), "office paper a4")
@@ -65,11 +97,58 @@ def _catalog_health_item(preset: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _now_iso(now_factory: Callable[[], str] | None = None) -> str:
+    if now_factory is not None:
+        return str(now_factory())
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def _read_cached_catalog_health(database_path: str | Path) -> dict[str, Any] | None:
+    with _connect_cache(database_path) as connection:
+        row = connection.execute(
+            "SELECT value FROM app_state WHERE key = ?",
+            (SUPPLIER_CATALOG_HEALTH_CACHE_KEY,),
+        ).fetchone()
+    if row is None:
+        return None
+    try:
+        payload = json.loads(str(row["value"]))
+    except (TypeError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _write_cached_catalog_health(database_path: str | Path, payload: dict[str, Any]) -> None:
+    with _connect_cache(database_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO app_state (key, value, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                SUPPLIER_CATALOG_HEALTH_CACHE_KEY,
+                json.dumps(payload, ensure_ascii=False, sort_keys=True),
+            ),
+        )
+
+
+def _connect_cache(database_path: str | Path) -> sqlite3.Connection:
+    path = Path(database_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path)
+    connection.row_factory = sqlite3.Row
+    initialize_schema(connection)
+    return connection
+
+
 def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogHealthFetcher) -> None:
     try:
         status, _body = fetch(catalog["sample_url"], timeout)
     except Exception as exc:  # noqa: BLE001 - health diagnostics should preserve provider failures.
-        if _try_browser_catalog_health(catalog):
+        if _try_browser_catalog_health(catalog, timeout):
             return
         catalog["status"] = "error"
         catalog["http_status"] = None
@@ -96,7 +175,7 @@ def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogH
         catalog["body_preview"] = ""
         catalog["access_mode"] = "http"
         return
-    if http_error_kind(int(status)) == "access_blocked" and _try_browser_catalog_health(catalog):
+    if http_error_kind(int(status)) == "access_blocked" and _try_browser_catalog_health(catalog, timeout):
         return
     catalog["status"] = "error"
     catalog["error_kind"] = http_error_kind(int(status))
@@ -105,12 +184,16 @@ def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogH
     catalog["access_mode"] = "http"
 
 
-def _try_browser_catalog_health(catalog: dict[str, Any]) -> bool:
+def _try_browser_catalog_health(catalog: dict[str, Any], timeout: float) -> bool:
     provider = str(catalog.get("provider") or "")
     if not supplier_browser_fetcher.is_enabled_for_provider(provider):
         return False
     try:
-        body = supplier_browser_fetcher.fetch_text(str(catalog["sample_url"]), provider=provider)
+        body = supplier_browser_fetcher.fetch_text(
+            str(catalog["sample_url"]),
+            provider=provider,
+            timeout_seconds=timeout,
+        )
     except supplier_browser_fetcher.BrowserFetchError as exc:
         catalog["browser_error"] = str(exc)
         return False

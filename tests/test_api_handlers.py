@@ -120,6 +120,23 @@ def test_handle_get_request_routes_supplier_catalog_health(tmp_path) -> None:
     assert response.payload["catalogs"][0]["status"] == "configured"
 
 
+def test_handle_get_request_routes_supplier_catalog_health_live_to_cached_service(tmp_path, monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_catalog_health(database_path, *, live=False):
+        calls.append({"database_path": database_path, "live": live})
+        return {"ok": False, "live": live, "cached": False, "catalogs": []}
+
+    monkeypatch.setattr("tender_killer.api_handlers.get_cached_supplier_catalog_health_payload", fake_catalog_health)
+
+    response = handle_get_request(tmp_path / "tenders.sqlite", "/api/supplier-catalogs/health", {"live": "1"})
+
+    assert response.kind == "json"
+    assert response.status == 200
+    assert response.payload == {"ok": False, "live": True, "cached": False, "catalogs": []}
+    assert calls == [{"database_path": tmp_path / "tenders.sqlite", "live": True}]
+
+
 def test_handle_get_request_routes_tender_detail(tmp_path) -> None:
     store = _store_with_tender(tmp_path)
 

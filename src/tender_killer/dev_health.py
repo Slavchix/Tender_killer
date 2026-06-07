@@ -128,10 +128,10 @@ def _source_status_payload_error(payload: dict[str, Any]) -> str:
 
 
 def _supplier_catalog_health_payload_error(payload: dict[str, Any]) -> str:
-    if payload.get("ok") is not True:
-        return "expected ok=true"
     if not isinstance(payload.get("catalogs"), list):
         return "expected catalogs list"
+    if not isinstance(payload.get("ok"), bool):
+        return "expected ok boolean"
     return ""
 
 

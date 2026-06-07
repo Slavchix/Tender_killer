@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from tender_killer.dev_smoke import REQUIRED_UI_TEXT
 from tender_killer.dev_smoke import check_dev_site
 
 
@@ -63,6 +64,35 @@ def test_check_dev_site_verifies_api_frontend_proxy_and_ui_text():
         "vite_proxy_supplier_catalogs",
         "ui_text",
     ]
+
+
+def test_check_dev_site_accepts_blocked_supplier_catalog_diagnostics():
+    app_source = _workspace_tmp("blocked-catalogs") / "App.jsx"
+    app_source.write_text(
+        "\n".join(REQUIRED_UI_TEXT) + "\n",
+        encoding="utf-8",
+    )
+
+    def fetcher(url: str, timeout: float):
+        if url.endswith("/api/health"):
+            return 200, (
+                '{"ok": true, "capabilities": '
+                '["supplier_search_prepare", "supplier_catalog_presets", "supplier_catalog_health", "supplier_discovery_url", "web_auto_search", "market_state_import", "dashboard_queues", "price_candidate_auto_stage", "price_auto_apply", "price_discovery_run", "price_discovery_jobs"]}'
+            )
+        if url.endswith("/api/sources/status"):
+            return 200, '{"sources": []}'
+        if url.endswith("/api/supplier-catalogs/health"):
+            return 200, '{"ok": false, "catalogs": [{"provider": "officemag", "status": "error"}]}'
+        return 200, '<html><body><div id="root"></div></body></html>'
+
+    payload = check_dev_site(
+        api_base_url="http://127.0.0.1:8000",
+        web_base_url="http://127.0.0.1:5175",
+        app_source_path=app_source,
+        fetcher=fetcher,
+    )
+
+    assert payload["ok"] is True
 
 
 def test_check_dev_site_reports_missing_page_size_label():

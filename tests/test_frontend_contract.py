@@ -3071,6 +3071,31 @@ def test_dashboard_surfaces_attention_and_recent_tenders():
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
+def test_dashboard_surfaces_supplier_catalog_connectivity():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+    dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "fetchSupplierCatalogHealth" in app_source
+    assert "const [supplierCatalogHealth, setSupplierCatalogHealth]" in app_source
+    assert "const [supplierCatalogHealthError, setSupplierCatalogHealthError]" in app_source
+    assert "function loadSupplierCatalogHealth" in app_source
+    assert "loadSupplierCatalogHealth(false)" in app_source
+    assert "supplierCatalogHealth={supplierCatalogHealth}" in app_source
+    assert "onRefreshSupplierCatalogs={() => loadSupplierCatalogHealth(true)}" in app_source
+    assert "function SupplierCatalogStatusPanel" in dashboard_source
+    assert "<SupplierCatalogStatusPanel" in dashboard_source
+    assert "catalogHealth?.catalogs" in dashboard_source
+    assert "supplier-catalog-dashboard" in dashboard_source
+    assert ".supplier-catalog-dashboard" in styles_source
+    catalog_status_rule = _css_rule(styles_source, ".supplier-catalog-dashboard .source-status-main > div:first-child span")
+    assert "flex: 1 1 auto" in catalog_status_rule
+    assert "overflow-wrap: anywhere" in catalog_status_rule
+    assert find_mojibake(app_source, APP_SOURCE) == []
+    assert find_mojibake(dashboard_source, DASHBOARD_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_dashboard_layout_uses_aligned_full_width_grid():
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
     shell_width_rule = _css_rule(styles_source, ".topbar,")
