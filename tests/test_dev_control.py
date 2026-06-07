@@ -28,6 +28,7 @@ def test_restart_worker_command_uses_python_module_not_shell_wrappers(tmp_path):
     assert "12" in command
     assert "--generation" in command
     assert "abc123" in command
+    assert "--monitor" in command
     assert "restart-dev.ps1" not in " ".join(command)
     assert "restart-dev.mjs" not in " ".join(command)
 
@@ -140,6 +141,32 @@ def test_stop_managed_processes_includes_spawn_and_worker_pids(tmp_path, monkeyp
     assert stopped_pids == [111, 222, 444, 555, 333]
 
 
+def test_service_needs_restart_when_process_port_or_http_is_unhealthy(monkeypatch):
+    class FakeProcess:
+        pid = 123
+
+        def __init__(self, poll_result):
+            self._poll_result = poll_result
+
+        def poll(self):
+            return self._poll_result
+
+    monkeypatch.setattr(dev_control, "_tcp_port_open", lambda host, port: True)
+    monkeypatch.setattr(dev_control, "_http_ok", lambda url: True)
+
+    assert dev_control._service_needs_restart(FakeProcess(1), "127.0.0.1", 8000, "http://127.0.0.1:8000/api/health") is False
+
+    monkeypatch.setattr(dev_control, "_tcp_port_open", lambda host, port: False)
+    assert dev_control._service_needs_restart(FakeProcess(None), "127.0.0.1", 8000, "http://127.0.0.1:8000/api/health") is True
+
+    monkeypatch.setattr(dev_control, "_tcp_port_open", lambda host, port: True)
+    monkeypatch.setattr(dev_control, "_http_ok", lambda url: False)
+    assert dev_control._service_needs_restart(FakeProcess(None), "127.0.0.1", 8000, "http://127.0.0.1:8000/api/health") is True
+
+    monkeypatch.setattr(dev_control, "_http_ok", lambda url: True)
+    assert dev_control._service_needs_restart(FakeProcess(None), "127.0.0.1", 8000, "http://127.0.0.1:8000/api/health") is False
+
+
 def test_doctor_reports_ports_logs_and_recommendations(tmp_path, capsys, monkeypatch):
     api_log = tmp_path / "logs" / "api.err.log"
     web_log = tmp_path / "logs" / "web.err.log"
@@ -188,3 +215,9 @@ def test_package_restart_script_uses_python_dev_control():
     assert package["scripts"]["dev:status"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control status"
     assert package["scripts"]["dev:stop"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control stop"
     assert package["scripts"]["dev:doctor"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control doctor"
+
+
+def test_package_smoke_script_uses_fast_api_health_check():
+    package = json.loads(Path("package.json").read_text(encoding="utf-8"))
+
+    assert package["scripts"]["dev:smoke"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_health --timeout 1.5"

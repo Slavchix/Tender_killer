@@ -10,6 +10,7 @@ import socket
 import subprocess
 import sys
 import time
+import traceback
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import replace
@@ -24,6 +25,7 @@ DEFAULT_API_PORT = 8000
 DEFAULT_WEB_PORT = 5175
 DEFAULT_EXTRA_WEB_PORTS = (5173, 5174)
 DEFAULT_TIMEOUT_SECONDS = 12
+DEFAULT_SUPERVISOR_POLL_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,8 @@ class DevControlConfig:
     extra_web_ports: tuple[int, ...] = DEFAULT_EXTRA_WEB_PORTS
     host: str = "127.0.0.1"
     generation: str = ""
+    monitor: bool = False
+    supervisor_poll_seconds: float = DEFAULT_SUPERVISOR_POLL_SECONDS
 
     @property
     def logs_dir(self) -> Path:
@@ -47,6 +51,10 @@ class DevControlConfig:
     @property
     def generation_path(self) -> Path:
         return self.logs_dir / "dev-control-generation.txt"
+
+    @property
+    def supervisor_log_path(self) -> Path:
+        return self.logs_dir / "dev-supervisor.err.log"
 
     @property
     def api_url(self) -> str:
@@ -97,6 +105,7 @@ def restart_worker_command(config: DevControlConfig) -> list[str]:
         command.extend(["--extra-web-ports", ",".join(str(port) for port in config.extra_web_ports)])
     if config.generation:
         command.extend(["--generation", config.generation])
+    command.append("--monitor")
     return command
 
 
@@ -131,11 +140,29 @@ def detached_spawn_kwargs(cwd: Path) -> dict[str, object]:
     }
 
 
+def supervisor_spawn_kwargs(config: DevControlConfig) -> dict[str, object]:
+    kwargs = detached_spawn_kwargs(config.root)
+    config.logs_dir.mkdir(parents=True, exist_ok=True)
+    stderr = config.supervisor_log_path.open("ab", buffering=0)
+    kwargs["stderr"] = stderr
+    kwargs["stdout"] = stderr
+    return kwargs
+
+
 def start_restart_worker(config: DevControlConfig) -> dict[str, object]:
     generation = f"{time.time_ns()}-{os.getpid()}"
     write_generation(config.root, generation)
     config = replace(config, generation=generation)
-    process = subprocess.Popen(restart_worker_command(config), **detached_spawn_kwargs(config.root))
+    spawn_kwargs = supervisor_spawn_kwargs(config)
+    stdout = spawn_kwargs.get("stdout")
+    stderr = spawn_kwargs.get("stderr")
+    try:
+        process = subprocess.Popen(restart_worker_command(config), **spawn_kwargs)
+    finally:
+        if hasattr(stdout, "close"):
+            stdout.close()
+        if stderr is not stdout and hasattr(stderr, "close"):
+            stderr.close()
     return {
         "scheduled": True,
         "worker_pid": process.pid,
@@ -205,68 +232,26 @@ def run_worker(config: DevControlConfig) -> int:
 
     env = _dev_environment(config, node)
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
-    api_log = config.logs_dir / f"api-dev-{config.api_port}-{run_id}.err.log"
-    web_log = config.logs_dir / f"web-vite-{config.web_port}-{run_id}.err.log"
-    api_process = _spawn_service(
-        [
-            sys.executable,
-            "-m",
-            "tender_killer.web_api",
-            "--host",
-            config.host,
-            "--port",
-            str(config.api_port),
-        ],
-        cwd=config.root,
-        env=env,
-        stdout_path=config.logs_dir / f"api-dev-{config.api_port}-{run_id}.out.log",
-        stderr_path=api_log,
-    )
-    web_mode = "vite"
-    web_process = _spawn_service(
-        [node, str(config.vite_script), "--host", config.host, "--port", str(config.web_port)],
-        cwd=config.root / "web",
-        env=env,
-        stdout_path=config.logs_dir / f"web-vite-{config.web_port}-{run_id}.out.log",
-        stderr_path=web_log,
-    )
-    time.sleep(1)
-    if web_process.poll() is not None:
-        static_root = config.root / "web" / "dist" / "index.html"
-        if static_root.exists():
-            web_mode = "static"
-            web_log = config.logs_dir / f"web-static-{config.web_port}-{run_id}.err.log"
-            web_process = _spawn_service(
-                static_web_command(config),
-                cwd=config.root,
-                env=env,
-                stdout_path=config.logs_dir / f"web-static-{config.web_port}-{run_id}.out.log",
-                stderr_path=web_log,
-            )
+    api_process, api_log = _spawn_api_service(config, env, run_id)
+    web_process, web_log, web_mode = _spawn_web_service(config, env, node, run_id)
     if not generation_is_current(config):
         _stop_pids([api_process.pid, web_process.pid])
         return 0
 
     api_ready, web_ready = _wait_for_ready(config)
-    api_pid = _select_service_pid(api_process.pid, _port_owner_pids(config.api_port))
-    web_pid = _select_service_pid(web_process.pid, _port_owner_pids(config.web_port))
-    manifest = DevProcessManifest(
-        api_pid=api_pid,
-        web_pid=web_pid,
-        api=config.api_url,
-        frontend=config.frontend_url,
-        api_log=str(api_log),
-        web_log=str(web_log),
-        api_ready=api_ready,
-        web_ready=web_ready,
-        web_mode=web_mode,
-        started_at=datetime.now().isoformat(timespec="seconds"),
-        worker_pid=os.getpid(),
-        api_spawn_pid=api_process.pid,
-        web_spawn_pid=web_process.pid,
+    manifest = _write_running_manifest(
+        config,
+        api_process,
+        web_process,
+        api_log,
+        web_log,
+        web_mode,
+        api_ready,
+        web_ready,
     )
-    write_manifest(config.manifest_path, manifest)
     print(json.dumps(asdict(manifest), ensure_ascii=False, indent=2))
+    if config.monitor:
+        return _supervise_services(config, env, node, run_id, api_process, web_process, api_log, web_log, web_mode)
     return 0 if api_ready and web_ready else 1
 
 
@@ -295,6 +280,8 @@ def status_dev(config: DevControlConfig) -> int:
             "web_pid": manifest.web_pid,
             "web_alive": _pid_alive(manifest.web_pid),
             "web_mode": manifest.web_mode,
+            "worker_pid": manifest.worker_pid,
+            "worker_alive": _pid_alive(manifest.worker_pid or 0),
             "api_spawn_pid": manifest.api_spawn_pid,
             "web_spawn_pid": manifest.web_spawn_pid,
             "api_port_pids": _port_owner_pids(config.api_port),
@@ -327,11 +314,16 @@ def doctor_dev(config: DevControlConfig) -> int:
             "url": config.frontend_url,
             "mode": manifest.web_mode if manifest else "unknown",
         },
+        "supervisor": {
+            "pid": manifest.worker_pid if manifest else None,
+            "alive": _pid_alive(manifest.worker_pid or 0) if manifest else False,
+        },
     }
     payload = {
         "ok": (
             api_http_ok
             and web_http_ok
+            and bool(services["supervisor"]["alive"])
             and len(api_port_pids) <= 1
             and len(web_port_pids) <= 1
         ),
@@ -387,6 +379,167 @@ def _spawn_service(
     finally:
         stdout.close()
         stderr.close()
+
+
+def _spawn_api_service(
+    config: DevControlConfig,
+    env: dict[str, str],
+    run_id: str,
+) -> tuple[subprocess.Popen[bytes], Path]:
+    api_log = config.logs_dir / f"api-dev-{config.api_port}-{run_id}.err.log"
+    process = _spawn_service(
+        [
+            sys.executable,
+            "-m",
+            "tender_killer.web_api",
+            "--host",
+            config.host,
+            "--port",
+            str(config.api_port),
+        ],
+        cwd=config.root,
+        env=env,
+        stdout_path=config.logs_dir / f"api-dev-{config.api_port}-{run_id}.out.log",
+        stderr_path=api_log,
+    )
+    return process, api_log
+
+
+def _spawn_web_service(
+    config: DevControlConfig,
+    env: dict[str, str],
+    node: str,
+    run_id: str,
+) -> tuple[subprocess.Popen[bytes], Path, str]:
+    web_mode = "vite"
+    web_log = config.logs_dir / f"web-vite-{config.web_port}-{run_id}.err.log"
+    process = _spawn_service(
+        [node, str(config.vite_script), "--host", config.host, "--port", str(config.web_port)],
+        cwd=config.root / "web",
+        env=env,
+        stdout_path=config.logs_dir / f"web-vite-{config.web_port}-{run_id}.out.log",
+        stderr_path=web_log,
+    )
+    time.sleep(1)
+    if process.poll() is None:
+        return process, web_log, web_mode
+
+    static_root = config.root / "web" / "dist" / "index.html"
+    if not static_root.exists():
+        return process, web_log, web_mode
+
+    web_mode = "static"
+    web_log = config.logs_dir / f"web-static-{config.web_port}-{run_id}.err.log"
+    process = _spawn_service(
+        static_web_command(config),
+        cwd=config.root,
+        env=env,
+        stdout_path=config.logs_dir / f"web-static-{config.web_port}-{run_id}.out.log",
+        stderr_path=web_log,
+    )
+    return process, web_log, web_mode
+
+
+def _write_running_manifest(
+    config: DevControlConfig,
+    api_process: subprocess.Popen[bytes],
+    web_process: subprocess.Popen[bytes],
+    api_log: Path,
+    web_log: Path,
+    web_mode: str,
+    api_ready: bool,
+    web_ready: bool,
+) -> DevProcessManifest:
+    manifest = DevProcessManifest(
+        api_pid=_select_service_pid(api_process.pid, _port_owner_pids(config.api_port)),
+        web_pid=_select_service_pid(web_process.pid, _port_owner_pids(config.web_port)),
+        api=config.api_url,
+        frontend=config.frontend_url,
+        api_log=str(api_log),
+        web_log=str(web_log),
+        api_ready=api_ready,
+        web_ready=web_ready,
+        web_mode=web_mode,
+        started_at=datetime.now().isoformat(timespec="seconds"),
+        worker_pid=os.getpid(),
+        api_spawn_pid=api_process.pid,
+        web_spawn_pid=web_process.pid,
+    )
+    write_manifest(config.manifest_path, manifest)
+    return manifest
+
+
+def _supervise_services(
+    config: DevControlConfig,
+    env: dict[str, str],
+    node: str,
+    run_id: str,
+    api_process: subprocess.Popen[bytes],
+    web_process: subprocess.Popen[bytes],
+    api_log: Path,
+    web_log: Path,
+    web_mode: str,
+) -> int:
+    poll_seconds = max(0.5, float(config.supervisor_poll_seconds))
+    while generation_is_current(config):
+        time.sleep(poll_seconds)
+        try:
+            restarted = False
+            if _service_needs_restart(
+                api_process,
+                config.host,
+                config.api_port,
+                f"{config.api_url}/api/health",
+            ):
+                _supervisor_log(config, "API service is unhealthy; restarting.")
+                _stop_pids([api_process.pid, *_port_owner_pids(config.api_port)])
+                api_process, api_log = _spawn_api_service(config, env, run_id)
+                restarted = True
+            if _service_needs_restart(web_process, config.host, config.web_port, config.frontend_url):
+                _supervisor_log(config, "Web service is unhealthy; restarting.")
+                _stop_pids([web_process.pid, *_port_owner_pids(config.web_port)])
+                web_process, web_log, web_mode = _spawn_web_service(config, env, node, run_id)
+                restarted = True
+            if restarted and generation_is_current(config):
+                api_ready, web_ready = _wait_for_ready(config)
+                _write_running_manifest(
+                    config,
+                    api_process,
+                    web_process,
+                    api_log,
+                    web_log,
+                    web_mode,
+                    api_ready,
+                    web_ready,
+                )
+        except Exception:  # noqa: BLE001 - supervisor must keep dev services recoverable.
+            _supervisor_log(config, "Supervisor loop failed:\n" + traceback.format_exc())
+    return 0
+
+
+def _service_needs_restart(
+    process: subprocess.Popen[bytes],
+    host: str,
+    port: int,
+    health_url: str,
+) -> bool:
+    port_open = _tcp_port_open(host, port)
+    http_ok = _http_ok(health_url) if port_open else False
+    if port_open and http_ok:
+        return False
+    if process.poll() is not None:
+        return True
+    return True
+
+
+def _supervisor_log(config: DevControlConfig, message: str) -> None:
+    try:
+        config.logs_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().isoformat(timespec="seconds")
+        with config.supervisor_log_path.open("a", encoding="utf-8") as handle:
+            handle.write(f"[{timestamp}] {message.rstrip()}\n")
+    except OSError:
+        pass
 
 
 def _dev_environment(config: DevControlConfig, node: str) -> dict[str, str]:
@@ -466,10 +619,14 @@ def _doctor_recommendations(payload: dict[str, object]) -> list[str]:
     assert isinstance(services, dict)
     api = services["api"]
     web = services["web"]
+    supervisor = services.get("supervisor", {})
     assert isinstance(api, dict)
     assert isinstance(web, dict)
+    assert isinstance(supervisor, dict)
     if not api["http_ok"] or not web["http_ok"]:
         recommendations.append(f"Run {restart_command} if a service is not answering HTTP.")
+    if not supervisor.get("alive"):
+        recommendations.append(f"Run {restart_command} because the dev supervisor is not running.")
     if web.get("mode") == "static":
         recommendations.append("Frontend is running through static fallback; check the web log before expecting Vite hot reload.")
     logs = payload["logs"]
@@ -642,6 +799,7 @@ def _config_from_args(args: argparse.Namespace) -> DevControlConfig:
         timeout_seconds=args.timeout_seconds,
         extra_web_ports=extra_ports,
         generation=str(args.generation or ""),
+        monitor=bool(args.monitor),
     )
 
 
@@ -660,6 +818,7 @@ def build_parser() -> argparse.ArgumentParser:
             help="Comma-separated stale web ports to stop as fallback.",
         )
         command.add_argument("--generation", default="")
+        command.add_argument("--monitor", action="store_true")
     return parser
 
 

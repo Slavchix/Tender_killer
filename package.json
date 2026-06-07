@@ -6,7 +6,7 @@
     "dev:stop": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control stop",
     "dev:doctor": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control doctor",
     "dev:health": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_health",
-    "dev:smoke": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_smoke",
+    "dev:smoke": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_health --timeout 1.5",
     "dev:web": "npm --prefix web run dev",
     "dev:api": ".\\.venv\\Scripts\\python.exe -m tender_killer.web_api"
   }
