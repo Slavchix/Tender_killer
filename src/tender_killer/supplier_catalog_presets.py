@@ -4,6 +4,72 @@ import re
 from typing import Any
 
 
+OFFICE_CATALOG_EXCLUDE_KEYWORDS: tuple[str, ...] = (
+    "abrasive",
+    "sandpaper",
+    "emery",
+    "building",
+    "cement",
+    "concrete",
+    "laminate",
+    "plinth",
+    "baseboard",
+    "cable",
+    "clamp",
+    "plumbing",
+    "\u0430\u0431\u0440\u0430\u0437\u0438\u0432",
+    "\u043d\u0430\u0436\u0434\u0430\u0447",
+    "\u0448\u043b\u0438\u0444",
+    "\u0441\u0442\u0440\u043e\u0438\u0442\u0435\u043b",
+    "\u0446\u0435\u043c\u0435\u043d\u0442",
+    "\u0431\u0435\u0442\u043e\u043d",
+    "\u043b\u0430\u043c\u0438\u043d\u0430\u0442",
+    "\u043f\u043b\u0438\u043d\u0442\u0443\u0441",
+    "\u043a\u0430\u0431\u0435\u043b",
+    "\u0445\u043e\u043c\u0443\u0442",
+    "\u0441\u0430\u043d\u0442\u0435\u0445",
+)
+
+DIY_ABRASIVE_KEYWORDS: tuple[str, ...] = (
+    "abrasive",
+    "sandpaper",
+    "emery",
+    "\u0430\u0431\u0440\u0430\u0437\u0438\u0432",
+    "\u043d\u0430\u0436\u0434\u0430\u0447",
+    "\u0448\u043a\u0443\u0440\u043a",
+)
+
+DIY_DOOR_HARDWARE_KEYWORDS: tuple[str, ...] = (
+    "lock",
+    "hinge",
+    "closer",
+    "cylinder",
+    "door hardware",
+    "\u0437\u0430\u043c\u043e\u043a",
+    "\u043f\u0435\u0442\u043b\u044f",
+    "\u0434\u043e\u0432\u043e\u0434\u0447\u0438\u043a",
+    "\u043b\u0438\u0447\u0438\u043d\u043a",
+    "\u0446\u0438\u043b\u0438\u043d\u0434\u0440",
+    "\u0444\u0443\u0440\u043d\u0438\u0442\u0443\u0440",
+    "\u0434\u0432\u0435\u0440\u043d",
+    "\u0440\u0443\u0447\u043a\u0430 \u043d\u0430 \u043f\u043b\u0430\u043d\u043a\u0435",
+    "\u0440\u0443\u0447\u043a\u0430-\u0441\u043a\u043e\u0431\u0430",
+)
+
+DIY_PLUMBING_KEYWORDS: tuple[str, ...] = (
+    "plumbing",
+    "bath",
+    "sink",
+    "toilet",
+    "shower",
+    "\u0441\u0430\u043d\u0442\u0435\u0445",
+    "\u0440\u0430\u043a\u043e\u0432\u0438\u043d",
+    "\u0443\u043d\u0438\u0442\u0430\u0437",
+    "\u0434\u0443\u0448",
+    "\u0441\u043c\u0435\u0441\u0438\u0442\u0435\u043b",
+)
+
+
 SUPPLIER_CATALOG_PRESETS: tuple[dict[str, Any], ...] = (
     {
         "preset_id": "officemag_office_supplies",
@@ -29,6 +95,7 @@ SUPPLIER_CATALOG_PRESETS: tuple[dict[str, Any], ...] = (
             "расходн",
             "чернил",
         ),
+        "exclude_keywords": OFFICE_CATALOG_EXCLUDE_KEYWORDS,
         "match_okpd2_prefixes": ("17.12", "28.23"),
     },
     {
@@ -55,6 +122,7 @@ SUPPLIER_CATALOG_PRESETS: tuple[dict[str, Any], ...] = (
             "расходн",
             "чернил",
         ),
+        "exclude_keywords": OFFICE_CATALOG_EXCLUDE_KEYWORDS,
         "match_okpd2_prefixes": ("17.12", "28.23"),
     },
     {
@@ -149,7 +217,7 @@ SUPPLIER_CATALOG_PRESETS: tuple[dict[str, Any], ...] = (
             "\u0440\u043e\u0437\u0435\u0442\u043a",
             "\u0432\u044b\u043a\u043b\u044e\u0447\u0430\u0442\u0435\u043b",
             "\u0430\u0440\u043c\u0430\u0442\u0443\u0440\u0430 \u043a\u0430\u0431\u0435\u043b\u044c\u043d\u0430\u044f",
-        ),
+        ) + DIY_ABRASIVE_KEYWORDS + DIY_DOOR_HARDWARE_KEYWORDS + DIY_PLUMBING_KEYWORDS,
         "match_okpd2_prefixes": ("08.12", "23.5", "23.6", "23.7", "23.9", "25.73", "27.3", "28.24"),
     },
     {
@@ -196,7 +264,7 @@ SUPPLIER_CATALOG_PRESETS: tuple[dict[str, Any], ...] = (
             "\u0440\u043e\u0437\u0435\u0442\u043a",
             "\u0432\u044b\u043a\u043b\u044e\u0447\u0430\u0442\u0435\u043b",
             "\u0430\u0440\u043c\u0430\u0442\u0443\u0440\u0430 \u043a\u0430\u0431\u0435\u043b\u044c\u043d\u0430\u044f",
-        ),
+        ) + DIY_ABRASIVE_KEYWORDS + DIY_DOOR_HARDWARE_KEYWORDS + DIY_PLUMBING_KEYWORDS,
         "match_okpd2_prefixes": ("08.12", "23.5", "23.6", "23.7", "23.9", "27.3"),
     },
 )
@@ -264,6 +332,9 @@ def _matches_profile(
     profile_tokens: list[str],
     okpd2_codes: list[str],
 ) -> bool:
+    exclude_keywords = preset.get("exclude_keywords") or ()
+    if any(_matches_keyword(str(keyword), profile_text, profile_tokens) for keyword in exclude_keywords):
+        return False
     if _matches_okpd2_prefix(preset, okpd2_codes):
         return True
     keywords = preset.get("match_keywords") or preset.get("match_terms") or ()

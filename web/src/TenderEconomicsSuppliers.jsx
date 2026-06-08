@@ -74,6 +74,12 @@ function PriceCandidatesList({
         const rejected = candidate.review_status === 'rejected'
         const busy = reviewingPriceCandidateId === candidate.id
         const qualityFlags = Array.isArray(candidate.quality_flags) ? candidate.quality_flags : []
+        const matchReasons = priceCandidateReasonItems(candidate.match_reasons, candidate.raw_payload?.match_reasons)
+        const reviewReasons = priceCandidateReasonItems(
+          candidate.risk_reasons,
+          candidate.raw_payload?.risk_reasons,
+          qualityFlags.map((flag) => flag.id || flag.label),
+        )
         const stockText = formatSupplierStock(candidate)
         const profileQuantity = numberOrNull(profile?.quantity)
         const candidateUnitPrice = numberOrNull(candidate.unit_price)
@@ -124,6 +130,20 @@ function PriceCandidatesList({
                 <p className="price-candidate-selected-break">
                   В расчет выбрана ступень от {formatQuantity(selectedPriceBreak.count)} шт.
                 </p>
+              )}
+              {(matchReasons.length > 0 || reviewReasons.length > 0) && (
+                <div className="price-candidate-reasons" aria-label="candidate match reasons">
+                  {matchReasons.slice(0, 5).map((reason) => (
+                    <span className="match" key={`match-${reason}`}>
+                      {priceCandidateReasonLabel(reason)}
+                    </span>
+                  ))}
+                  {reviewReasons.slice(0, 5).map((reason) => (
+                    <span className="risk" key={`risk-${reason}`}>
+                      {priceCandidateReasonLabel(reason)}
+                    </span>
+                  ))}
+                </div>
               )}
               {qualityFlags.length > 0 && (
                 <ul className="price-candidate-flags">
@@ -217,6 +237,52 @@ function formatQuantity(value) {
 function numberOrNull(value) {
   const number = Number(value)
   return Number.isFinite(number) ? number : null
+}
+
+function priceCandidateReasonItems(...values) {
+  const items = []
+  values.forEach((value) => {
+    const list = Array.isArray(value) ? value : value ? [value] : []
+    list.forEach((item) => {
+      const text = String(item || '').trim()
+      if (text && !items.includes(text)) items.push(text)
+    })
+  })
+  return items
+}
+
+function priceCandidateReasonLabel(reason) {
+  const labels = {
+    availability_unknown: '\u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u043d\u0430\u043b\u0438\u0447\u0438\u0435',
+    brand_match: '\u0431\u0440\u0435\u043d\u0434 \u0441\u043e\u0432\u043f\u0430\u043b',
+    color_match: '\u0446\u0432\u0435\u0442 \u0441\u043e\u0432\u043f\u0430\u043b',
+    delivery_needs_review: '\u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0443',
+    delivery_pickup_only: '\u0441\u0430\u043c\u043e\u0432\u044b\u0432\u043e\u0437',
+    delivery_unknown: '\u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0443',
+    dimension_match: '\u0440\u0430\u0437\u043c\u0435\u0440 \u0441\u043e\u0432\u043f\u0430\u043b',
+    [`from_${['supplier', 'discovery'].join('_')}`]: '\u043d\u0430\u0439\u0434\u0435\u043d\u043e \u043f\u043e\u0438\u0441\u043a\u043e\u043c',
+    material_match: '\u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b \u0441\u043e\u0432\u043f\u0430\u043b',
+    minimum_order_amount: '\u043c\u0438\u043d\u0438\u043c\u0430\u043b\u044c\u043d\u0430\u044f \u0441\u0443\u043c\u043c\u0430',
+    minimum_order_quantity: '\u043c\u0438\u043d\u0438\u043c\u0430\u043b\u044c\u043d\u044b\u0439 \u0437\u0430\u043a\u0430\u0437',
+    model_match: '\u043c\u043e\u0434\u0435\u043b\u044c \u0441\u043e\u0432\u043f\u0430\u043b\u0430',
+    pack_quantity_normalized: '\u0443\u043f\u0430\u043a\u043e\u0432\u043a\u0430 \u043f\u0435\u0440\u0435\u0441\u0447\u0438\u0442\u0430\u043d\u0430',
+    pack_quantity_unknown: '\u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0443\u043f\u0430\u043a\u043e\u0432\u043a\u0443',
+    paper_format_match: '\u0444\u043e\u0440\u043c\u0430\u0442 \u0441\u043e\u0432\u043f\u0430\u043b',
+    paper_sheet_count_match: '\u043b\u0438\u0441\u0442\u043e\u0432 \u0441\u043e\u0432\u043f\u0430\u043b\u043e',
+    piece_pack_count_match: '\u0444\u0430\u0441\u043e\u0432\u043a\u0430 \u0441\u043e\u0432\u043f\u0430\u043b\u0430',
+    price_break_selected: '\u0441\u0442\u0443\u043f\u0435\u043d\u044c \u0446\u0435\u043d\u044b \u0432\u044b\u0431\u0440\u0430\u043d\u0430',
+    product_family_match: '\u0442\u0438\u043f \u0442\u043e\u0432\u0430\u0440\u0430 \u0441\u043e\u0432\u043f\u0430\u043b',
+    profile_intent_match: '\u043f\u043e\u0437\u0438\u0446\u0438\u044f \u0441\u043e\u0432\u043f\u0430\u043b\u0430',
+    strict_source_query: '\u0442\u043e\u0447\u043d\u044b\u0439 \u0437\u0430\u043f\u0440\u043e\u0441',
+    token_overlap: '\u0442\u0435\u0440\u043c\u0438\u043d\u044b \u0441\u043e\u0432\u043f\u0430\u043b\u0438',
+    unit_mismatch: '\u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0435\u0434\u0438\u043d\u0438\u0446\u0443',
+    vat_normalized: '\u041d\u0414\u0421 \u043f\u0435\u0440\u0435\u0441\u0447\u0438\u0442\u0430\u043d',
+    vat_not_included: '\u041d\u0414\u0421 \u0441\u0432\u0435\u0440\u0445\u0443',
+    vat_unknown: '\u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u041d\u0414\u0421',
+    volume_match: '\u043e\u0431\u044a\u0435\u043c \u0441\u043e\u0432\u043f\u0430\u043b',
+    weight_match: '\u0432\u0435\u0441 \u0441\u043e\u0432\u043f\u0430\u043b',
+  }
+  return labels[reason] || String(reason || '').replace(/_/g, ' ')
 }
 
 function priceCandidateQualityLabel(status) {

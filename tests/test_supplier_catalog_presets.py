@@ -76,6 +76,17 @@ def test_supplier_catalog_presets_route_cable_accessories_to_tool_and_diy_catalo
     assert [preset["provider"] for preset in plug_presets] == ["vseinstrumenti", "lemanapro"]
 
 
+def test_supplier_catalog_presets_route_abrasive_paper_away_from_office_catalogs() -> None:
+    presets = supplier_catalog_presets_for_profile(
+        {
+            "product_name": "\u0411\u0443\u043c\u0430\u0433\u0430 \u043d\u0430\u0436\u0434\u0430\u0447\u043d\u0430\u044f P80, 230x280 \u043c\u043c",
+            "normalized_name": "\u0431\u0443\u043c\u0430\u0433\u0430 \u043d\u0430\u0436\u0434\u0430\u0447\u043d\u0430\u044f p80",
+        }
+    )
+
+    assert [preset["provider"] for preset in presets] == ["vseinstrumenti", "lemanapro"]
+
+
 def test_supplier_catalog_presets_match_real_russian_office_paper_without_okpd2() -> None:
     presets = supplier_catalog_presets_for_profile(
         {

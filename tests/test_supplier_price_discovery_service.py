@@ -1769,6 +1769,51 @@ def test_relevant_catalog_collectors_can_be_selected_from_profile_when_links_are
     assert diagnostics["catalog_officemag"]["skip_reason"] == "not_relevant_for_profile"
 
 
+def test_relevant_catalog_collectors_ignore_stale_query_links_when_profile_routes_elsewhere() -> None:
+    class OfficeCatalogCollector:
+        provider = "catalog_officemag"
+
+    class LemanaCatalogCollector:
+        provider = "catalog_lemanapro"
+
+    class SchemaCollector:
+        provider = "schema_org_product"
+
+    diagnostics: dict[str, dict[str, object]] = {}
+    selected = price_discovery._relevant_price_collectors_for_queries(
+        [
+            {
+                "query": "cement m500 50 kg",
+                "kind": "normalized_name",
+                "quick_links": [
+                    {
+                        "label": "OfficeMag stale link",
+                        "url": "https://www.officemag.ru/search/?q=cement",
+                        "provider": "officemag",
+                        "link_kind": "catalog_search",
+                    },
+                    {
+                        "label": "Lemana Pro",
+                        "url": "https://lemanapro.ru/search/?q=cement",
+                        "provider": "lemanapro",
+                        "link_kind": "catalog_search",
+                    },
+                ],
+            }
+        ],
+        [OfficeCatalogCollector(), LemanaCatalogCollector(), SchemaCollector()],
+        diagnostics,
+        profile={
+            "product_name": "cement m500 50 kg",
+            "normalized_name": "cement m500 50 kg",
+            "okpd2": "23.51.12.110",
+        },
+    )
+
+    assert [collector.provider for collector in selected] == ["catalog_lemanapro", "schema_org_product"]
+    assert diagnostics["catalog_officemag"]["skip_reason"] == "not_relevant_for_profile"
+
+
 def test_relevant_catalog_collectors_route_cable_accessories_without_catalog_links() -> None:
     class OfficeCatalogCollector:
         provider = "catalog_officemag"

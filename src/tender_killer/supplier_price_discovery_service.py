@@ -654,9 +654,13 @@ def _relevant_price_collectors_for_queries(
     diagnostics_by_provider: dict[str, dict[str, Any]],
     profile: dict[str, Any] | None = None,
 ) -> list[Any]:
-    allowed_catalog_providers = _catalog_providers_for_queries(queries)
+    query_catalog_providers = _catalog_providers_for_queries(queries)
+    allowed_catalog_providers = query_catalog_providers
     if profile is not None:
-        allowed_catalog_providers.update(supplier_catalog_providers_for_profile(profile))
+        profile_catalog_providers = supplier_catalog_providers_for_profile(profile)
+        if profile_catalog_providers:
+            allowed_catalog_providers = set(profile_catalog_providers)
+            allowed_catalog_providers.update(_manual_product_catalog_providers_for_queries(queries))
     relevant_collectors: list[Any] = []
     for collector in price_collectors:
         catalog_provider = _collector_catalog_provider(collector)
@@ -680,6 +684,17 @@ def _catalog_providers_for_queries(queries: list[dict[str, Any]]) -> set[str]:
             link_kind = _text(link.get("link_kind"))
             provider = _text(link.get("provider"))
             if link_kind in {CATALOG_SEARCH_LINK_KIND, MANUAL_PRODUCT_LINK_KIND} and provider:
+                providers.add(provider.casefold())
+    return providers
+
+
+def _manual_product_catalog_providers_for_queries(queries: list[dict[str, Any]]) -> set[str]:
+    providers: set[str] = set()
+    for query in queries:
+        for link in _quick_links(query):
+            link_kind = _text(link.get("link_kind"))
+            provider = _text(link.get("provider"))
+            if link_kind == MANUAL_PRODUCT_LINK_KIND and provider:
                 providers.add(provider.casefold())
     return providers
 

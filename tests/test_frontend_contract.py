@@ -1489,6 +1489,10 @@ def test_product_profile_renders_supplier_option_form():
     assert "candidate.score" in source
     assert "candidate.quality_status" in source
     assert "candidate.quality_flags" in source
+    assert "candidate.match_reasons" in source
+    assert "candidate.raw_payload?.match_reasons" in source
+    assert "priceCandidateReasonLabel" in source
+    assert "price-candidate-reasons" in source
     assert "priceCandidateQualityLabel" in source
     assert "готова к расчету" in source
     assert "не брать автоматически" in source
@@ -1556,6 +1560,7 @@ def test_product_profile_renders_supplier_option_form():
     assert ".price-candidate-row" in styles_source
     assert ".price-candidate-reference-price" in styles_source
     assert ".price-candidate-price-delta" in styles_source
+    assert ".price-candidate-reasons" in styles_source
     assert ".supplier-search-catalog-links" in styles_source
     assert ".supplier-discovery-diagnostics" in styles_source
     assert ".supplier-discovery-metrics" in styles_source
