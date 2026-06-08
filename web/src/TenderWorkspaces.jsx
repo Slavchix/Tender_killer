@@ -52,7 +52,6 @@ export function TenderWorkspaces({
     onPriceCandidateConfirm,
     onPriceCandidateReject,
     onSupplierSearchPrepare,
-    onSupplierCatalogPresetsSave,
     onSupplierDiscoveryRun,
     onSupplierUrlDiscoveryRun,
     onAutoEconomicsRun,
@@ -63,7 +62,6 @@ export function TenderWorkspaces({
     importingSupplierCandidatePosition,
     reviewingPriceCandidateId,
     preparingSupplierSearchPosition,
-    savingSupplierCatalogPresetPosition,
     discoveringSupplierPosition,
     autoSelectingSupplierPosition,
     autoSelectingAllSuppliers,
@@ -73,11 +71,7 @@ export function TenderWorkspaces({
     applyingAutoPrices,
     autoEstimatingPosition,
     acceptingAutoEconomicsPosition,
-    supplierCatalogHealth,
-    supplierCatalogHealthLoading,
-    supplierCatalogHealthError,
     priceDiscoveryJob,
-    onSupplierCatalogHealthRefresh,
   } = economicsState
 
   return (
@@ -137,7 +131,6 @@ export function TenderWorkspaces({
           onPriceCandidateConfirm={onPriceCandidateConfirm}
           onPriceCandidateReject={onPriceCandidateReject}
           onSupplierSearchPrepare={onSupplierSearchPrepare}
-          onSupplierCatalogPresetsSave={onSupplierCatalogPresetsSave}
           onSupplierDiscoveryRun={onSupplierDiscoveryRun}
           onSupplierUrlDiscoveryRun={onSupplierUrlDiscoveryRun}
           onAutoEconomicsRun={onAutoEconomicsRun}
@@ -148,7 +141,6 @@ export function TenderWorkspaces({
           importingSupplierCandidatePosition={importingSupplierCandidatePosition}
           reviewingPriceCandidateId={reviewingPriceCandidateId}
           preparingSupplierSearchPosition={preparingSupplierSearchPosition}
-          savingSupplierCatalogPresetPosition={savingSupplierCatalogPresetPosition}
           discoveringSupplierPosition={discoveringSupplierPosition}
           autoSelectingSupplierPosition={autoSelectingSupplierPosition}
           autoSelectingAllSuppliers={autoSelectingAllSuppliers}
@@ -158,11 +150,7 @@ export function TenderWorkspaces({
           applyingAutoPrices={applyingAutoPrices}
           autoEstimatingPosition={autoEstimatingPosition}
           acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
-          supplierCatalogHealth={supplierCatalogHealth}
-          supplierCatalogHealthLoading={supplierCatalogHealthLoading}
-          supplierCatalogHealthError={supplierCatalogHealthError}
           priceDiscoveryJob={priceDiscoveryJob}
-          onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
         />
       )}
     </TenderFullscreenWorkspace>

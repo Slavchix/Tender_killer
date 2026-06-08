@@ -8,7 +8,6 @@ import {
   confirmReadyTenderPriceCandidates as confirmReadyTenderPriceCandidatesRequest,
   confirmProfilePriceCandidate as confirmProfilePriceCandidateRequest,
   fetchPriceDiscoveryJob,
-  fetchSupplierCatalogHealth,
   importProfileSupplierDiscoveryCandidate,
   prepareProfileSupplierSearch as prepareProfileSupplierSearchRequest,
   rebuildTenderProductProfiles,
@@ -17,7 +16,6 @@ import {
   runProfileAutoEconomics as runProfileAutoEconomicsRequest,
   runProfileSupplierDiscovery as runProfileSupplierDiscoveryRequest,
   runProfileSupplierUrlDiscovery as runProfileSupplierUrlDiscoveryRequest,
-  saveProfileSupplierCatalogPresets as saveProfileSupplierCatalogPresetsRequest,
   saveProfileEconomics as saveProfileEconomicsRequest,
   saveProfileEconomicsAssumptions as saveProfileEconomicsAssumptionsRequest,
   selectProfileSupplierOption,
@@ -75,15 +73,11 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
   const [importingSupplierCandidatePosition, setImportingSupplierCandidatePosition] = useState(null)
   const [reviewingPriceCandidateId, setReviewingPriceCandidateId] = useState(null)
   const [preparingSupplierSearchPosition, setPreparingSupplierSearchPosition] = useState(null)
-  const [savingSupplierCatalogPresetPosition, setSavingSupplierCatalogPresetPosition] = useState(null)
   const [discoveringSupplierPosition, setDiscoveringSupplierPosition] = useState(null)
   const [autoSelectingSupplierPosition, setAutoSelectingSupplierPosition] = useState(null)
   const [autoSelectingAllSuppliers, setAutoSelectingAllSuppliers] = useState(false)
   const [autoEstimatingPosition, setAutoEstimatingPosition] = useState(null)
   const [acceptingAutoEconomicsPosition, setAcceptingAutoEconomicsPosition] = useState(null)
-  const [supplierCatalogHealth, setSupplierCatalogHealth] = useState(null)
-  const [supplierCatalogHealthLoading, setSupplierCatalogHealthLoading] = useState(false)
-  const [supplierCatalogHealthError, setSupplierCatalogHealthError] = useState('')
   const [priceDiscoveryJob, setPriceDiscoveryJob] = useState(null)
 
   useEffect(() => {
@@ -94,7 +88,6 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     setImportingSupplierCandidatePosition(null)
     setReviewingPriceCandidateId(null)
     setPreparingSupplierSearchPosition(null)
-    setSavingSupplierCatalogPresetPosition(null)
     setDiscoveringSupplierPosition(null)
     setAutoSelectingSupplierPosition(null)
     setAutoSelectingAllSuppliers(false)
@@ -137,21 +130,6 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       window.clearTimeout(timer)
     }
   }, [priceDiscoveryJob, onTenderRefresh, setDetailStatus])
-
-  function refreshSupplierCatalogHealth(live = false) {
-    setSupplierCatalogHealthLoading(true)
-    setSupplierCatalogHealthError('')
-    return fetchSupplierCatalogHealth({ live })
-      .then((payload) => {
-        setSupplierCatalogHealth(payload)
-        return payload
-      })
-      .catch((err) => {
-        setSupplierCatalogHealthError(err.message)
-        throw err
-      })
-      .finally(() => setSupplierCatalogHealthLoading(false))
-  }
 
   function applyProductTenderState(nextTender, options = {}) {
     setProductProfiles(nextTender.product_profiles || [])
@@ -382,19 +360,6 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .finally(() => setPreparingSupplierSearchPosition(null))
   }
 
-  function saveSupplierCatalogPresets(profile, presetIds) {
-    if (!profile?.position_index) return null
-    setSavingSupplierCatalogPresetPosition(profile.position_index)
-    setDetailStatus('')
-    return saveProfileSupplierCatalogPresetsRequest(tender, profile, presetIds)
-      .then((nextTender) => updateFromNextTender(nextTender, 'Каталоги поставщиков обновлены'))
-      .catch((err) => {
-        setDetailStatus(err.message)
-        throw err
-      })
-      .finally(() => setSavingSupplierCatalogPresetPosition(null))
-  }
-
   function runSupplierDiscovery(profile) {
     if (!profile?.position_index) return null
     setDiscoveringSupplierPosition(profile.position_index)
@@ -473,7 +438,6 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     importingSupplierCandidatePosition,
     reviewingPriceCandidateId,
     preparingSupplierSearchPosition,
-    savingSupplierCatalogPresetPosition,
     discoveringSupplierPosition,
     autoSelectingSupplierPosition,
     autoSelectingAllSuppliers,
@@ -483,11 +447,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     applyingAutoPrices,
     autoEstimatingPosition,
     acceptingAutoEconomicsPosition,
-    supplierCatalogHealth,
-    supplierCatalogHealthLoading,
-    supplierCatalogHealthError,
     priceDiscoveryJob,
-    refreshSupplierCatalogHealth,
     applyProductTenderState,
     rebuildProductProfiles,
     saveProfileEconomics,
@@ -504,7 +464,6 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     confirmPriceCandidate,
     rejectPriceCandidate,
     prepareSupplierSearch,
-    saveSupplierCatalogPresets,
     runSupplierDiscovery,
     runSupplierUrlDiscovery,
     runProfileAutoEconomics,
