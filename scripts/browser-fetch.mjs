@@ -142,6 +142,10 @@ function markerExpression() {
         /"@type"\\s*:\\s*(?:"Product"|\\[[^\\]]*"Product")/i.test(script.textContent || '')
       )`
   }
+  if (provider === 'lemanapro') {
+    return `document.querySelector('a[href*="/product/"], .product-card, [data-qa*="product" i]') ||
+      /window\\.INITIAL_STATE\\["plp"\\].*"products"/is.test(document.documentElement?.outerHTML || '')`
+  }
   return 'false'
 }
 
@@ -157,6 +161,12 @@ function isGoodEnoughHtml(html, readyState, matched) {
   }
   if (provider === 'vseinstrumenti') {
     if (matched || html.includes('href="/product/') || html.includes('"@type":"Product"') || html.includes('"@type": "Product"')) {
+      return true
+    }
+    return false
+  }
+  if (provider === 'lemanapro') {
+    if (matched || html.includes('href="/product/') || /window\.INITIAL_STATE\["plp"\].*"products"/is.test(html)) {
       return true
     }
     return false

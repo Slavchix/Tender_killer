@@ -6,7 +6,6 @@ import re
 from pathlib import Path
 from typing import Any
 from typing import Callable
-from urllib.parse import unquote
 from urllib.parse import urlparse
 from urllib.parse import urljoin
 from urllib.parse import urldefrag
@@ -14,14 +13,16 @@ from urllib.parse import urldefrag
 import httpx
 from bs4 import BeautifulSoup
 
-from tender_killer import supplier_browser_fetcher
 from tender_killer.product_profile_service import ensure_product_profiles
 from tender_killer.price_candidate_service import stage_tender_price_candidates
 from tender_killer.storage import TenderStore
+from tender_killer.supplier_candidate_contract import normalize_supplier_candidate
+from tender_killer.supplier_catalog_fetcher import fetch_catalog_text
+from tender_killer.supplier_catalog_fetcher import fetch_public_text
 from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
-from tender_killer.supplier_catalog_health_service import http_error_kind
-from tender_killer.supplier_catalog_health_service import response_body_preview
+from tender_killer.supplier_catalog_presets import supplier_catalog_providers_for_profile
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
+from tender_killer.supplier_product_matcher import supplier_product_name_match_reasons
 from tender_killer.supplier_product_matcher import supplier_product_name_mismatch_reasons
 from tender_killer.supplier_product_matcher import supplier_product_name_matches_query
 from tender_killer.supplier_search_service import build_supplier_search_queries
@@ -34,6 +35,7 @@ MANUAL_PRODUCT_LINK_KIND = "manual_product_url"
 BUILT_IN_CATALOG_PROVIDERS = tuple(str(preset["provider"]) for preset in SUPPLIER_CATALOG_PRESETS)
 BUILT_IN_CATALOG_PROVIDER_SET = {provider.casefold() for provider in BUILT_IN_CATALOG_PROVIDERS}
 SEARCH_ENGINE_HOSTS = ("google.", "yandex.")
+MAX_INTENT_REJECTION_SAMPLES = 5
 FetchText = Callable[[str], str]
 ProgressCallback = Callable[[dict[str, Any]], None]
 VISIBLE_PRICE_RE = re.compile(r"(?<!\d)(\d[\d\s\u00a0\u202f]*(?:[,.]\d{1,2})?)\s*(?:₽|руб\.?)", re.IGNORECASE)
@@ -60,7 +62,9 @@ NO_SUPPLIER_CANDIDATES_MESSAGE = "\u041d\u043e\u0432\u044b\u0445 \u043a\u0430\u0
 PREPARE_SUPPLIER_SEARCH_MESSAGE = "\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u044c \u043f\u043e\u0438\u0441\u043a \u043f\u043e\u0441\u0442\u0430\u0432\u0449\u0438\u043a\u043e\u0432."
 DEFAULT_TENDER_PRICE_DISCOVERY_MAX_POSITIONS = 50
 DEFAULT_CATALOG_MAX_PRODUCT_PAGES = 5
-DEFAULT_PUBLIC_FETCH_TIMEOUT_SECONDS = 5.0
+DEFAULT_BULK_DISCOVERY_PROFILE_THRESHOLD = 3
+DEFAULT_BULK_DISCOVERY_CANDIDATE_LIMIT = 5
+DEFAULT_SINGLE_DISCOVERY_CANDIDATE_LIMIT = 12
 
 
 def _positive_env_int(name: str, default: int) -> int:
@@ -69,17 +73,6 @@ def _positive_env_int(name: str, default: int) -> int:
         return default
     try:
         value = int(raw_value)
-    except ValueError:
-        return default
-    return value if value > 0 else default
-
-
-def _positive_env_float(name: str, default: float) -> float:
-    raw_value = os.environ.get(name)
-    if raw_value is None:
-        return default
-    try:
-        value = float(raw_value)
     except ValueError:
         return default
     return value if value > 0 else default
@@ -181,11 +174,11 @@ class ProviderCatalogCollector:
             diagnostics["pages_fetched"] += 1
 
             raw_page_candidates = self._schema_candidates(html, url, query_text, source_kind)
-            page_candidates, rejected_count = _provider_catalog_candidates_matching_query(
+            page_candidates, rejected_count, rejection_samples = _provider_catalog_candidates_matching_query(
                 raw_page_candidates,
                 query_text,
             )
-            _add_rejected_by_intent(diagnostics, rejected_count)
+            _add_rejected_by_intent(diagnostics, rejected_count, rejection_samples)
             diagnostics["candidates_found"] += len(page_candidates)
             candidates.extend(page_candidates)
 
@@ -215,11 +208,11 @@ class ProviderCatalogCollector:
                         query_text,
                         source_kind,
                     )
-                    fallback_candidates, rejected_count = _provider_catalog_candidates_matching_query(
+                    fallback_candidates, rejected_count, rejection_samples = _provider_catalog_candidates_matching_query(
                         raw_fallback_candidates,
                         query_text,
                     )
-                    _add_rejected_by_intent(diagnostics, rejected_count)
+                    _add_rejected_by_intent(diagnostics, rejected_count, rejection_samples)
                     diagnostics["candidates_found"] += len(fallback_candidates)
                     candidates.extend(fallback_candidates)
                     candidate_urls.update(
@@ -250,11 +243,11 @@ class ProviderCatalogCollector:
                     followed_pages += 1
                     diagnostics["pages_fetched"] += 1
                     raw_product_candidates = self._schema_candidates(product_html, product_url, query_text, source_kind)
-                    product_candidates, rejected_count = _provider_catalog_candidates_matching_query(
+                    product_candidates, rejected_count, rejection_samples = _provider_catalog_candidates_matching_query(
                         raw_product_candidates,
                         query_text,
                     )
-                    _add_rejected_by_intent(diagnostics, rejected_count)
+                    _add_rejected_by_intent(diagnostics, rejected_count, rejection_samples)
                     diagnostics["candidates_found"] += len(product_candidates)
                     candidates.extend(product_candidates)
                 if followed_pages >= self.max_product_pages:
@@ -270,8 +263,9 @@ class ProviderCatalogCollector:
     ) -> list[dict[str, Any]]:
         if self.catalog_provider == "lemanapro":
             candidates = _lemanapro_plp_candidates(html, source_url, query_text, source_kind)
+            candidates.extend(_lemanapro_visible_catalog_candidates(html, source_url, query_text, source_kind))
             if candidates:
-                return candidates
+                return _unique_candidates(candidates)
         if self.catalog_provider == "officemag":
             candidates = _officemag_visible_candidates(html, source_url, query_text, source_kind)
             if candidates:
@@ -315,6 +309,7 @@ def run_profile_supplier_price_discovery(
     external_id: str,
     position_index: int,
     collectors: list[Any] | None = None,
+    candidate_limit: int | None = None,
 ) -> dict[str, Any]:
     store = TenderStore(database_path)
     store.initialize()
@@ -347,6 +342,7 @@ def run_profile_supplier_price_discovery(
         queries,
         price_collectors,
         existing_keys,
+        candidate_limit=candidate_limit,
     )
 
 
@@ -369,6 +365,7 @@ def run_tender_supplier_price_discovery(
             DEFAULT_TENDER_PRICE_DISCOVERY_MAX_POSITIONS,
         )
     )
+    candidate_limit = _candidate_limit_for_profile_count(len(searchable_profiles))
     positions: list[dict[str, Any]] = []
     prepared_count = 0
     no_candidates_count = 0
@@ -424,6 +421,7 @@ def run_tender_supplier_price_discovery(
                 external_id,
                 position_index,
                 collectors=price_collectors,
+                candidate_limit=candidate_limit,
             )
         except ValueError as exc:
             no_candidates_count += 1
@@ -560,6 +558,7 @@ def run_profile_supplier_url_discovery(
         queries,
         price_collectors,
         existing_keys,
+        candidate_limit=_candidate_limit_for_single_profile(),
     )
 
 
@@ -573,10 +572,16 @@ def _run_supplier_discovery_with_queries(
     queries: list[dict[str, Any]],
     price_collectors: list[Any],
     existing_keys: set[tuple[str, str]],
+    candidate_limit: int | None = None,
 ) -> dict[str, Any]:
     candidates: list[dict[str, Any]] = []
     diagnostics_by_provider: dict[str, dict[str, Any]] = {}
-    price_collectors = _relevant_price_collectors_for_queries(queries, price_collectors, diagnostics_by_provider)
+    price_collectors = _relevant_price_collectors_for_queries(
+        queries,
+        price_collectors,
+        diagnostics_by_provider,
+        profile=target,
+    )
     for query in queries:
         for collector in price_collectors:
             result = collector.collect_with_diagnostics(query)
@@ -595,7 +600,13 @@ def _run_supplier_discovery_with_queries(
                 if key in existing_keys:
                     continue
                 existing_keys.add(key)
-                accepted_candidates.append(_candidate_with_profile_match(candidate))
+                normalized_candidate = normalize_supplier_candidate(
+                    candidate,
+                    provider=_collector_catalog_provider(collector) or _collector_provider_name(collector),
+                    source_query=_text(query.get("query")) or "",
+                    source_kind=_text(query.get("kind")) or "",
+                )
+                accepted_candidates.append(_candidate_with_profile_match(target, normalized_candidate))
             diagnostics = _with_intent_rejection_diagnostics(
                 result["diagnostics"],
                 rejected_by_intent,
@@ -616,12 +627,23 @@ def _run_supplier_discovery_with_queries(
             )
         raise ValueError(NO_SUPPLIER_CANDIDATES_MESSAGE)
 
+    limited_candidates = _limit_supplier_candidates_for_profile(target, candidates, candidate_limit)
+    if len(limited_candidates) < len(candidates):
+        _merge_diagnostics(
+            diagnostics_by_provider,
+            _candidate_limit_diagnostics(
+                candidate_limit,
+                collected_count=len(candidates),
+                staged_count=len(limited_candidates),
+            ),
+        )
+
     return stage_profile_supplier_candidates(
         database_path,
         source,
         external_id,
         int(target.get("position_index") or 0),
-        candidates,
+        limited_candidates,
         collector_diagnostics=list(diagnostics_by_provider.values()),
     )
 
@@ -630,8 +652,11 @@ def _relevant_price_collectors_for_queries(
     queries: list[dict[str, Any]],
     price_collectors: list[Any],
     diagnostics_by_provider: dict[str, dict[str, Any]],
+    profile: dict[str, Any] | None = None,
 ) -> list[Any]:
     allowed_catalog_providers = _catalog_providers_for_queries(queries)
+    if profile is not None:
+        allowed_catalog_providers.update(supplier_catalog_providers_for_profile(profile))
     relevant_collectors: list[Any] = []
     for collector in price_collectors:
         catalog_provider = _collector_catalog_provider(collector)
@@ -659,6 +684,103 @@ def _catalog_providers_for_queries(queries: list[dict[str, Any]]) -> set[str]:
     return providers
 
 
+def _candidate_limit_for_single_profile() -> int:
+    return _positive_env_int(
+        "TENDER_KILLER_PRICE_DISCOVERY_SINGLE_CANDIDATES_PER_POSITION",
+        DEFAULT_SINGLE_DISCOVERY_CANDIDATE_LIMIT,
+    )
+
+
+def _candidate_limit_for_profile_count(profile_count: int) -> int:
+    threshold = _positive_env_int(
+        "TENDER_KILLER_PRICE_DISCOVERY_BULK_PROFILE_THRESHOLD",
+        DEFAULT_BULK_DISCOVERY_PROFILE_THRESHOLD,
+    )
+    if int(profile_count or 0) > threshold:
+        return _positive_env_int(
+            "TENDER_KILLER_PRICE_DISCOVERY_BULK_CANDIDATES_PER_POSITION",
+            DEFAULT_BULK_DISCOVERY_CANDIDATE_LIMIT,
+        )
+    return _candidate_limit_for_single_profile()
+
+
+def _limit_supplier_candidates_for_profile(
+    profile: dict[str, Any],
+    candidates: list[dict[str, Any]],
+    candidate_limit: int | None,
+) -> list[dict[str, Any]]:
+    if candidate_limit is None or candidate_limit <= 0 or len(candidates) <= candidate_limit:
+        return candidates
+    ranked = sorted(candidates, key=lambda candidate: _supplier_candidate_rank_key(profile, candidate))
+    return ranked[:candidate_limit]
+
+
+def _supplier_candidate_rank_key(profile: dict[str, Any], candidate: dict[str, Any]) -> tuple[float, float, str]:
+    unit_price = _number(candidate.get("unit_price"))
+    normalized_price = unit_price if unit_price is not None else float("inf")
+    name_key = _text(candidate.get("name") or candidate.get("product_name")) or ""
+    return (-_supplier_candidate_relevance_score(profile, candidate), normalized_price, name_key.casefold())
+
+
+def _supplier_candidate_relevance_score(profile: dict[str, Any], candidate: dict[str, Any]) -> float:
+    product_name = _candidate_intent_text(candidate)
+    profile_text = _profile_intent_text(profile, candidate)
+    score = _number(candidate.get("score")) or 0.0
+    if product_name and profile_text and _catalog_product_name_matches_query(product_name, profile_text):
+        score += 60
+    profile_tokens = _rank_tokens(profile_text)
+    candidate_tokens = _rank_tokens(
+        " ".join(
+            part
+            for part in (
+                product_name,
+                _text(candidate.get("brand")) or "",
+                _text(candidate.get("manufacturer")) or "",
+                _text(candidate.get("supplier_name")) or "",
+            )
+            if part
+        )
+    )
+    overlap = profile_tokens.intersection(candidate_tokens)
+    score += min(len(overlap), 12) * 4
+    brand_tokens = _rank_tokens(_text(candidate.get("brand")) or _text(candidate.get("manufacturer")) or "")
+    if brand_tokens and brand_tokens.issubset(profile_tokens.union(candidate_tokens)):
+        score += 25
+    confidence = (_text(candidate.get("confidence")) or "").casefold()
+    score += {"high": 20, "medium": 10, "needs_review": 2, "low": 2}.get(confidence, 0)
+    if _number(candidate.get("unit_price")) is not None:
+        score += 10
+    availability = (_text(candidate.get("availability")) or "").casefold()
+    if availability in {"in_stock", "available", "instock"}:
+        score += 5
+    source_kind = (_text(candidate.get("source_kind")) or "").casefold()
+    if source_kind in {"catalog_hint", "normalized_name", "manual_product_url"}:
+        score += 8
+    if candidate.get("url") or candidate.get("source_url"):
+        score += 4
+    return score
+
+
+def _rank_tokens(text: str | None) -> set[str]:
+    tokens: set[str] = set()
+    for token in CATALOG_TOKEN_RE.findall(str(text or "").casefold()):
+        if len(token) < 2 or token in CATALOG_QUERY_STOP_WORDS:
+            continue
+        tokens.add(token)
+    return tokens
+
+
+def _candidate_limit_diagnostics(candidate_limit: int | None, *, collected_count: int, staged_count: int) -> dict[str, Any]:
+    diagnostics = _collector_diagnostics("candidate_limiter")
+    diagnostics["run_state"] = "applied"
+    diagnostics["candidate_limit"] = int(candidate_limit or 0)
+    diagnostics["candidates_seen"] = int(collected_count)
+    diagnostics["candidates_limited"] = max(0, int(collected_count) - int(staged_count))
+    diagnostics["candidates_staged"] = int(staged_count)
+    diagnostics["candidates_found"] = int(collected_count)
+    return diagnostics
+
+
 def _collector_catalog_provider(collector: Any) -> str | None:
     catalog_provider = _text(getattr(collector, "catalog_provider", None))
     if catalog_provider:
@@ -674,7 +796,7 @@ def _collector_provider_name(collector: Any) -> str:
 
 
 def _candidate_matches_profile_intent(profile: dict[str, Any], candidate: dict[str, Any]) -> bool:
-    product_name = _text(candidate.get("name") or candidate.get("product_name"))
+    product_name = _candidate_intent_text(candidate)
     profile_text = _profile_intent_text(profile, candidate)
     if not product_name or not profile_text:
         return True
@@ -682,7 +804,7 @@ def _candidate_matches_profile_intent(profile: dict[str, Any], candidate: dict[s
 
 
 def _candidate_profile_intent_rejection_reasons(profile: dict[str, Any], candidate: dict[str, Any]) -> list[str]:
-    product_name = _text(candidate.get("name") or candidate.get("product_name"))
+    product_name = _candidate_intent_text(candidate)
     profile_text = _profile_intent_text(profile, candidate)
     if not product_name or not profile_text:
         return []
@@ -707,36 +829,125 @@ def _profile_intent_text(profile: dict[str, Any], candidate: dict[str, Any]) -> 
     return " ".join(parts)
 
 
-def _candidate_with_profile_match(candidate: dict[str, Any]) -> dict[str, Any]:
+def _candidate_with_profile_match(profile: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
     updated = dict(candidate)
     reasons = _text_items(candidate.get("match_reasons"))
+    reasons.extend(supplier_product_name_match_reasons(_profile_intent_text(profile, candidate), _candidate_intent_text(candidate)))
+    reasons.extend(_candidate_brand_match_reasons(candidate))
     if "profile_intent_match" not in reasons:
         reasons.append("profile_intent_match")
-    updated["match_reasons"] = reasons
+    updated["match_reasons"] = _dedupe_text_items(reasons)
     return updated
+
+
+def _candidate_intent_text(candidate: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for field in ("name", "product_name", "brand", "manufacturer", "supplier_name", "unit"):
+        if text := _text(candidate.get(field)):
+            parts.append(text)
+    for attribute in _dict_items(candidate.get("product_attributes")):
+        name = _text(attribute.get("name"))
+        value = _text(attribute.get("value"))
+        if not name or not value:
+            continue
+        parts.append(f"{name} {value}")
+        parts.append(f"{value} {name}")
+        if unit_hint := _attribute_unit_hint(name):
+            if unit_hint not in value.casefold():
+                parts.append(f"{value} {unit_hint}")
+    return " ".join(parts)
+
+
+def _candidate_brand_match_reasons(candidate: dict[str, Any]) -> list[str]:
+    brand_tokens = _rank_tokens(_text(candidate.get("brand")) or _text(candidate.get("manufacturer")) or "")
+    if not brand_tokens:
+        return []
+    source_tokens = _rank_tokens(_text(candidate.get("source_query")) or "")
+    name_tokens = _rank_tokens(_text(candidate.get("name") or candidate.get("product_name")) or "")
+    return ["brand_match"] if brand_tokens.intersection(source_tokens.union(name_tokens)) else []
+
+
+def _attribute_unit_hint(name: str) -> str | None:
+    normalized = name.casefold()
+    if "kg" in normalized or "\u043a\u0433" in normalized:
+        return "kg"
+    if "ml" in normalized or "\u043c\u043b" in normalized:
+        return "ml"
+    if "mm" in normalized or "\u043c\u043c" in normalized:
+        return "mm"
+    if re.search(r"(?<![a-z])g(?![a-z])", normalized) or "\u0433" in normalized:
+        return "g"
+    if re.search(r"(?<![a-z])l(?![a-z])", normalized) or "\u043b" in normalized:
+        return "l"
+    return None
 
 
 def _provider_catalog_candidates_matching_query(
     candidates: list[dict[str, Any]],
     query_text: str,
-) -> tuple[list[dict[str, Any]], int]:
+) -> tuple[list[dict[str, Any]], int, list[dict[str, Any]]]:
     accepted: list[dict[str, Any]] = []
     rejected_count = 0
+    rejection_samples: list[dict[str, Any]] = []
     for candidate in candidates:
-        product_name = _text(candidate.get("name") or candidate.get("product_name"))
+        product_name = _candidate_intent_text(candidate)
         if not product_name or not query_text or _catalog_product_name_matches_query(product_name, query_text):
             accepted.append(candidate)
             continue
         rejected_count += 1
-    return accepted, rejected_count
+        if len(rejection_samples) < MAX_INTENT_REJECTION_SAMPLES:
+            rejection_samples.append(_intent_rejection_sample(candidate, query_text))
+    return accepted, rejected_count, rejection_samples
 
 
-def _add_rejected_by_intent(diagnostics: dict[str, Any], rejected_count: int) -> None:
+def _add_rejected_by_intent(
+    diagnostics: dict[str, Any],
+    rejected_count: int,
+    rejection_samples: list[dict[str, Any]] | None = None,
+) -> None:
     if rejected_count <= 0:
         return
     diagnostics["candidates_rejected_by_intent"] = (
         int(diagnostics.get("candidates_rejected_by_intent") or 0) + rejected_count
     )
+    if rejection_samples:
+        _extend_intent_rejection_samples(diagnostics, rejection_samples)
+
+
+def _intent_rejection_sample(candidate: dict[str, Any], query_text: str) -> dict[str, Any]:
+    sample = {
+        "name": _text(candidate.get("name") or candidate.get("product_name")) or "",
+        "url": _text(candidate.get("url")) or "",
+        "reasons": supplier_product_name_mismatch_reasons(query_text, _candidate_intent_text(candidate)),
+    }
+    return {key: value for key, value in sample.items() if value not in ("", [], None)}
+
+
+def _extend_intent_rejection_samples(target: dict[str, Any], samples: list[dict[str, Any]]) -> None:
+    current = [dict(item) for item in target.get("intent_rejection_samples") or [] if isinstance(item, dict)]
+    current = current[:MAX_INTENT_REJECTION_SAMPLES]
+    seen = {
+        (
+            (_text(item.get("url")) or "").casefold(),
+            (_text(item.get("name")) or "").casefold(),
+        )
+        for item in current
+    }
+    for sample in samples:
+        if len(current) >= MAX_INTENT_REJECTION_SAMPLES:
+            break
+        key = (
+            (_text(sample.get("url")) or "").casefold(),
+            (_text(sample.get("name")) or "").casefold(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        current.append(dict(sample))
+        if len(current) >= MAX_INTENT_REJECTION_SAMPLES:
+            break
+    if current:
+        target["intent_rejection_samples"] = current
 
 
 def _with_intent_rejection_diagnostics(
@@ -880,10 +1091,17 @@ def _merge_diagnostics(current: dict[str, dict[str, Any]], item: dict[str, Any])
     for reason, count in dict(item.get("intent_rejection_reasons") or {}).items():
         target_reasons = target.setdefault("intent_rejection_reasons", {})
         target_reasons[str(reason)] = int(target_reasons.get(str(reason)) or 0) + int(count or 0)
+    _extend_intent_rejection_samples(
+        target,
+        [dict(sample) for sample in item.get("intent_rejection_samples") or [] if isinstance(sample, dict)],
+    )
     if run_state := _text(item.get("run_state")):
         target["run_state"] = run_state
     if skip_reason := _text(item.get("skip_reason")):
         target["skip_reason"] = skip_reason
+    for field in ("candidate_limit", "candidates_seen", "candidates_limited", "candidates_staged"):
+        if field in item:
+            target[field] = int(item.get(field) or 0)
     target["errors"].extend([str(error) for error in item.get("errors") or []])
 
 
@@ -1228,6 +1446,64 @@ def _lemanapro_plp_candidates(
     return candidates
 
 
+def _lemanapro_visible_catalog_candidates(
+    html: str,
+    source_url: str,
+    query_text: str,
+    source_kind: str,
+) -> list[dict[str, Any]]:
+    soup = BeautifulSoup(html, "html.parser")
+    candidates: list[dict[str, Any]] = []
+    for anchor in soup.find_all("a", href=True):
+        product_url = urldefrag(urljoin(source_url, str(anchor.get("href") or "")))[0]
+        if not _is_provider_product_detail_url("lemanapro", product_url):
+            continue
+        product_name = _text(anchor.get_text(" ", strip=True))
+        if not product_name:
+            continue
+        scope = _lemanapro_visible_card_scope(anchor)
+        lines = _visible_text_lines(scope or soup)
+        unit_price = _visible_offer_price(lines, product_name)
+        if unit_price is None:
+            continue
+        candidate: dict[str, Any] = {
+            "name": product_name,
+            "url": product_url,
+            "unit_price": unit_price,
+            "currency": "RUB",
+            "availability": _visible_availability(lines),
+            "status": "candidate",
+            "source_query": query_text,
+            "source_kind": source_kind,
+            "note": f"Lemana Pro catalog visible offer from {source_url}.",
+            "provider": "lemanapro",
+        }
+        if product_code := _lemanapro_visible_product_code(lines, product_url):
+            candidate["product_code"] = product_code
+        candidates.append(candidate)
+    return candidates
+
+
+def _lemanapro_visible_card_scope(anchor: Any) -> Any | None:
+    for parent in getattr(anchor, "parents", []):
+        name = str(getattr(parent, "name", "") or "").casefold()
+        if name in {"body", "html"}:
+            break
+        text = parent.get_text(" ", strip=True) if hasattr(parent, "get_text") else ""
+        if VISIBLE_PRICE_RE.search(text) and parent.find("a", href=re.compile(r"/product/", re.IGNORECASE)):
+            return parent
+    return getattr(anchor, "parent", None)
+
+
+def _lemanapro_visible_product_code(lines: list[str], product_url: str) -> str | None:
+    text = " ".join(lines)
+    if match := re.search(r"\b(?:арт\.?|art\.?)\s*[:№#-]?\s*(\d{5,12})\b", text, re.IGNORECASE):
+        return match.group(1)
+    if match := re.search(r"-(\d{5,12})/?$", urlparse(product_url).path):
+        return match.group(1)
+    return None
+
+
 def _extract_initial_state(html: str, state_name: str) -> Any:
     marker = f'window.INITIAL_STATE["{state_name}"]'
     marker_index = html.find(marker)
@@ -1300,6 +1576,8 @@ def _lemanapro_candidate_from_product(
         return None
     product_url = _text(product.get("productLink") or product.get("url")) or source_url
     product_url = urldefrag(urljoin(source_url, product_url))[0]
+    if not _is_provider_product_detail_url("lemanapro", product_url):
+        return None
     currency = (_text(price_data.get("currency")) or "RUB").upper()
     candidate: dict[str, Any] = {
         "name": product_name,
@@ -1844,40 +2122,11 @@ def _schema_availability(value: Any) -> str:
 
 
 def _fetch_public_text(url: str) -> str:
-    if url.startswith("data:text/html,"):
-        return unquote(url.removeprefix("data:text/html,"))
-    response = httpx.get(
-        url,
-        follow_redirects=True,
-        timeout=_positive_env_float(
-            "TENDER_KILLER_PRICE_DISCOVERY_HTTP_TIMEOUT_SECONDS",
-            DEFAULT_PUBLIC_FETCH_TIMEOUT_SECONDS,
-        ),
-        trust_env=False,
-        headers={"User-Agent": "TenderKiller/0.1 public price discovery"},
-    )
-    try:
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        kind = http_error_kind(int(response.status_code))
-        preview = response_body_preview(response.text)
-        message = f"{kind} HTTP {response.status_code} from {url}"
-        if preview:
-            message = f"{message}: {preview}"
-        raise httpx.HTTPStatusError(message, request=exc.request, response=exc.response) from exc
-    return response.text
+    return fetch_public_text(url)
 
 
 def _fetch_catalog_text(url: str, provider: str) -> str:
-    try:
-        return _fetch_public_text(url)
-    except httpx.HTTPError as exc:
-        if not supplier_browser_fetcher.is_enabled_for_provider(provider):
-            raise
-        try:
-            return supplier_browser_fetcher.fetch_text(url, provider=provider)
-        except supplier_browser_fetcher.BrowserFetchError as browser_exc:
-            raise httpx.HTTPError(f"{exc}; browser_fetch_error: {browser_exc}") from browser_exc
+    return fetch_catalog_text(url, provider)
 
 
 def _is_public_product_page_url(url: str) -> bool:
@@ -1968,6 +2217,35 @@ def _text_items(value: Any) -> list[str]:
         if text:
             items.append(text)
     return items
+
+
+def _dedupe_text_items(items: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        text = _text(item)
+        if not text:
+            continue
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(text)
+    return result
+
+
+def _unique_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    unique: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for candidate in candidates:
+        url = (_text(candidate.get("url")) or "").casefold()
+        name = (_text(candidate.get("name") or candidate.get("product_name")) or "").casefold()
+        key = (url, name)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(candidate)
+    return unique
 
 
 def _candidate_key(candidate: dict[str, Any]) -> tuple[str, str]:

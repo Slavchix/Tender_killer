@@ -388,6 +388,63 @@ def supplier_product_name_mismatch_reasons(query_text: Any, product_name: Any) -
     return _dedupe_reasons(reasons)
 
 
+def supplier_product_name_match_reasons(query_text: Any, product_name: Any) -> list[str]:
+    """Return structured reasons when a supplier title fits the search intent."""
+
+    if not supplier_product_name_matches_query(query_text, product_name):
+        return []
+
+    query_tokens = _tokens(query_text)
+    product_tokens = _tokens(product_name)
+    if not query_tokens or not product_tokens:
+        return []
+
+    reasons: list[str] = []
+    if _dimensions(query_text) and not _dimensions(query_text).isdisjoint(_dimensions(product_name)):
+        reasons.append("dimension_match")
+    if _piece_pack_counts(query_text) and not _piece_pack_counts(query_text).isdisjoint(_piece_pack_counts(product_name)):
+        reasons.append("piece_pack_count_match")
+    if _weights_in_grams(query_text) and not _weights_in_grams(query_text).isdisjoint(_weights_in_grams(product_name)):
+        reasons.append("weight_match")
+    if _volumes_in_milliliters(query_text) and not _volumes_in_milliliters(query_text).isdisjoint(
+        _volumes_in_milliliters(product_name)
+    ):
+        reasons.append("volume_match")
+    if _token_groups(query_tokens, MATERIAL_GROUPS) and not _token_groups(query_tokens, MATERIAL_GROUPS).isdisjoint(
+        _token_groups(product_tokens, MATERIAL_GROUPS)
+    ):
+        reasons.append("material_match")
+    if _token_groups(query_tokens, COLOR_GROUPS) and not _token_groups(query_tokens, COLOR_GROUPS).isdisjoint(
+        _token_groups(product_tokens, COLOR_GROUPS)
+    ):
+        reasons.append("color_match")
+    query_brands = {token for token in query_tokens if token in KNOWN_BRANDS}
+    product_brands = {token for token in product_tokens if token in KNOWN_BRANDS}
+    if query_brands and not query_brands.isdisjoint(product_brands):
+        reasons.append("brand_match")
+
+    query_family = _detect_family(query_tokens)
+    product_family = _detect_family(product_tokens)
+    if query_family and product_family == query_family:
+        reasons.append("product_family_match")
+    if query_family == "office_paper" and _paper_formats(query_tokens) and not _paper_formats(query_tokens).isdisjoint(
+        _paper_formats(product_tokens)
+    ):
+        reasons.append("paper_format_match")
+    if query_family == "office_paper" and _paper_sheet_counts(query_text) and not _paper_sheet_counts(
+        query_text
+    ).isdisjoint(_paper_sheet_counts(product_name)):
+        reasons.append("paper_sheet_count_match")
+
+    query_models = _model_tokens(query_tokens)
+    product_models = _model_tokens(product_tokens)
+    if query_models and not query_models.isdisjoint(product_models):
+        reasons.append("model_match")
+    if _strong_stems(query_tokens).intersection(_strong_stems(product_tokens)):
+        reasons.append("token_overlap")
+    return _dedupe_reasons(reasons)
+
+
 def _tokens(value: Any) -> list[str]:
     return [token.replace("\u0451", "\u0435") for token in TOKEN_RE.findall(str(value or "").casefold())]
 

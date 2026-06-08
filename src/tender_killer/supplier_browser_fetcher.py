@@ -11,7 +11,7 @@ class BrowserFetchError(RuntimeError):
     pass
 
 
-DEFAULT_BROWSER_FETCH_PROVIDERS = "officemag,vseinstrumenti"
+DEFAULT_BROWSER_FETCH_PROVIDERS = "officemag,vseinstrumenti,lemanapro"
 
 
 def is_enabled_for_provider(provider: str | None) -> bool:

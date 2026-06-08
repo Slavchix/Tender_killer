@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from tender_killer import supplier_price_discovery_service as price_discovery
+from tender_killer import supplier_catalog_fetcher
 from tender_killer.models import ProductProfile
 from tender_killer.models import Tender
 from tender_killer.storage import TenderStore
@@ -1008,8 +1009,8 @@ def test_provider_catalog_collector_uses_browser_fallback_for_officemag_access_b
 
     monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "1")
     monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", "officemag")
-    monkeypatch.setattr(price_discovery, "_fetch_public_text", blocked_fetch)
-    monkeypatch.setattr(price_discovery.supplier_browser_fetcher, "fetch_text", fake_browser_fetch)
+    monkeypatch.setattr(supplier_catalog_fetcher, "fetch_public_text", blocked_fetch)
+    monkeypatch.setattr(supplier_catalog_fetcher.supplier_browser_fetcher, "fetch_text", fake_browser_fetch)
 
     collector = price_discovery.ProviderCatalogCollector("officemag", max_product_pages=0)
     result = collector.collect_with_diagnostics(
@@ -1189,6 +1190,183 @@ def test_provider_catalog_collector_extracts_lemanapro_plp_products_with_strict_
             "price_breaks": [{"count": 1, "price": 522.0}],
             "delivery_note": "Lemana Pro: цена 522 RUB/шт.; доп. цена 10.44 RUB/кг.",
         }
+    ]
+
+
+def test_provider_catalog_collector_skips_lemanapro_plp_items_without_product_link() -> None:
+    html = """
+        <html>
+          <body>
+            <script>
+              window.INITIAL_STATE["plp"] = {
+                "products": {
+                  "data": [{
+                    "price": {"currency": "RUB", "main_price": 522, "main_uom_rus": "sht."},
+                    "productLink": "/search/",
+                    "displayedName": "Cement Asia Cement M500 50 kg",
+                    "productId": "search-page"
+                  }]
+                }
+              };
+            </script>
+          </body>
+        </html>
+    """
+    collector = price_discovery.ProviderCatalogCollector(
+        "lemanapro",
+        fetch_text=lambda url: html,
+        max_product_pages=0,
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "Cement Asia Cement M500 50 kg",
+            "kind": "catalog_hint",
+            "quick_links": [
+                {
+                    "label": "Lemana Pro",
+                    "url": "https://lemanapro.ru/search/?q=cement+m500+50+kg",
+                    "provider": "lemanapro",
+                    "link_kind": "catalog_search",
+                    "preset_id": "lemanapro_building_materials",
+                }
+            ],
+        }
+    )
+
+    assert result["diagnostics"]["pages_fetched"] == 1
+    assert result["diagnostics"]["candidates_found"] == 0
+    assert "candidates_rejected_by_intent" not in result["diagnostics"]
+    assert result["candidates"] == []
+
+
+def test_provider_catalog_collector_extracts_lemanapro_visible_catalog_cards() -> None:
+    html = """
+        <html>
+          <body>
+            <h1>Крепеж проводов и кабелей</h1>
+            <article>
+              <p>Арт. 88328351</p>
+              <a href="/product/kabelnaya-styazhka-zashchita-pro-wt-35300-w-35x300-mm-88328351/">
+                Кабельная стяжка Защита Про WT-35300-B 3.5x300 мм нейлон цвет черный 100 шт.
+              </a>
+              <p>556 ₽/шт.</p>
+              <button>В корзину</button>
+            </article>
+            <article>
+              <p>Арт. 14366716</p>
+              <a href="/product/homut-styazhka-standers-200x48-mm-80-sht-14366716/">
+                Хомут стяжка Standers атмосферостойкий нейлон 200x4.8 мм 80 шт.
+              </a>
+              <p>168 ₽/шт.</p>
+              <button>В корзину</button>
+            </article>
+          </body>
+        </html>
+    """
+    collector = price_discovery.ProviderCatalogCollector(
+        "lemanapro",
+        fetch_text=lambda url: html,
+        max_product_pages=0,
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "хомут rexant (07-0301) nylon 4.0х300(3,5x300) мм 100 шт black",
+            "kind": "catalog_hint",
+            "quick_links": [
+                {
+                    "label": "Лемана ПРО",
+                    "url": "https://lemanapro.ru/search/?q=homut+rexant+300+100",
+                    "provider": "lemanapro",
+                    "link_kind": "catalog_search",
+                    "preset_id": "lemanapro_building_materials",
+                }
+            ],
+        }
+    )
+
+    assert result["diagnostics"]["pages_fetched"] == 1
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["diagnostics"]["candidates_rejected_by_intent"] == 1
+    assert result["diagnostics"]["intent_rejection_samples"] == [
+        {
+            "name": "Хомут стяжка Standers атмосферостойкий нейлон 200x4.8 мм 80 шт.",
+            "url": "https://lemanapro.ru/product/homut-styazhka-standers-200x48-mm-80-sht-14366716/",
+            "reasons": ["dimension_mismatch", "piece_pack_count_mismatch"],
+        }
+    ]
+    assert result["candidates"][0]["name"] == (
+        "Кабельная стяжка Защита Про WT-35300-B 3.5x300 мм нейлон цвет черный 100 шт."
+    )
+    assert result["candidates"][0]["url"] == (
+        "https://lemanapro.ru/product/kabelnaya-styazhka-zashchita-pro-wt-35300-w-35x300-mm-88328351/"
+    )
+    assert result["candidates"][0]["unit_price"] == 556.0
+    assert result["candidates"][0]["provider"] == "lemanapro"
+
+
+def test_provider_catalog_collector_matches_lemanapro_plp_characteristics_before_rejecting() -> None:
+    html = """
+        <html>
+          <body>
+            <script>
+              window.INITIAL_STATE["plp"] = {
+                "products": {
+                  "data": [{
+                    "price": {"currency": "RUB", "main_price": 556, "main_uom_rus": "шт."},
+                    "productLink": "/product/kabelnaya-styazhka-zashchita-pro-88328351/",
+                    "displayedName": "Кабельная стяжка Защита Про WT-35300-B",
+                    "productId": "88328351",
+                    "characteristics": [{
+                      "description": "Размер (мм)",
+                      "value": "3.5x300"
+                    }, {
+                      "description": "Количество в упаковке",
+                      "value": "100"
+                    }, {
+                      "description": "Материал",
+                      "value": "нейлон"
+                    }, {
+                      "description": "Цвет",
+                      "value": "черный"
+                    }]
+                  }]
+                }
+              };
+            </script>
+          </body>
+        </html>
+    """
+    collector = price_discovery.ProviderCatalogCollector(
+        "lemanapro",
+        fetch_text=lambda url: html,
+        max_product_pages=0,
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "хомут rexant (07-0301) nylon 4.0х300(3,5x300) мм 100 шт black",
+            "kind": "catalog_hint",
+            "quick_links": [
+                {
+                    "label": "Лемана ПРО",
+                    "url": "https://lemanapro.ru/search/?q=homut+rexant+300+100",
+                    "provider": "lemanapro",
+                    "link_kind": "catalog_search",
+                    "preset_id": "lemanapro_building_materials",
+                }
+            ],
+        }
+    )
+
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert "candidates_rejected_by_intent" not in result["diagnostics"]
+    assert result["candidates"][0]["product_attributes"] == [
+        {"name": "Размер (мм)", "value": "3.5x300"},
+        {"name": "Количество в упаковке", "value": "100"},
+        {"name": "Материал", "value": "нейлон"},
+        {"name": "Цвет", "value": "черный"},
     ]
 
 
@@ -1565,6 +1743,86 @@ def test_run_profile_supplier_price_discovery_routes_only_relevant_catalog_colle
     assert payload["staged_count"] == 1
 
 
+def test_relevant_catalog_collectors_can_be_selected_from_profile_when_links_are_missing() -> None:
+    class OfficeCatalogCollector:
+        provider = "catalog_officemag"
+
+    class LemanaCatalogCollector:
+        provider = "catalog_lemanapro"
+
+    class SchemaCollector:
+        provider = "schema_org_product"
+
+    diagnostics: dict[str, dict[str, object]] = {}
+    selected = price_discovery._relevant_price_collectors_for_queries(
+        [{"query": "cement m500 50 kg", "kind": "normalized_name", "quick_links": []}],
+        [OfficeCatalogCollector(), LemanaCatalogCollector(), SchemaCollector()],
+        diagnostics,
+        profile={
+            "product_name": "cement m500 50 kg",
+            "normalized_name": "cement m500 50 kg",
+            "okpd2": "23.51.12.110",
+        },
+    )
+
+    assert [collector.provider for collector in selected] == ["catalog_lemanapro", "schema_org_product"]
+    assert diagnostics["catalog_officemag"]["skip_reason"] == "not_relevant_for_profile"
+
+
+def test_relevant_catalog_collectors_route_cable_accessories_without_catalog_links() -> None:
+    class OfficeCatalogCollector:
+        provider = "catalog_officemag"
+
+    class KomusCatalogCollector:
+        provider = "catalog_komus"
+
+    class PetrovichCatalogCollector:
+        provider = "catalog_petrovich"
+
+    class VseinstrumentiCatalogCollector:
+        provider = "catalog_vseinstrumenti"
+
+    class LemanaCatalogCollector:
+        provider = "catalog_lemanapro"
+
+    class SchemaCollector:
+        provider = "schema_org_product"
+
+    diagnostics: dict[str, dict[str, object]] = {}
+    selected = price_discovery._relevant_price_collectors_for_queries(
+        [
+            {
+                "query": "\u0425\u043e\u043c\u0443\u0442 REXANT nylon 4.0x300 \u043c\u043c",
+                "kind": "normalized_name",
+                "quick_links": [],
+            }
+        ],
+        [
+            OfficeCatalogCollector(),
+            KomusCatalogCollector(),
+            PetrovichCatalogCollector(),
+            VseinstrumentiCatalogCollector(),
+            LemanaCatalogCollector(),
+            SchemaCollector(),
+        ],
+        diagnostics,
+        profile={
+            "product_name": "\u0425\u043e\u043c\u0443\u0442 REXANT nylon 4.0x300 \u043c\u043c 100 \u0448\u0442 black",
+            "details": "\u041a\u043e\u043c\u043f\u043b\u0435\u043a\u0442\u0443\u044e\u0449\u0438\u0435 \u0434\u043b\u044f \u043a\u0430\u0431\u0435\u043b\u044c\u043d\u044b\u0445 \u0438\u0437\u0434\u0435\u043b\u0438\u0439",
+            "classifier_code": "\u0410\u0440\u043c\u0430\u0442\u0443\u0440\u0430 \u043a\u0430\u0431\u0435\u043b\u044c\u043d\u0430\u044f",
+        },
+    )
+
+    assert [collector.provider for collector in selected] == [
+        "catalog_vseinstrumenti",
+        "catalog_lemanapro",
+        "schema_org_product",
+    ]
+    assert diagnostics["catalog_officemag"]["skip_reason"] == "not_relevant_for_profile"
+    assert diagnostics["catalog_komus"]["skip_reason"] == "not_relevant_for_profile"
+    assert diagnostics["catalog_petrovich"]["skip_reason"] == "not_relevant_for_profile"
+
+
 def test_run_profile_supplier_price_discovery_stages_schema_org_product_candidates(tmp_path) -> None:
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()
@@ -1653,11 +1911,12 @@ def test_run_profile_supplier_price_discovery_stages_schema_org_product_candidat
                 }
             ],
             "candidates": [
-                {
-                    "name": "Office paper A4 80 gsm",
-                    "url": "https://supplier.example/paper-a4",
-                    "unit_price": 925.5,
-                    "availability": "in_stock",
+                    {
+                        "name": "Office paper A4 80 gsm",
+                        "url": "https://supplier.example/paper-a4",
+                        "source_url": "https://supplier.example/paper-a4",
+                        "unit_price": 925.5,
+                        "availability": "in_stock",
                     "status": "candidate",
                     "source_query": "office paper a4",
                     "source_kind": "normalized_name",
@@ -1665,7 +1924,12 @@ def test_run_profile_supplier_price_discovery_stages_schema_org_product_candidat
                     "provider": "schema_org_product",
                     "confidence": "high",
                     "confidence_reasons": ["has_price", "has_url", "has_source_query"],
-                    "match_reasons": ["profile_intent_match"],
+                    "match_reasons": [
+                        "product_family_match",
+                        "paper_format_match",
+                        "token_overlap",
+                        "profile_intent_match",
+                    ],
                     "review_status": "pending",
                 }
             ],
@@ -2138,6 +2402,219 @@ def test_run_tender_supplier_price_discovery_prepares_all_positions_and_summariz
     assert profiles[1]["price_candidates"][0]["provider"] == "bulk_test_catalog"
     assert "economics" not in profiles[1]["raw_payload"]
     assert profiles[2]["raw_payload"]["supplier_discovery"]["status"] == "no_candidates"
+
+
+def test_run_tender_supplier_price_discovery_caps_candidates_per_position_for_large_tenders() -> None:
+    database_path = Path("pytest_tmp_supplier_fair_limit") / "tenders.sqlite"
+    database_path.parent.mkdir(exist_ok=True)
+    if database_path.exists():
+        database_path.unlink()
+    store = TenderStore(database_path)
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-discovery-fair-limit",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-discovery-fair-limit",
+            title="Large mixed tender",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-discovery-fair-limit",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-fair-limit",
+                position_index=index,
+                product_name=f"Fair test item {index}",
+                normalized_name=f"fair test item {index}",
+                quantity=10,
+                unit="pcs",
+            )
+            for index in range(1, 5)
+        ],
+    )
+
+    class ManyCandidateCollector:
+        provider = "fair_limit_catalog"
+
+        def collect_with_diagnostics(self, query):
+            query_text = str(query["query"])
+            candidates = [
+                {
+                    "name": f"{query_text} exact option {index}",
+                    "url": f"https://supplier.example/{query_text.replace(' ', '-')}/{index}",
+                    "unit_price": 100.0 + index,
+                    "currency": "RUB",
+                    "vat_mode": "vat_included",
+                    "availability": "in_stock",
+                    "delivery_note": "Delivery included",
+                    "source_query": query_text,
+                    "source_kind": query["kind"],
+                    "provider": "fair_limit_catalog",
+                }
+                for index in range(20)
+            ]
+            return {
+                "candidates": candidates,
+                "diagnostics": {
+                    "provider": self.provider,
+                    "queries_seen": 1,
+                    "links_seen": len(query.get("quick_links") or []),
+                    "links_skipped": 0,
+                    "pages_fetched": 1,
+                    "candidates_found": len(candidates),
+                    "errors": [],
+                },
+            }
+
+    result = run_tender_supplier_price_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-discovery-fair-limit",
+        collectors=[ManyCandidateCollector()],
+        max_positions=10,
+    )
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-price-discovery-fair-limit")
+    profiles = {profile["position_index"]: profile for profile in detail["product_profiles"]}
+
+    assert result["searched_count"] == 4
+    assert [position["staged_count"] for position in result["positions"]] == [5, 5, 5, 5]
+    assert all(len(profiles[index]["price_candidates"]) == 5 for index in range(1, 5))
+    assert all(profiles[index]["raw_payload"]["supplier_discovery"]["status"] == "pending_review" for index in range(1, 5))
+    diagnostics = {
+        item["provider"]: item
+        for item in profiles[1]["raw_payload"]["supplier_discovery"]["collector_diagnostics"]
+    }
+    assert diagnostics["candidate_limiter"]["candidate_limit"] == 5
+    assert diagnostics["candidate_limiter"]["candidates_seen"] == 20
+    assert diagnostics["candidate_limiter"]["candidates_limited"] == 15
+
+
+def test_run_profile_supplier_price_discovery_uses_product_attributes_for_quantity_gates() -> None:
+    database_path = Path("pytest_tmp_supplier_attribute_gate") / "tenders.sqlite"
+    database_path.parent.mkdir(exist_ok=True)
+    if database_path.exists():
+        database_path.unlink()
+    store = TenderStore(database_path)
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-discovery-attribute-gate",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-discovery-attribute-gate",
+            title="Building tender",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-discovery-attribute-gate",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-attribute-gate",
+                position_index=1,
+                product_name="Aziya Cement M500 50 kg",
+                normalized_name="Aziya Cement M500 50 kg",
+                okpd2="23.51.12.110",
+                quantity=10,
+                unit="bag",
+                raw_payload={
+                    "supplier_search": {
+                        "status": "ready",
+                        "queries": [
+                            {
+                                "query": "Aziya Cement M500 50 kg",
+                                "kind": "catalog_hint",
+                                "priority": 1,
+                                "quick_links": [
+                                    {
+                                        "label": "Lemana Pro",
+                                        "url": "https://lemanapro.ru/search/?q=Aziya+Cement+M500+50+kg",
+                                        "provider": "lemanapro",
+                                        "link_kind": "catalog_search",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                },
+            )
+        ],
+    )
+
+    class AttributeCollector:
+        provider = "catalog_lemanapro"
+
+        def collect_with_diagnostics(self, query):
+            return {
+                "candidates": [
+                    {
+                        "name": "Aziya Cement M500",
+                        "url": "https://lemanapro.ru/product/cement-25kg/",
+                        "unit_price": 276.0,
+                        "availability": "in_stock",
+                        "status": "candidate",
+                        "source_query": query["query"],
+                        "source_kind": query["kind"],
+                        "provider": "lemanapro",
+                        "brand": "Aziya Cement",
+                        "product_attributes": [{"name": "Weight, kg", "value": "25"}],
+                    },
+                    {
+                        "name": "Aziya Cement M500",
+                        "url": "https://lemanapro.ru/product/cement-50kg/",
+                        "unit_price": 522.0,
+                        "availability": "in_stock",
+                        "status": "candidate",
+                        "source_query": query["query"],
+                        "source_kind": query["kind"],
+                        "provider": "lemanapro",
+                        "brand": "Aziya Cement",
+                        "product_attributes": [{"name": "Weight, kg", "value": "50"}],
+                    },
+                ],
+                "diagnostics": {
+                    "provider": self.provider,
+                    "queries_seen": 1,
+                    "links_seen": 1,
+                    "links_skipped": 0,
+                    "pages_fetched": 1,
+                    "candidates_found": 2,
+                    "errors": [],
+                },
+            }
+
+    payload = run_profile_supplier_price_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-discovery-attribute-gate",
+        1,
+        collectors=[AttributeCollector()],
+    )
+
+    assert payload["staged_count"] == 1
+    candidate = payload["supplier_discovery"]["candidates"][0]
+    assert candidate["url"] == "https://lemanapro.ru/product/cement-50kg/"
+    assert candidate["brand"] == "Aziya Cement"
+    assert candidate["product_attributes"] == [{"name": "Weight, kg", "value": "50"}]
+    assert candidate["match_reasons"] == [
+        "weight_match",
+        "model_match",
+        "token_overlap",
+        "brand_match",
+        "profile_intent_match",
+    ]
+    detail = get_tender_payload(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-discovery-attribute-gate",
+    )
+    price_candidate = detail["product_profiles"][0]["price_candidates"][0]
+    assert price_candidate["raw_payload"]["brand"] == "Aziya Cement"
+    assert price_candidate["raw_payload"]["product_attributes"] == [{"name": "Weight, kg", "value": "50"}]
 
 
 def test_run_tender_supplier_price_discovery_reports_position_before_slow_collectors(tmp_path) -> None:

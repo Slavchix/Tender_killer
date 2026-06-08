@@ -65,7 +65,15 @@ def test_browser_fetcher_defaults_to_browser_supported_catalogs(monkeypatch) -> 
 
     assert browser_fetcher.is_enabled_for_provider("officemag") is True
     assert browser_fetcher.is_enabled_for_provider("vseinstrumenti") is True
+    assert browser_fetcher.is_enabled_for_provider("lemanapro") is True
     assert browser_fetcher.is_enabled_for_provider("komus") is False
+
+
+def test_browser_fetch_script_has_lemanapro_dom_markers() -> None:
+    script = Path("scripts/browser-fetch.mjs").read_text(encoding="utf-8")
+
+    assert "provider === 'lemanapro'" in script
+    assert "INITIAL_STATE" in script
 
 
 def test_browser_fetcher_can_be_disabled_explicitly(monkeypatch) -> None:

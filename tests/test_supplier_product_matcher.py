@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from tender_killer.supplier_product_matcher import supplier_product_name_matches_query
+from tender_killer.supplier_product_matcher import supplier_product_name_match_reasons
 from tender_killer.supplier_product_matcher import supplier_product_name_mismatch_reasons
 
 
@@ -225,4 +226,19 @@ def test_mismatch_reasons_include_weight_volume_material_color_and_brand() -> No
         "material_mismatch",
         "color_mismatch",
         "brand_mismatch",
+    ]
+
+
+def test_match_reasons_explain_strong_product_fit() -> None:
+    reasons = supplier_product_name_match_reasons(
+        "Gigant self drilling screw 4.2x19 zinc 1 kg",
+        "Gigant self drilling screw 4,2 x 19 zinc, 1 kg",
+    )
+
+    assert reasons == [
+        "dimension_match",
+        "weight_match",
+        "material_match",
+        "brand_match",
+        "token_overlap",
     ]

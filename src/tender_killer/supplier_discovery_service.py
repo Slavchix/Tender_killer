@@ -11,12 +11,19 @@ from tender_killer.storage import TenderStore
 DISCOVERY_TEXT_FIELDS = (
     "name",
     "url",
+    "source_url",
     "availability",
     "status",
     "source_query",
     "source_kind",
     "note",
     "provider",
+    "supplier_name",
+    "brand",
+    "manufacturer",
+    "product_code",
+    "image_url",
+    "unit",
     "confidence",
     "currency",
     "vat_mode",
@@ -32,6 +39,11 @@ DISCOVERY_NUMBER_FIELDS = (
 DISCOVERY_LIST_FIELDS = (
     "confidence_reasons",
     "match_reasons",
+)
+DISCOVERY_JSON_FIELDS = (
+    "image_urls",
+    "price_breaks",
+    "product_attributes",
 )
 DISCOVERY_CONFIDENCE_VALUES = {"high", "medium", "needs_review"}
 LOCKED_PROFILE_STATUSES = {"priced", "rejected"}
@@ -159,6 +171,10 @@ def _discovery_candidate(data: dict[str, Any]) -> dict[str, Any]:
         items = _text_items(data.get(field))
         if items:
             candidate[field] = items
+    for field in DISCOVERY_JSON_FIELDS:
+        value = _json_list_or_dicts(data.get(field))
+        if value:
+            candidate[field] = value
     has_candidate_signal = any(candidate.get(field) for field in ("name", "url", "note")) or "unit_price" in candidate
     if not has_candidate_signal:
         return {}
@@ -179,6 +195,10 @@ def _supplier_option_from_candidate(candidate: dict[str, Any]) -> dict[str, Any]
         number = _number(candidate.get(field))
         if number is not None:
             option[field] = number
+    for field in DISCOVERY_JSON_FIELDS:
+        value = _json_list_or_dicts(candidate.get(field))
+        if value:
+            option[field] = value
     has_candidate_signal = any(option.get(field) for field in ("name", "url", "note")) or "unit_price" in option
     return option if has_candidate_signal else {}
 
@@ -197,6 +217,18 @@ def _text_items(value: Any) -> list[str]:
         text = _text(item)
         if text:
             items.append(text)
+    return items
+
+
+def _json_list_or_dicts(value: Any) -> list[Any]:
+    if not isinstance(value, list):
+        return []
+    items: list[Any] = []
+    for item in value:
+        if isinstance(item, dict):
+            items.append(dict(item))
+        elif isinstance(item, (str, int, float, bool)):
+            items.append(item)
     return items
 
 
