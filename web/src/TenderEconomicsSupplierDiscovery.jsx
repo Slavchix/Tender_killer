@@ -53,9 +53,16 @@ function SupplierDiscoveryDiagnostics({ diagnostics }) {
       {diagnostics.map((diagnostics, index) => {
         const errors = Array.isArray(diagnostics.errors) ? diagnostics.errors : []
         const compactErrors = compactDiscoveryErrors(errors)
+        const rejectionReasons = compactIntentRejectionReasons(diagnostics.intent_rejection_reasons)
+        const runState = formatDiscoveryRunState(diagnostics)
         return (
           <section key={`${diagnostics.provider || 'collector'}-${index}`}>
             <strong>{diagnostics.provider || 'collector'}</strong>
+            {runState && (
+              <p className={`supplier-discovery-run-state ${diagnostics.run_state || 'checked'}`}>
+                {runState}
+              </p>
+            )}
             <div className="supplier-discovery-metrics">
               <span>Запросы: {diagnostics.queries_seen || 0}</span>
               <span>Ссылки: {diagnostics.links_seen || 0}</span>
@@ -63,6 +70,15 @@ function SupplierDiscoveryDiagnostics({ diagnostics }) {
               <span>Страницы: {diagnostics.pages_fetched || 0}</span>
               <span>Кандидаты: {diagnostics.candidates_found || 0}</span>
             </div>
+            {rejectionReasons.length ? (
+              <ul className="supplier-discovery-rejection-reasons">
+                {rejectionReasons.map((reason) => (
+                  <li key={`${diagnostics.provider || 'collector'}-${reason.id}`}>
+                    {reason.label}: {reason.count}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {compactErrors.length ? (
               <ul className="supplier-discovery-errors">
                 {compactErrors.map((error) => (
@@ -77,6 +93,42 @@ function SupplierDiscoveryDiagnostics({ diagnostics }) {
       })}
     </div>
   )
+}
+
+function formatDiscoveryRunState(diagnostics = {}) {
+  if (diagnostics.run_state !== 'skipped') return ''
+  if (diagnostics.skip_reason === 'not_relevant_for_profile') {
+    return 'Пропущен: каталог не подходит этой позиции'
+  }
+  return 'Пропущен'
+}
+
+function compactIntentRejectionReasons(reasons) {
+  if (!reasons || typeof reasons !== 'object') return []
+  return Object.entries(reasons)
+    .map(([id, count]) => ({
+      id,
+      count: Number(count) || 0,
+      label: formatIntentRejectionReason(id),
+    }))
+    .filter((reason) => reason.count > 0)
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
+    .slice(0, 5)
+}
+
+function formatIntentRejectionReason(reason) {
+  const labels = {
+    brand_mismatch: 'бренд',
+    color_mismatch: 'цвет',
+    dimension_mismatch: 'размер',
+    material_mismatch: 'материал',
+    piece_pack_count_mismatch: 'фасовка',
+    product_family_mismatch: 'тип товара',
+    product_name_mismatch: 'название',
+    volume_mismatch: 'объем',
+    weight_mismatch: 'вес',
+  }
+  return labels[reason] || reason
 }
 
 function compactDiscoveryErrors(errors) {
@@ -121,26 +173,52 @@ function formatDiscoveryError(error) {
 export function SupplierSearchPreview({ search }) {
   const queries = Array.isArray(search?.queries) ? search.queries : []
   if (!queries.length) return null
+  const catalogSearchLinks = uniqueCatalogSearchLinks(queries)
 
   return (
     <div className="supplier-search-preview">
       <span>Запросы для поиска</span>
-      <div>
+      {catalogSearchLinks.length > 0 && (
+        <section className="supplier-search-catalog-links">
+          <strong>Ручная проверка по каталогам</strong>
+          <div className="supplier-search-links">
+            {catalogSearchLinks.map((link) => (
+              <a href={link.url} key={link.key} target="_blank" rel="noreferrer">
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+      <div className="supplier-search-query-list">
         {queries.map((item) => (
           <section key={`${item.kind}-${item.priority}-${item.query}`}>
             <code>{item.query}</code>
-            <div className="supplier-search-links">
-              {(Array.isArray(item.quick_links) ? item.quick_links : []).map((link) => (
-                <a href={link.url} key={`${item.query}-${link.label}`} target="_blank" rel="noreferrer">
-                  {link.label}
-                </a>
-              ))}
-            </div>
           </section>
         ))}
       </div>
     </div>
   )
+}
+
+function uniqueCatalogSearchLinks(queries) {
+  const links = []
+  const seen = new Set()
+  queries.forEach((item) => {
+    const quickLinks = Array.isArray(item.quick_links) ? item.quick_links : []
+    quickLinks.forEach((link) => {
+      if (link?.link_kind !== 'catalog_search' || !link.url) return
+      const key = String(link.provider || link.preset_id || link.label || link.url).toLowerCase()
+      if (seen.has(key)) return
+      seen.add(key)
+      links.push({
+        ...link,
+        key,
+        label: link.label || link.provider || 'Каталог',
+      })
+    })
+  })
+  return links
 }
 
 function ignoreDiscoveryActionError(result) {

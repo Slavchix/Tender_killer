@@ -36,7 +36,7 @@ def test_supplier_catalog_presets_match_office_and_building_profiles() -> None:
         "officemag_office_supplies",
         "komus_office_supplies",
     ]
-    assert [preset["provider"] for preset in building_presets] == ["petrovich", "vseinstrumenti"]
+    assert [preset["provider"] for preset in building_presets] == ["petrovich", "vseinstrumenti", "lemanapro"]
 
 
 def test_supplier_catalog_presets_match_real_russian_office_paper_without_okpd2() -> None:
@@ -78,7 +78,7 @@ def test_supplier_catalog_presets_match_okpd2_prefixes_without_keyword_text() ->
     building_presets = supplier_catalog_presets_for_profile({"product_name": "Лот 2", "okpd2": "23.51.12.110"})
 
     assert [preset["provider"] for preset in office_presets] == ["officemag", "komus"]
-    assert [preset["provider"] for preset in building_presets] == ["petrovich", "vseinstrumenti"]
+    assert [preset["provider"] for preset in building_presets] == ["petrovich", "vseinstrumenti", "lemanapro"]
 
 
 def test_supplier_catalog_presets_route_tools_to_tool_catalog_only() -> None:

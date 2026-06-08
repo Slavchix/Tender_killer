@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import httpx
 import pytest
 
@@ -94,7 +96,7 @@ def test_schema_org_product_collector_skips_search_engine_links() -> None:
 
 
 def test_public_fetch_error_preserves_blocked_catalog_preview(monkeypatch) -> None:
-    url = "https://www.vseinstrumenti.ru/search/?q=cement+mix"
+    url = "https://www.vseinstrumenti.ru/search/?what=cement+mix"
     captured: dict[str, object] = {}
 
     class BlockedResponse:
@@ -244,6 +246,7 @@ def test_provider_catalog_collector_extracts_officemag_visible_offer_without_sch
         "https://www.officemag.ru/search/?q=office+paper+a4": """
             <html>
               <body>
+                <a href="/info/personal_data/">Personal data policy</a>
                 <a href="/catalog/goods/110532/">Office paper A4</a>
               </body>
             </html>
@@ -302,6 +305,286 @@ def test_provider_catalog_collector_extracts_officemag_visible_offer_without_sch
             "provider": "officemag",
         }
     ]
+
+
+def test_provider_catalog_collector_uses_officemag_section_fallback_for_empty_search() -> None:
+    pages = {
+        "https://www.officemag.ru/search/?q=paper+a4": """
+            <html>
+              <body>
+                <input type="hidden" name="SECTION" value="785">
+                <div class="listItemsWrapper">Товары не найдены</div>
+              </body>
+            </html>
+        """,
+        "https://www.officemag.ru/catalog/785/": """
+            <html>
+              <body>
+                <ul class="listItems">
+                  <li class="listItem js-productListItem">
+                    <a href="/catalog/goods/115351/">
+                      Бумага белая А4, 80 г/м2, 100 л., STAFF СТАНДАРТ, 115351
+                    </a>
+                    <div class="Product__price" content="166.08">166 , 08 руб.</div>
+                    <div>Доступно 1544 шт.</div>
+                  </li>
+                </ul>
+              </body>
+            </html>
+        """,
+    }
+    calls: list[str] = []
+    collector = price_discovery.ProviderCatalogCollector(
+        "officemag",
+        fetch_text=lambda url: calls.append(url) or pages.get(url, "<html></html>"),
+        max_product_pages=0,
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "бумага белая а4 staff",
+            "kind": "catalog_hint",
+            "quick_links": [
+                {
+                    "label": "OfficeMag",
+                    "url": "https://www.officemag.ru/search/?q=paper+a4",
+                    "provider": "officemag",
+                    "link_kind": "catalog_search",
+                    "preset_id": "officemag_office_supplies",
+                }
+            ],
+        }
+    )
+
+    assert calls == [
+        "https://www.officemag.ru/search/?q=paper+a4",
+        "https://www.officemag.ru/catalog/785/",
+    ]
+    assert result["diagnostics"]["pages_fetched"] == 2
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"][0]["name"] == "Бумага белая А4, 80 г/м2, 100 л., STAFF СТАНДАРТ, 115351"
+    assert result["candidates"][0]["url"] == "https://www.officemag.ru/catalog/goods/115351/"
+    assert result["candidates"][0]["unit_price"] == 166.08
+
+
+def test_provider_catalog_collector_follows_officemag_hidden_product_ids_from_section_fallback() -> None:
+    pages = {
+        "https://www.officemag.ru/search/?q=office+paper+a4+500+sheets": """
+            <html>
+              <body>
+                <input type="hidden" name="SECTION" value="785">
+                <div class="listItemsWrapper">No cards in search response</div>
+              </body>
+            </html>
+        """,
+        "https://www.officemag.ru/catalog/785/": """
+            <html>
+              <body>
+                <input class="js-listXmlIDs" value="110071,110095,115351">
+                <ul class="listItems">
+                  <li class="listItem js-productListItem">
+                    <a href="/catalog/goods/115351/">Office paper A4, 80 g/m2, 100 sheets, 115351</a>
+                    <div class="Product__price" content="166.08"></div>
+                  </li>
+                </ul>
+              </body>
+            </html>
+        """,
+        "https://www.officemag.ru/catalog/goods/110071/": """
+            <html>
+              <body>
+                <h1>SEO article heading, not product name</h1>
+                <div class="ProductHead__name">Office paper A4, 80 g/m2, 500 sheets, Snegurochka, 110071</div>
+                <div data-ga-object='{"items":[{"item_id":"110071","price":409.30}]}'></div>
+              </body>
+            </html>
+        """,
+        "https://www.officemag.ru/catalog/goods/110095/": """
+            <html>
+              <body>
+                <h1>SEO article heading, not product name</h1>
+                <div class="ProductHead__name">Office paper A3, 80 g/m2, 500 sheets, Snegurochka, 110095</div>
+                <div class="Product__price js-detailCardGoods" content="739.00"></div>
+              </body>
+            </html>
+        """,
+        "https://www.officemag.ru/catalog/goods/115351/": """
+            <html>
+              <body>
+                <h1>SEO article heading, not product name</h1>
+                <div class="ProductHead__name">Office paper A4, 80 g/m2, 100 sheets, 115351</div>
+                <div class="Product__price js-detailCardGoods" content="166.08"></div>
+              </body>
+            </html>
+        """,
+    }
+    calls: list[str] = []
+    collector = price_discovery.ProviderCatalogCollector(
+        "officemag",
+        fetch_text=lambda url: calls.append(url) or pages.get(url, "<html></html>"),
+        max_product_pages=3,
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "office paper a4 80 g/m2 500 sheets",
+            "kind": "catalog_hint",
+            "quick_links": [
+                {
+                    "label": "OfficeMag",
+                    "url": "https://www.officemag.ru/search/?q=office+paper+a4+500+sheets",
+                    "provider": "officemag",
+                    "link_kind": "catalog_search",
+                    "preset_id": "officemag_office_supplies",
+                }
+            ],
+        }
+    )
+
+    assert calls == [
+        "https://www.officemag.ru/search/?q=office+paper+a4+500+sheets",
+        "https://www.officemag.ru/catalog/785/",
+        "https://www.officemag.ru/catalog/goods/110071/",
+        "https://www.officemag.ru/catalog/goods/110095/",
+        "https://www.officemag.ru/catalog/goods/115351/",
+    ]
+    assert result["diagnostics"]["pages_fetched"] == 5
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"][0]["name"] == "Office paper A4, 80 g/m2, 500 sheets, Snegurochka, 110071"
+    assert result["candidates"][0]["url"] == "https://www.officemag.ru/catalog/goods/110071/"
+    assert result["candidates"][0]["unit_price"] == 409.3
+
+
+def test_profile_intent_uses_strict_catalog_hints_for_generic_supplier_candidates() -> None:
+    profile = {
+        "product_name": "Office paper",
+        "normalized_name": "office paper",
+        "raw_payload": {
+            "supplier_search": {
+                "queries": [
+                    {"query": "office paper a4 80 g/m2 500 sheets", "kind": "catalog_hint"},
+                    {"query": "office paper", "kind": "catalog_hint"},
+                ]
+            }
+        },
+    }
+
+    assert price_discovery._candidate_matches_profile_intent(
+        profile,
+        {
+            "name": "Office paper A4, 80 g/m2, 500 sheets, Snegurochka",
+            "source_query": "office paper",
+        },
+    ) is True
+    assert price_discovery._candidate_matches_profile_intent(
+        profile,
+        {
+            "name": "Office paper A3, 80 g/m2, 500 sheets, Snegurochka",
+            "source_query": "office paper",
+        },
+    ) is False
+    assert price_discovery._candidate_matches_profile_intent(
+        profile,
+        {
+            "name": "Office paper A4, 80 g/m2, 100 sheets, Staff",
+            "source_query": "office paper",
+        },
+    ) is False
+
+
+def test_profile_intent_rejection_diagnostics_include_structured_mismatch_reasons() -> None:
+    database_path = Path("pytest_tmp_constraint_reasons_case") / "tenders.sqlite"
+    database_path.parent.mkdir(exist_ok=True)
+    if database_path.exists():
+        database_path.unlink()
+    store = TenderStore(database_path)
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-dimension-diagnostics",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-dimension-diagnostics",
+            title="Fastener tender",
+            price=100000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-dimension-diagnostics",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-dimension-diagnostics",
+                position_index=1,
+                product_name="self drilling screw 4.2x19 zinc 200 pcs",
+                normalized_name="self drilling screw 4.2x19 zinc 200 pcs",
+                raw_payload={
+                    "supplier_search": {
+                        "status": "ready",
+                        "queries": [
+                            {
+                                "query": "self drilling screw",
+                                "kind": "catalog_hint",
+                                "priority": 1,
+                                "quick_links": [
+                                    {
+                                        "label": "Vseinstrumenti",
+                                        "url": "https://www.vseinstrumenti.ru/search/?what=self+drilling+screw",
+                                        "provider": "vseinstrumenti",
+                                        "link_kind": "catalog_search",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                },
+            )
+        ],
+    )
+
+    class WrongDimensionCollector:
+        provider = "catalog_vseinstrumenti"
+
+        def collect_with_diagnostics(self, query):
+            return {
+                "candidates": [
+                    {
+                        "name": "FastenPro self drilling screw 4.2x16 zinc pack 100 pcs",
+                        "url": "https://www.vseinstrumenti.ru/product/wrong/",
+                        "unit_price": 399.0,
+                        "status": "candidate",
+                        "source_query": query["query"],
+                        "source_kind": query["kind"],
+                        "provider": "vseinstrumenti",
+                    }
+                ],
+                "diagnostics": {
+                    "provider": self.provider,
+                    "queries_seen": 1,
+                    "links_seen": 1,
+                    "links_skipped": 0,
+                    "pages_fetched": 1,
+                    "candidates_found": 1,
+                    "errors": [],
+                },
+            }
+
+    with pytest.raises(ValueError, match=price_discovery.NO_SUPPLIER_CANDIDATES_MESSAGE):
+        run_profile_supplier_price_discovery(
+            store.database_path,
+            "mosreg_market",
+            "supplier-price-dimension-diagnostics",
+            1,
+            collectors=[WrongDimensionCollector()],
+        )
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-price-dimension-diagnostics")
+    diagnostics = detail["product_profiles"][0]["raw_payload"]["supplier_discovery"]["collector_diagnostics"]
+    assert diagnostics[0]["candidates_rejected_by_intent"] == 3
+    assert diagnostics[0]["intent_rejection_reasons"] == {
+        "dimension_mismatch": 3,
+        "piece_pack_count_mismatch": 3,
+    }
 
 
 def test_provider_catalog_collector_extracts_officemag_search_result_cards() -> None:
@@ -806,6 +1089,233 @@ def test_provider_catalog_collector_extracts_vseinstrumenti_visible_offer_withou
     assert result["candidates"][0]["provider"] == "vseinstrumenti"
 
 
+def test_provider_catalog_collector_extracts_lemanapro_plp_products_with_strict_pack_match() -> None:
+    html = """
+        <html>
+          <body>
+            <script>
+              window.INITIAL_STATE["plp"] = {
+                "products": {
+                  "data": [{
+                    "productPriceCategory": "STD",
+                    "price": {
+                      "currency": "RUB",
+                      "main_price": 522,
+                      "previous_price": 596,
+                      "main_uom": "NIU",
+                      "main_uom_rus": "шт.",
+                      "additional_price": 10.44,
+                      "additional_uom": "KG",
+                      "additional_uom_rus": "кг"
+                    },
+                    "productLink": "/product/cement-aziya-cement-m500-50-kg-85606184/",
+                    "displayedName": "Цемент Азия Цемент M500 ЦЕМ II А-П 42.5 Н 50 кг",
+                    "brand": "АЗИЯ ЦЕМЕНТ",
+                    "productId": "85606184",
+                    "characteristics": [{
+                      "description": "Вес нетто (кг)",
+                      "value": "50"
+                    }, {
+                      "description": "Марка прочности",
+                      "value": "M500"
+                    }]
+                  }, {
+                    "productPriceCategory": "STD",
+                    "price": {
+                      "currency": "RUB",
+                      "main_price": 276,
+                      "main_uom": "NIU",
+                      "additional_price": 11.04,
+                      "additional_uom": "KG"
+                    },
+                    "productLink": "/product/cement-aziya-cement-m500-25-kg-12627900/",
+                    "displayedName": "Цемент Азия Цемент M500 ЦЕМ II А-П 42.5 Н 25 кг",
+                    "brand": "АЗИЯ ЦЕМЕНТ",
+                    "productId": "12627900",
+                    "characteristics": [{
+                      "description": "Вес нетто (кг)",
+                      "value": "25"
+                    }]
+                  }]
+                }
+              };
+            </script>
+          </body>
+        </html>
+    """
+    collector = price_discovery.ProviderCatalogCollector(
+        "lemanapro",
+        fetch_text=lambda url: html,
+        max_product_pages=0,
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "Азия Цемент M500 50 кг",
+            "kind": "catalog_hint",
+            "quick_links": [
+                {
+                    "label": "Лемана ПРО",
+                    "url": "https://lemanapro.ru/catalogue/cement/",
+                    "provider": "lemanapro",
+                    "link_kind": "catalog_search",
+                    "preset_id": "lemanapro_building_materials",
+                }
+            ],
+        }
+    )
+
+    assert result["diagnostics"]["pages_fetched"] == 1
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["diagnostics"]["candidates_rejected_by_intent"] == 1
+    assert result["candidates"] == [
+        {
+            "name": "Цемент Азия Цемент M500 ЦЕМ II А-П 42.5 Н 50 кг",
+            "url": "https://lemanapro.ru/product/cement-aziya-cement-m500-50-kg-85606184/",
+            "product_code": "85606184",
+            "unit_price": 522.0,
+            "currency": "RUB",
+            "availability": "in_stock",
+            "status": "candidate",
+            "source_query": "Азия Цемент M500 50 кг",
+            "source_kind": "catalog_hint",
+            "note": "Lemana Pro catalog PLP offer from https://lemanapro.ru/catalogue/cement/.",
+            "provider": "lemanapro",
+            "brand": "АЗИЯ ЦЕМЕНТ",
+            "product_attributes": [
+                {"name": "Вес нетто (кг)", "value": "50"},
+                {"name": "Марка прочности", "value": "M500"},
+            ],
+            "price_breaks": [{"count": 1, "price": 522.0}],
+            "delivery_note": "Lemana Pro: цена 522 RUB/шт.; доп. цена 10.44 RUB/кг.",
+        }
+    ]
+
+
+def test_provider_catalog_collector_extracts_vseinstrumenti_schema_org_product_details() -> None:
+    product_url = "https://www.vseinstrumenti.ru/product/samorezy-gigant-4-2x19-p-sf-sverlo-tsink-1-kg-123575-7126310/"
+    html = """
+        <html>
+          <head>
+            <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "Саморезы Gigant 4,2x19, полусфера, сверло, цинк, 1 кг (примерно 557 шт) 123575",
+              "url": "https://www.vseinstrumenti.ru/product/samorezy-gigant-4-2x19-p-sf-sverlo-tsink-1-kg-123575-7126310/",
+              "image": [
+                "https://cdn.vseinstrumenti.ru/images/goods/krepezh/metizy/7126310/2400x1600/102404120.jpg",
+                "https://cdn.vseinstrumenti.ru/images/goods/krepezh/metizy/7126310/2400x1600/88268311.jpg"
+              ],
+              "brand": {"@type": "Brand", "name": "Gigant"},
+              "offers": {
+                "@type": "Offer",
+                "availability": "https://schema.org/InStock",
+                "price": 378,
+                "priceCurrency": "RUB"
+              },
+              "additionalProperty": [
+                {"@type": "PropertyValue", "name": "Длина", "value": "19"},
+                {"@type": "PropertyValue", "name": "Диаметр", "value": "4.2"},
+                {"@type": "PropertyValue", "name": "Фасовка", "value": "1 кг"}
+              ]
+            }
+            </script>
+          </head>
+        </html>
+    """
+    calls: list[str] = []
+    collector = price_discovery.ProviderCatalogCollector(
+        "vseinstrumenti",
+        fetch_text=lambda url: calls.append(url) or html,
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "Саморезы Gigant 4,2x19 полусфера сверло цинк 1 кг 123575",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "ВсеИнструменты",
+                    "url": product_url,
+                    "provider": "vseinstrumenti",
+                    "link_kind": "manual_product_url",
+                    "preset_id": "vseinstrumenti_building_materials",
+                }
+            ],
+        }
+    )
+
+    assert calls == [product_url]
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"] == [
+        {
+            "name": "Саморезы Gigant 4,2x19, полусфера, сверло, цинк, 1 кг (примерно 557 шт) 123575",
+            "url": product_url,
+            "unit_price": 378.0,
+            "currency": "RUB",
+            "availability": "in_stock",
+            "status": "candidate",
+            "source_query": "Саморезы Gigant 4,2x19 полусфера сверло цинк 1 кг 123575",
+            "source_kind": "normalized_name",
+            "note": f"Vseinstrumenti catalog offer from {product_url}.",
+            "provider": "vseinstrumenti",
+            "brand": "Gigant",
+            "image_url": "https://cdn.vseinstrumenti.ru/images/goods/krepezh/metizy/7126310/2400x1600/102404120.jpg",
+            "image_urls": [
+                "https://cdn.vseinstrumenti.ru/images/goods/krepezh/metizy/7126310/2400x1600/102404120.jpg",
+                "https://cdn.vseinstrumenti.ru/images/goods/krepezh/metizy/7126310/2400x1600/88268311.jpg",
+            ],
+            "product_attributes": [
+                {"name": "Длина", "value": "19"},
+                {"name": "Диаметр", "value": "4.2"},
+                {"name": "Фасовка", "value": "1 кг"},
+            ],
+        }
+    ]
+
+
+def test_provider_catalog_collector_rejects_vseinstrumenti_schema_org_product_mismatch() -> None:
+    product_url = "https://www.vseinstrumenti.ru/product/office-paper-a4-0001/"
+    html = """
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          "name": "Бумага офисная A4, 80 г/м2, 500 листов",
+          "url": "https://www.vseinstrumenti.ru/product/office-paper-a4-0001/",
+          "offers": {
+            "@type": "Offer",
+            "price": "399",
+            "priceCurrency": "RUB",
+            "availability": "https://schema.org/InStock"
+          }
+        }
+        </script>
+    """
+    collector = price_discovery.ProviderCatalogCollector("vseinstrumenti", fetch_text=lambda url: html)
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "Саморезы Gigant 4,2x19 полусфера сверло цинк",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "ВсеИнструменты",
+                    "url": product_url,
+                    "provider": "vseinstrumenti",
+                    "link_kind": "manual_product_url",
+                    "preset_id": "vseinstrumenti_building_materials",
+                }
+            ],
+        }
+    )
+
+    assert result["candidates"] == []
+    assert result["diagnostics"]["candidates_found"] == 0
+    assert result["diagnostics"]["candidates_rejected_by_intent"] == 1
+
+
 def test_provider_catalog_collector_extracts_komus_visible_offer_without_schema_org() -> None:
     pages = {
         "https://www.komus.ru/search/?text=office+paper+a4": """
@@ -962,8 +1472,97 @@ def test_default_price_collectors_try_builtin_catalogs_before_schema_org_fallbac
         "catalog_komus",
         "catalog_petrovich",
         "catalog_vseinstrumenti",
+        "catalog_lemanapro",
         "schema_org_product",
     ]
+    assert [
+        collector.max_product_pages
+        for collector in collectors
+        if getattr(collector, "provider", "").startswith("catalog_")
+    ] == [5, 5, 5, 5, 5]
+
+
+def test_run_profile_supplier_price_discovery_routes_only_relevant_catalog_collectors() -> None:
+    database_path = Path("pytest_tmp_supplier_catalog_routing") / "tenders.sqlite"
+    database_path.parent.mkdir(exist_ok=True)
+    if database_path.exists():
+        database_path.unlink()
+    store = TenderStore(database_path)
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-discovery-routes",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-discovery-routes",
+            title="Building tender",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-discovery-routes",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-routes",
+                position_index=1,
+                product_name="Цемент М500 50 кг",
+                normalized_name="цемент м500 50 кг",
+                okpd2="23.51.12.110",
+                raw_payload={},
+            )
+        ],
+    )
+    calls: list[str] = []
+
+    class OfficeCatalogCollector:
+        provider = "catalog_officemag"
+
+        def collect_with_diagnostics(self, query):
+            raise AssertionError("OfficeMag must not run for a building-material profile")
+
+    class LemanaCatalogCollector:
+        provider = "catalog_lemanapro"
+
+        def collect_with_diagnostics(self, query):
+            calls.append(query["query"])
+            return {
+                "candidates": [
+                    {
+                        "name": "Цемент М500 50 кг",
+                        "url": "https://lemanapro.ru/product/cement-85606184/",
+                        "unit_price": 522.0,
+                        "status": "candidate",
+                        "source_query": query["query"],
+                        "source_kind": query["kind"],
+                        "provider": "lemanapro",
+                    }
+                ],
+                "diagnostics": {
+                    "provider": self.provider,
+                    "queries_seen": 1,
+                    "links_seen": len(query.get("quick_links") or []),
+                    "links_skipped": 0,
+                    "pages_fetched": 1,
+                    "candidates_found": 1,
+                    "errors": [],
+                },
+            }
+
+    payload = run_profile_supplier_price_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-discovery-routes",
+        1,
+        collectors=[OfficeCatalogCollector(), LemanaCatalogCollector()],
+    )
+
+    assert len(calls) == 3
+    diagnostics = payload["supplier_discovery"]["collector_diagnostics"]
+    assert diagnostics[0]["provider"] == "catalog_officemag"
+    assert diagnostics[0]["run_state"] == "skipped"
+    assert diagnostics[0]["skip_reason"] == "not_relevant_for_profile"
+    assert diagnostics[1]["provider"] == "catalog_lemanapro"
+    assert payload["staged_count"] == 1
 
 
 def test_run_profile_supplier_price_discovery_stages_schema_org_product_candidates(tmp_path) -> None:
@@ -1187,6 +1786,7 @@ def test_run_profile_supplier_price_discovery_filters_supplier_candidates_by_pro
             "pages_fetched": 3,
             "candidates_found": 6,
             "candidates_rejected_by_intent": 3,
+            "intent_rejection_reasons": {"product_family_mismatch": 3},
             "errors": [],
         }
     ]
@@ -1308,6 +1908,7 @@ def test_run_profile_supplier_price_discovery_records_intent_rejections_without_
                 "pages_fetched": 3,
                 "candidates_found": 3,
                 "candidates_rejected_by_intent": 3,
+                "intent_rejection_reasons": {"product_family_mismatch": 3},
                 "errors": [],
             }
         ],

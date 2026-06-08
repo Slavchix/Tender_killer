@@ -3,6 +3,7 @@ import {
   formatQuantity,
   profileStatusLabel,
 } from './formatters'
+import { tenderReferenceTotalPrice, tenderReferenceUnitPrice } from './TenderEconomicsPriceComparison'
 
 export function EconomicsPositionRail({
   profiles = [],
@@ -32,6 +33,7 @@ function EconomicsPositionRailRow({ profile, index, selected = false, onSelect }
     : []
   const profileEconomics = profile.raw_payload?.economics || {}
   const costValue = profileEconomics.total_cost ?? profileEconomics.unit_cost
+  const positionTenderPrice = formatPositionTenderPrice(profile)
 
   return (
     <button
@@ -41,11 +43,23 @@ function EconomicsPositionRailRow({ profile, index, selected = false, onSelect }
     >
       <span className="profile-position">#{profile.position_index || index + 1}</span>
       <span className="profile-name">{profile.product_name || 'Без названия'}</span>
-      <span className="profile-meta quantity">{formatQuantity(profile.quantity, profile.unit)}</span>
+      <span className="profile-meta quantity">
+        {formatQuantity(profile.quantity, profile.unit)}
+        {positionTenderPrice ? ` · ${positionTenderPrice}` : ''}
+      </span>
       <span className="profile-meta classifier">
         {costValue ? `себестоимость ${formatMoney(costValue)}` : `${supplierOptions.length} поставщиков`}
       </span>
       <span className={`profile-status ${profile.profile_status || 'draft'}`}>{profileStatusLabel(profile.profile_status)}</span>
     </button>
   )
+}
+
+function formatPositionTenderPrice(profile) {
+  const unitPrice = tenderReferenceUnitPrice(profile)
+  const totalPrice = tenderReferenceTotalPrice(profile)
+  const parts = []
+  if (unitPrice != null) parts.push(formatMoney(unitPrice))
+  if (totalPrice != null) parts.push(formatMoney(totalPrice))
+  return parts.join(' · ')
 }

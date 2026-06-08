@@ -22,6 +22,7 @@ from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
 from tender_killer.supplier_catalog_health_service import http_error_kind
 from tender_killer.supplier_catalog_health_service import response_body_preview
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
+from tender_killer.supplier_product_matcher import supplier_product_name_mismatch_reasons
 from tender_killer.supplier_product_matcher import supplier_product_name_matches_query
 from tender_killer.supplier_search_service import build_supplier_search_queries
 from tender_killer.supplier_search_service import prepare_profile_supplier_search
@@ -58,7 +59,7 @@ CATALOG_QUERY_STOP_WORDS = {
 NO_SUPPLIER_CANDIDATES_MESSAGE = "\u041d\u043e\u0432\u044b\u0445 \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432 \u043f\u043e\u0441\u0442\u0430\u0432\u0449\u0438\u043a\u043e\u0432 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e."
 PREPARE_SUPPLIER_SEARCH_MESSAGE = "\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u044c \u043f\u043e\u0438\u0441\u043a \u043f\u043e\u0441\u0442\u0430\u0432\u0449\u0438\u043a\u043e\u0432."
 DEFAULT_TENDER_PRICE_DISCOVERY_MAX_POSITIONS = 50
-DEFAULT_CATALOG_MAX_PRODUCT_PAGES = 1
+DEFAULT_CATALOG_MAX_PRODUCT_PAGES = 5
 DEFAULT_PUBLIC_FETCH_TIMEOUT_SECONDS = 5.0
 
 
@@ -179,7 +180,12 @@ class ProviderCatalogCollector:
                 continue
             diagnostics["pages_fetched"] += 1
 
-            page_candidates = self._schema_candidates(html, url, query_text, source_kind)
+            raw_page_candidates = self._schema_candidates(html, url, query_text, source_kind)
+            page_candidates, rejected_count = _provider_catalog_candidates_matching_query(
+                raw_page_candidates,
+                query_text,
+            )
+            _add_rejected_by_intent(diagnostics, rejected_count)
             diagnostics["candidates_found"] += len(page_candidates)
             candidates.extend(page_candidates)
 
@@ -189,27 +195,70 @@ class ProviderCatalogCollector:
                 for candidate in page_candidates
                 if (candidate_url := _text(candidate.get("url")))
             }
+            product_source_pages = [(html, url)]
+            if not page_candidates:
+                for fallback_url in _catalog_fallback_page_urls(html, url, self.catalog_provider):
+                    fallback_url_key = fallback_url.casefold()
+                    if fallback_url_key in fetched_urls:
+                        continue
+                    try:
+                        fallback_html = self.fetch_text(fallback_url)
+                    except httpx.HTTPError as exc:
+                        diagnostics["errors"].append(str(exc))
+                        continue
+                    fetched_urls.add(fallback_url_key)
+                    product_source_pages.append((fallback_html, fallback_url))
+                    diagnostics["pages_fetched"] += 1
+                    raw_fallback_candidates = self._schema_candidates(
+                        fallback_html,
+                        fallback_url,
+                        query_text,
+                        source_kind,
+                    )
+                    fallback_candidates, rejected_count = _provider_catalog_candidates_matching_query(
+                        raw_fallback_candidates,
+                        query_text,
+                    )
+                    _add_rejected_by_intent(diagnostics, rejected_count)
+                    diagnostics["candidates_found"] += len(fallback_candidates)
+                    candidates.extend(fallback_candidates)
+                    candidate_urls.update(
+                        candidate_url.casefold()
+                        for candidate in fallback_candidates
+                        if (candidate_url := _text(candidate.get("url")))
+                    )
             followed_pages = 0
-            for product_url in _catalog_product_page_urls(html, url):
+            for source_html, source_page_url in product_source_pages:
+                for product_url in _catalog_product_page_urls(source_html, source_page_url):
+                    if followed_pages >= self.max_product_pages:
+                        break
+                    product_url_key = product_url.casefold()
+                    if product_url_key in fetched_urls or product_url_key in candidate_urls:
+                        continue
+                    if not _is_provider_product_detail_url(self.catalog_provider, product_url):
+                        diagnostics["links_skipped"] += 1
+                        continue
+                    if not _is_public_product_page_url(product_url) or not _is_same_public_site(url, product_url):
+                        diagnostics["links_skipped"] += 1
+                        continue
+                    try:
+                        product_html = self.fetch_text(product_url)
+                    except httpx.HTTPError as exc:
+                        diagnostics["errors"].append(str(exc))
+                        continue
+                    fetched_urls.add(product_url_key)
+                    followed_pages += 1
+                    diagnostics["pages_fetched"] += 1
+                    raw_product_candidates = self._schema_candidates(product_html, product_url, query_text, source_kind)
+                    product_candidates, rejected_count = _provider_catalog_candidates_matching_query(
+                        raw_product_candidates,
+                        query_text,
+                    )
+                    _add_rejected_by_intent(diagnostics, rejected_count)
+                    diagnostics["candidates_found"] += len(product_candidates)
+                    candidates.extend(product_candidates)
                 if followed_pages >= self.max_product_pages:
                     break
-                product_url_key = product_url.casefold()
-                if product_url_key in fetched_urls or product_url_key in candidate_urls:
-                    continue
-                if not _is_public_product_page_url(product_url) or not _is_same_public_site(url, product_url):
-                    diagnostics["links_skipped"] += 1
-                    continue
-                try:
-                    product_html = self.fetch_text(product_url)
-                except httpx.HTTPError as exc:
-                    diagnostics["errors"].append(str(exc))
-                    continue
-                fetched_urls.add(product_url_key)
-                followed_pages += 1
-                diagnostics["pages_fetched"] += 1
-                product_candidates = self._schema_candidates(product_html, product_url, query_text, source_kind)
-                diagnostics["candidates_found"] += len(product_candidates)
-                candidates.extend(product_candidates)
         return {"candidates": candidates, "diagnostics": diagnostics}
 
     def _schema_candidates(
@@ -219,6 +268,10 @@ class ProviderCatalogCollector:
         query_text: str,
         source_kind: str,
     ) -> list[dict[str, Any]]:
+        if self.catalog_provider == "lemanapro":
+            candidates = _lemanapro_plp_candidates(html, source_url, query_text, source_kind)
+            if candidates:
+                return candidates
         if self.catalog_provider == "officemag":
             candidates = _officemag_visible_candidates(html, source_url, query_text, source_kind)
             if candidates:
@@ -523,21 +576,31 @@ def _run_supplier_discovery_with_queries(
 ) -> dict[str, Any]:
     candidates: list[dict[str, Any]] = []
     diagnostics_by_provider: dict[str, dict[str, Any]] = {}
+    price_collectors = _relevant_price_collectors_for_queries(queries, price_collectors, diagnostics_by_provider)
     for query in queries:
         for collector in price_collectors:
             result = collector.collect_with_diagnostics(query)
             accepted_candidates: list[dict[str, Any]] = []
             rejected_by_intent = 0
+            rejection_reasons: dict[str, int] = {}
             for candidate in result["candidates"]:
                 if not _candidate_matches_profile_intent(target, candidate):
                     rejected_by_intent += 1
+                    _increment_reason_counts(
+                        rejection_reasons,
+                        _candidate_profile_intent_rejection_reasons(target, candidate),
+                    )
                     continue
                 key = _candidate_key(candidate)
                 if key in existing_keys:
                     continue
                 existing_keys.add(key)
                 accepted_candidates.append(_candidate_with_profile_match(candidate))
-            diagnostics = _with_intent_rejection_diagnostics(result["diagnostics"], rejected_by_intent)
+            diagnostics = _with_intent_rejection_diagnostics(
+                result["diagnostics"],
+                rejected_by_intent,
+                rejection_reasons,
+            )
             if _diagnostics_has_signal(diagnostics):
                 _merge_diagnostics(diagnostics_by_provider, diagnostics)
             candidates.extend(accepted_candidates)
@@ -563,12 +626,67 @@ def _run_supplier_discovery_with_queries(
     )
 
 
+def _relevant_price_collectors_for_queries(
+    queries: list[dict[str, Any]],
+    price_collectors: list[Any],
+    diagnostics_by_provider: dict[str, dict[str, Any]],
+) -> list[Any]:
+    allowed_catalog_providers = _catalog_providers_for_queries(queries)
+    relevant_collectors: list[Any] = []
+    for collector in price_collectors:
+        catalog_provider = _collector_catalog_provider(collector)
+        if catalog_provider is not None and catalog_provider not in allowed_catalog_providers:
+            _merge_diagnostics(
+                diagnostics_by_provider,
+                _skipped_collector_diagnostics(
+                    _collector_provider_name(collector),
+                    "not_relevant_for_profile",
+                ),
+            )
+            continue
+        relevant_collectors.append(collector)
+    return relevant_collectors
+
+
+def _catalog_providers_for_queries(queries: list[dict[str, Any]]) -> set[str]:
+    providers: set[str] = set()
+    for query in queries:
+        for link in _quick_links(query):
+            link_kind = _text(link.get("link_kind"))
+            provider = _text(link.get("provider"))
+            if link_kind in {CATALOG_SEARCH_LINK_KIND, MANUAL_PRODUCT_LINK_KIND} and provider:
+                providers.add(provider.casefold())
+    return providers
+
+
+def _collector_catalog_provider(collector: Any) -> str | None:
+    catalog_provider = _text(getattr(collector, "catalog_provider", None))
+    if catalog_provider:
+        return catalog_provider.casefold()
+    provider = _text(getattr(collector, "provider", None))
+    if provider and provider.casefold().startswith("catalog_"):
+        return provider.casefold().removeprefix("catalog_")
+    return None
+
+
+def _collector_provider_name(collector: Any) -> str:
+    return _text(getattr(collector, "provider", None)) or collector.__class__.__name__
+
+
 def _candidate_matches_profile_intent(profile: dict[str, Any], candidate: dict[str, Any]) -> bool:
     product_name = _text(candidate.get("name") or candidate.get("product_name"))
     profile_text = _profile_intent_text(profile, candidate)
     if not product_name or not profile_text:
         return True
     return _catalog_product_name_matches_query(product_name, profile_text)
+
+
+def _candidate_profile_intent_rejection_reasons(profile: dict[str, Any], candidate: dict[str, Any]) -> list[str]:
+    product_name = _text(candidate.get("name") or candidate.get("product_name"))
+    profile_text = _profile_intent_text(profile, candidate)
+    if not product_name or not profile_text:
+        return []
+    return supplier_product_name_mismatch_reasons(profile_text, product_name)
 
 
 def _profile_intent_text(profile: dict[str, Any], candidate: dict[str, Any]) -> str:
@@ -579,6 +697,10 @@ def _profile_intent_text(profile: dict[str, Any], candidate: dict[str, Any]) -> 
             parts.append(value)
     for phrase in _text_items(profile.get("search_phrases")):
         parts.append(phrase)
+    raw_payload = profile.get("raw_payload") if isinstance(profile.get("raw_payload"), dict) else {}
+    for query in _supplier_search_queries(raw_payload.get("supplier_search")):
+        if _text(query.get("kind")) == "catalog_hint" and (query_text := _text(query.get("query"))):
+            parts.append(query_text)
     source_query = _text(candidate.get("source_query"))
     if source_query:
         parts.append(source_query)
@@ -594,12 +716,49 @@ def _candidate_with_profile_match(candidate: dict[str, Any]) -> dict[str, Any]:
     return updated
 
 
-def _with_intent_rejection_diagnostics(diagnostics: dict[str, Any], rejected_count: int) -> dict[str, Any]:
+def _provider_catalog_candidates_matching_query(
+    candidates: list[dict[str, Any]],
+    query_text: str,
+) -> tuple[list[dict[str, Any]], int]:
+    accepted: list[dict[str, Any]] = []
+    rejected_count = 0
+    for candidate in candidates:
+        product_name = _text(candidate.get("name") or candidate.get("product_name"))
+        if not product_name or not query_text or _catalog_product_name_matches_query(product_name, query_text):
+            accepted.append(candidate)
+            continue
+        rejected_count += 1
+    return accepted, rejected_count
+
+
+def _add_rejected_by_intent(diagnostics: dict[str, Any], rejected_count: int) -> None:
+    if rejected_count <= 0:
+        return
+    diagnostics["candidates_rejected_by_intent"] = (
+        int(diagnostics.get("candidates_rejected_by_intent") or 0) + rejected_count
+    )
+
+
+def _with_intent_rejection_diagnostics(
+    diagnostics: dict[str, Any],
+    rejected_count: int,
+    rejection_reasons: dict[str, int] | None = None,
+) -> dict[str, Any]:
     if rejected_count <= 0:
         return diagnostics
     updated = dict(diagnostics)
     updated["candidates_rejected_by_intent"] = int(updated.get("candidates_rejected_by_intent") or 0) + rejected_count
+    if rejection_reasons:
+        current_reasons = dict(updated.get("intent_rejection_reasons") or {})
+        for reason, count in rejection_reasons.items():
+            current_reasons[reason] = int(current_reasons.get(reason) or 0) + int(count)
+        updated["intent_rejection_reasons"] = current_reasons
     return updated
+
+
+def _increment_reason_counts(target: dict[str, int], reasons: list[str]) -> None:
+    for reason in reasons:
+        target[reason] = int(target.get(reason) or 0) + 1
 
 
 def _find_profile(profiles: list[dict[str, Any]], position_index: int) -> dict[str, Any] | None:
@@ -696,6 +855,13 @@ def _collector_diagnostics(provider: str) -> dict[str, Any]:
     }
 
 
+def _skipped_collector_diagnostics(provider: str, reason: str) -> dict[str, Any]:
+    diagnostics = _collector_diagnostics(provider)
+    diagnostics["run_state"] = "skipped"
+    diagnostics["skip_reason"] = reason
+    return diagnostics
+
+
 def _merge_diagnostics(current: dict[str, dict[str, Any]], item: dict[str, Any]) -> None:
     provider = str(item.get("provider") or "unknown")
     target = current.setdefault(provider, _collector_diagnostics(provider))
@@ -711,6 +877,13 @@ def _merge_diagnostics(current: dict[str, dict[str, Any]], item: dict[str, Any])
         if field not in target and value == 0:
             continue
         target[field] = int(target.get(field) or 0) + value
+    for reason, count in dict(item.get("intent_rejection_reasons") or {}).items():
+        target_reasons = target.setdefault("intent_rejection_reasons", {})
+        target_reasons[str(reason)] = int(target_reasons.get(str(reason)) or 0) + int(count or 0)
+    if run_state := _text(item.get("run_state")):
+        target["run_state"] = run_state
+    if skip_reason := _text(item.get("skip_reason")):
+        target["skip_reason"] = skip_reason
     target["errors"].extend([str(error) for error in item.get("errors") or []])
 
 
@@ -719,6 +892,8 @@ def _diagnostics_has_signal(item: dict[str, Any]) -> bool:
         item.get("pages_fetched")
         or item.get("candidates_found")
         or item.get("candidates_rejected_by_intent")
+        or item.get("run_state") == "skipped"
+        or item.get("skip_reason")
         or item.get("errors")
     )
 
@@ -770,6 +945,14 @@ def _schema_org_candidates(
                     candidate["vat_mode"] = vat_mode
                 if delivery_note := _schema_delivery_note(offer):
                     candidate["delivery_note"] = delivery_note
+                if brand := _schema_brand_name(product):
+                    candidate["brand"] = brand
+                image_urls = _schema_image_urls(product)
+                if image_urls:
+                    candidate["image_url"] = image_urls[0]
+                    candidate["image_urls"] = image_urls
+                if product_attributes := _schema_product_attributes(product):
+                    candidate["product_attributes"] = product_attributes
                 candidates.append(candidate)
     return candidates
 
@@ -873,6 +1056,71 @@ def _schema_delivery_note(offer: dict[str, Any]) -> str | None:
     return None
 
 
+def _schema_brand_name(product: dict[str, Any]) -> str | None:
+    brand = product.get("brand")
+    if isinstance(brand, dict):
+        return _text(brand.get("name")) or _text(brand.get("alternateName"))
+    if isinstance(brand, list):
+        for item in brand:
+            if isinstance(item, dict):
+                if name := _text(item.get("name")) or _text(item.get("alternateName")):
+                    return name
+            elif name := _text(item):
+                return name
+        return None
+    return _text(brand)
+
+
+def _schema_image_urls(product: dict[str, Any]) -> list[str]:
+    urls: list[str] = []
+    seen: set[str] = set()
+
+    def append(value: Any) -> None:
+        if isinstance(value, list):
+            for item in value:
+                append(item)
+            return
+        if isinstance(value, dict):
+            append(value.get("url") or value.get("contentUrl"))
+            return
+        url = _text(value)
+        if not url:
+            return
+        key = url.casefold()
+        if key in seen:
+            return
+        seen.add(key)
+        urls.append(url)
+
+    append(product.get("image"))
+    return urls
+
+
+def _schema_product_attributes(product: dict[str, Any]) -> list[dict[str, str]]:
+    raw_properties = product.get("additionalProperty")
+    properties = raw_properties if isinstance(raw_properties, list) else [raw_properties]
+    attributes: list[dict[str, str]] = []
+    for item in properties:
+        if not isinstance(item, dict):
+            continue
+        name = _text(item.get("name"))
+        value = _schema_property_text(item.get("value"))
+        if not name or not value:
+            continue
+        attributes.append({"name": name, "value": value})
+    return attributes
+
+
+def _schema_property_text(value: Any) -> str | None:
+    if isinstance(value, dict):
+        return _text(value.get("value")) or _text(value.get("name"))
+    if isinstance(value, list):
+        parts = [_schema_property_text(item) for item in value]
+        joined = ", ".join(part for part in parts if part)
+        return joined or None
+    return _text(value)
+
+
 def _schema_product_page_urls(html: str, source_url: str) -> list[str]:
     urls: list[str] = []
     seen: set[str] = set()
@@ -895,10 +1143,39 @@ def _schema_product_page_urls(html: str, source_url: str) -> list[str]:
 def _catalog_product_page_urls(html: str, source_url: str) -> list[str]:
     urls: list[str] = []
     seen: set[str] = set()
+    for product_url in _officemag_hidden_product_page_urls(html, source_url):
+        _append_unique_url(urls, seen, product_url)
     for product_url in _schema_product_page_urls(html, source_url):
         _append_unique_url(urls, seen, product_url)
     for product_url in _same_site_anchor_urls(html, source_url):
         _append_unique_url(urls, seen, product_url)
+    return urls
+
+
+def _officemag_hidden_product_page_urls(html: str, source_url: str) -> list[str]:
+    if "officemag.ru" not in urlparse(source_url).netloc.casefold():
+        return []
+    soup = BeautifulSoup(html, "html.parser")
+    urls: list[str] = []
+    seen: set[str] = set()
+    for node in soup.select(".js-listXmlIDs[value]"):
+        for product_code in re.findall(r"(?<!\d)\d{5,8}(?!\d)", str(node.get("value") or "")):
+            _append_unique_url(urls, seen, urljoin(source_url, f"/catalog/goods/{product_code}/"))
+    return urls
+
+
+def _catalog_fallback_page_urls(html: str, source_url: str, provider: str) -> list[str]:
+    provider_key = provider.casefold()
+    if provider_key != "officemag":
+        return []
+    soup = BeautifulSoup(html, "html.parser")
+    urls: list[str] = []
+    seen: set[str] = set()
+    for node in soup.select('input[name="SECTION"][value]'):
+        section = _text(node.get("value"))
+        if not section or not section.isdigit() or int(section) <= 0:
+            continue
+        _append_unique_url(urls, seen, urljoin(source_url, f"/catalog/{section}/"))
     return urls
 
 
@@ -933,6 +1210,176 @@ def _provider_visible_offer_candidates(
             "provider": provider,
         }
     ]
+
+
+def _lemanapro_plp_candidates(
+    html: str,
+    source_url: str,
+    query_text: str,
+    source_kind: str,
+) -> list[dict[str, Any]]:
+    state = _extract_initial_state(html, "plp")
+    products = _lemanapro_product_items(state)
+    candidates: list[dict[str, Any]] = []
+    for product in products:
+        candidate = _lemanapro_candidate_from_product(product, source_url, query_text, source_kind)
+        if candidate:
+            candidates.append(candidate)
+    return candidates
+
+
+def _extract_initial_state(html: str, state_name: str) -> Any:
+    marker = f'window.INITIAL_STATE["{state_name}"]'
+    marker_index = html.find(marker)
+    if marker_index < 0:
+        return None
+    assignment_index = html.find("=", marker_index + len(marker))
+    if assignment_index < 0:
+        return None
+    object_start = html.find("{", assignment_index)
+    if object_start < 0:
+        return None
+    object_text = _balanced_js_object_text(html, object_start)
+    return _json(object_text)
+
+
+def _balanced_js_object_text(value: str, start_index: int) -> str | None:
+    depth = 0
+    in_string: str | None = None
+    escaped = False
+    for index in range(start_index, len(value)):
+        char = value[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == in_string:
+                in_string = None
+            continue
+        if char in {'"', "'"}:
+            in_string = char
+            continue
+        if char == "{":
+            depth += 1
+            continue
+        if char == "}":
+            depth -= 1
+            if depth == 0:
+                return value[start_index : index + 1]
+    return None
+
+
+def _lemanapro_product_items(state: Any) -> list[dict[str, Any]]:
+    if not isinstance(state, dict):
+        return []
+    products = state.get("products")
+    if not isinstance(products, dict):
+        return []
+    data = products.get("data")
+    if isinstance(data, list):
+        return [dict(item) for item in data if isinstance(item, dict)]
+    if isinstance(data, dict):
+        return [dict(item) for item in data.values() if isinstance(item, dict)]
+    products_by_ids = products.get("productsByIds")
+    if isinstance(products_by_ids, dict):
+        return [dict(item) for item in products_by_ids.values() if isinstance(item, dict)]
+    return []
+
+
+def _lemanapro_candidate_from_product(
+    product: dict[str, Any],
+    source_url: str,
+    query_text: str,
+    source_kind: str,
+) -> dict[str, Any] | None:
+    product_name = _text(product.get("displayedName") or product.get("name"))
+    price_data = product.get("price") if isinstance(product.get("price"), dict) else {}
+    unit_price = _number(price_data.get("main_price"))
+    if not product_name or unit_price is None:
+        return None
+    product_url = _text(product.get("productLink") or product.get("url")) or source_url
+    product_url = urldefrag(urljoin(source_url, product_url))[0]
+    currency = (_text(price_data.get("currency")) or "RUB").upper()
+    candidate: dict[str, Any] = {
+        "name": product_name,
+        "url": product_url,
+        "unit_price": unit_price,
+        "currency": currency,
+        "availability": _lemanapro_availability(product),
+        "status": "candidate",
+        "source_query": query_text,
+        "source_kind": source_kind,
+        "note": f"Lemana Pro catalog PLP offer from {source_url}.",
+        "provider": "lemanapro",
+    }
+    if product_code := _text(product.get("productId")):
+        candidate["product_code"] = product_code
+    if brand := _text(product.get("brand")):
+        candidate["brand"] = brand
+    if image_url := _lemanapro_image_url(product):
+        candidate["image_url"] = image_url
+    if attributes := _lemanapro_product_attributes(product):
+        candidate["product_attributes"] = attributes
+    if price_break := _lemanapro_price_break(unit_price):
+        candidate["price_breaks"] = [price_break]
+    if delivery_note := _lemanapro_delivery_note(price_data, currency):
+        candidate["delivery_note"] = delivery_note
+    return candidate
+
+
+def _lemanapro_price_break(unit_price: float) -> dict[str, Any] | None:
+    if unit_price is None:
+        return None
+    return {"count": 1, "price": unit_price}
+
+
+def _lemanapro_delivery_note(price_data: dict[str, Any], currency: str) -> str | None:
+    main_price = _number(price_data.get("main_price"))
+    parts: list[str] = []
+    if main_price is not None:
+        main_uom = _text(price_data.get("main_uom_rus")) or _text(price_data.get("main_uom")) or "unit"
+        parts.append(f"цена {_format_decimal(main_price)} {currency}/{main_uom}")
+    additional_price = _number(price_data.get("additional_price"))
+    if additional_price is not None:
+        additional_uom = _text(price_data.get("additional_uom_rus")) or _text(price_data.get("additional_uom")) or "unit"
+        parts.append(f"доп. цена {_format_decimal(additional_price)} {currency}/{additional_uom}")
+    return f"Lemana Pro: {'; '.join(parts)}." if parts else None
+
+
+def _lemanapro_availability(product: dict[str, Any]) -> str:
+    eligibility = product.get("eligibility")
+    if isinstance(eligibility, dict) and any(bool(eligibility.get(key)) for key in (
+        "homeDeliveryEligible",
+        "storeDeliveryEligible",
+        "webEligible",
+    )):
+        return "in_stock"
+    return "in_stock"
+
+
+def _lemanapro_image_url(product: dict[str, Any]) -> str | None:
+    media = product.get("mediaMainPhoto")
+    if isinstance(media, dict):
+        for key in ("desktop", "tablet", "mobile"):
+            if url := _text(media.get(key)):
+                return url
+    return None
+
+
+def _lemanapro_product_attributes(product: dict[str, Any]) -> list[dict[str, str]]:
+    attributes: list[dict[str, str]] = []
+    characteristics = product.get("characteristics")
+    if not isinstance(characteristics, list):
+        return attributes
+    for item in characteristics:
+        if not isinstance(item, dict):
+            continue
+        name = _text(item.get("description") or item.get("name") or item.get("key"))
+        value = _text(item.get("value"))
+        if name and value:
+            attributes.append({"name": name, "value": value})
+    return attributes
 
 
 def _officemag_visible_candidates(
@@ -1002,6 +1449,8 @@ def _officemag_candidate_from_scope(
     price_breaks = _officemag_price_breaks(scope)
     prices = [item["price"] for item in price_breaks]
     if price := _officemag_primary_price(scope):
+        prices.append(price)
+    if price := _officemag_ga_product_price(scope, product_code):
         prices.append(price)
     if not prices:
         lines = _visible_text_lines(scope)
@@ -1074,6 +1523,11 @@ def _first_product_code(text: str) -> str | None:
 
 
 def _officemag_product_name(scope: BeautifulSoup) -> str | None:
+    for selector in (".ProductHead__name", "[itemprop='name']"):
+        for node in scope.select(selector):
+            text = _clean_officemag_text(str(node.get("content") or "") or node.get_text(" ", strip=True))
+            if text:
+                return text
     heading = scope.find("h1")
     if heading:
         return _clean_officemag_text(heading.get_text(" ", strip=True))
@@ -1118,12 +1572,44 @@ def _officemag_price_breaks(scope: BeautifulSoup) -> list[dict[str, Any]]:
 
 
 def _officemag_primary_price(scope: BeautifulSoup) -> float | None:
-    price_node = scope.select_one('.Product__price[itemprop="price"][content]')
+    price_node = scope.select_one('.Product__price[content], [itemprop="price"][content]')
     if price_node:
         return _number(price_node.get("content"))
     sum_node = scope.select_one(".js-productSum[data-price]")
     if sum_node:
         return _number(sum_node.get("data-price"))
+    return None
+
+
+def _officemag_ga_product_price(scope: BeautifulSoup, product_code: str | None) -> float | None:
+    if not product_code:
+        return None
+    for node in scope.find_all(attrs={"data-ga-object": True}):
+        payload = node.get("data-ga-object")
+        if not isinstance(payload, str) or product_code not in payload:
+            continue
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        if price := _officemag_ga_price_for_product(data, product_code):
+            return price
+    return None
+
+
+def _officemag_ga_price_for_product(value: Any, product_code: str) -> float | None:
+    if isinstance(value, dict):
+        item_id = _text(value.get("item_id"))
+        if item_id == product_code:
+            return _number(value.get("price")) or _number(value.get("value"))
+        for key in ("items", "data"):
+            if price := _officemag_ga_price_for_product(value.get(key), product_code):
+                return price
+        return None
+    if isinstance(value, list):
+        for item in value:
+            if price := _officemag_ga_price_for_product(item, product_code):
+                return price
     return None
 
 
@@ -1251,8 +1737,10 @@ def _is_provider_product_detail_url(provider: str, url: str) -> bool:
     if provider_key == "komus":
         return "/p/" in path
     if provider_key == "petrovich":
-        return path.startswith("/product/")
+        return path.startswith("/product/") or path.startswith("/catalog/")
     if provider_key == "vseinstrumenti":
+        return "/product/" in path
+    if provider_key == "lemanapro":
         return "/product/" in path
     return False
 
@@ -1438,6 +1926,8 @@ def _provider_from_url(url: str) -> str | None:
         return "petrovich"
     if "vseinstrumenti.ru" in host:
         return "vseinstrumenti"
+    if "lemanapro.ru" in host:
+        return "lemanapro"
     return None
 
 
@@ -1447,6 +1937,7 @@ def _catalog_provider_label(provider: str) -> str:
         "komus": "Komus",
         "petrovich": "Petrovich",
         "vseinstrumenti": "Vseinstrumenti",
+        "lemanapro": "Lemana Pro",
     }
     return labels.get(provider.casefold(), provider.replace("_", " ").title())
 

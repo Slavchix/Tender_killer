@@ -1,4 +1,3 @@
-﻿import { useEffect } from 'react'
 import { TenderEconomicsMetrics } from './TenderEconomicsMetrics'
 import { EconomicsSummary } from './TenderEconomicsSummary'
 import { TenderEconomicsWorkbench } from './TenderEconomicsWorkbench'
@@ -11,40 +10,24 @@ export function TenderEconomicsTab({
   onSelectedEconomicsProfileChange,
   onEconomicsSave,
   onEconomicsAssumptionsSave,
-  onSupplierOptionSave,
   onSupplierOptionSelect,
-  onSupplierOptionAutoSelect,
   onSupplierOptionAutoSelectAll,
   onReadyPriceCandidatesConfirmAll,
   onPriceDiscoveryRun,
-  onSupplierDiscoveryImport,
   onPriceCandidateConfirm,
   onPriceCandidateReject,
-  onSupplierSearchPrepare,
-  onSupplierCatalogPresetsSave,
-  onSupplierDiscoveryRun,
-  onSupplierUrlDiscoveryRun,
   onAutoEconomicsRun,
   onAutoEconomicsAccept,
   savingEconomicsPosition = null,
   savingAssumptionsPosition = null,
   savingSupplierOptionPosition = null,
-  importingSupplierCandidatePosition = null,
   reviewingPriceCandidateId = null,
-  preparingSupplierSearchPosition = null,
-  savingSupplierCatalogPresetPosition = null,
-  discoveringSupplierPosition = null,
-  autoSelectingSupplierPosition = null,
   autoSelectingAllSuppliers = false,
   confirmingReadyPriceCandidates = false,
   runningPriceDiscovery = false,
   autoEstimatingPosition = null,
   acceptingAutoEconomicsPosition = null,
-  supplierCatalogHealth = null,
-  supplierCatalogHealthLoading = false,
-  supplierCatalogHealthError = '',
   priceDiscoveryJob = null,
-  onSupplierCatalogHealthRefresh,
 }) {
   const profiles = enrichEconomicsProfiles(productProfiles, tender?.items)
   const hasSupplierOptions = profiles.some((profile) => {
@@ -55,48 +38,44 @@ export function TenderEconomicsTab({
   const priceDiscoveryRunCount = profiles.filter(profileNeedsPriceDiscovery).length
   const priceDiscoveryJobText = priceDiscoveryJobStatusText(priceDiscoveryJob)
 
-  useEffect(() => {
-    if (supplierCatalogHealth || supplierCatalogHealthLoading || supplierCatalogHealthError) return
-    onSupplierCatalogHealthRefresh?.(false)?.catch?.(() => {})
-  }, [
-    onSupplierCatalogHealthRefresh,
-    supplierCatalogHealth,
-    supplierCatalogHealthLoading,
-    supplierCatalogHealthError,
-  ])
-
   return (
     <section className="detail-section active economics-section">
-      <div className="section-heading-row">
-        <h3>Экономика</h3>
-        <button
-          className="secondary-button compact"
-          disabled={runningPriceDiscovery || !onPriceDiscoveryRun || priceDiscoveryRunCount === 0}
-          onClick={() => ignoreEconomicsActionError(onPriceDiscoveryRun?.())}
-          type="button"
-        >
-          {runningPriceDiscovery ? 'Ищу...' : `Найти цены (${priceDiscoveryRunCount})`}
-        </button>
-        <button
-          className="secondary-button compact"
-          disabled={confirmingReadyPriceCandidates || !onReadyPriceCandidatesConfirmAll || readyPriceCandidateCount === 0}
-          onClick={() => ignoreEconomicsActionError(onReadyPriceCandidatesConfirmAll?.())}
-          type="button"
-        >
-          {confirmingReadyPriceCandidates ? 'Принимаю...' : `Готовые цены в расчет (${readyPriceCandidateCount})`}
-        </button>
-        <button
-          className="secondary-button compact"
-          disabled={autoSelectingAllSuppliers || !onSupplierOptionAutoSelectAll || !hasSupplierOptions}
-          onClick={() => ignoreEconomicsActionError(onSupplierOptionAutoSelectAll?.())}
-          type="button"
-        >
-          {autoSelectingAllSuppliers ? 'Выбираю...' : 'Лучшие цены в расчет'}
-        </button>
+      <div className="economics-command-center">
+        <div className="section-heading-row economics-command-heading">
+          <div>
+            <h3>Экономика</h3>
+            <p>Закрой цены по позициям, проверь кандидатов и собери расчет участия.</p>
+          </div>
+          <div className="economics-command-actions">
+            <button
+              className="secondary-button compact"
+              disabled={runningPriceDiscovery || !onPriceDiscoveryRun || priceDiscoveryRunCount === 0}
+              onClick={() => ignoreEconomicsActionError(onPriceDiscoveryRun?.())}
+              type="button"
+            >
+              {runningPriceDiscovery ? 'Ищу...' : `Найти цены (${priceDiscoveryRunCount})`}
+            </button>
+            <button
+              className="secondary-button compact"
+              disabled={confirmingReadyPriceCandidates || !onReadyPriceCandidatesConfirmAll || readyPriceCandidateCount === 0}
+              onClick={() => ignoreEconomicsActionError(onReadyPriceCandidatesConfirmAll?.())}
+              type="button"
+            >
+              {confirmingReadyPriceCandidates ? 'Принимаю...' : `Готовые цены в расчет (${readyPriceCandidateCount})`}
+            </button>
+            <button
+              className="secondary-button compact"
+              disabled={autoSelectingAllSuppliers || !onSupplierOptionAutoSelectAll || !hasSupplierOptions}
+              onClick={() => ignoreEconomicsActionError(onSupplierOptionAutoSelectAll?.())}
+              type="button"
+            >
+              {autoSelectingAllSuppliers ? 'Выбираю...' : 'Лучшие цены в расчет'}
+            </button>
+          </div>
+        </div>
+        {priceDiscoveryJobText && <p className="muted-text price-discovery-progress">{priceDiscoveryJobText}</p>}
+        <TenderEconomicsMetrics tender={tender} economics={economics} profiles={profiles} />
       </div>
-      {priceDiscoveryJobText && <p className="muted-text price-discovery-progress">{priceDiscoveryJobText}</p>}
-      <TenderEconomicsMetrics economics={economics} tender={tender} />
-      <EconomicsSummary economics={economics} tender={tender} />
       <TenderEconomicsWorkbench
         economics={economics}
         profiles={profiles}
@@ -104,37 +83,19 @@ export function TenderEconomicsTab({
         onSelectedEconomicsProfileChange={onSelectedEconomicsProfileChange}
         onEconomicsSave={onEconomicsSave}
         onEconomicsAssumptionsSave={onEconomicsAssumptionsSave}
-        onSupplierOptionSave={onSupplierOptionSave}
         onSupplierOptionSelect={onSupplierOptionSelect}
-        onSupplierOptionAutoSelect={onSupplierOptionAutoSelect}
-        onReadyPriceCandidatesConfirmAll={onReadyPriceCandidatesConfirmAll}
-        onSupplierDiscoveryImport={onSupplierDiscoveryImport}
         onPriceCandidateConfirm={onPriceCandidateConfirm}
         onPriceCandidateReject={onPriceCandidateReject}
-        onSupplierSearchPrepare={onSupplierSearchPrepare}
-        onSupplierCatalogPresetsSave={onSupplierCatalogPresetsSave}
-        onSupplierDiscoveryRun={onSupplierDiscoveryRun}
-        onSupplierUrlDiscoveryRun={onSupplierUrlDiscoveryRun}
         onAutoEconomicsRun={onAutoEconomicsRun}
         onAutoEconomicsAccept={onAutoEconomicsAccept}
         savingEconomicsPosition={savingEconomicsPosition}
         savingAssumptionsPosition={savingAssumptionsPosition}
         savingSupplierOptionPosition={savingSupplierOptionPosition}
-        importingSupplierCandidatePosition={importingSupplierCandidatePosition}
         reviewingPriceCandidateId={reviewingPriceCandidateId}
-        preparingSupplierSearchPosition={preparingSupplierSearchPosition}
-        savingSupplierCatalogPresetPosition={savingSupplierCatalogPresetPosition}
-        discoveringSupplierPosition={discoveringSupplierPosition}
-        autoSelectingSupplierPosition={autoSelectingSupplierPosition}
-        autoSelectingAllSuppliers={autoSelectingAllSuppliers}
-        confirmingReadyPriceCandidates={confirmingReadyPriceCandidates}
         autoEstimatingPosition={autoEstimatingPosition}
         acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
-        supplierCatalogHealth={supplierCatalogHealth}
-        supplierCatalogHealthLoading={supplierCatalogHealthLoading}
-        supplierCatalogHealthError={supplierCatalogHealthError}
-        onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
       />
+      <EconomicsSummary economics={economics} tender={tender} profiles={profiles} />
     </section>
   )
 }
@@ -161,7 +122,7 @@ function enrichEconomicsProfiles(productProfiles = [], tenderItems = []) {
     const item = itemByPosition.get(positionIndex)
     if (!item) return profile
     const enriched = { ...profile }
-    ;['quantity', 'unit'].forEach((key) => {
+    ;['quantity', 'unit', 'unit_price', 'total_price'].forEach((key) => {
       if ((enriched[key] == null || enriched[key] === '') && item[key] != null && item[key] !== '') {
         enriched[key] = item[key]
       }

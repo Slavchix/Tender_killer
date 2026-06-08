@@ -1,49 +1,26 @@
-import {
-  SupplierDiscoveryPreview,
-  SupplierSearchPreview,
-} from './TenderEconomicsSupplierDiscovery'
-import { SupplierInputForm } from './TenderEconomicsSupplierInputForm'
 import { SupplierOptionsList } from './TenderEconomicsSupplierOptions'
+import { priceComparisonForUnitPrice, tenderReferenceUnitPrice } from './TenderEconomicsPriceComparison'
 import { formatMoney, formatQuantity as formatTenderQuantity, supplierConfidenceLabel } from './formatters'
 
 export function ProductSupplierOptionsForm({
   profile,
-  onSave,
   onSelect,
-  onAutoSelect,
-  onDiscoveryImport,
   onPriceCandidateConfirm,
   onPriceCandidateReject,
-  onSearchPrepare,
-  onPresetSave,
-  onDiscoveryRun,
-  onDiscoveryUrlRun,
-  supplierCatalogHealth,
-  supplierCatalogHealthLoading = false,
-  supplierCatalogHealthError = '',
-  onSupplierCatalogHealthRefresh,
   saving = false,
-  importingDiscovery = false,
   reviewingPriceCandidateId = null,
-  preparingSearch = false,
-  savingPresets = false,
-  discoveringDiscovery = false,
-  autoSelecting = false,
 }) {
   const supplierOptions = Array.isArray(profile?.raw_payload?.supplier_options)
     ? profile.raw_payload.supplier_options
     : []
-  const supplierSearch = profile?.raw_payload?.supplier_search || null
-  const supplierDiscovery = profile?.raw_payload?.supplier_discovery || null
-  const supplierSearchQueries = Array.isArray(supplierSearch?.queries) ? supplierSearch.queries : []
   const priceCandidates = Array.isArray(profile?.price_candidates) ? profile.price_candidates : []
   const visiblePriceCandidates = priceCandidates.filter((candidate) => {
     const reviewStatus = String(candidate?.review_status || 'pending').toLowerCase()
     const qualityStatus = String(candidate?.quality_status || '').toLowerCase()
     return reviewStatus === 'pending' && qualityStatus !== 'blocked'
   })
-  const showDiscoveryPreview = visiblePriceCandidates.length === 0
   const showSupplierOptions = supplierOptions.length > 0 && visiblePriceCandidates.length === 0
+  const showEmptyState = visiblePriceCandidates.length === 0 && supplierOptions.length === 0
 
   return (
     <section className="profile-block supplier-options-block">
@@ -54,42 +31,25 @@ export function ProductSupplierOptionsForm({
         onConfirm={(candidate) => onPriceCandidateConfirm?.(profile, candidate)}
         onReject={(candidate) => onPriceCandidateReject?.(profile, candidate)}
       />
-      <SupplierInputForm
-        profile={profile}
-        supplierOptions={supplierOptions}
-        supplierSearchQueries={supplierSearchQueries}
-        onSave={onSave}
-        onAutoSelect={onAutoSelect}
-        onSearchPrepare={onSearchPrepare}
-        onPresetSave={onPresetSave}
-        onDiscoveryRun={onDiscoveryRun}
-        onDiscoveryUrlRun={onDiscoveryUrlRun}
-        supplierCatalogHealth={supplierCatalogHealth}
-        supplierCatalogHealthLoading={supplierCatalogHealthLoading}
-        supplierCatalogHealthError={supplierCatalogHealthError}
-        onSupplierCatalogHealthRefresh={onSupplierCatalogHealthRefresh}
-        saving={saving}
-        preparingSearch={preparingSearch}
-        savingPresets={savingPresets}
-        discoveringDiscovery={discoveringDiscovery}
-        autoSelecting={autoSelecting}
-      />
-      <SupplierSearchPreview search={supplierSearch} />
-      {showDiscoveryPreview && (
-        <SupplierDiscoveryPreview
-          discovery={supplierDiscovery}
-          importing={importingDiscovery}
-          onImport={(candidateIndex) => onDiscoveryImport?.(profile, candidateIndex)}
-        />
-      )}
       {showSupplierOptions && (
         <SupplierOptionsList
+          profile={profile}
           supplierOptions={supplierOptions}
           saving={saving}
           onSelect={(optionIndex) => onSelect?.(profile, optionIndex)}
         />
       )}
+      {showEmptyState && <PriceCandidatesEmptyState />}
     </section>
+  )
+}
+
+function PriceCandidatesEmptyState() {
+  return (
+    <div className="price-candidates-empty">
+      <strong>Кандидатов цен пока нет</strong>
+      <p>Запусти поиск цен сверху. Статусы каталогов и источников смотри на дашборде.</p>
+    </div>
   )
 }
 
@@ -101,6 +61,7 @@ function PriceCandidatesList({
   onReject,
 }) {
   if (!price_candidates.length) return null
+  const tenderUnitPrice = tenderReferenceUnitPrice(profile)
 
   return (
     <div className="price-candidates-list">
@@ -116,6 +77,7 @@ function PriceCandidatesList({
         const stockText = formatSupplierStock(candidate)
         const profileQuantity = numberOrNull(profile?.quantity)
         const candidateUnitPrice = numberOrNull(candidate.unit_price)
+        const priceComparison = priceComparisonForUnitPrice(candidateUnitPrice, tenderUnitPrice)
         const totalCost = profileQuantity != null && candidateUnitPrice != null
           ? profileQuantity * candidateUnitPrice
           : null
@@ -141,7 +103,6 @@ function PriceCandidatesList({
                 {candidate.quality_status ? ` · ${priceCandidateQualityLabel(candidate.quality_status)}` : ''}
                 {candidate.auto_eligible ? ' · авто готово' : ''}
               </p>
-              {candidate.source_query && <p>Запрос: {candidate.source_query}</p>}
               <p className="price-candidate-quantity-line">
                 Количество в закупке: <strong>{formatTenderQuantity(profile?.quantity, profile?.unit)}</strong>
                 {totalCost != null ? ` · Итого по позиции: ${formatMoney(totalCost)}` : ''}
@@ -177,6 +138,14 @@ function PriceCandidatesList({
             <div className="price-candidate-price-summary">
               <strong>{formatMoney(candidate.unit_price)}</strong>
               <small>за ед.</small>
+              {tenderUnitPrice != null && (
+                <em className="price-candidate-reference-price">Тендер: {formatMoney(tenderUnitPrice)}</em>
+              )}
+              {priceComparison && (
+                <em className={`price-candidate-price-delta ${priceComparison.tone}`}>
+                  {priceComparison.label}
+                </em>
+              )}
               {totalCost != null && <em>{formatMoney(totalCost)} итого</em>}
             </div>
             <div className="price-candidate-actions">

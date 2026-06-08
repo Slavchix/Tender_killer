@@ -7,6 +7,7 @@ import {
   formatQuantity,
   profileStatusLabel,
 } from './formatters'
+import { tenderReferenceTotalPrice, tenderReferenceUnitPrice } from './TenderEconomicsPriceComparison'
 import { AnalysisList } from './TenderAnalysisSections'
 import { Info, SummaryMetric } from './TenderDetailsShared'
 
@@ -44,7 +45,10 @@ export function TenderProductsTab({
               >
                 <span className="profile-position">#{profile.position_index || index + 1}</span>
                 <span className="profile-name">{profile.product_name || 'Без названия'}</span>
-                <span className="profile-meta quantity">{formatQuantity(profile.quantity, profile.unit)}</span>
+                <span className="profile-meta quantity">
+                  {formatQuantity(profile.quantity, profile.unit)}
+                  {formatProfileTenderPrice(profile) ? ` · ${formatProfileTenderPrice(profile)}` : ''}
+                </span>
                 <span className="profile-meta classifier">{profile.classifier_type || 'код'} {profile.classifier_code || profile.okpd2 || 'не найден'}</span>
                 <span className={`profile-status ${profile.profile_status || 'draft'}`}>{profileStatusLabel(profile.profile_status)}</span>
               </button>
@@ -55,7 +59,7 @@ export function TenderProductsTab({
       ) : (
         <p className="muted-text">Товарные профили пока не сформированы.</p>
       )}
-      <TenderItems items={tender.items || []} />
+      <TenderItems items={tender.items || []} profiles={productProfiles} />
     </section>
   )
 }
@@ -90,6 +94,8 @@ function ProductProfileDetail({ profile }) {
 
   const documentEvidence = (profile.evidence || []).filter((item) => item?.field === 'document_requirement')
   const classifierLabel = `${profile.classifier_type || 'тип не указан'} ${profile.classifier_code || 'код не найден'}`
+  const tenderUnitPrice = tenderReferenceUnitPrice(profile)
+  const tenderTotalPrice = tenderReferenceTotalPrice(profile)
 
   return (
     <div className="profile-detail">
@@ -123,8 +129,8 @@ function ProductProfileDetail({ profile }) {
             <div className="profile-detail-grid">
               <Info label="Детализированное наименование" value={profile.details || 'не найдено'} />
               <Info label="Количество" value={formatQuantity(profile.quantity, profile.unit)} />
-              <Info label="Цена за ед." value={formatMoney(profile.unit_price)} />
-              <Info label="Сумма позиции" value={formatMoney(profile.total_price)} />
+              <Info label="Цена за ед." value={formatMoney(tenderUnitPrice)} />
+              <Info label="Сумма позиции" value={formatMoney(tenderTotalPrice)} />
               <Info label="ОКПД2" value={profile.okpd2 || 'не найден'} />
               <Info label="Классификатор площадки" value={classifierLabel} />
             </div>
@@ -170,31 +176,89 @@ function ProductProfileDetail({ profile }) {
   )
 }
 
-function TenderItems({ items }) {
+function formatProfileTenderPrice(profile) {
+  const unitPrice = tenderReferenceUnitPrice(profile)
+  const totalPrice = tenderReferenceTotalPrice(profile)
+  const parts = []
+  if (unitPrice != null) parts.push(formatMoney(unitPrice))
+  if (totalPrice != null) parts.push(formatMoney(totalPrice))
+  return parts.join(' · ')
+}
+
+function TenderItems({ items, profiles = [] }) {
   if (!items.length) {
     return <p className="muted-text">Позиции из карточки пока не найдены.</p>
   }
+
+  const profileByPosition = profilesByPosition(profiles)
 
   return (
     <details className="source-items">
       <summary>Позиции из карточки ({items.length})</summary>
       <div className="items-list">
-        {items.map((item) => (
-          <div className="item-card" key={`${item.position_index}-${item.name}`}>
-            <div className="item-title">
-              <span>№{item.position_index}</span>
-              <strong>{item.name}</strong>
+        {items.map((item, index) => {
+          const profile = profileByPosition.get(Number(item.position_index)) || profileByPosition.get(index + 1)
+          const itemWithProfilePrice = itemWithProfilePricing(item, profile)
+          const unitPrice = tenderReferenceUnitPrice(itemWithProfilePrice)
+          const totalPrice = tenderReferenceTotalPrice(itemWithProfilePrice)
+
+          return (
+            <div className="item-card" key={`${item.position_index}-${item.name}`}>
+              <div className="item-title">
+                <span>№{item.position_index}</span>
+                <strong>{item.name}</strong>
+              </div>
+              {item.details && <p>{item.details}</p>}
+              <div className="item-facts">
+                <Info label="Кол-во" value={formatAmount(itemWithProfilePrice.quantity, itemWithProfilePrice.unit)} />
+                <Info label="Цена за ед." value={formatMoney(unitPrice)} />
+                <Info label="Сумма" value={formatMoney(totalPrice)} />
+                <Info label="Классификатор" value={item.classifier_code || item.okpd2 || 'не найден'} />
+              </div>
             </div>
-            {item.details && <p>{item.details}</p>}
-            <div className="item-facts">
-              <Info label="Кол-во" value={formatAmount(item.quantity, item.unit)} />
-              <Info label="Цена за ед." value={formatMoney(item.unit_price)} />
-              <Info label="Сумма" value={formatMoney(item.total_price)} />
-              <Info label="Классификатор" value={item.classifier_code || item.okpd2 || 'не найден'} />
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </details>
   )
+}
+
+function profilesByPosition(profiles = []) {
+  const result = new Map()
+  profiles.forEach((profile, index) => {
+    const positionIndex = Number(profile?.position_index)
+    if (Number.isFinite(positionIndex)) {
+      result.set(positionIndex, profile)
+    }
+    if (!result.has(index + 1)) {
+      result.set(index + 1, profile)
+    }
+  })
+  return result
+}
+
+function itemWithProfilePricing(item, profile) {
+  if (!profile) return item
+
+  return {
+    ...profile,
+    ...item,
+    quantity: positiveValue(item?.quantity, profile?.quantity),
+    unit: item?.unit || profile?.unit,
+    unit_price: positiveValue(item?.unit_price, profile?.unit_price),
+    total_price: positiveValue(item?.total_price, profile?.total_price),
+    raw_payload: {
+      ...objectPayload(profile?.raw_payload),
+      ...objectPayload(item?.raw_payload),
+    },
+  }
+}
+
+function objectPayload(value) {
+  return value && typeof value === 'object' ? value : {}
+}
+
+function positiveValue(primary, fallback) {
+  const number = Number(primary)
+  return Number.isFinite(number) && number > 0 ? primary : fallback
 }

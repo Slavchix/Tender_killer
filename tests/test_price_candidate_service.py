@@ -115,6 +115,53 @@ def test_rank_profile_price_candidates_marks_auto_ready_candidate() -> None:
     assert _flag_ids(ranked[1]) == {"availability_unavailable"}
 
 
+def test_rank_profile_price_candidates_prefers_strict_catalog_query_over_generic_fallback() -> None:
+    profile = {
+        "position_index": 1,
+        "product_name": "self drilling screw 4.2x19 zinc 200 pcs",
+        "quantity": 1,
+        "unit": "pack",
+        "price_candidates": [
+            {
+                "id": 1,
+                "provider": "vseinstrumenti",
+                "product_name": "FastenPro self drilling screw 4.2x19 zinc pack 200 pcs",
+                "source_url": "https://www.vseinstrumenti.ru/product/generic/",
+                "source_query": "self drilling screw",
+                "source_kind": "search_phrase",
+                "unit_price": 390.0,
+                "currency": "RUB",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "confidence": "high",
+                "match_reasons": ["profile_intent_match"],
+                "raw_payload": {"delivery_note": "Delivery included", "unit": "pack"},
+            },
+            {
+                "id": 2,
+                "provider": "vseinstrumenti",
+                "product_name": "FastenPro self drilling screw 4.2x19 zinc pack 200 pcs",
+                "source_url": "https://www.vseinstrumenti.ru/product/strict/",
+                "source_query": "self drilling screw 4.2x19 zinc 200 pcs",
+                "source_kind": "catalog_hint",
+                "unit_price": 399.0,
+                "currency": "RUB",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "confidence": "high",
+                "match_reasons": ["profile_intent_match"],
+                "raw_payload": {"delivery_note": "Delivery included", "unit": "pack"},
+            },
+        ],
+    }
+
+    ranked = rank_profile_price_candidates(profile)
+
+    assert [candidate["id"] for candidate in ranked] == [2, 1]
+    assert "strict_source_query" in ranked[0]["score_reasons"]
+    assert "profile_intent_match" in ranked[0]["score_reasons"]
+
+
 def test_rank_profile_price_candidates_blocks_wrong_product_family() -> None:
     profile = {
         "position_index": 1,

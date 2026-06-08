@@ -498,6 +498,14 @@ def _candidate_score(candidate: dict[str, Any], quality: dict[str, Any]) -> tupl
     if candidate.get("source_url"):
         score += 15
         reasons.append("source_url")
+    match_reasons = _string_list(candidate.get("match_reasons"))
+    if "profile_intent_match" in match_reasons:
+        score += 10
+        reasons.append("profile_intent_match")
+    source_kind = str(candidate.get("source_kind") or "").casefold()
+    if source_kind in {"catalog_hint", "normalized_name", "manual_product_url"}:
+        score += 15
+        reasons.append("strict_source_query")
     if candidate.get("availability") and str(candidate.get("availability")).casefold() not in {"unavailable", "out_of_stock"}:
         score += 5
         reasons.append("availability")

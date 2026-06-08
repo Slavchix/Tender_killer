@@ -16,7 +16,7 @@ def _fixture_body(provider: str) -> str:
 
 
 def _fixture_body_for_url(url: str) -> str:
-    for provider in ("officemag", "komus", "petrovich", "vseinstrumenti"):
+    for provider in ("officemag", "komus", "petrovich", "vseinstrumenti", "lemanapro"):
         if provider in url:
             return _fixture_body(provider)
     raise AssertionError(url)
@@ -38,14 +38,17 @@ def test_supplier_catalog_health_lists_configured_builtin_catalogs_without_netwo
         "komus",
         "petrovich",
         "vseinstrumenti",
+        "lemanapro",
     ]
     assert [catalog["status"] for catalog in payload["catalogs"]] == [
         "configured",
         "configured",
         "configured",
         "configured",
+        "configured",
     ]
     assert [catalog["connection_state"] for catalog in payload["catalogs"]] == [
+        "configured",
         "configured",
         "configured",
         "configured",
@@ -89,6 +92,8 @@ def test_supplier_catalog_health_live_mode_records_provider_errors() -> None:
             return 503, "<html><head><style>body{display:block}</style></head><body><main>maintenance</main></body></html>"
         if "vseinstrumenti" in url:
             raise RuntimeError("timed out")
+        if "lemanapro" in url:
+            return 200, _fixture_body("lemanapro")
         return 200, "<html><body><li class='js-productListItem'>Office paper A4</li></body></html>"
 
     payload = get_supplier_catalog_health_payload(live=True, timeout=1.5, fetcher=fetcher)
@@ -99,7 +104,8 @@ def test_supplier_catalog_health_live_mode_records_provider_errors() -> None:
         "https://www.officemag.ru/search/?q=office+paper+a4",
         "https://www.komus.ru/search/?text=office+paper+a4",
         "https://petrovich.ru/search/?q=cement+mix",
-        "https://www.vseinstrumenti.ru/search/?q=cement+mix",
+        "https://www.vseinstrumenti.ru/search/?what=%D1%81%D0%B0%D0%BC%D0%BE%D1%80%D0%B5%D0%B7%D1%8B+4%2C2x19",
+        "https://lemanapro.ru/search/?q=%D1%86%D0%B5%D0%BC%D0%B5%D0%BD%D1%82+50+%D0%BA%D0%B3",
     ]
     assert all(call[1] == 1.5 for call in calls)
     statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
@@ -253,12 +259,12 @@ def test_supplier_catalog_health_classifies_captcha_response(monkeypatch) -> Non
 
 
 def test_supplier_catalog_health_uses_catalog_fixtures_for_parseability() -> None:
-    for provider in ("officemag", "komus", "petrovich", "vseinstrumenti"):
+    for provider in ("officemag", "komus", "petrovich", "vseinstrumenti", "lemanapro"):
         html = (FIXTURES_DIR / f"{provider}_search.html").read_text(encoding="utf-8")
         assert health._catalog_body_has_parseable_content(provider, html) is True
 
     blocked_html = (FIXTURES_DIR / "blocked.html").read_text(encoding="utf-8")
-    for provider in ("officemag", "komus", "petrovich", "vseinstrumenti"):
+    for provider in ("officemag", "komus", "petrovich", "vseinstrumenti", "lemanapro"):
         assert health._catalog_body_has_parseable_content(provider, blocked_html) is False
 
 
@@ -294,7 +300,8 @@ def test_supplier_catalog_health_live_result_is_cached_for_dashboard(monkeypatch
         "https://www.officemag.ru/search/?q=office+paper+a4",
         "https://www.komus.ru/search/?text=office+paper+a4",
         "https://petrovich.ru/search/?q=cement+mix",
-        "https://www.vseinstrumenti.ru/search/?q=cement+mix",
+        "https://www.vseinstrumenti.ru/search/?what=%D1%81%D0%B0%D0%BC%D0%BE%D1%80%D0%B5%D0%B7%D1%8B+4%2C2x19",
+        "https://lemanapro.ru/search/?q=%D1%86%D0%B5%D0%BC%D0%B5%D0%BD%D1%82+50+%D0%BA%D0%B3",
     ]
     assert live_payload["cached"] is False
     assert live_payload["checked_at"] == "2026-06-07T10:00:00+00:00"

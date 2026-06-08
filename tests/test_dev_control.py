@@ -154,6 +154,34 @@ def test_static_web_command_uses_python_proxy():
     assert "vite" not in " ".join(command).lower()
 
 
+def test_dev_environment_enables_browser_fetch_for_vseinstrumenti():
+    tmp_path = _workspace_tmp_path("dev-env-browser")
+    config = dev_control.DevControlConfig(root=tmp_path)
+    original_tcp_port_open = dev_control._tcp_port_open
+    dev_control._tcp_port_open = lambda host, port: False
+
+    try:
+        env = dev_control._dev_environment(config, "node.exe")
+    finally:
+        dev_control._tcp_port_open = original_tcp_port_open
+
+    assert env["TENDER_KILLER_SUPPLIER_BROWSER_FETCH"] == "1"
+    assert env["TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS"] == "officemag,vseinstrumenti"
+    assert env["TENDER_KILLER_BROWSER_NODE_PATH"] == "node.exe"
+
+
+def test_dev_environment_auto_attaches_open_browser_cdp(monkeypatch):
+    tmp_path = _workspace_tmp_path("dev-env-cdp")
+    config = dev_control.DevControlConfig(root=tmp_path)
+    monkeypatch.delenv("TENDER_KILLER_BROWSER_CDP_URL", raising=False)
+    monkeypatch.delenv("TENDER_KILLER_BROWSER_CDP_PORT", raising=False)
+    monkeypatch.setattr(dev_control, "_tcp_port_open", lambda host, port: host == "127.0.0.1" and port == 9222)
+
+    env = dev_control._dev_environment(config, "node.exe")
+
+    assert env["TENDER_KILLER_BROWSER_CDP_URL"] == "http://127.0.0.1:9222"
+
+
 def test_spawn_web_service_reuses_existing_healthy_frontend_port(monkeypatch):
     tmp_path = _workspace_tmp_path("reuse-web")
     config = dev_control.DevControlConfig(root=tmp_path, web_port=5175)

@@ -12,32 +12,28 @@ if (!targetUrl) {
 
 const timeoutMs = positiveEnvFloat('TENDER_KILLER_BROWSER_TIMEOUT_SECONDS', 30) * 1000
 const provider = String(process.env.TENDER_KILLER_BROWSER_PROVIDER || '').toLowerCase()
-const browserPath = resolveBrowserPath()
-const profile = resolveProfile()
-const profileDir = profile.dir
+const cdpBaseUrl = resolveCdpBaseUrl()
+const browserPath = cdpBaseUrl ? '' : resolveBrowserPath()
+const profile = cdpBaseUrl ? null : resolveProfile()
+const profileDir = profile?.dir || ''
 const headless = !['0', 'false', 'no', 'off'].includes(String(process.env.TENDER_KILLER_BROWSER_HEADLESS || '1').toLowerCase())
 
-if (!browserPath) {
+if (!cdpBaseUrl && !browserPath) {
   console.error('Browser executable was not found. Set TENDER_KILLER_BROWSER_PATH.')
   process.exit(3)
 }
 
-fs.mkdirSync(profileDir, { recursive: true })
+if (profileDir) {
+  fs.mkdirSync(profileDir, { recursive: true })
+}
 
 let browserProcess
 let client
 try {
-  const port = await findFreePort()
-  browserProcess = spawn(browserPath, browserArgs(port, profileDir, headless), {
-    stdio: ['ignore', 'ignore', 'pipe'],
-    windowsHide: true,
-  })
-  const stderrChunks = []
-  browserProcess.stderr.on('data', (chunk) => stderrChunks.push(chunk.toString()))
-
-  const version = await waitForJson(`http://127.0.0.1:${port}/json/version`, timeoutMs)
-  const target = await createTarget(port, version)
-  client = await createCdpClient(target.webSocketDebuggerUrl || version.webSocketDebuggerUrl)
+  const browser = cdpBaseUrl ? await attachToBrowser(cdpBaseUrl) : await launchBrowser(browserPath, profileDir, headless)
+  browserProcess = browser.process
+  const target = browser.target
+  client = await createCdpClient(target.webSocketDebuggerUrl)
   await client.call('Page.enable')
   await client.call('Runtime.enable')
   await client.call('Page.navigate', { url: targetUrl })
@@ -54,9 +50,37 @@ try {
   if (browserProcess) {
     await stopBrowserProcess(browserProcess)
   }
-  if (profile.cleanup) {
+  if (profile?.cleanup) {
     removeProfileDir(profileDir)
   }
+}
+
+async function launchBrowser(executablePath, profileDir, useHeadless) {
+  const port = await findFreePort()
+  const process = spawn(executablePath, browserArgs(port, profileDir, useHeadless), {
+    stdio: ['ignore', 'ignore', 'pipe'],
+    windowsHide: true,
+    detached: true,
+  })
+  const stderrChunks = []
+  process.stderr.on('data', (chunk) => stderrChunks.push(chunk.toString()))
+
+  const version = await waitForJson(`http://127.0.0.1:${port}/json/version`, timeoutMs)
+  const { target } = await createTarget(`http://127.0.0.1:${port}`, version)
+  return { process, target, ownedTarget: null }
+}
+
+async function attachToBrowser(baseUrl) {
+  const version = await waitForJson(`${baseUrl}/json/version`, timeoutMs)
+  const reusableTarget = await findReusableTarget(baseUrl)
+  if (reusableTarget) {
+    return { process: null, target: reusableTarget }
+  }
+  const { target, owned } = await createTarget(baseUrl, version)
+  if (owned) {
+    rememberReusableTarget(baseUrl, target)
+  }
+  return { process: null, target }
 }
 
 function browserArgs(port, userDataDir, useHeadless) {
@@ -90,14 +114,14 @@ async function waitForHtml(cdp, timeout) {
           html,
           readyState: document.readyState,
           href: location.href,
-          matched: ${JSON.stringify(markerExpression())}
+          matched: Boolean(${markerExpression()})
         };
       })()`,
       returnByValue: true,
     })
     const value = result?.result?.value || {}
     lastHtml = String(value.html || '')
-    if (lastHtml && isGoodEnoughHtml(lastHtml, value.readyState)) {
+    if (lastHtml && isGoodEnoughHtml(lastHtml, value.readyState, value.matched)) {
       return lastHtml
     }
     await sleep(500)
@@ -109,12 +133,21 @@ async function waitForHtml(cdp, timeout) {
 }
 
 function markerExpression() {
-  return ''
+  if (provider === 'officemag') {
+    return `document.querySelector('.listItemsWrapper li.listItem, .listItemsWrapper .js-productListItem, .ProductHead__name, .listItemsWrapper .Product__price, .listItemsWrapper .js-productSum, input[name="SECTION"]')`
+  }
+  if (provider === 'vseinstrumenti') {
+    return `document.querySelector('a[href*="/product/"], .product-card, [data-qa*="product" i]') ||
+      Array.from(document.querySelectorAll('script[type*="ld+json" i]')).some((script) =>
+        /"@type"\\s*:\\s*(?:"Product"|\\[[^\\]]*"Product")/i.test(script.textContent || '')
+      )`
+  }
+  return 'false'
 }
 
-function isGoodEnoughHtml(html, readyState) {
+function isGoodEnoughHtml(html, readyState, matched) {
   if (provider === 'officemag') {
-    if (html.includes('js-productListItem') || html.includes('ProductSpecial') || html.includes('ProductHead__name')) {
+    if (matched || html.includes('js-productListItem') || html.includes('ProductSpecial') || html.includes('ProductHead__name')) {
       return true
     }
     if (html.includes('Ваш браузер не смог пройти') || html.includes('challenge_cookie_expires')) {
@@ -122,28 +155,78 @@ function isGoodEnoughHtml(html, readyState) {
     }
     return false
   }
+  if (provider === 'vseinstrumenti') {
+    if (matched || html.includes('href="/product/') || html.includes('"@type":"Product"') || html.includes('"@type": "Product"')) {
+      return true
+    }
+    return false
+  }
   return html.length > 500 && readyState === 'complete'
 }
 
-async function createTarget(port, version) {
-  const createUrl = `http://127.0.0.1:${port}/json/new?${encodeURIComponent('about:blank')}`
+async function createTarget(baseUrl, version) {
+  const createUrl = `${baseUrl}/json/new?${encodeURIComponent('about:blank')}`
   try {
     const response = await fetch(createUrl, { method: 'PUT' })
     if (response.ok) {
-      return await response.json()
+      return { target: await response.json(), owned: true }
     }
   } catch {
     // Fall back to an existing page target.
   }
-  const targets = await waitForJson(`http://127.0.0.1:${port}/json/list`, 3000)
+  const targets = await waitForJson(`${baseUrl}/json/list`, 3000)
   const page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl)
   if (!page && version.webSocketDebuggerUrl) {
-    return version
+    return { target: version, owned: false }
   }
   if (!page) {
     throw new Error('browser target was not available')
   }
-  return page
+  return { target: page, owned: false }
+}
+
+async function findReusableTarget(baseUrl) {
+  const targetId = readReusableTargetId(baseUrl)
+  if (!targetId) {
+    return null
+  }
+  try {
+    const targets = await waitForJson(`${baseUrl}/json/list`, 3000)
+    return targets.find((target) => target.id === targetId && target.type === 'page' && target.webSocketDebuggerUrl) || null
+  } catch {
+    return null
+  }
+}
+
+function readReusableTargetId(baseUrl) {
+  try {
+    const state = JSON.parse(fs.readFileSync(reusableTargetStatePath(baseUrl), 'utf8'))
+    return typeof state.targetId === 'string' ? state.targetId : ''
+  } catch {
+    return ''
+  }
+}
+
+function rememberReusableTarget(baseUrl, target) {
+  if (!target?.id) {
+    return
+  }
+  try {
+    fs.writeFileSync(
+      reusableTargetStatePath(baseUrl),
+      JSON.stringify({ baseUrl, targetId: target.id }),
+      'utf8',
+    )
+  } catch {
+    // Reuse is an optimization; the request can still complete with a fresh tab.
+  }
+}
+
+function reusableTargetStatePath(baseUrl) {
+  const dir = path.join(os.tmpdir(), 'tender-killer', 'browser-profile', 'supplier-fetch-targets')
+  fs.mkdirSync(dir, { recursive: true })
+  const key = baseUrl.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'default'
+  return path.join(dir, `${key}.json`)
 }
 
 async function createCdpClient(webSocketUrl) {
@@ -231,6 +314,25 @@ function resolveBrowserPath() {
         '/usr/bin/chromium',
       ]
   return candidates.find((candidate) => fs.existsSync(candidate)) || ''
+}
+
+function resolveCdpBaseUrl() {
+  const value = String(process.env.TENDER_KILLER_BROWSER_CDP_URL || '').trim()
+  if (!value) {
+    return ''
+  }
+  try {
+    const url = new URL(value)
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return ''
+    }
+    url.pathname = url.pathname.replace(/\/+$/, '')
+    url.search = ''
+    url.hash = ''
+    return url.toString().replace(/\/+$/, '')
+  } catch {
+    return ''
+  }
 }
 
 function resolveProfile() {

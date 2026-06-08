@@ -59,11 +59,12 @@ def test_browser_fetcher_uses_explicit_timeout_for_helper(monkeypatch, tmp_path)
     assert captured["timeout"] == 6.25
 
 
-def test_browser_fetcher_defaults_to_officemag_only(monkeypatch) -> None:
+def test_browser_fetcher_defaults_to_browser_supported_catalogs(monkeypatch) -> None:
     monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", raising=False)
     monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", raising=False)
 
     assert browser_fetcher.is_enabled_for_provider("officemag") is True
+    assert browser_fetcher.is_enabled_for_provider("vseinstrumenti") is True
     assert browser_fetcher.is_enabled_for_provider("komus") is False
 
 
@@ -137,6 +138,35 @@ def test_browser_fetch_helper_uses_ephemeral_profile_by_default() -> None:
     assert "os.tmpdir()" in script
     assert "process.cwd(), 'data'" not in script
     assert "fs.mkdtempSync" in script
+    assert "detached: true" in script
     assert "function removeProfileDir" in script
     assert "fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })" in script
     assert "TENDER_KILLER_BROWSER_PROFILE_DIR" in script
+
+
+def test_browser_fetch_helper_can_attach_to_existing_cdp_browser() -> None:
+    script = Path("scripts/browser-fetch.mjs").read_text(encoding="utf-8")
+
+    assert "TENDER_KILLER_BROWSER_CDP_URL" in script
+    assert "resolveCdpBaseUrl" in script
+    assert "attachToBrowser" in script
+    assert "json/version" in script
+    assert "json/new" in script
+    assert "findReusableTarget" in script
+    assert "rememberReusableTarget" in script
+    assert "supplier-fetch-targets" in script
+    assert "Boolean(${markerExpression()})" in script
+    assert ".listItemsWrapper .js-productListItem" in script
+    assert "input[name=\"SECTION\"]" in script
+    assert "provider === 'vseinstrumenti'" in script
+    assert "a[href*=\"/product/\"]" in script
+
+
+def test_browser_bridge_launcher_exposes_cdp_url_hint() -> None:
+    script = Path("scripts/browser-bridge.ps1").read_text(encoding="utf-8")
+
+    assert "--remote-debugging-port=$Port" in script
+    assert "data\\browser-bridge-profile" in script
+    assert "https://www.vseinstrumenti.ru/" in script
+    assert "TENDER_KILLER_BROWSER_CDP_URL" in script
+    assert "cdp_url" in script

@@ -3,16 +3,20 @@ import {
   supplierAvailabilityLabel,
   supplierStatusLabel,
 } from './formatters'
+import { priceComparisonForUnitPrice, tenderReferenceUnitPrice } from './TenderEconomicsPriceComparison'
 
-export function SupplierOptionsList({ supplierOptions = [], saving = false, onSelect }) {
+export function SupplierOptionsList({ profile, supplierOptions = [], saving = false, onSelect }) {
   if (!supplierOptions.length) {
     return <p className="muted-text">Кандидаты поставщиков пока не добавлены.</p>
   }
+  const tenderUnitPrice = tenderReferenceUnitPrice(profile)
 
   return (
     <div className="supplier-options-list">
       {supplierOptions.map((option, index) => {
         const stockText = formatSupplierStock(option)
+        const optionUnitPrice = numberOrNull(option.unit_price)
+        const priceComparison = priceComparisonForUnitPrice(optionUnitPrice, tenderUnitPrice)
         return (
           <div
             className={option.status === 'selected' ? 'supplier-option-row selected' : 'supplier-option-row'}
@@ -28,7 +32,17 @@ export function SupplierOptionsList({ supplierOptions = [], saving = false, onSe
               {option.source_query && <p>Запрос: {option.source_query}</p>}
               {stockText && <p>{stockText}</p>}
             </div>
-            <span>{formatMoney(option.unit_price)}</span>
+            <div className="supplier-option-price-summary">
+              <span>{formatMoney(option.unit_price)}</span>
+              {tenderUnitPrice != null && (
+                <small className="supplier-option-reference-price">Тендер: {formatMoney(tenderUnitPrice)}</small>
+              )}
+              {priceComparison && (
+                <small className={`supplier-option-price-delta ${priceComparison.tone}`}>
+                  {priceComparison.label}
+                </small>
+              )}
+            </div>
             <em>{supplierAvailabilityLabel(option.availability)} · {supplierStatusLabel(option.status)}</em>
             <button
               className="supplier-select-button"

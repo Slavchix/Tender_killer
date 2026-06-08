@@ -116,6 +116,7 @@ def test_handle_get_request_routes_supplier_catalog_health(tmp_path) -> None:
         "komus",
         "petrovich",
         "vseinstrumenti",
+        "lemanapro",
     ]
     assert response.payload["catalogs"][0]["status"] == "configured"
 
@@ -677,8 +678,11 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_run(tmp_p
     assert response.status == 200
     assert profile["profile_status"] == "matched"
     assert profile["raw_payload"]["supplier_discovery"]["status"] == "pending_review"
-    assert profile["raw_payload"]["supplier_discovery"]["collector_diagnostics"][0]["provider"] == "schema_org_product"
-    assert profile["raw_payload"]["supplier_discovery"]["collector_diagnostics"][0]["candidates_found"] == 1
+    diagnostics = {
+        item["provider"]: item
+        for item in profile["raw_payload"]["supplier_discovery"]["collector_diagnostics"]
+    }
+    assert diagnostics["schema_org_product"]["candidates_found"] == 1
     assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["provider"] == "schema_org_product"
     assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["unit_price"] == 925.0
     assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["confidence"] == "high"
@@ -726,8 +730,11 @@ def test_handle_post_request_routes_product_profile_supplier_discovery_url(tmp_p
     profile = response.payload["product_profiles"][0]
     assert response.status == 200
     assert profile["raw_payload"]["supplier_discovery"]["status"] == "pending_review"
-    assert profile["raw_payload"]["supplier_discovery"]["collector_diagnostics"][0]["provider"] == "schema_org_product"
-    assert profile["raw_payload"]["supplier_discovery"]["collector_diagnostics"][0]["candidates_found"] == 1
+    diagnostics = {
+        item["provider"]: item
+        for item in profile["raw_payload"]["supplier_discovery"]["collector_diagnostics"]
+    }
+    assert diagnostics["schema_org_product"]["candidates_found"] == 1
     assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["source_kind"] == "manual_product_url"
     assert profile["raw_payload"]["supplier_discovery"]["candidates"][0]["unit_price"] == 925.0
     assert "supplier_options" not in profile["raw_payload"]
@@ -806,9 +813,9 @@ def test_handle_post_request_reports_supplier_discovery_no_new_candidates(tmp_pa
     assert response.payload["error"] == "Новых кандидатов поставщиков не найдено."
     discovery = response.payload["product_profiles"][0]["raw_payload"]["supplier_discovery"]
     assert discovery["status"] == "no_candidates"
-    assert discovery["collector_diagnostics"][0]["provider"] == "schema_org_product"
-    assert discovery["collector_diagnostics"][0]["pages_fetched"] == 1
-    assert discovery["collector_diagnostics"][0]["candidates_found"] == 0
+    diagnostics = {item["provider"]: item for item in discovery["collector_diagnostics"]}
+    assert diagnostics["schema_org_product"]["pages_fetched"] == 1
+    assert diagnostics["schema_org_product"]["candidates_found"] == 0
     assert discovery["candidates"] == []
 
 

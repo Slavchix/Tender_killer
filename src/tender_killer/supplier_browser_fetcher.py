@@ -11,6 +11,9 @@ class BrowserFetchError(RuntimeError):
     pass
 
 
+DEFAULT_BROWSER_FETCH_PROVIDERS = "officemag,vseinstrumenti"
+
+
 def is_enabled_for_provider(provider: str | None) -> bool:
     enabled_value = os.environ.get("TENDER_KILLER_SUPPLIER_BROWSER_FETCH")
     if enabled_value is not None and enabled_value.strip().casefold() not in {"1", "true", "yes", "on"}:
@@ -18,7 +21,7 @@ def is_enabled_for_provider(provider: str | None) -> bool:
     provider_name = (provider or "").casefold().strip()
     allowed = {
         item.strip().casefold()
-        for item in os.environ.get("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", "officemag").split(",")
+        for item in os.environ.get("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", DEFAULT_BROWSER_FETCH_PROVIDERS).split(",")
         if item.strip()
     }
     return "*" in allowed or provider_name in allowed

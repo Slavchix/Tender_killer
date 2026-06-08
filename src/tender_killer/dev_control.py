@@ -577,10 +577,23 @@ def _dev_environment(config: DevControlConfig, node: str) -> dict[str, str]:
             f'powershell -NoProfile -ExecutionPolicy Bypass -File "{ocr_wrapper}" {{path}}',
         )
     env.setdefault("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "1")
-    env.setdefault("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", "officemag")
+    env.setdefault("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", "officemag,vseinstrumenti")
+    if "TENDER_KILLER_BROWSER_CDP_URL" not in env:
+        if cdp_url := _default_browser_cdp_url(config):
+            env["TENDER_KILLER_BROWSER_CDP_URL"] = cdp_url
     env.setdefault("TENDER_KILLER_BROWSER_NODE_PATH", node)
     env.setdefault("TENDER_KILLER_VITE_NODE_PATH", node)
     return env
+
+
+def _default_browser_cdp_url(config: DevControlConfig) -> str | None:
+    try:
+        port = int(os.environ.get("TENDER_KILLER_BROWSER_CDP_PORT") or 9222)
+    except ValueError:
+        port = 9222
+    if port <= 0:
+        return None
+    return f"http://127.0.0.1:{port}" if _tcp_port_open(config.host, port) else None
 
 
 def _find_node(root: Path) -> str | None:

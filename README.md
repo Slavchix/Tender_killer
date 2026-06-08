@@ -2,7 +2,7 @@
 
 ## Current Handoff Snapshot
 
-Date: 2026-06-05.
+Date: 2026-06-08.
 
 Current branch: `codex/moscow-mo-parser`.
 
@@ -15,10 +15,12 @@ Current handoff branches and worktrees:
 
 Latest verified checkpoint:
 
-- Last shared commit in this handoff: `6f8c4b6 Use tender item quantities in economics`.
-- That commit is pushed to both `codex/economics-flow` and `codex/moscow-mo-parser`.
-- Economics targeted verification after the merge: `66 passed` for `tests\test_economics.py`, `tests\test_price_candidate_service.py`, `tests\test_supplier_price_discovery_service.py`, `tests\test_economics_service.py`, and `tests\test_economics_auto.py` with `--basetemp pytest-cache-files-economics-after-merge`.
-- `npm run build` was not available in the normal shell because `npm` was not on PATH; the dev stack has been run through the bundled Node/Vite path or the Python static proxy fallback.
+- Current checkpoint prepares supplier price discovery and the focused economics workspace on `codex/moscow-mo-parser`.
+- Supplier catalog discovery is review-first and now covers OfficeMag, Vseinstrumenti, and Lemana Pro as active practical providers. Komus/Petrovich remain visible in health/status diagnostics when blocked.
+- Dashboard owns source/API status and supplier catalog health. The economics modal should not carry low-level source request forms or catalog health cards anymore.
+- The economics workspace is now a focused calculation tool: top command summary, position rail, selected position, price candidates, accepted supplier/options, manual costs, assumptions, and collapsed analysis/TZ context.
+- Tender item reference price/total is carried into economics and price candidates for quick visual comparison against supplier offers.
+- Local dev control should prefer the Python dev-control path. Avoid the old long inline PowerShell `Start-Process` supervisor command because it repeatedly caused hanging restarts.
 
 Current product/UI state:
 
@@ -27,10 +29,17 @@ Current product/UI state:
 - The analysis workspace owns document download, text extraction, rule-based TZ analysis, and Word export. The desired Word report is a compact 5-8 page operator brief, not a long raw dump.
 - Analysis is moving toward a fact/evidence model: every important condition should show source document/page or at least source document plus fragment/context, so the operator can verify it manually.
 - The economics workspace owns product positions, quantities, supplier price discovery, price candidates, manual cost inputs, assumptions, auto-estimate, and final participation economics.
+- Dashboard supplier/source cards are intentionally collapsible because more marketplaces and catalogs will be added later.
+- The economics modal keeps analysis/TZ results available in a collapsed drawer, but the main default screen stays on positions, candidates, and calculation.
 
 Current economics focus for the next session:
 
-- Work only in the economics worktree unless the user explicitly asks for shared docs or non-economics changes.
+- Keep the economics modal focused. Do not bring back catalog health/status forms or generic supplier-source request fields; those diagnostics now belong on the dashboard.
+- Continue tightening provider routing: run only catalogs that fit the position category and keep at most one manual review link per selected catalog/provider.
+- Product matching should keep using manufacturer/model/pack/quantity gates where available, then fall back to broader category matches only when exact signals are absent.
+- Next provider work should improve candidate ranking and explanations before adding more catalogs, not auto-confirm unknown offers.
+
+Historical provider notes kept for regression tests:
 - OfficeMag is the active proving ground. Public catalog access is unstable: it can show `доступен`, `блокировка 503`, or "opened catalog but saw no product cards" depending on browser/server checks.
 - Do not patch one product at a time. The next fix should trace the full pipeline: tender position -> generated search queries -> OfficeMag fetch/browser fetch -> parsed product cards -> normalized price candidates -> matcher/scoring -> UI -> confirmed unit cost -> tender economics.
 - Known bad behavior to fix: searches for cartridges or stationery can return unrelated paper/sign/mop items; found prices can appear without a clear source link; accepted prices may update the summary but not the selected position row; quantity and unit price breaks must drive totals.

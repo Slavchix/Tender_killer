@@ -16,6 +16,63 @@ SUPPLIER_SEARCH_TARGETS = (
     ("Google", "https://www.google.com/search?q={query}"),
     ("Yandex", "https://yandex.ru/search/?text={query}"),
 )
+DIMENSION_RE = re.compile(
+    r"(?<!\d)(\d+(?:[,.]\d+)?)\s*(?:x|\u0445|\u00d7)\s*"
+    r"(\d+(?:[,.]\d+)?)(?:\s*(?:x|\u0445|\u00d7)\s*(\d+(?:[,.]\d+)?))?",
+    re.IGNORECASE,
+)
+PIECE_PACK_COUNT_RE = re.compile(
+    r"(?<!\d)(\d{1,5})\s*(pcs?|pieces?|pc\.?|"
+    r"\u0448\u0442\.?|\u0448\u0442\u0443\u043a(?:\u0438|a)?|"
+    r"\u0435\u0434\.?|\u0435\u0434\u0438\u043d\u0438\u0446(?:\u0430|\u044b)?)(?![a-z\u0430-\u044f\u0451])",
+    re.IGNORECASE,
+)
+WEIGHT_RE = re.compile(
+    r"(?<!\d)(\d+(?:[,.]\d+)?)\s*(kg|g|mg|\u043a\u0433|"
+    r"\u0433\u0440?\.?|\u0433\u0440\u0430\u043c\u043c(?:\u0430|\u043e\u0432)?)"
+    r"(?!\s*/\s*(?:m2|m\^2|m\u00b2|\u043c2|\u043c\^2|\u043c\u00b2))"
+    r"(?![a-z\u0430-\u044f\u0451])",
+    re.IGNORECASE,
+)
+VOLUME_RE = re.compile(
+    r"(?<!\d)(\d+(?:[,.]\d+)?)\s*(ml|l|liters?|litres?|"
+    r"\u043c\u043b|"
+    r"\u043b\.?|\u043b\u0438\u0442\u0440(?:\u0430|\u043e\u0432)?)(?![a-z\u0430-\u044f\u0451])",
+    re.IGNORECASE,
+)
+GENERIC_QUERY_STOP_WORDS = {
+    "supply",
+    "delivery",
+    "purchase",
+    "procurement",
+    "pack",
+    "kg",
+    "g",
+    "mg",
+    "l",
+    "ml",
+    "pcs",
+    "pc",
+    "pieces",
+    "piece",
+    "of",
+    "for",
+    "and",
+    "the",
+    "\u043f\u043e\u0441\u0442\u0430\u0432\u043a\u0430",
+    "\u043f\u043e\u0441\u0442\u0430\u0432\u043a\u0438",
+    "\u043f\u0430\u0447\u043a\u0430",
+    "\u0443\u043f\u0430\u043a\u043e\u0432\u043a\u0430",
+    "\u043a\u0433",
+    "\u0433",
+    "\u0433\u0440",
+    "\u043b",
+    "\u043c\u043b",
+    "\u0448\u0442",
+    "\u0448\u0442\u0443\u043a",
+    "\u0434\u043b\u044f",
+    "\u0438",
+}
 TOKEN_RE = re.compile(r"[0-9a-zа-яё]+", re.IGNORECASE)
 
 
@@ -142,7 +199,7 @@ def _expanded_supplier_queries(profile: dict[str, Any], base_query: str | None) 
             ]
         )
 
-    return []
+    return _constrained_supplier_queries(profile_text)
 
 
 def _profile_search_text(profile: dict[str, Any], base_query: str | None) -> str:
@@ -176,6 +233,75 @@ def _looks_like_cartridge(profile_text: str, tokens: list[str]) -> bool:
         for token in tokens
     )
     return has_cartridge or ("28.23" in profile_text and has_print_context)
+
+
+def _constrained_supplier_queries(profile_text: str) -> list[str]:
+    constraints = [
+        *_dimension_fragments(profile_text),
+        *_piece_pack_count_fragments(profile_text),
+        *_weight_fragments(profile_text),
+        *_volume_fragments(profile_text),
+    ]
+    if not constraints:
+        return []
+    terms = _generic_query_terms(profile_text)
+    if not terms:
+        return []
+    return _unique_texts([" ".join([*terms[:6], *constraints])])
+
+
+def _dimension_fragments(value: str) -> list[str]:
+    fragments: list[str] = []
+    for match in DIMENSION_RE.finditer(value.casefold()):
+        parts = [_normalized_decimal(part) for part in match.groups() if part is not None]
+        if len(parts) >= 2:
+            fragments.append("x".join(parts))
+    return _unique_texts(fragments)
+
+
+def _piece_pack_count_fragments(value: str) -> list[str]:
+    fragments: list[str] = []
+    for match in PIECE_PACK_COUNT_RE.finditer(value.casefold()):
+        unit = match.group(2)
+        unit_text = "\u0448\u0442" if any("\u0430" <= char <= "\u044f" for char in unit) else "pcs"
+        fragments.append(f"{int(match.group(1))} {unit_text}")
+    return _unique_texts(fragments)
+
+
+def _weight_fragments(value: str) -> list[str]:
+    fragments: list[str] = []
+    for match in WEIGHT_RE.finditer(value.casefold()):
+        unit = match.group(2)
+        unit_text = "kg" if unit in {"kg", "\u043a\u0433"} else "g"
+        fragments.append(f"{_normalized_decimal(match.group(1))} {unit_text}")
+    return _unique_texts(fragments)
+
+
+def _volume_fragments(value: str) -> list[str]:
+    fragments: list[str] = []
+    for match in VOLUME_RE.finditer(value.casefold()):
+        unit = match.group(2)
+        unit_text = "ml" if unit in {"ml", "\u043c\u043b"} else "l"
+        fragments.append(f"{_normalized_decimal(match.group(1))} {unit_text}")
+    return _unique_texts(fragments)
+
+
+def _generic_query_terms(value: str) -> list[str]:
+    terms: list[str] = []
+    for token in TOKEN_RE.findall(value.casefold()):
+        if token.isdigit() or any(char.isdigit() for char in token):
+            continue
+        if token in GENERIC_QUERY_STOP_WORDS or len(token) < 2:
+            continue
+        terms.append(token)
+    return _unique_texts(terms)
+
+
+def _normalized_decimal(value: str) -> str:
+    number = value.replace(",", ".")
+    if "." not in number:
+        return str(int(number))
+    return f"{float(number):g}"
 
 
 def _office_paper_format(tokens: list[str]) -> str:

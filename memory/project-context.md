@@ -1156,3 +1156,21 @@ Boundaries and safety:
 - Tender Killer must not submit bids/applications, sign documents, log into portals for the user, store portal passwords, bearer tokens, cookies, SMS codes, or electronic-signature data.
 - Local Moscow bid import is safe only as pasted response JSON from `GetBetUpdate` and must continue rejecting sensitive keys recursively.
 - Supplier catalog scraping is brittle and should remain review-first until a reliable official/API-like channel is proven.
+
+## Supplier catalogs and focused economics checkpoint
+
+Date: 2026-06-08.
+
+- The current shared work continues on `codex/moscow-mo-parser` in `C:\Users\zinin.v.a\Documents\tender_killer`.
+- Process startup/restart pain point: avoid the old inline PowerShell `Start-Process` supervisor block. Local process control should go through the Python dev-control path and the checked scripts, with bounded checks and clear logs instead of long hanging terminal commands.
+- Dashboard is now the home for platform/source status and supplier catalog health. These cards are collapsible because the number of procurement platforms and supplier catalogs will keep growing.
+- Economics no longer needs catalog health panels, source-query forms, or manual supplier request scaffolding. Those controls were removed from the default economics workspace because the operator did not use them and they made the screen unreadable.
+- The focused economics workspace should stay organized as: top command summary, position rail, selected position, price candidates, accepted supplier/options, manual cost inputs, assumptions/reserves, and collapsed analysis/TZ context.
+- Analysis/TZ results remain important for future pricing and risk decisions, but they should stay available as compact/collapsed context unless the operator opens them.
+- Supplier catalog price discovery is still review-first: found prices are evidence until an operator confirms them or a future explicit high-confidence auto-rule handles them.
+- Active practical provider coverage now includes OfficeMag, Vseinstrumenti, and Lemana Pro. Komus and Petrovich remain in diagnostics/status because they can be blocked by HTTP 503/401/captcha states.
+- Provider routing direction: for each tender position, run only catalogs that make sense for the category, and keep one manual review link per selected provider/catalog instead of opening many browser tabs.
+- Matching direction learned from OfficeMag/Vseinstrumenti/Lemana Pro: prefer manufacturer/model/pack/quantity signals, show tender reference unit/total price next to candidates, and treat broad category fallback as lower confidence.
+- OfficeMag paper tier reference remains a regression case: product `110532`, tiers `364` from 1, `361` from 5, `359` from 10, pack/minimum context 5, Moscow stock 14194 plus preorder 2047; a 60-pack tender should choose unit price `359` and total `21540`.
+- Vseinstrumenti and Lemana Pro browser/manual fallback should open at most one useful review tab/link per provider when automatic parsing is incomplete.
+- Recent frontend verification for the focused economics slice used targeted contract tests plus Vite build through the bundled Node/Vite path because normal `npm` may not be on PATH in the shell.

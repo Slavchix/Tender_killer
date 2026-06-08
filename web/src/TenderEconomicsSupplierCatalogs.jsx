@@ -2,7 +2,8 @@ const SUPPLIER_CATALOG_PRESETS = [
   { preset_id: 'officemag_office_supplies', label: 'OfficeMag', provider: 'officemag' },
   { preset_id: 'komus_office_supplies', label: 'Komus', provider: 'komus' },
   { preset_id: 'petrovich_building_materials', label: 'Petrovich', provider: 'petrovich' },
-  { preset_id: 'vseinstrumenti_building_materials', label: 'Vseinstrumenti', provider: 'vseinstrumenti' },
+  { preset_id: 'lemanapro_building_materials', label: 'Lemana Pro', provider: 'lemanapro' },
+  { preset_id: 'vseinstrumenti_building_materials', label: 'ВсеИнструменты', provider: 'vseinstrumenti' },
 ]
 
 export function SupplierCatalogPresetControls({ profile, saving = false, onPresetSave }) {

@@ -25,7 +25,8 @@ CATALOG_SAMPLE_QUERIES = {
     "officemag": "office paper a4",
     "komus": "office paper a4",
     "petrovich": "cement mix",
-    "vseinstrumenti": "cement mix",
+    "vseinstrumenti": "\u0441\u0430\u043c\u043e\u0440\u0435\u0437\u044b 4,2x19",
+    "lemanapro": "\u0446\u0435\u043c\u0435\u043d\u0442 50 \u043a\u0433",
 }
 SUPPLIER_CATALOG_HEALTH_CACHE_KEY = "supplier_catalog_health.last_live"
 CATALOG_CONNECTION_CONFIGURED = "configured"
@@ -170,7 +171,7 @@ def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogH
     catalog["http_status"] = int(status)
     if 200 <= int(status) < 400:
         if not _catalog_body_has_parseable_content(str(catalog.get("provider") or ""), _body):
-            if _try_browser_catalog_health(catalog, timeout):
+            if _should_try_browser_for_unparseable_body(_body) and _try_browser_catalog_health(catalog, timeout):
                 return
             catalog["status"] = "error"
             catalog["connection_state"] = _unparseable_body_connection_state(_body)
@@ -245,7 +246,7 @@ def _catalog_body_has_parseable_content(provider: str, body: str) -> bool:
         return bool(
             soup.select_one(
                 "li.listItem, .js-productListItem, .ProductHead__name, "
-                ".Product__price, .js-productSum, a[href*='/catalog/goods/']"
+                ".Product__price, .js-productSum"
             )
         )
     if provider_key == "komus":
@@ -254,6 +255,11 @@ def _catalog_body_has_parseable_content(provider: str, body: str) -> bool:
         return bool(soup.select_one("a[href^='/product/'], a[href*='/product/'], .product-card, [data-test*='product' i]"))
     if provider_key == "vseinstrumenti":
         return bool(soup.select_one("a[href*='/product/'], .product-card, [data-qa*='product' i]"))
+    if provider_key == "lemanapro":
+        return bool(
+            soup.select_one("a[href*='/product/'], .product-card, [data-qa*='product' i]")
+            or re.search(r'window\.INITIAL_STATE\["plp"\].*"products"', body, re.IGNORECASE | re.DOTALL)
+        )
     return bool(body.strip())
 
 
@@ -297,6 +303,10 @@ def _unparseable_body_connection_state(body: str) -> str:
     if _looks_like_product_data_without_known_cards(body):
         return CATALOG_CONNECTION_PARSER_BROKEN
     return CATALOG_CONNECTION_NO_CARDS
+
+
+def _should_try_browser_for_unparseable_body(body: str) -> bool:
+    return _looks_like_captcha(body) or _looks_like_browser_or_access_block(body)
 
 
 def _body_has_schema_product(soup: BeautifulSoup) -> bool:

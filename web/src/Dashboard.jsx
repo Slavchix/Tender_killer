@@ -1,7 +1,15 @@
 import { useState } from 'react'
-import { Bell, CheckCircle2, Clock, FileText, Layers, RefreshCcw, WalletCards } from 'lucide-react'
+import { Bell, CheckCircle2, ChevronDown, Clock, FileText, Layers, RefreshCcw, WalletCards } from 'lucide-react'
 import { sourceLabels } from './constants'
 import { formatDate, formatDateTime, formatMoney, hasParticipantBid, nmcPriceValue, participantBidValue, tenderDecisionLabel } from './formatters'
+
+const SUPPLIER_CATALOG_DASHBOARD_FALLBACKS = [
+  { preset_id: 'officemag_office_supplies', label: 'OfficeMag', provider: 'officemag' },
+  { preset_id: 'komus_office_supplies', label: 'Komus', provider: 'komus' },
+  { preset_id: 'petrovich_building_materials', label: 'Petrovich', provider: 'petrovich' },
+  { preset_id: 'vseinstrumenti_building_materials', label: 'ВсеИнструменты', provider: 'vseinstrumenti' },
+  { preset_id: 'lemanapro_building_materials', label: 'Lemana Pro', provider: 'lemanapro' },
+]
 
 function Metric({ label, value, tone }) {
   return (
@@ -384,21 +392,35 @@ function dashboardTenderLine(tender) {
 }
 
 function SourceStatusPanel({ sources, error, onRefresh }) {
+  const [expanded, setExpanded] = useState(false)
   return (
-    <section className="source-status-panel">
+    <section className={`source-status-panel collapsible-status-panel ${expanded ? 'expanded' : 'collapsed'}`}>
       <div className="source-status-header">
-        <div className="panel-title"><RefreshCcw size={18} /> Источники</div>
+        <button
+          aria-expanded={expanded}
+          className="source-status-toggle"
+          onClick={() => setExpanded((value) => !value)}
+          type="button"
+        >
+          <span className="panel-title"><RefreshCcw size={18} /> Источники</span>
+          <span className="source-status-summary">{sourceSummaryText(sources, error)}</span>
+          <ChevronDown className="source-status-chevron" size={16} />
+        </button>
         <button className="icon-button small" onClick={onRefresh} title="Обновить статус источников" type="button">
           <RefreshCcw size={16} />
         </button>
       </div>
-      {error && <div className="source-status-error">{error}</div>}
-      <div className="source-status-list">
-        {(sources || []).map((source) => (
-          <SourceStatusRow key={source.source} source={source} />
-        ))}
-        {!sources?.length && !error && <span className="source-status-empty">Статус источников пока не загружен</span>}
-      </div>
+      {expanded && (
+        <>
+          {error && <div className="source-status-error">{error}</div>}
+          <div className="source-status-list">
+            {(sources || []).map((source) => (
+              <SourceStatusRow key={source.source} source={source} />
+            ))}
+            {!sources?.length && !error && <span className="source-status-empty">Статус источников пока не загружен</span>}
+          </div>
+        </>
+      )}
     </section>
   )
 }
@@ -424,12 +446,37 @@ function SourceStatusRow({ source }) {
   )
 }
 
+function sourceSummaryText(sources, error) {
+  if (error) {
+    return 'API ошибка'
+  }
+  const items = sources || []
+  const failed = items.filter((source) => source.last_error).length
+  if (failed) {
+    return `${failed} ошибок из ${items.length || failed}`
+  }
+  if (items.length) {
+    return `${items.length} подключено`
+  }
+  return 'нет данных'
+}
+
 function SupplierCatalogStatusPanel({ catalogHealth, error, loading, onRefresh }) {
-  const catalogs = catalogHealth?.catalogs || []
+  const [expanded, setExpanded] = useState(false)
+  const catalogs = mergeSupplierCatalogDashboardFallbacks(catalogHealth?.catalogs || [])
   return (
-    <section className="source-status-panel supplier-catalog-dashboard">
+    <section className={`source-status-panel supplier-catalog-dashboard collapsible-status-panel ${expanded ? 'expanded' : 'collapsed'}`}>
       <div className="source-status-header">
-        <div className="panel-title"><RefreshCcw size={18} /> Каталоги поставщиков</div>
+        <button
+          aria-expanded={expanded}
+          className="source-status-toggle"
+          onClick={() => setExpanded((value) => !value)}
+          type="button"
+        >
+          <span className="panel-title"><RefreshCcw size={18} /> Каталоги поставщиков</span>
+          <span className="source-status-summary">{catalogSummaryText(catalogs, error, loading)}</span>
+          <ChevronDown className="source-status-chevron" size={16} />
+        </button>
         <button
           className="icon-button small"
           disabled={loading}
@@ -440,20 +487,65 @@ function SupplierCatalogStatusPanel({ catalogHealth, error, loading, onRefresh }
           <RefreshCcw size={16} />
         </button>
       </div>
-      {error && <div className="source-status-error">{error}</div>}
-      <div className="source-status-meta">
-        <span>{catalogHealth?.checked_at ? `проверка: ${formatDateTime(catalogHealth.checked_at)}` : 'live-проверки еще не было'}</span>
-        {catalogHealth?.cached && <span>последний сохраненный статус</span>}
-        {loading && <span>проверяю...</span>}
-      </div>
-      <div className="source-status-list">
-        {catalogs.map((catalog) => (
-          <SupplierCatalogStatusRow catalog={catalog} key={catalog.preset_id || catalog.provider} />
-        ))}
-        {!catalogs.length && !error && <span className="source-status-empty">Каталоги поставщиков пока не проверялись</span>}
-      </div>
+      {expanded && (
+        <>
+          {error && <div className="source-status-error">{error}</div>}
+          <div className="source-status-meta">
+            <span>{catalogHealth?.checked_at ? `проверка: ${formatDateTime(catalogHealth.checked_at)}` : 'live-проверки еще не было'}</span>
+            {catalogHealth?.cached && <span>последний сохраненный статус</span>}
+            {loading && <span>проверяю...</span>}
+          </div>
+          <div className="source-status-list">
+            {catalogs.map((catalog) => (
+              <SupplierCatalogStatusRow catalog={catalog} key={catalog.preset_id || catalog.provider} />
+            ))}
+            {!catalogs.length && !error && <span className="source-status-empty">Каталоги поставщиков пока не проверялись</span>}
+          </div>
+        </>
+      )}
     </section>
   )
+}
+
+function mergeSupplierCatalogDashboardFallbacks(catalogs) {
+  const merged = [...catalogs]
+  const seen = new Set()
+  merged.forEach((catalog) => {
+    const catalogKeys = [catalog.preset_id, catalog.provider]
+    catalogKeys.forEach((value) => {
+      if (value) seen.add(value.toString().toLowerCase())
+    })
+  })
+  for (const fallback of SUPPLIER_CATALOG_DASHBOARD_FALLBACKS) {
+    const keys = [fallback.preset_id, fallback.provider].map((value) => value.toLowerCase())
+    if (keys.some((key) => seen.has(key))) continue
+    merged.push({
+      ...fallback,
+      status: 'configured',
+      connection_state: 'configured',
+      access_mode: 'configured',
+    })
+    keys.forEach((key) => seen.add(key))
+  }
+  return merged
+}
+
+function catalogSummaryText(catalogs, error, loading) {
+  if (loading) {
+    return 'проверяю...'
+  }
+  if (error) {
+    return 'API ошибка'
+  }
+  const failed = catalogs.filter((catalog) => {
+    const state = catalog.connection_state || catalog.status || 'configured'
+    return ['blocked', 'captcha', 'timeout', 'no_cards', 'parser_broken', 'network_error'].includes(state) || catalog.status === 'error'
+  }).length
+  if (failed) {
+    return `${failed} проблем из ${catalogs.length}`
+  }
+  const ready = catalogs.filter((catalog) => (catalog.connection_state || catalog.status) === 'reachable' || catalog.status === 'ok').length
+  return ready ? `${ready}/${catalogs.length} ok` : `${catalogs.length} настроено`
 }
 
 function SupplierCatalogStatusRow({ catalog }) {

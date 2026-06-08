@@ -690,9 +690,9 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert "from './TenderEconomicsAuto'" not in economics_workbench_source
     assert "from './TenderEconomicsAuto'" in economics_profile_workspace_source
     assert "from './TenderEconomicsPositionRail'" in economics_workbench_source
-    assert "from './TenderEconomicsSupplierDiscovery'" in economics_suppliers_source
     assert "from './TenderEconomicsSupplierOptions'" in economics_suppliers_source
-    assert "from './TenderEconomicsSupplierInputForm'" in economics_suppliers_source
+    assert "from './TenderEconomicsSupplierDiscovery'" not in economics_suppliers_source
+    assert "from './TenderEconomicsSupplierInputForm'" not in economics_suppliers_source
     assert "from './TenderEconomicsSupplierCatalogs'" in economics_supplier_input_source
     assert "from './TenderEconomicsSupplierCatalogHealth'" in economics_supplier_input_source
     assert "from './TenderEconomicsSupplierActions'" in economics_supplier_input_source
@@ -713,6 +713,8 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert "function ProductSupplierOptionsForm" not in economics_source
     assert "export function ProductSupplierOptionsForm" in economics_suppliers_source
     assert "export function SupplierCatalogPresetControls" in economics_supplier_catalogs_source
+    assert "lemanapro_building_materials" in economics_supplier_catalogs_source
+    assert "lemanapro" in economics_supplier_catalogs_source
     assert "export function SupplierCatalogHealthPanel" not in economics_supplier_catalogs_source
     assert "export function SupplierCatalogHealthPanel" in economics_supplier_catalog_health_source
     assert "export function SupplierSearchPreview" in economics_supplier_discovery_source
@@ -1379,6 +1381,13 @@ def test_product_profile_renders_fulfillment_requirements():
 
     assert "profile.fulfillment_requirements" in source
     assert "formatFulfillmentRequirements" in source
+    assert "formatProfileTenderPrice(profile)" in source
+    assert "tenderReferenceUnitPrice(profile)" in source
+    assert "tenderReferenceTotalPrice(profile)" in source
+    assert "<TenderItems items={tender.items || []} profiles={productProfiles} />" in source
+    assert "const profileByPosition = profilesByPosition(profiles)" in source
+    assert "tenderReferenceUnitPrice(itemWithProfilePrice)" in source
+    assert "tenderReferenceTotalPrice(itemWithProfilePrice)" in source
     assert "fulfillmentRequirementTypeLabel" in formatter_source
     assert "Поставка и исполнение" in source
     assert find_mojibake(source, TENDER_PRODUCTS_TAB_SOURCE) == []
@@ -1404,9 +1413,13 @@ def test_tender_details_render_economics_summary():
     assert "const workspaceActions = [" not in tabs_source
     assert "onClick={() => onOpenTab?.('economics')}" in summary_source
     assert "from './TenderEconomicsSummary'" in source
-    assert "<EconomicsSummary economics={economics} tender={tender} />" in source
+    assert "<EconomicsSummary economics={economics} tender={tender} profiles={profiles} />" in source
     assert "function EconomicsSummary" not in source
     assert "export function EconomicsSummary" in economics_summary_source
+    assert "export function EconomicsSummary({ economics, tender, profiles = [] })" in economics_summary_source
+    assert "const itemProfiles = profilesByEconomicsItem(profiles)" in economics_summary_source
+    assert "tenderReferenceUnitPrice(profile)" in economics_summary_source
+    assert "tenderReferenceTotalPrice(profile)" in economics_summary_source
     assert "from './TenderEconomicsDecisionScenarios'" in economics_summary_source
     assert "function ParticipationDecisionCard" not in economics_summary_source
     assert "function BidScenarioStrip" not in economics_summary_source
@@ -1549,9 +1562,9 @@ def test_product_profile_renders_supplier_option_form():
     assert "from './TenderEconomicsSuppliers'" not in tab_source
     assert "from './TenderEconomicsSuppliers'" not in workbench_source
     assert "from './TenderEconomicsSuppliers'" in profile_workspace_source
-    assert "from './TenderEconomicsSupplierDiscovery'" in source
     assert "from './TenderEconomicsSupplierOptions'" in source
-    assert "from './TenderEconomicsSupplierInputForm'" in source
+    assert "from './TenderEconomicsSupplierDiscovery'" not in source
+    assert "from './TenderEconomicsSupplierInputForm'" not in source
     assert "from './TenderEconomicsSupplierCatalogs'" in input_source
     assert "from './TenderEconomicsSupplierCatalogHealth'" in input_source
     assert "from './TenderEconomicsSupplierActions'" in input_source
@@ -1561,33 +1574,12 @@ def test_product_profile_renders_supplier_option_form():
     assert "export function ProductSupplierOptionsForm" in source
     assert "function ProductSupplierOptionsForm" not in tab_source
     assert "<ProductSupplierOptionsForm" in profile_workspace_source
-    assert "onSupplierOptionSave" in tab_source
     assert "selectSupplierOption" in details_source
     assert "autoSelectSupplierOption" in details_source
-    assert "prepareSupplierSearch" in details_source
-    assert "prepareProfileSupplierSearch" in hook_source
-    assert "runSupplierDiscovery" in details_source
-    assert "runProfileSupplierDiscovery" in hook_source
-    assert "runSupplierUrlDiscovery" in details_source
-    assert "runProfileSupplierUrlDiscovery" in hook_source
     assert "err.payload?.product_profiles" in hook_source
     assert "applyProductTenderState(err.payload, { resetSelection: false })" in hook_source
-    assert "importSupplierDiscoveryCandidate" in details_source
-    assert "importProfileSupplierDiscoveryCandidate" in hook_source
     assert "onSupplierOptionSelect" in tab_source
     assert "onSupplierOptionAutoSelect" in tab_source
-    assert "onSupplierCatalogPresetsSave" in tab_source
-    assert "onSupplierSearchPrepare" in tab_source
-    assert "onSupplierDiscoveryRun" in tab_source
-    assert "onSupplierUrlDiscoveryRun" in tab_source
-    assert "onSupplierDiscoveryImport" in tab_source
-    assert "preparingSupplierSearchPosition" in details_source
-    assert "discoveringSupplierPosition" in details_source
-    assert "importingSupplierCandidatePosition" in details_source
-    assert "savingSupplierCatalogPresetPosition" in details_source
-    assert "preparingSupplierSearchPosition" in workspaces_source
-    assert "discoveringSupplierPosition" in workspaces_source
-    assert "importingSupplierCandidatePosition" in workspaces_source
     assert "product-profiles/${profile.position_index}" in api_source
     assert "${productProfilePath(tender, profile)}/supplier-options" in api_source
     assert "${productProfilePath(tender, profile)}/supplier-options/${optionIndex}/select" in api_source
@@ -1607,10 +1599,14 @@ def test_product_profile_renders_supplier_option_form():
     assert "onPriceCandidateReject" in profile_workspace_source
     assert "price_candidates" in source
     assert "PriceCandidatesList" in source
+    assert "tenderReferenceUnitPrice(profile)" in source
+    assert "priceComparisonForUnitPrice(candidateUnitPrice, tenderUnitPrice)" in source
+    assert "price-candidate-reference-price" in source
+    assert "price-candidate-price-delta" in source
     assert "visiblePriceCandidates" in source
     assert "reviewStatus === 'pending'" in source
-    assert "showDiscoveryPreview" in source
     assert "showSupplierOptions" in source
+    assert "PriceCandidatesEmptyState" in source
     assert "formatSupplierStock(candidate)" in source
     assert "formatSupplierStock(option)" in options_source
     assert "candidate.score" in source
@@ -1622,11 +1618,11 @@ def test_product_profile_renders_supplier_option_form():
     assert "Принять цену" in source
     assert "Отклонить" in source
     assert "supplier_options" in source
-    assert "supplier_search" in source
-    assert "supplier_discovery" in source
-    assert "SupplierSearchPreview" in source
     assert "SupplierOptionsList" in source
-    assert "SupplierInputForm" in source
+    assert "supplier_search" not in source
+    assert "supplier_discovery" not in source
+    assert "SupplierSearchPreview" not in source
+    assert "SupplierInputForm" not in source
     assert "SupplierCatalogPresetControls" in input_source
     assert "export function SupplierInputForm" in input_source
     assert "export function SupplierCatalogHealthPanel" in catalog_health_source
@@ -1656,7 +1652,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "ignoreSupplierActionError" in actions_source
     assert "onPresetSave(profile, nextPresetIds)" in catalogs_source
     assert "onPresetSave(profile, null)" in catalogs_source
-    assert "SupplierDiscoveryPreview" in source
+    assert "SupplierDiscoveryPreview" not in source
     assert "export function SupplierSearchPreview" in discovery_source
     assert "export function SupplierDiscoveryPreview" in discovery_source
     assert "function SupplierDiscoveryDiagnostics" in discovery_source
@@ -1669,6 +1665,9 @@ def test_product_profile_renders_supplier_option_form():
     assert "diagnostics.candidates_found" in discovery_source
     assert "diagnostics.links_skipped" in discovery_source
     assert "diagnostics.errors" in discovery_source
+    assert "diagnostics.intent_rejection_reasons" in discovery_source
+    assert "formatIntentRejectionReason" in discovery_source
+    assert "supplier-discovery-rejection-reasons" in discovery_source
     assert "compactDiscoveryErrors(errors)" in discovery_source
     assert "formatDiscoveryError(error)" in discovery_source
     assert "Сайт требует браузерную проверку" in discovery_source
@@ -1679,6 +1678,9 @@ def test_product_profile_renders_supplier_option_form():
     assert "confidence_reasons" in discovery_source
     assert "quick_links" in discovery_source
     assert "supplier-search-links" in discovery_source
+    assert "uniqueCatalogSearchLinks(queries)" in discovery_source
+    assert "Ручная проверка по каталогам" in discovery_source
+    assert "catalogSearchLinks.map" in discovery_source
     assert "href={link.url}" in discovery_source
     assert "discoveringDiscovery" in actions_source
     assert "Проверить ссылку" in actions_source
@@ -1715,8 +1717,12 @@ def test_product_profile_renders_supplier_option_form():
     assert ".supplier-discovery-preview" in styles_source
     assert ".price-candidates-list" in styles_source
     assert ".price-candidate-row" in styles_source
+    assert ".price-candidate-reference-price" in styles_source
+    assert ".price-candidate-price-delta" in styles_source
+    assert ".supplier-search-catalog-links" in styles_source
     assert ".supplier-discovery-diagnostics" in styles_source
     assert ".supplier-discovery-metrics" in styles_source
+    assert ".supplier-discovery-rejection-reasons" in styles_source
     assert find_mojibake(details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
     assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
@@ -2000,8 +2006,12 @@ def test_economics_tab_owns_product_costs_and_suppliers():
     assert "from './TenderEconomicsWorkbench'" in tab_source
     assert "productProfiles" in tab_source
     assert "selectedEconomicsProfileIndex" in tab_source
+    assert "['quantity', 'unit', 'unit_price', 'total_price']" in tab_source
     assert "export function TenderEconomicsWorkbench({" in app_source
     assert "export function TenderEconomicsProfileWorkspace({" in profile_workspace_source
+    assert "formatPositionTenderPrice(selectedEconomicsProfile)" in profile_workspace_source
+    assert "tenderReferenceUnitPrice" in profile_workspace_source
+    assert "tenderReferenceTotalPrice" in profile_workspace_source
     assert "<ProductEconomicsForm profile={selectedEconomicsProfile}" in profile_workspace_source
     assert "<ProductSupplierOptionsForm" in profile_workspace_source
     assert "profile={selectedEconomicsProfile}" in profile_workspace_source
@@ -2012,6 +2022,46 @@ def test_economics_tab_owns_product_costs_and_suppliers():
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(app_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
     assert find_mojibake(profile_workspace_source, TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+def test_economics_tab_is_a_focused_workbench():
+    tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    metrics_source = TENDER_ECONOMICS_METRICS_SOURCE.read_text(encoding="utf-8")
+    summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
+    workbench_source = TENDER_ECONOMICS_WORKBENCH_SOURCE.read_text(encoding="utf-8")
+    profile_workspace_source = TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.read_text(encoding="utf-8")
+    suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "economics-command-center" in tab_source
+    assert "economics-command-actions" in tab_source
+    assert "<TenderEconomicsMetrics tender={tender} economics={economics} profiles={profiles} />" in tab_source
+    assert tab_source.index("<TenderEconomicsWorkbench") < tab_source.index("<EconomicsSummary economics={economics} tender={tender} profiles={profiles} />")
+    assert "readinessStats(profiles)" in metrics_source
+    assert "SummaryMetric value={`${readyPositions}/${totalPositions}`}" in metrics_source
+    assert "label=\"цены\"" in metrics_source
+    assert "label=\"кандидаты\"" in metrics_source
+    assert "economics-analysis-drawer" in summary_source
+    assert "<summary>" in summary_source
+    assert "analysisCostDrivers.length" in summary_source
+    assert "economics-workspace-shell" in workbench_source
+    assert "economics-workbench-main" in profile_workspace_source
+    assert "economics-side-panel" in profile_workspace_source
+    assert "economics-position-card" in profile_workspace_source
+    assert "economics-side-section" in profile_workspace_source
+    assert "supplier-tools-drawer" not in suppliers_source
+    assert ".economics-command-center" in styles_source
+    assert ".economics-workspace-shell" in styles_source
+    assert ".economics-workbench-main" in styles_source
+    assert ".economics-side-panel" in styles_source
+    assert ".economics-analysis-drawer" in styles_source
+    assert ".supplier-tools-drawer" not in styles_source
+    assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(metrics_source, TENDER_ECONOMICS_METRICS_SOURCE) == []
+    assert find_mojibake(summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
+    assert find_mojibake(workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
+    assert find_mojibake(profile_workspace_source, TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE) == []
+    assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 def test_product_detail_keeps_passport_and_requirements_only():
@@ -2465,6 +2515,9 @@ def test_economics_position_rail_keeps_long_product_names_readable():
     rail_name_rule = _css_rule(styles_source, ".economics-position-rail .profile-name")
 
     assert "economics-profile-row" in economics_source
+    assert "formatPositionTenderPrice(profile)" in economics_source
+    assert "tenderReferenceUnitPrice(profile)" in economics_source
+    assert "tenderReferenceTotalPrice(profile)" in economics_source
     assert "container-type: inline-size" in details_rule
     assert '"pos status"' in rail_row_rule
     assert '"name name"' in rail_row_rule
@@ -3093,8 +3146,20 @@ def test_dashboard_surfaces_supplier_catalog_connectivity():
     assert "function SupplierCatalogStatusPanel" in dashboard_source
     assert "<SupplierCatalogStatusPanel" in dashboard_source
     assert "catalogHealth?.catalogs" in dashboard_source
+    assert "lemanapro_building_materials" in dashboard_source
+    assert "Lemana Pro" in dashboard_source
+    assert "mergeSupplierCatalogDashboardFallbacks" in dashboard_source
     assert "supplier-catalog-dashboard" in dashboard_source
+    assert "collapsible-status-panel" in dashboard_source
+    assert "source-status-toggle" in dashboard_source
+    assert "aria-expanded={expanded}" in dashboard_source
+    assert "setExpanded((value) => !value)" in dashboard_source
+    assert "catalogSummaryText(catalogs, error, loading)" in dashboard_source
+    assert "sourceSummaryText(sources, error)" in dashboard_source
     assert ".supplier-catalog-dashboard" in styles_source
+    assert ".collapsible-status-panel" in styles_source
+    assert ".source-status-toggle" in styles_source
+    assert ".source-status-summary" in styles_source
     catalog_status_rule = _css_rule(styles_source, ".supplier-catalog-dashboard .source-status-main > div:first-child span")
     assert "flex: 1 1 auto" in catalog_status_rule
     assert "overflow-wrap: anywhere" in catalog_status_rule

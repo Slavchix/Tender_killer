@@ -141,6 +141,25 @@ def test_build_supplier_search_queries_includes_matching_catalog_presets() -> No
     assert queries[0]["quick_links"] == expected_office_links("office paper a4")
 
 
+def test_build_supplier_search_queries_routes_building_materials_to_building_catalogs() -> None:
+    queries = build_supplier_search_queries(
+        {
+            "product_name": "Cement M500 50 kg",
+            "normalized_name": "cement m500 50 kg",
+            "okpd2": "23.51.12.110",
+        }
+    )
+
+    provider_links = [
+        link.get("provider")
+        for link in queries[0]["quick_links"]
+        if link.get("link_kind") == "catalog_search"
+    ]
+    assert provider_links == ["petrovich", "vseinstrumenti", "lemanapro"]
+    assert "officemag" not in provider_links
+    assert "komus" not in provider_links
+
+
 def test_build_supplier_search_queries_expands_real_russian_office_paper_terms() -> None:
     queries = build_supplier_search_queries(
         {
@@ -194,6 +213,45 @@ def test_build_supplier_search_queries_expands_real_russian_cartridge_terms() ->
         "картридж лазерный",
         "картридж для принтера",
         f"28.23.25.000 {product_name}",
+    ]
+
+
+def test_build_supplier_search_queries_adds_constraint_hint_for_generic_catalog_items() -> None:
+    queries = build_supplier_search_queries(
+        {
+            "product_name": "Supply of reinforced self drilling screw FastenPro 4.2x19 zinc pack 200 pcs",
+            "normalized_name": "reinforced self drilling screw FastenPro 4.2x19 zinc pack 200 pcs",
+        }
+    )
+
+    assert [query["query"] for query in queries] == [
+        "reinforced self drilling screw FastenPro 4.2x19 zinc pack 200 pcs",
+        "reinforced self drilling screw fastenpro zinc 4.2x19 200 pcs",
+    ]
+    assert queries[1]["kind"] == "catalog_hint"
+
+
+def test_build_supplier_search_queries_adds_weight_and_volume_constraint_hints() -> None:
+    screw_queries = build_supplier_search_queries(
+        {
+            "product_name": "Supply of Gigant zinc self drilling screws 1 kg",
+            "normalized_name": "self drilling screws",
+        }
+    )
+    paint_queries = build_supplier_search_queries(
+        {
+            "product_name": "Supply of white acrylic paint 5 l",
+            "normalized_name": "paint",
+        }
+    )
+
+    assert [query["query"] for query in screw_queries] == [
+        "self drilling screws",
+        "self drilling screws gigant zinc 1 kg",
+    ]
+    assert [query["query"] for query in paint_queries] == [
+        "paint",
+        "paint white acrylic 5 l",
     ]
 
 

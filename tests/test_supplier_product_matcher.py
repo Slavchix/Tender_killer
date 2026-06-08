@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from tender_killer.supplier_product_matcher import supplier_product_name_matches_query
+from tender_killer.supplier_product_matcher import supplier_product_name_mismatch_reasons
 
 
 def test_cartridge_query_rejects_other_product_families() -> None:
@@ -68,6 +69,39 @@ def test_russian_office_paper_procurement_title_matches_plain_office_paper() -> 
     assert supplier_product_name_matches_query(
         query,
         "\u041a\u0430\u0440\u0442\u0440\u0438\u0434\u0436 Sakura W1510X \u0434\u043b\u044f HP LaserJet Pro 4003",
+    ) is False
+
+
+def test_russian_office_paper_query_rejects_different_sheet_count() -> None:
+    query = "бумага офисная белая а4 80 г/м2 500 листов"
+
+    assert supplier_product_name_matches_query(
+        query,
+        "Бумага офисная А4, 80 г/м2, 500 л., белая",
+    ) is True
+    assert supplier_product_name_matches_query(
+        query,
+        "Бумага белая А4, 80 г/м2, 100 л., STAFF СТАНДАРТ",
+    ) is False
+
+
+def test_office_paper_query_rejects_different_format() -> None:
+    query = "office paper a4 80 g/m2 500 sheets"
+
+    assert supplier_product_name_matches_query(
+        query,
+        "Office paper A4, 80 g/m2, 500 sheets, Snegurochka",
+    ) is True
+    assert supplier_product_name_matches_query(
+        query,
+        "Office paper A3, 80 g/m2, 500 sheets, Snegurochka",
+    ) is False
+
+
+def test_office_paper_query_rejects_toilet_paper() -> None:
+    assert supplier_product_name_matches_query(
+        "бумага офисная а4 80 г/м2 500 листов",
+        "Бумага туалетная листовая 250 шт., LAIMA, 2-слойная, белая",
     ) is False
 
 
@@ -141,3 +175,54 @@ def test_unknown_family_still_requires_meaningful_overlap() -> None:
 
     assert supplier_product_name_matches_query(query, "GNOM 16-16 submersible drainage pump") is True
     assert supplier_product_name_matches_query(query, "Office paper A4 80 gsm") is False
+
+
+def test_generic_product_query_rejects_different_dimensions() -> None:
+    query = "self drilling screw 4.2x19 zinc 200 pcs"
+
+    assert supplier_product_name_matches_query(query, "FastenPro self drilling screw 4,2 x 19 zinc, 200 pcs") is True
+    assert supplier_product_name_matches_query(query, "FastenPro self drilling screw 4,2 x 16 zinc, 200 pcs") is False
+
+
+def test_generic_product_query_rejects_different_piece_pack_quantity() -> None:
+    query = "self drilling screw 4.2x19 zinc 200 pcs"
+
+    assert supplier_product_name_matches_query(query, "FastenPro self drilling screw 4.2x19 zinc, pack 200 pcs") is True
+    assert supplier_product_name_matches_query(query, "FastenPro self drilling screw 4.2x19 zinc, pack 100 pcs") is False
+
+
+def test_generic_product_query_rejects_different_weight_volume_material_color_and_brand() -> None:
+    assert supplier_product_name_matches_query(
+        "Gigant self drilling screw 4.2x19 zinc 1 kg",
+        "Gigant self drilling screw 4.2x19 zinc, 1 kg",
+    ) is True
+    assert supplier_product_name_matches_query(
+        "Gigant self drilling screw 4.2x19 zinc 1 kg",
+        "FastenPro self drilling screw 4.2x19 zinc, 1 kg",
+    ) is False
+    assert supplier_product_name_matches_query(
+        "Gigant self drilling screw 4.2x19 zinc 1 kg",
+        "Gigant self drilling screw 4.2x19 phosphate, 1 kg",
+    ) is False
+    assert supplier_product_name_matches_query(
+        "white acrylic paint 5 l",
+        "white acrylic paint 1 l",
+    ) is False
+    assert supplier_product_name_matches_query(
+        "white acrylic paint 5 l",
+        "black acrylic paint 5 l",
+    ) is False
+
+
+def test_mismatch_reasons_include_weight_volume_material_color_and_brand() -> None:
+    reasons = supplier_product_name_mismatch_reasons(
+        "Gigant self drilling screw 4.2x19 zinc white 1 kg",
+        "FastenPro self drilling screw 4.2x19 phosphate black 500 g",
+    )
+
+    assert reasons == [
+        "weight_mismatch",
+        "material_mismatch",
+        "color_mismatch",
+        "brand_mismatch",
+    ]
