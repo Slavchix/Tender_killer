@@ -85,6 +85,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     prepareSupplierSearch,
     runSupplierDiscovery,
     runSupplierUrlDiscovery,
+    stageSupplierManualPriceCandidate,
     runProfileAutoEconomics,
     acceptProfileAutoEconomics,
   } = useTenderProductProfiles(tender, onTenderRefresh, setDetailStatus)
@@ -150,6 +151,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     onSupplierSearchPrepare: prepareSupplierSearch,
     onSupplierDiscoveryRun: runSupplierDiscovery,
     onSupplierUrlDiscoveryRun: runSupplierUrlDiscovery,
+    onSupplierManualPriceStage: stageSupplierManualPriceCandidate,
     onAutoEconomicsRun: runProfileAutoEconomics,
     onAutoEconomicsAccept: acceptProfileAutoEconomics,
     savingEconomicsPosition,

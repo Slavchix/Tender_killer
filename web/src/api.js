@@ -266,6 +266,14 @@ export function runProfileSupplierUrlDiscovery(tender, profile, payload) {
   })
 }
 
+export function stageProfileSupplierDiscoveryCandidates(tender, profile, candidates) {
+  return apiJson(`${productProfilePath(tender, profile)}/supplier-discovery/candidates`, {
+    method: 'POST',
+    body: { candidates },
+    errorMessage: 'Не удалось добавить ручную цену поставщика',
+  })
+}
+
 export function runProfileAutoEconomics(tender, profile) {
   return apiJson(`${productProfilePath(tender, profile)}/economics/auto-estimate`, {
     method: 'POST',

@@ -19,6 +19,7 @@ import {
   saveProfileEconomics as saveProfileEconomicsRequest,
   saveProfileEconomicsAssumptions as saveProfileEconomicsAssumptionsRequest,
   selectProfileSupplierOption,
+  stageProfileSupplierDiscoveryCandidates as stageProfileSupplierDiscoveryCandidatesRequest,
   stageTenderPriceCandidates as stageTenderPriceCandidatesRequest,
 } from './api'
 
@@ -397,6 +398,23 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .finally(() => setDiscoveringSupplierPosition(null))
   }
 
+  function stageSupplierManualPriceCandidate(profile, candidate) {
+    if (!profile?.position_index || !candidate) return null
+    setDiscoveringSupplierPosition(profile.position_index)
+    setDetailStatus('')
+    return stageProfileSupplierDiscoveryCandidatesRequest(tender, profile, [candidate])
+      .then((nextTender) => updateFromNextTender(nextTender, 'Ручная цена добавлена в кандидаты'))
+      .catch((err) => {
+        if (err.payload?.product_profiles) {
+          onTenderRefresh(err.payload)
+          applyProductTenderState(err.payload, { resetSelection: false })
+        }
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setDiscoveringSupplierPosition(null))
+  }
+
   function runProfileAutoEconomics(profile) {
     if (!profile?.position_index) return null
     setAutoEstimatingPosition(profile.position_index)
@@ -469,6 +487,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     prepareSupplierSearch,
     runSupplierDiscovery,
     runSupplierUrlDiscovery,
+    stageSupplierManualPriceCandidate,
     runProfileAutoEconomics,
     acceptProfileAutoEconomics,
   }

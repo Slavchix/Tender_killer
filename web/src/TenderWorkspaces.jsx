@@ -54,6 +54,7 @@ export function TenderWorkspaces({
     onSupplierSearchPrepare,
     onSupplierDiscoveryRun,
     onSupplierUrlDiscoveryRun,
+    onSupplierManualPriceStage,
     onAutoEconomicsRun,
     onAutoEconomicsAccept,
     savingEconomicsPosition,
@@ -133,6 +134,7 @@ export function TenderWorkspaces({
           onSupplierSearchPrepare={onSupplierSearchPrepare}
           onSupplierDiscoveryRun={onSupplierDiscoveryRun}
           onSupplierUrlDiscoveryRun={onSupplierUrlDiscoveryRun}
+          onSupplierManualPriceStage={onSupplierManualPriceStage}
           onAutoEconomicsRun={onAutoEconomicsRun}
           onAutoEconomicsAccept={onAutoEconomicsAccept}
           savingEconomicsPosition={savingEconomicsPosition}

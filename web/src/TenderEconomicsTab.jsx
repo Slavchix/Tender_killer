@@ -16,6 +16,11 @@ export function TenderEconomicsTab({
   onSupplierOptionAutoSelectAll,
   onReadyPriceCandidatesConfirmAll,
   onPriceDiscoveryRun,
+  onSupplierDiscoveryImport,
+  onSupplierSearchPrepare,
+  onSupplierDiscoveryRun,
+  onSupplierUrlDiscoveryRun,
+  onSupplierManualPriceStage,
   onPriceCandidateConfirm,
   onPriceCandidateReject,
   onAutoEconomicsRun,
@@ -23,7 +28,10 @@ export function TenderEconomicsTab({
   savingEconomicsPosition = null,
   savingAssumptionsPosition = null,
   savingSupplierOptionPosition = null,
+  importingSupplierCandidatePosition = null,
   reviewingPriceCandidateId = null,
+  preparingSupplierSearchPosition = null,
+  discoveringSupplierPosition = null,
   autoSelectingAllSuppliers = false,
   confirmingReadyPriceCandidates = false,
   runningPriceDiscovery = false,
@@ -95,6 +103,11 @@ export function TenderEconomicsTab({
         onEconomicsSave={onEconomicsSave}
         onEconomicsAssumptionsSave={onEconomicsAssumptionsSave}
         onSupplierOptionSelect={onSupplierOptionSelect}
+        onSupplierDiscoveryImport={onSupplierDiscoveryImport}
+        onSupplierSearchPrepare={onSupplierSearchPrepare}
+        onSupplierDiscoveryRun={onSupplierDiscoveryRun}
+        onSupplierUrlDiscoveryRun={onSupplierUrlDiscoveryRun}
+        onSupplierManualPriceStage={onSupplierManualPriceStage}
         onPriceCandidateConfirm={onPriceCandidateConfirm}
         onPriceCandidateReject={onPriceCandidateReject}
         onAutoEconomicsRun={onAutoEconomicsRun}
@@ -102,7 +115,10 @@ export function TenderEconomicsTab({
         savingEconomicsPosition={savingEconomicsPosition}
         savingAssumptionsPosition={savingAssumptionsPosition}
         savingSupplierOptionPosition={savingSupplierOptionPosition}
+        importingSupplierCandidatePosition={importingSupplierCandidatePosition}
         reviewingPriceCandidateId={reviewingPriceCandidateId}
+        preparingSupplierSearchPosition={preparingSupplierSearchPosition}
+        discoveringSupplierPosition={discoveringSupplierPosition}
         autoEstimatingPosition={autoEstimatingPosition}
         acceptingAutoEconomicsPosition={acceptingAutoEconomicsPosition}
       />

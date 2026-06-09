@@ -1448,6 +1448,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "from './TenderEconomicsSuppliers'" not in workbench_source
     assert "from './TenderEconomicsSuppliers'" in profile_workspace_source
     assert "from './TenderEconomicsSupplierOptions'" in source
+    assert "from './TenderEconomicsSupplierDiscovery'" in profile_workspace_source
     assert "from './TenderEconomicsSupplierDiscovery'" not in source
     assert "from './TenderEconomicsSupplierInputForm'" not in source
     assert "export function ProductSupplierOptionsForm" in source
@@ -1467,6 +1468,10 @@ def test_product_profile_renders_supplier_option_form():
     assert "supplier-discovery/run" in api_source
     assert "supplier-discovery/url" in api_source
     assert "runProfileSupplierUrlDiscovery" in api_source
+    assert "export function stageProfileSupplierDiscoveryCandidates" in api_source
+    assert "stageProfileSupplierDiscoveryCandidates as stageProfileSupplierDiscoveryCandidatesRequest" in hook_source
+    assert "stageSupplierManualPriceCandidate" in hook_source
+    assert "onSupplierManualPriceStage: stageSupplierManualPriceCandidate" in details_source
     assert "supplier-discovery/candidates/${candidateIndex}/import" in api_source
     assert "price-candidates/${candidateId}/confirm" in api_source
     assert "price-candidates/${candidateId}/reject" in api_source
@@ -1474,6 +1479,27 @@ def test_product_profile_renders_supplier_option_form():
     assert "rejectProfilePriceCandidate" in hook_source
     assert "onPriceCandidateConfirm" in profile_workspace_source
     assert "onPriceCandidateReject" in profile_workspace_source
+    assert "onSupplierSearchPrepare" in tab_source
+    assert "onSupplierDiscoveryRun" in tab_source
+    assert "onSupplierUrlDiscoveryRun" in tab_source
+    assert "onSupplierDiscoveryImport" in tab_source
+    assert "onSupplierManualPriceStage" in tab_source
+    assert "onSupplierSearchPrepare" in workbench_source
+    assert "onSupplierDiscoveryRun" in workbench_source
+    assert "onSupplierUrlDiscoveryRun" in workbench_source
+    assert "onSupplierDiscoveryImport" in workbench_source
+    assert "onSupplierManualPriceStage" in workbench_source
+    assert "ManualSupplierPricePanel" in profile_workspace_source
+    assert "SupplierSearchPreview" in profile_workspace_source
+    assert "SupplierDiscoveryPreview" in profile_workspace_source
+    assert "manual-product-url-input" in profile_workspace_source
+    assert "manual-price-source-select" in profile_workspace_source
+    assert "manual-price-unit-input" in profile_workspace_source
+    assert "onSupplierUrlDiscoveryRun?.(selectedEconomicsProfile, {" in profile_workspace_source
+    assert "onSupplierManualPriceStage?.(selectedEconomicsProfile, candidate)" in profile_workspace_source
+    assert "onSupplierDiscoveryImport?.(selectedEconomicsProfile, candidateIndex)" in profile_workspace_source
+    assert "quick links/manual URL/feed" in profile_workspace_source
+    assert "supplier-manual-price-panel" in styles_source
     assert "price_candidates" in source
     assert "PriceCandidatesList" in source
     assert "tenderReferenceUnitPrice(profile)" in source
@@ -1484,6 +1510,8 @@ def test_product_profile_renders_supplier_option_form():
     assert "reviewStatus === 'pending'" in source
     assert "showSupplierOptions" in source
     assert "PriceCandidatesEmptyState" in source
+    assert "manual URL" in source
+    assert "feed/КП" in source
     assert "formatSupplierStock(candidate)" in source
     assert "formatSupplierStock(option)" in options_source
     assert "candidate.score" in source

@@ -48,7 +48,7 @@ function PriceCandidatesEmptyState() {
   return (
     <div className="price-candidates-empty">
       <strong>Кандидатов цен пока нет</strong>
-      <p>Запусти поиск цен сверху. Статусы каталогов и источников смотри на дашборде.</p>
+      <p>Подготовь quick links, вставь manual URL товара или внеси цену из feed/КП после проверки.</p>
     </div>
   )
 }

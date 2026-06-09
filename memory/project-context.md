@@ -1214,3 +1214,13 @@ Date: 2026-06-09.
 - Browser fetch fallback is no longer automatic for catalog fetches. It is only allowed for manual product URL fetch paths where the provider policy allows the action.
 - Economics UI hides the active `Найти цены` button for large tenders and shows the manual-flow note instead.
 - Focused verification after implementation: supplier policy tests, supplier price-discovery slices, job service tests, frontend contract tests, encoding guard, Python `py_compile`, and Vite production build through bundled Node all passed.
+
+## Manual supplier price flow implementation checkpoint
+
+Date: 2026-06-09.
+
+- PR for the branch already exists as `https://github.com/Slavchix/Tender_killer/pull/1`. GitHub App could not convert it to draft because the integration lacks `convertPullRequestToDraft` access.
+- Focused economics workspace now exposes manual supplier price flow per selected position.
+- The manual panel supports quick links preparation, manual public product URL checking, and direct review-first candidate staging from quote/feed/manual price evidence.
+- Direct quote/feed/manual price staging goes through the existing `supplier-discovery/candidates` endpoint and creates price candidates for review. It does not write `raw_payload.economics.unit_cost` until the operator confirms a price candidate.
+- Verification for this slice: frontend contract, supplier discovery API handler slice with local basetemp/escalation, encoding guard, `git diff --check`, and Vite production build through bundled Node passed.
