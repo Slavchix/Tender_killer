@@ -166,7 +166,7 @@ def test_dev_environment_enables_browser_fetch_for_vseinstrumenti():
         dev_control._tcp_port_open = original_tcp_port_open
 
     assert env["TENDER_KILLER_SUPPLIER_BROWSER_FETCH"] == "1"
-    assert env["TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS"] == "officemag,vseinstrumenti,lemanapro"
+    assert env["TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS"] == "officemag,komus,petrovich,vseinstrumenti,lemanapro"
     assert env["TENDER_KILLER_BROWSER_NODE_PATH"] == "node.exe"
 
 

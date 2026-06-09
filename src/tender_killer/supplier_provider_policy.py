@@ -65,12 +65,13 @@ PROVIDER_POLICIES: dict[str, dict[str, Any]] = {
         "allow_quick_links": True,
         "allow_public_search_fetch": True,
         "allow_product_page_fetch": True,
-        "allow_browser_fetch": False,
+        "allow_browser_fetch": True,
         "allow_internal_api": False,
         "public_search_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
+        "browser_fetch_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
         "recommended_flow": "limited_search_manual_url",
         "risk_level": "review_only",
-        "operator_note": "Limited public search is allowed only for small tenders; candidates stay review-only.",
+        "operator_note": "Limited public search and browser fallback are allowed only for small tenders; candidates stay review-only.",
     },
     "officemag": {
         "provider": "officemag",
@@ -79,12 +80,13 @@ PROVIDER_POLICIES: dict[str, dict[str, Any]] = {
         "allow_quick_links": True,
         "allow_public_search_fetch": True,
         "allow_product_page_fetch": True,
-        "allow_browser_fetch": False,
+        "allow_browser_fetch": True,
         "allow_internal_api": False,
         "public_search_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
+        "browser_fetch_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
         "recommended_flow": "limited_search_manual_url",
         "risk_level": "review_only",
-        "operator_note": "Limited public search is allowed only for small tenders; candidates stay review-only.",
+        "operator_note": "Limited public search and browser fallback are allowed only for small tenders; candidates stay review-only.",
     },
     "komus": {
         "provider": "komus",
@@ -93,12 +95,13 @@ PROVIDER_POLICIES: dict[str, dict[str, Any]] = {
         "allow_quick_links": True,
         "allow_public_search_fetch": True,
         "allow_product_page_fetch": True,
-        "allow_browser_fetch": False,
+        "allow_browser_fetch": True,
         "allow_internal_api": False,
         "public_search_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
+        "browser_fetch_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
         "recommended_flow": "limited_search_feed_quote",
         "risk_level": "review_only",
-        "operator_note": "Limited public search is allowed only for small tenders; use feed or quote if access is blocked.",
+        "operator_note": "Limited public search and browser fallback are allowed only for small tenders; use feed or quote if access is blocked.",
     },
     "vseinstrumenti": {
         "provider": "vseinstrumenti",
@@ -107,12 +110,13 @@ PROVIDER_POLICIES: dict[str, dict[str, Any]] = {
         "allow_quick_links": True,
         "allow_public_search_fetch": True,
         "allow_product_page_fetch": True,
-        "allow_browser_fetch": False,
+        "allow_browser_fetch": True,
         "allow_internal_api": False,
         "public_search_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
+        "browser_fetch_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
         "recommended_flow": "limited_search_manual_url",
         "risk_level": "limited",
-        "operator_note": "Limited public search is allowed only for small tenders; stop on access_blocked and switch to manual URL/feed.",
+        "operator_note": "Limited public search and browser fallback are allowed only for small tenders; switch to manual URL/feed if access is still blocked.",
     },
     "petrovich": {
         "provider": "petrovich",
@@ -121,12 +125,13 @@ PROVIDER_POLICIES: dict[str, dict[str, Any]] = {
         "allow_quick_links": True,
         "allow_public_search_fetch": True,
         "allow_product_page_fetch": True,
-        "allow_browser_fetch": False,
+        "allow_browser_fetch": True,
         "allow_internal_api": False,
         "public_search_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
+        "browser_fetch_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
         "recommended_flow": "manual_url_quote_feed",
         "risk_level": "limited",
-        "operator_note": "No confirmed public price API; use product URL, B2B quote, or feed. Limited public search is small-tender only.",
+        "operator_note": "No confirmed public price API; limited public search/browser fallback is small-tender only.",
     },
 }
 
@@ -206,8 +211,14 @@ def supplier_fetch_decision(
         return decision
 
     if action_key == ACTION_BROWSER_FETCH:
-        decision["allowed"] = bool(policy.get("allow_browser_fetch"))
-        decision["reason"] = "allowed" if decision["allowed"] else "browser_fetch_not_allowed"
+        if not policy.get("allow_browser_fetch"):
+            decision["reason"] = "browser_fetch_not_allowed"
+            return decision
+        if _exceeds_browser_fetch_limit(policy, tender_position_count):
+            decision["reason"] = "large_tender_manual_required"
+            return decision
+        decision["allowed"] = True
+        decision["reason"] = "allowed"
         return decision
 
     if action_key == ACTION_INTERNAL_API:
@@ -248,6 +259,14 @@ def is_safe_supplier_url(url: str, *, action: str | None = None) -> bool:
 
 def _exceeds_public_search_limit(policy: dict[str, Any], tender_position_count: int | None) -> bool:
     max_positions = _positive_int(policy.get("public_search_max_positions"))
+    position_count = _positive_int(tender_position_count)
+    return max_positions is not None and position_count is not None and position_count > max_positions
+
+
+def _exceeds_browser_fetch_limit(policy: dict[str, Any], tender_position_count: int | None) -> bool:
+    max_positions = _positive_int(policy.get("browser_fetch_max_positions"))
+    if max_positions is None:
+        max_positions = _positive_int(policy.get("public_search_max_positions"))
     position_count = _positive_int(tender_position_count)
     return max_positions is not None and position_count is not None and position_count > max_positions
 

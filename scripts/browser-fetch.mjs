@@ -136,6 +136,18 @@ function markerExpression() {
   if (provider === 'officemag') {
     return `document.querySelector('.listItemsWrapper li.listItem, .listItemsWrapper .js-productListItem, .ProductHead__name, .listItemsWrapper .Product__price, .listItemsWrapper .js-productSum, input[name="SECTION"]')`
   }
+  if (provider === 'komus') {
+    return `document.querySelector('a[href*="/p/"], .product-card, [data-qa*="product" i]') ||
+      Array.from(document.querySelectorAll('script[type*="ld+json" i]')).some((script) =>
+        /"@type"\\s*:\\s*(?:"Product"|\\[[^\\]]*"Product")/i.test(script.textContent || '')
+      )`
+  }
+  if (provider === 'petrovich') {
+    return `document.querySelector('a[href*="/product/"], .product-card, [data-test*="product" i]') ||
+      Array.from(document.querySelectorAll('script[type*="ld+json" i]')).some((script) =>
+        /"@type"\\s*:\\s*(?:"Product"|\\[[^\\]]*"Product")/i.test(script.textContent || '')
+      )`
+  }
   if (provider === 'vseinstrumenti') {
     return `document.querySelector('a[href*="/product/"], .product-card, [data-qa*="product" i]') ||
       Array.from(document.querySelectorAll('script[type*="ld+json" i]')).some((script) =>
@@ -156,6 +168,18 @@ function isGoodEnoughHtml(html, readyState, matched) {
     }
     if (html.includes('Ваш браузер не смог пройти') || html.includes('challenge_cookie_expires')) {
       return readyState === 'complete'
+    }
+    return false
+  }
+  if (provider === 'komus') {
+    if (matched || html.includes('href="/p/') || html.includes('"@type":"Product"') || html.includes('"@type": "Product"')) {
+      return true
+    }
+    return false
+  }
+  if (provider === 'petrovich') {
+    if (matched || html.includes('href="/product/') || html.includes('"@type":"Product"') || html.includes('"@type": "Product"')) {
+      return true
     }
     return false
   }

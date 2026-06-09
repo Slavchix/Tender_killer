@@ -577,7 +577,7 @@ def _dev_environment(config: DevControlConfig, node: str) -> dict[str, str]:
             f'powershell -NoProfile -ExecutionPolicy Bypass -File "{ocr_wrapper}" {{path}}',
         )
     env.setdefault("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "1")
-    env.setdefault("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", "officemag,vseinstrumenti,lemanapro")
+    env.setdefault("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", "officemag,komus,petrovich,vseinstrumenti,lemanapro")
     if "TENDER_KILLER_BROWSER_CDP_URL" not in env:
         if cdp_url := _default_browser_cdp_url(config):
             env["TENDER_KILLER_BROWSER_CDP_URL"] = cdp_url

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
 from collections.abc import Callable
@@ -45,6 +46,7 @@ CATALOG_CONNECTION_NETWORK_ERROR = "network_error"
 CATALOG_CONNECTION_MANUAL_ONLY = "manual_only"
 CATALOG_SEARCH_MODE_ACTIVE_SMALL = "active_small_search"
 CATALOG_SEARCH_MODE_MANUAL_ONLY = "manual_only"
+DEFAULT_CATALOG_HEALTH_BROWSER_TIMEOUT_SECONDS = 20.0
 
 
 def get_supplier_catalog_health_payload(
@@ -257,7 +259,7 @@ def _try_browser_catalog_health(catalog: dict[str, Any], timeout: float) -> bool
         body = supplier_browser_fetcher.fetch_text(
             str(catalog["sample_url"]),
             provider=provider,
-            timeout_seconds=timeout,
+            timeout_seconds=_catalog_health_browser_timeout(timeout),
         )
     except supplier_browser_fetcher.BrowserFetchError as exc:
         catalog["browser_error"] = str(exc)
@@ -321,6 +323,29 @@ def _fetch_catalog_status(url: str, timeout: float) -> CatalogHealthFetchResult:
         headers={"User-Agent": "TenderKiller/0.1 public catalog health"},
     )
     return int(response.status_code), response.text
+
+
+def _catalog_health_browser_timeout(timeout: float) -> float:
+    configured = _positive_env_float(
+        "TENDER_KILLER_CATALOG_HEALTH_BROWSER_TIMEOUT_SECONDS",
+        DEFAULT_CATALOG_HEALTH_BROWSER_TIMEOUT_SECONDS,
+    )
+    try:
+        http_timeout = float(timeout)
+    except (TypeError, ValueError):
+        http_timeout = 0.0
+    return max(configured, http_timeout)
+
+
+def _positive_env_float(name: str, default: float) -> float:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    try:
+        value = float(raw_value)
+    except ValueError:
+        return default
+    return value if value > 0 else default
 
 
 def http_error_kind(status: int) -> str:

@@ -13,6 +13,7 @@ from urllib.parse import urldefrag
 import httpx
 from bs4 import BeautifulSoup
 
+from tender_killer import supplier_browser_fetcher
 from tender_killer.product_profile_service import ensure_product_profiles
 from tender_killer.price_candidate_service import stage_tender_price_candidates
 from tender_killer.storage import TenderStore
@@ -207,7 +208,7 @@ class ProviderCatalogCollector:
                     break
                 diagnostics["errors"].append(str(exc))
                 continue
-            if _catalog_access_block_reason_from_body(html):
+            if self._access_block_reason_from_body(html):
                 _mark_catalog_access_blocked(diagnostics, url)
                 _skip_remaining_links(diagnostics, links, link_index)
                 break
@@ -248,7 +249,7 @@ class ProviderCatalogCollector:
                             break
                         diagnostics["errors"].append(str(exc))
                         continue
-                    if _catalog_access_block_reason_from_body(fallback_html):
+                    if self._access_block_reason_from_body(fallback_html):
                         _mark_catalog_access_blocked(diagnostics, fallback_url)
                         _skip_remaining_links(diagnostics, links, link_index)
                         blocked = True
@@ -303,7 +304,7 @@ class ProviderCatalogCollector:
                             break
                         diagnostics["errors"].append(str(exc))
                         continue
-                    if _catalog_access_block_reason_from_body(product_html):
+                    if self._access_block_reason_from_body(product_html):
                         _mark_catalog_access_blocked(diagnostics, product_url)
                         _skip_remaining_links(diagnostics, links, link_index)
                         blocked = True
@@ -336,11 +337,26 @@ class ProviderCatalogCollector:
             action=ACTION_BROWSER_FETCH,
             tender_position_count=self.tender_position_count,
         )
-        return _fetch_catalog_text(
+        allow_browser_fetch = bool(browser_decision["allowed"])
+        html = _fetch_catalog_text(
             url,
             self.catalog_provider,
-            allow_browser_fetch=action == ACTION_PRODUCT_PAGE_FETCH and bool(browser_decision["allowed"]),
+            allow_browser_fetch=allow_browser_fetch,
         )
+        if allow_browser_fetch and _catalog_access_block_reason_from_body(html):
+            try:
+                return supplier_browser_fetcher.fetch_text(url, provider=self.catalog_provider)
+            except supplier_browser_fetcher.BrowserFetchError as exc:
+                raise httpx.HTTPError(f"access_blocked body from {url}; browser_fetch_error: {exc}") from exc
+        return html
+
+    def _access_block_reason_from_body(self, html: str) -> str | None:
+        reason = _catalog_access_block_reason_from_body(html)
+        if not reason:
+            return None
+        if _catalog_body_has_provider_product_signal(self.catalog_provider, html):
+            return None
+        return reason
 
     def _allow_fetch_url(self, url: str, action: str, diagnostics: dict[str, Any]) -> bool:
         decision = supplier_fetch_decision(
@@ -1399,6 +1415,8 @@ def _catalog_access_block_reason_from_body(body: str) -> str | None:
         marker in text
         for marker in (
             "access denied",
+            "browser verification",
+            "verification required",
             "captcha",
             "\u043a\u0430\u043f\u0447",
             "browser check",
@@ -1408,6 +1426,28 @@ def _catalog_access_block_reason_from_body(body: str) -> str | None:
     ):
         return ACCESS_BLOCKED_ERROR_KIND
     return None
+
+
+def _catalog_body_has_provider_product_signal(provider: str, body: str) -> bool:
+    body_text = str(body or "")
+    if not body_text.strip():
+        return False
+    soup = BeautifulSoup(body_text, "html.parser")
+    if re.search(r'"@type"\s*:\s*(?:"Product"|\[[^\]]*"Product")', body_text, re.IGNORECASE):
+        return True
+    provider_key = str(provider or "").casefold()
+    if provider_key == "officemag":
+        return bool(
+            _officemag_product_scopes(soup)
+            or soup.select_one(".ProductHead__name, .Product__price, .js-productSum")
+        )
+    if provider_key == "komus":
+        return bool(soup.select_one("a[href*='/p/'], .product-card, [data-qa*='product' i]"))
+    if provider_key == "petrovich":
+        return bool(soup.select_one("a[href^='/product/'], a[href*='/product/'], .product-card, [data-test*='product' i]"))
+    if provider_key in {"vseinstrumenti", "lemanapro"}:
+        return bool(soup.select_one("a[href*='/product/'], .product-card, [data-qa*='product' i]"))
+    return False
 
 
 def _merge_diagnostics(current: dict[str, dict[str, Any]], item: dict[str, Any]) -> None:

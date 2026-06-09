@@ -409,6 +409,7 @@ def test_provider_catalog_collector_does_not_browser_fetch_when_policy_blocks_it
     monkeypatch.setattr(supplier_catalog_fetcher.supplier_browser_fetcher, "fetch_text", fake_browser_fetch)
 
     collector = price_discovery.ProviderCatalogCollector("officemag", max_product_pages=0)
+    collector.tender_position_count = 6
     result = collector.collect_with_diagnostics(
         {
             "query": "папка архивная",
@@ -1025,7 +1026,65 @@ def test_provider_catalog_collector_extracts_officemag_product_detail_terms() ->
     )
 
 
-def test_provider_catalog_collector_skips_officemag_browser_fallback_for_policy_blocked_search(monkeypatch) -> None:
+def test_provider_catalog_collector_uses_small_search_browser_fallback_after_access_block(monkeypatch) -> None:
+    url = "https://www.officemag.ru/search/?q=folder"
+    request = httpx.Request("GET", url)
+    response = httpx.Response(
+        503,
+        request=request,
+        text="<html><body>browser verification required</body></html>",
+    )
+    browser_calls: list[tuple[str, str | None]] = []
+
+    def blocked_fetch(fetch_url: str) -> str:
+        return "<html><body>browser verification required</body></html>"
+
+    def fake_browser_fetch(fetch_url: str, *, provider: str | None = None) -> str:
+        browser_calls.append((fetch_url, provider))
+        return """
+            <html>
+              <head><script src="https://www.google.com/recaptcha/api.js"></script></head>
+              <body>
+                <ul class="listItems">
+                  <li class="listItem js-productListItem">
+                    <a href="/catalog/goods/110532/">Folder 2 rings OfficeMag</a>
+                    <div class="Product__price" content="458.45"></div>
+                  </li>
+                </ul>
+              </body>
+            </html>
+        """
+
+    monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "1")
+    monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", "officemag")
+    monkeypatch.setattr(supplier_catalog_fetcher, "fetch_public_text", blocked_fetch)
+    monkeypatch.setattr(supplier_catalog_fetcher.supplier_browser_fetcher, "fetch_text", fake_browser_fetch)
+
+    collector = price_discovery.ProviderCatalogCollector("officemag", max_product_pages=0)
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "folder 2 rings officemag",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "OfficeMag",
+                    "url": url,
+                    "provider": "officemag",
+                    "link_kind": "catalog_search",
+                    "preset_id": "officemag_office_supplies",
+                }
+            ],
+        }
+    )
+
+    assert browser_calls == [(url, "officemag")]
+    assert result["diagnostics"]["pages_fetched"] == 1
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"][0]["name"] == "Folder 2 rings OfficeMag"
+    assert result["candidates"][0]["unit_price"] == 458.45
+
+
+def test_provider_catalog_collector_keeps_browser_fallback_disabled_for_large_search(monkeypatch) -> None:
     url = "https://www.officemag.ru/search/?q=folder"
     request = httpx.Request("GET", url)
     response = httpx.Response(
@@ -1048,6 +1107,7 @@ def test_provider_catalog_collector_skips_officemag_browser_fallback_for_policy_
     monkeypatch.setattr(supplier_catalog_fetcher.supplier_browser_fetcher, "fetch_text", fake_browser_fetch)
 
     collector = price_discovery.ProviderCatalogCollector("officemag", max_product_pages=0)
+    collector.tender_position_count = 6
     result = collector.collect_with_diagnostics(
         {
             "query": "папка 2 кольца",
@@ -1067,9 +1127,8 @@ def test_provider_catalog_collector_skips_officemag_browser_fallback_for_policy_
     assert browser_calls == []
     assert result["candidates"] == []
     assert result["diagnostics"]["pages_fetched"] == 0
-    assert result["diagnostics"]["run_state"] == "blocked"
-    assert result["diagnostics"]["skip_reason"] == "access_blocked"
-    assert result["diagnostics"]["error_kind"] == "access_blocked"
+    assert result["diagnostics"]["run_state"] == "skipped"
+    assert result["diagnostics"]["skip_reason"] == "large_tender_manual_required"
 
 
 def test_provider_catalog_collector_extracts_vseinstrumenti_visible_offer_without_schema_org() -> None:

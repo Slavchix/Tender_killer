@@ -88,8 +88,9 @@ def test_supplier_catalog_health_fetch_bypasses_system_proxy_env(monkeypatch) ->
     assert captured["trust_env"] is False
 
 
-def test_supplier_catalog_health_live_mode_records_provider_errors() -> None:
+def test_supplier_catalog_health_live_mode_records_provider_errors(monkeypatch) -> None:
     calls: list[tuple[str, float]] = []
+    monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "0")
 
     def fetcher(url: str, timeout: float) -> tuple[int, str]:
         calls.append((url, timeout))
@@ -182,7 +183,7 @@ def test_supplier_catalog_health_checks_small_search_catalogs_without_browser_fa
     assert payload["ok"] is True
 
 
-def test_supplier_catalog_health_does_not_browser_fetch_active_catalog_blocks(monkeypatch) -> None:
+def test_supplier_catalog_health_uses_browser_fallback_when_active_catalog_blocks(monkeypatch) -> None:
     browser_calls: list[tuple[str, str | None, float | None]] = []
 
     def fetcher(url: str, timeout: float) -> tuple[int, str]:
@@ -197,7 +198,7 @@ def test_supplier_catalog_health_does_not_browser_fetch_active_catalog_blocks(mo
         timeout_seconds: float | None = None,
     ) -> str:
         browser_calls.append((url, provider, timeout_seconds))
-        return "<html><body>browser verification required</body></html>"
+        return _fixture_body("vseinstrumenti")
 
     monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", raising=False)
     monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", raising=False)
@@ -206,12 +207,18 @@ def test_supplier_catalog_health_does_not_browser_fetch_active_catalog_blocks(mo
     payload = get_supplier_catalog_health_payload(live=True, timeout=1.5, fetcher=fetcher)
 
     statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
-    assert browser_calls == []
-    assert payload["ok"] is False
-    assert statuses["vseinstrumenti"]["status"] == "error"
-    assert statuses["vseinstrumenti"]["connection_state"] == "blocked"
-    assert statuses["vseinstrumenti"]["access_mode"] == "http"
-    assert statuses["vseinstrumenti"]["error_kind"] == "access_blocked"
+    assert browser_calls == [
+        (
+            "https://www.vseinstrumenti.ru/search/?what=%D1%81%D0%B0%D0%BC%D0%BE%D1%80%D0%B5%D0%B7%D1%8B+4%2C2x19",
+            "vseinstrumenti",
+            20.0,
+        )
+    ]
+    assert payload["ok"] is True
+    assert statuses["vseinstrumenti"]["status"] == "ok"
+    assert statuses["vseinstrumenti"]["connection_state"] == "reachable"
+    assert statuses["vseinstrumenti"]["access_mode"] == "browser"
+    assert statuses["vseinstrumenti"]["error_kind"] == ""
     assert "browser_error" not in statuses["vseinstrumenti"]
 
 
@@ -232,7 +239,7 @@ def test_supplier_catalog_health_rejects_active_http_success_without_product_car
     assert statuses["vseinstrumenti"]["error"] == "HTTP 200 did not contain parseable ВсеИнструменты product cards"
 
 
-def test_supplier_catalog_health_does_not_try_browser_for_http_success_without_cards(monkeypatch) -> None:
+def test_supplier_catalog_health_uses_browser_for_http_success_with_verification_body(monkeypatch) -> None:
     browser_calls: list[tuple[str, str | None, float | None]] = []
 
     def fetcher(url: str, timeout: float) -> tuple[int, str]:
@@ -247,7 +254,7 @@ def test_supplier_catalog_health_does_not_try_browser_for_http_success_without_c
         timeout_seconds: float | None = None,
     ) -> str:
         browser_calls.append((url, provider, timeout_seconds))
-        return _fixture_body("officemag")
+        return _fixture_body("vseinstrumenti")
 
     monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", raising=False)
     monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", raising=False)
@@ -256,10 +263,16 @@ def test_supplier_catalog_health_does_not_try_browser_for_http_success_without_c
     payload = get_supplier_catalog_health_payload(live=True, timeout=1.5, fetcher=fetcher)
 
     statuses = {catalog["provider"]: catalog for catalog in payload["catalogs"]}
-    assert browser_calls == []
-    assert statuses["vseinstrumenti"]["status"] == "error"
-    assert statuses["vseinstrumenti"]["connection_state"] == "blocked"
-    assert statuses["vseinstrumenti"]["access_mode"] == "http"
+    assert browser_calls == [
+        (
+            "https://www.vseinstrumenti.ru/search/?what=%D1%81%D0%B0%D0%BC%D0%BE%D1%80%D0%B5%D0%B7%D1%8B+4%2C2x19",
+            "vseinstrumenti",
+            20.0,
+        )
+    ]
+    assert statuses["vseinstrumenti"]["status"] == "ok"
+    assert statuses["vseinstrumenti"]["connection_state"] == "reachable"
+    assert statuses["vseinstrumenti"]["access_mode"] == "browser"
 
 
 def test_supplier_catalog_health_classifies_captcha_response(monkeypatch) -> None:

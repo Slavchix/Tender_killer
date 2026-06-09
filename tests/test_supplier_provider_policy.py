@@ -30,17 +30,20 @@ def test_provider_policy_documents_required_supplier_modes() -> None:
     assert officemag["allow_public_search_fetch"] is True
     assert officemag["public_search_max_positions"] == 5
     assert officemag["allow_product_page_fetch"] is True
-    assert officemag["allow_browser_fetch"] is False
+    assert officemag["allow_browser_fetch"] is True
+    assert officemag["browser_fetch_max_positions"] == 5
     assert officemag["allow_internal_api"] is False
 
     assert vseinstrumenti["allow_public_search_fetch"] is True
     assert vseinstrumenti["public_search_max_positions"] == 5
     assert vseinstrumenti["allow_product_page_fetch"] is True
+    assert vseinstrumenti["allow_browser_fetch"] is True
 
     assert komus["allow_quick_links"] is True
     assert komus["allow_public_search_fetch"] is True
     assert komus["public_search_max_positions"] == 5
     assert komus["allow_product_page_fetch"] is True
+    assert komus["allow_browser_fetch"] is True
     assert komus["recommended_flow"] == "limited_search_feed_quote"
 
 
@@ -69,12 +72,27 @@ def test_supplier_fetch_decision_separates_quick_links_from_collectors() -> None
         action="product_page_fetch",
         tender_position_count=20,
     )
+    small_browser = supplier_fetch_decision(
+        "https://www.officemag.ru/search/?q=paper",
+        provider="officemag",
+        action="browser_fetch",
+        tender_position_count=1,
+    )
+    large_browser = supplier_fetch_decision(
+        "https://www.officemag.ru/search/?q=paper",
+        provider="officemag",
+        action="browser_fetch",
+        tender_position_count=20,
+    )
 
     assert quick_link["allowed"] is True
     assert small_search["allowed"] is True
     assert large_search["allowed"] is False
     assert large_search["reason"] == "large_tender_manual_required"
     assert manual_product["allowed"] is True
+    assert small_browser["allowed"] is True
+    assert large_browser["allowed"] is False
+    assert large_browser["reason"] == "large_tender_manual_required"
 
 
 def test_supplier_fetch_decision_limits_active_search_to_small_tenders() -> None:

@@ -64,9 +64,10 @@ def test_browser_fetcher_defaults_to_browser_supported_catalogs(monkeypatch) -> 
     monkeypatch.delenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", raising=False)
 
     assert browser_fetcher.is_enabled_for_provider("officemag") is True
+    assert browser_fetcher.is_enabled_for_provider("komus") is True
+    assert browser_fetcher.is_enabled_for_provider("petrovich") is True
     assert browser_fetcher.is_enabled_for_provider("vseinstrumenti") is True
     assert browser_fetcher.is_enabled_for_provider("lemanapro") is True
-    assert browser_fetcher.is_enabled_for_provider("komus") is False
 
 
 def test_browser_fetch_script_has_lemanapro_dom_markers() -> None:
@@ -166,6 +167,8 @@ def test_browser_fetch_helper_can_attach_to_existing_cdp_browser() -> None:
     assert "Boolean(${markerExpression()})" in script
     assert ".listItemsWrapper .js-productListItem" in script
     assert "input[name=\"SECTION\"]" in script
+    assert "provider === 'komus'" in script
+    assert "provider === 'petrovich'" in script
     assert "provider === 'vseinstrumenti'" in script
     assert "a[href*=\"/product/\"]" in script
 
