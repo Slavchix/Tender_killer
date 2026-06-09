@@ -22,6 +22,10 @@ from tender_killer.supplier_catalog_fetcher import fetch_public_text
 from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
 from tender_killer.supplier_catalog_presets import supplier_catalog_providers_for_profile
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
+from tender_killer.supplier_provider_policy import ACTION_PRODUCT_PAGE_FETCH
+from tender_killer.supplier_provider_policy import ACTION_PUBLIC_SEARCH_FETCH
+from tender_killer.supplier_provider_policy import SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT
+from tender_killer.supplier_provider_policy import supplier_fetch_decision
 from tender_killer.supplier_product_matcher import supplier_product_name_match_reasons
 from tender_killer.supplier_product_matcher import supplier_product_name_mismatch_reasons
 from tender_killer.supplier_product_matcher import supplier_product_name_matches_query
@@ -85,6 +89,7 @@ class SchemaOrgProductCollector:
 
     def __init__(self, fetch_text: FetchText | None = None) -> None:
         self.fetch_text = fetch_text or _fetch_public_text
+        self.tender_position_count: int | None = None
 
     def collect(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         return self.collect_with_diagnostics(query)["candidates"]
@@ -103,8 +108,19 @@ class SchemaOrgProductCollector:
                 diagnostics["links_skipped"] += 1
                 continue
             url = _text(link.get("url"))
+            link_action = _fetch_action_for_link(link)
             if not url or not _is_public_product_page_url(url):
                 diagnostics["links_skipped"] += 1
+                continue
+            decision = supplier_fetch_decision(
+                url,
+                provider=_text(link.get("provider")),
+                action=link_action,
+                tender_position_count=self.tender_position_count,
+            )
+            if not decision["allowed"]:
+                diagnostics["links_skipped"] += 1
+                _mark_policy_skipped(diagnostics, decision["reason"])
                 continue
             try:
                 html = self.fetch_text(url)
@@ -125,8 +141,18 @@ class SchemaOrgProductCollector:
                 product_url_key = product_url.casefold()
                 if product_url_key in fetched_urls or product_url_key in candidate_urls:
                     continue
-                if not _is_public_product_page_url(product_url) or not _is_same_public_site(url, product_url):
+                if not _is_same_public_site(url, product_url):
                     diagnostics["links_skipped"] += 1
+                    continue
+                decision = supplier_fetch_decision(
+                    product_url,
+                    provider=_text(link.get("provider")) or _provider_from_url(product_url),
+                    action=link_action,
+                    tender_position_count=self.tender_position_count,
+                )
+                if not decision["allowed"]:
+                    diagnostics["links_skipped"] += 1
+                    _mark_policy_skipped(diagnostics, decision["reason"])
                     continue
                 try:
                     product_html = self.fetch_text(product_url)
@@ -145,8 +171,9 @@ class ProviderCatalogCollector:
     def __init__(self, catalog_provider: str, fetch_text: FetchText | None = None, max_product_pages: int = 5) -> None:
         self.catalog_provider = str(catalog_provider).casefold()
         self.provider = f"catalog_{self.catalog_provider}"
-        self.fetch_text = fetch_text or (lambda url: _fetch_catalog_text(url, self.catalog_provider))
+        self.fetch_text = fetch_text
         self.max_product_pages = max(0, int(max_product_pages))
+        self.tender_position_count: int | None = None
 
     def collect(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         return self.collect_with_diagnostics(query)["candidates"]
@@ -166,11 +193,12 @@ class ProviderCatalogCollector:
             if not url or not _is_catalog_search_link_for_provider(link, self.catalog_provider):
                 diagnostics["links_skipped"] += 1
                 continue
-            if not _is_public_product_page_url(url):
+            link_action = _fetch_action_for_link(link)
+            if not self._allow_fetch_url(url, link_action, diagnostics):
                 diagnostics["links_skipped"] += 1
                 continue
             try:
-                html = self.fetch_text(url)
+                html = self._fetch_link_text(url, link_action)
             except httpx.HTTPError as exc:
                 if _catalog_access_block_reason_from_error(exc):
                     _mark_catalog_access_blocked(diagnostics, url, error=exc)
@@ -206,8 +234,11 @@ class ProviderCatalogCollector:
                     fallback_url_key = fallback_url.casefold()
                     if fallback_url_key in fetched_urls:
                         continue
+                    if not self._allow_fetch_url(fallback_url, link_action, diagnostics):
+                        diagnostics["links_skipped"] += 1
+                        continue
                     try:
-                        fallback_html = self.fetch_text(fallback_url)
+                        fallback_html = self._fetch_link_text(fallback_url, link_action)
                     except httpx.HTTPError as exc:
                         if _catalog_access_block_reason_from_error(exc):
                             _mark_catalog_access_blocked(diagnostics, fallback_url, error=exc)
@@ -255,11 +286,14 @@ class ProviderCatalogCollector:
                     if not _is_provider_product_detail_url(self.catalog_provider, product_url):
                         diagnostics["links_skipped"] += 1
                         continue
-                    if not _is_public_product_page_url(product_url) or not _is_same_public_site(url, product_url):
+                    if not _is_same_public_site(url, product_url):
+                        diagnostics["links_skipped"] += 1
+                        continue
+                    if not self._allow_fetch_url(product_url, link_action, diagnostics):
                         diagnostics["links_skipped"] += 1
                         continue
                     try:
-                        product_html = self.fetch_text(product_url)
+                        product_html = self._fetch_link_text(product_url, link_action)
                     except httpx.HTTPError as exc:
                         if _catalog_access_block_reason_from_error(exc):
                             _mark_catalog_access_blocked(diagnostics, product_url, error=exc)
@@ -291,6 +325,27 @@ class ProviderCatalogCollector:
             if blocked:
                 break
         return {"candidates": candidates, "diagnostics": diagnostics}
+
+    def _fetch_link_text(self, url: str, action: str) -> str:
+        if self.fetch_text is not None:
+            return self.fetch_text(url)
+        return _fetch_catalog_text(
+            url,
+            self.catalog_provider,
+            allow_browser_fetch=action == ACTION_PRODUCT_PAGE_FETCH,
+        )
+
+    def _allow_fetch_url(self, url: str, action: str, diagnostics: dict[str, Any]) -> bool:
+        decision = supplier_fetch_decision(
+            url,
+            provider=self.catalog_provider,
+            action=action,
+            tender_position_count=self.tender_position_count,
+        )
+        if decision["allowed"]:
+            return True
+        _mark_policy_skipped(diagnostics, decision["reason"])
+        return False
 
     def _schema_candidates(
         self,
@@ -394,6 +449,11 @@ def run_tender_supplier_price_discovery(
 ) -> dict[str, Any]:
     profiles = ensure_product_profiles(database_path, source, external_id)
     searchable_profiles = [profile for profile in profiles if int(profile.get("position_index") or 0) > 0]
+    manual_required = _manual_required_tender_discovery_result(profiles, searchable_profiles)
+    if manual_required is not None:
+        if progress_callback is not None:
+            progress_callback(manual_required)
+        return manual_required
     price_collectors = default_price_collectors() if collectors is None else collectors
     position_limit = (
         max(1, int(max_positions))
@@ -563,11 +623,20 @@ def run_profile_supplier_url_discovery(
         raise KeyError(f"Product profile position {position_index} not found.")
 
     url = _text(data.get("url"))
+    provider = _text(data.get("provider")) or _provider_from_url(url or "")
     if not url or not _is_public_product_page_url(url):
         raise ValueError("Укажи публичную ссылку на страницу товара поставщика.")
 
+    decision = supplier_fetch_decision(
+        url,
+        provider=provider,
+        action=ACTION_PRODUCT_PAGE_FETCH,
+        tender_position_count=len(profiles),
+    )
+    if not decision["allowed"]:
+        raise ValueError(f"unsafe supplier URL: {decision['reason']}")
+
     query_text = _text(data.get("source_query")) or _text(target.get("normalized_name")) or _text(target.get("product_name")) or url
-    provider = _text(data.get("provider")) or _provider_from_url(url)
     link = {
         "label": _text(data.get("label")) or "Manual supplier URL",
         "url": url,
@@ -600,6 +669,25 @@ def run_profile_supplier_url_discovery(
     )
 
 
+def tender_price_discovery_policy_for_tender(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+) -> dict[str, Any]:
+    profiles = ensure_product_profiles(database_path, source, external_id)
+    searchable_profiles = [profile for profile in profiles if int(profile.get("position_index") or 0) > 0]
+    manual_required = _manual_required_tender_discovery_result(profiles, searchable_profiles)
+    if manual_required is not None:
+        return manual_required
+    return {
+        "ok": True,
+        "status": "active_discovery_allowed",
+        "reason": "small_tender_review_only",
+        "total_profiles": len(searchable_profiles),
+        "max_active_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
+    }
+
+
 def _run_supplier_discovery_with_queries(
     database_path: str | Path,
     store: TenderStore,
@@ -620,6 +708,7 @@ def _run_supplier_discovery_with_queries(
         diagnostics_by_provider,
         profile=target,
     )
+    _set_collector_policy_context(price_collectors, len(profiles))
     blocked_providers: set[str] = set()
     for query in queries:
         for collector in price_collectors:
@@ -755,6 +844,40 @@ def _candidate_limit_for_single_profile() -> int:
     )
 
 
+def _manual_required_tender_discovery_result(
+    profiles: list[dict[str, Any]],
+    searchable_profiles: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if len(searchable_profiles) <= SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT:
+        return None
+    return {
+        "ok": False,
+        "status": "manual_required",
+        "reason": "large_tender_manual_required",
+        "message": "Active supplier price discovery is limited to small tenders. Use quick links/manual URL/feed.",
+        "total_profiles": len(searchable_profiles),
+        "prepared_count": 0,
+        "searched_count": 0,
+        "limited_count": len(searchable_profiles),
+        "partial": True,
+        "staged_count": 0,
+        "ready_count": 0,
+        "review_count": 0,
+        "blocked_count": 0,
+        "no_candidates_count": 0,
+        "error_count": 0,
+        "positions": [
+            {
+                "position_index": int(profile.get("position_index") or 0),
+                "status": "manual_required",
+                "staged_count": 0,
+            }
+            for profile in searchable_profiles
+        ],
+        "diagnostics_by_provider": [],
+    }
+
+
 def _candidate_limit_for_profile_count(profile_count: int) -> int:
     threshold = _positive_env_int(
         "TENDER_KILLER_PRICE_DISCOVERY_BULK_PROFILE_THRESHOLD",
@@ -861,6 +984,14 @@ def _collector_provider_name(collector: Any) -> str:
 
 def _collector_is_access_blocked(collector: Any) -> bool:
     return bool(getattr(collector, "_tender_killer_access_blocked", False))
+
+
+def _set_collector_policy_context(collectors: list[Any], tender_position_count: int) -> None:
+    for collector in collectors:
+        try:
+            setattr(collector, "tender_position_count", tender_position_count)
+        except Exception:
+            continue
 
 
 def _mark_collector_access_blocked(collector: Any) -> None:
@@ -1195,6 +1326,17 @@ def _blocked_collector_diagnostics(provider: str) -> dict[str, Any]:
     diagnostics["skip_reason"] = ACCESS_BLOCKED_ERROR_KIND
     diagnostics["error_kind"] = ACCESS_BLOCKED_ERROR_KIND
     return diagnostics
+
+
+def _fetch_action_for_link(link: dict[str, Any]) -> str:
+    return ACTION_PRODUCT_PAGE_FETCH if _text(link.get("link_kind")) == MANUAL_PRODUCT_LINK_KIND else ACTION_PUBLIC_SEARCH_FETCH
+
+
+def _mark_policy_skipped(diagnostics: dict[str, Any], reason: str) -> None:
+    diagnostics["run_state"] = "skipped"
+    diagnostics["skip_reason"] = reason
+    policy_reasons = diagnostics.setdefault("policy_skip_reasons", {})
+    policy_reasons[reason] = int(policy_reasons.get(reason) or 0) + 1
 
 
 def _mark_catalog_access_blocked(
@@ -2325,8 +2467,8 @@ def _fetch_public_text(url: str) -> str:
     return fetch_public_text(url)
 
 
-def _fetch_catalog_text(url: str, provider: str) -> str:
-    return fetch_catalog_text(url, provider)
+def _fetch_catalog_text(url: str, provider: str, *, allow_browser_fetch: bool = False) -> str:
+    return fetch_catalog_text(url, provider, allow_browser_fetch=allow_browser_fetch)
 
 
 def _is_public_product_page_url(url: str) -> bool:

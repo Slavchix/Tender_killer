@@ -325,19 +325,16 @@ def test_provider_catalog_collector_extracts_officemag_visible_offer_without_sch
             "quick_links": [
                 {
                     "label": "OfficeMag",
-                    "url": "https://www.officemag.ru/search/?q=office+paper+a4",
+                    "url": "https://www.officemag.ru/catalog/goods/110532/",
                     "provider": "officemag",
-                    "link_kind": "catalog_search",
+                    "link_kind": "manual_product_url",
                     "preset_id": "officemag_office_supplies",
                 }
             ],
         }
     )
 
-    assert calls == [
-        "https://www.officemag.ru/search/?q=office+paper+a4",
-        "https://www.officemag.ru/catalog/goods/110532/",
-    ]
+    assert calls == ["https://www.officemag.ru/catalog/goods/110532/"]
     assert result["diagnostics"]["candidates_found"] == 1
     assert result["candidates"] == [
         {
@@ -355,6 +352,37 @@ def test_provider_catalog_collector_extracts_officemag_visible_offer_without_sch
             "provider": "officemag",
         }
     ]
+
+
+def test_provider_catalog_collector_skips_policy_blocked_search_fetches() -> None:
+    calls: list[str] = []
+    collector = price_discovery.ProviderCatalogCollector(
+        "officemag",
+        fetch_text=lambda url: calls.append(url) or "<html></html>",
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "office paper a4",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "OfficeMag",
+                    "url": "https://www.officemag.ru/search/?q=office+paper+a4",
+                    "provider": "officemag",
+                    "link_kind": "catalog_search",
+                    "preset_id": "officemag_office_supplies",
+                }
+            ],
+        }
+    )
+
+    assert calls == []
+    assert result["candidates"] == []
+    assert result["diagnostics"]["run_state"] == "skipped"
+    assert result["diagnostics"]["skip_reason"] == "public_search_fetch_not_allowed"
+    assert result["diagnostics"]["links_seen"] == 1
+    assert result["diagnostics"]["links_skipped"] == 1
 
 
 def test_provider_catalog_collector_uses_officemag_section_fallback_for_empty_search() -> None:
@@ -406,15 +434,12 @@ def test_provider_catalog_collector_uses_officemag_section_fallback_for_empty_se
         }
     )
 
-    assert calls == [
-        "https://www.officemag.ru/search/?q=paper+a4",
-        "https://www.officemag.ru/catalog/785/",
-    ]
-    assert result["diagnostics"]["pages_fetched"] == 2
-    assert result["diagnostics"]["candidates_found"] == 1
-    assert result["candidates"][0]["name"] == "Бумага белая А4, 80 г/м2, 100 л., STAFF СТАНДАРТ, 115351"
-    assert result["candidates"][0]["url"] == "https://www.officemag.ru/catalog/goods/115351/"
-    assert result["candidates"][0]["unit_price"] == 166.08
+    assert calls == []
+    assert result["candidates"] == []
+    assert result["diagnostics"]["run_state"] == "skipped"
+    assert result["diagnostics"]["skip_reason"] == "public_search_fetch_not_allowed"
+    assert result["diagnostics"]["pages_fetched"] == 0
+    assert result["diagnostics"]["candidates_found"] == 0
 
 
 def test_provider_catalog_collector_follows_officemag_hidden_product_ids_from_section_fallback() -> None:
@@ -491,18 +516,12 @@ def test_provider_catalog_collector_follows_officemag_hidden_product_ids_from_se
         }
     )
 
-    assert calls == [
-        "https://www.officemag.ru/search/?q=office+paper+a4+500+sheets",
-        "https://www.officemag.ru/catalog/785/",
-        "https://www.officemag.ru/catalog/goods/110071/",
-        "https://www.officemag.ru/catalog/goods/110095/",
-        "https://www.officemag.ru/catalog/goods/115351/",
-    ]
-    assert result["diagnostics"]["pages_fetched"] == 5
-    assert result["diagnostics"]["candidates_found"] == 1
-    assert result["candidates"][0]["name"] == "Office paper A4, 80 g/m2, 500 sheets, Snegurochka, 110071"
-    assert result["candidates"][0]["url"] == "https://www.officemag.ru/catalog/goods/110071/"
-    assert result["candidates"][0]["unit_price"] == 409.3
+    assert calls == []
+    assert result["candidates"] == []
+    assert result["diagnostics"]["run_state"] == "skipped"
+    assert result["diagnostics"]["skip_reason"] == "public_search_fetch_not_allowed"
+    assert result["diagnostics"]["pages_fetched"] == 0
+    assert result["diagnostics"]["candidates_found"] == 0
 
 
 def test_profile_intent_uses_strict_catalog_hints_for_generic_supplier_candidates() -> None:
@@ -2902,6 +2921,59 @@ def test_run_tender_supplier_price_discovery_can_limit_positions_per_run(tmp_pat
     ]
 
 
+def test_run_tender_supplier_price_discovery_requires_manual_flow_for_large_tenders() -> None:
+    database_path = Path("pytest_tmp_supplier_large_manual.sqlite")
+    database_path.unlink(missing_ok=True)
+    store = TenderStore(database_path)
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-discovery-large-manual",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-discovery-large-manual",
+            title="Large tender",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-discovery-large-manual",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-large-manual",
+                position_index=index,
+                product_name=f"Position {index}",
+                normalized_name=f"position {index}",
+            )
+            for index in range(1, 7)
+        ],
+    )
+    calls: list[str] = []
+
+    class ShouldNotRunCollector:
+        provider = "should_not_run"
+
+        def collect_with_diagnostics(self, query):
+            calls.append(query["query"])
+            return {"candidates": [], "diagnostics": {"provider": self.provider}}
+
+    result = run_tender_supplier_price_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-discovery-large-manual",
+        collectors=[ShouldNotRunCollector()],
+        max_positions=50,
+    )
+
+    assert calls == []
+    assert result["ok"] is False
+    assert result["status"] == "manual_required"
+    assert result["total_profiles"] == 6
+    assert result["searched_count"] == 0
+    assert result["limited_count"] == 6
+    assert result["partial"] is True
+
+
 def test_run_profile_supplier_url_discovery_stages_visible_provider_candidate(tmp_path) -> None:
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()
@@ -2980,6 +3052,56 @@ def test_run_profile_supplier_url_discovery_stages_visible_provider_candidate(tm
     assert profile["raw_payload"]["supplier_discovery"] == payload["supplier_discovery"]
     assert "supplier_options" not in profile["raw_payload"]
     assert "economics" not in profile["raw_payload"]
+
+
+def test_run_profile_supplier_url_discovery_rejects_unsafe_supplier_urls() -> None:
+    database_path = Path("pytest_tmp_supplier_url_unsafe.sqlite")
+    database_path.unlink(missing_ok=True)
+    store = TenderStore(database_path)
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-url-discovery-unsafe",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-url-discovery-unsafe",
+            title="Unsafe URL tender",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-url-discovery-unsafe",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-url-discovery-unsafe",
+                position_index=1,
+                product_name="Cement waterproofing",
+                normalized_name="cement waterproofing",
+            )
+        ],
+    )
+    calls: list[str] = []
+
+    with pytest.raises(ValueError) as excinfo:
+        run_profile_supplier_url_discovery(
+            store.database_path,
+            "mosreg_market",
+            "supplier-url-discovery-unsafe",
+            1,
+            {
+                "url": "https://petrovich.ru/api-common/product/get_price?id=1&token=secret",
+                "source_query": "cement waterproofing",
+            },
+            collectors=[
+                price_discovery.ProviderCatalogCollector(
+                    "petrovich",
+                    fetch_text=lambda url: calls.append(url) or "<html></html>",
+                )
+            ],
+        )
+
+    assert calls == []
+    assert "unsafe supplier URL" in str(excinfo.value)
 
 
 def test_prepared_catalog_link_feeds_schema_org_product_discovery(tmp_path) -> None:

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from tender_killer.supplier_price_discovery_service import run_tender_supplier_price_discovery
+from tender_killer.supplier_price_discovery_service import tender_price_discovery_policy_for_tender
 
 
 JOB_STATUS_QUEUED = "queued"
@@ -25,6 +26,22 @@ def start_tender_price_discovery_job(database_path: str | Path, source: str, ext
     existing = _active_job_for_tender(source, external_id)
     if existing is not None:
         return existing
+
+    try:
+        policy = tender_price_discovery_policy_for_tender(database_path, source, external_id)
+    except Exception:
+        policy = {"ok": True, "status": "active_discovery_allowed"}
+    if policy.get("status") == "manual_required":
+        now = time.time()
+        return {
+            "job_id": "",
+            "status": "manual_required",
+            "source": source,
+            "external_id": external_id,
+            "created_at": now,
+            "updated_at": now,
+            **policy,
+        }
 
     job_id = uuid.uuid4().hex
     now = time.time()

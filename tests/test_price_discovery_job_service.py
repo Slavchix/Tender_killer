@@ -6,9 +6,11 @@ from pathlib import Path
 from tender_killer import price_discovery_job_service as jobs
 
 
-def test_start_tender_price_discovery_job_tracks_background_progress(tmp_path, monkeypatch) -> None:
+def test_start_tender_price_discovery_job_tracks_background_progress(monkeypatch) -> None:
     with jobs._LOCK:
         jobs._JOBS.clear()
+    database_path = Path("pytest_tmp_price_discovery_job.sqlite")
+    database_path.unlink(missing_ok=True)
 
     calls: list[dict[str, object]] = []
 
@@ -55,7 +57,7 @@ def test_start_tender_price_discovery_job_tracks_background_progress(tmp_path, m
 
     monkeypatch.setattr(jobs, "run_tender_supplier_price_discovery", fake_run)
 
-    started = jobs.start_tender_price_discovery_job(tmp_path / "db.sqlite", "moscow_supplier_portal", "Auction1")
+    started = jobs.start_tender_price_discovery_job(database_path, "moscow_supplier_portal", "Auction1")
     deadline = time.monotonic() + 2
     final = started
     while time.monotonic() < deadline:
@@ -70,7 +72,7 @@ def test_start_tender_price_discovery_job_tracks_background_progress(tmp_path, m
     assert final["result"]["ready_count"] == 1
     assert calls == [
         {
-            "database_path": str(tmp_path / "db.sqlite"),
+            "database_path": str(database_path),
             "source": "moscow_supplier_portal",
             "external_id": "Auction1",
             "max_positions": jobs.DEFAULT_PRICE_DISCOVERY_JOB_MAX_POSITIONS,

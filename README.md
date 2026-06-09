@@ -2,9 +2,64 @@
 
 ## Current Handoff Snapshot
 
-Date: 2026-06-08.
+Date: 2026-06-09.
 
 Current branch: `codex/moscow-mo-parser`.
+
+Next-session starter prompt:
+
+```text
+Продолжаем Tender Killer в `C:\Users\zinin.v.a\Documents\tender_killer`, ветка `codex/moscow-mo-parser`.
+
+Нужно переработать экономику и подключение поставщиков по безопасной модели: Tender Killer не должен быть ботом для массового парсинга сайтов, а должен быть центром подтверждения закупочной цены.
+
+Перед кодом прочитай:
+- `README.md`
+- `memory/project-context.md`
+- `src/tender_killer/supplier_search_service.py`
+- `src/tender_killer/supplier_catalog_presets.py`
+- `src/tender_killer/supplier_price_discovery_service.py`
+- `src/tender_killer/supplier_discovery_service.py`
+- `src/tender_killer/price_candidate_service.py`
+- `src/tender_killer/supplier_catalog_fetcher.py`
+- `src/tender_killer/supplier_browser_fetcher.py`
+- `scripts/browser-fetch.mjs`
+- `web/src/TenderEconomicsTab.jsx`
+- `web/src/api.js`
+
+Ключевое продуктовое правило:
+- Для мелких закупок на 1-5 позиций можно оставить текущий review-only сценарий активного поиска цен, потому что малое число запросов обычно не провоцирует блокировки. Но он все равно не должен автоматически писать цену в расчет без подтверждения.
+- Для крупных закупок больше 5 позиций кнопку активного автопоиска цен нужно скрыть или отключить, чтобы оператор случайно не запустил массовый сбор. Для них основной сценарий: подготовить quick links, открыть по одной ссылке на подходящий каталог, вручную выбрать товар, вставить публичный product URL, извлечь цену из карточки, создать price candidate и подтвердить его в расчет.
+
+Ограничения обязательны:
+- не использовать приватные API, cookies, tokens, passwords, личные кабинеты и служебные endpoints;
+- не обходить captcha/challenge/WAF;
+- не делать массовый парсинг;
+- не открывать много вкладок;
+- не авто-заказывать товары и не выполнять юридически значимые действия;
+- любые найденные цены остаются evidence/price candidate до явного подтверждения оператором.
+
+Реализация должна идти через provider policy:
+- добавить/использовать `supplier_provider_policy.py`;
+- разделить quick links для оператора и auto collectors;
+- запретить unsafe URL перед fetch;
+- сделать manual product URL основным безопасным сценарием;
+- browser fetch только `manual_only`, без background-массового режима;
+- добавить место под `manual_feed`, `quote_upload`, `supplier_price_feed`;
+- улучшить отображение price candidates: поставщик, товар, цена, НДС, наличие, доставка, единица, упаковка/кратность, минимум заказа, источник, confidence, quality flags;
+- расширить provider health/status policy mode и allowed actions.
+
+Поставщики:
+- Lemana Pro: quick link/manual product URL, без auto search fetch.
+- OfficeMag: quick link/manual product URL, без auto background search.
+- Komus: quick link/feed/КП recommended, без auto search fetch.
+- ВсеИнструменты: limited public search для малых закупок, product URL allowed, при access_blocked сразу manual_required.
+- Petrovich: пока нет подтвержденного публичного API цен; partner API возможен только при официальном JWT-доступе. Без доступа: product URL/B2B quote/manual feed, limited public search только для малых закупок.
+
+Последний проверенный коммит перед этой задачей: `37f537d Harden supplier catalog discovery`. Он добавил защиту от access_blocked/403/401/429/503 и останавливает заблокированный provider до конца текущего поиска.
+
+Сначала составь короткий план файлов и тестов, затем реализуй по шагам с проверками. После реализации обнови memory/README и предложи commit/push.
+```
 
 Current handoff branches and worktrees:
 

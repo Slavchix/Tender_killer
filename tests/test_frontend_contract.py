@@ -2733,6 +2733,10 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     assert "onPriceDiscoveryRun" in economics_source
     assert "priceDiscoveryJobStatusText" in economics_source
     assert "runningPriceDiscovery" in economics_source
+    assert "SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT = 5" in economics_source
+    assert "canRunActivePriceDiscovery" in economics_source
+    assert "price-discovery-manual-required" in economics_source
+    assert "quick links/manual URL/feed" in economics_source
     assert "Найти цены" in economics_source
     assert "Подготовить цены" not in economics_source
     assert "Автоцены в расчет" not in economics_source

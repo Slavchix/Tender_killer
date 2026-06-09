@@ -1174,3 +1174,43 @@ Date: 2026-06-08.
 - OfficeMag paper tier reference remains a regression case: product `110532`, tiers `364` from 1, `361` from 5, `359` from 10, pack/minimum context 5, Moscow stock 14194 plus preorder 2047; a 60-pack tender should choose unit price `359` and total `21540`.
 - Vseinstrumenti and Lemana Pro browser/manual fallback should open at most one useful review tab/link per provider when automatic parsing is incomplete.
 - Recent frontend verification for the focused economics slice used targeted contract tests plus Vite build through the bundled Node/Vite path because normal `npm` may not be on PATH in the shell.
+
+## Safe supplier connector policy checkpoint
+
+Date: 2026-06-09.
+
+- Current branch/worktree for the next session: `codex/moscow-mo-parser` in `C:\Users\zinin.v.a\Documents\tender_killer`.
+- Latest pushed supplier-discovery safety commit: `37f537d Harden supplier catalog discovery`.
+- The main product direction changed from "automatic catalog scraping" to "supplier price confirmation center". Tender Killer should prepare links, help the operator verify a product, extract evidence from a public product URL when safe, stage a price candidate, show quality risks, and write economics only after explicit confirmation.
+- Small tender rule: for tenders with 1-5 product positions, the existing active price discovery can remain available as review-only automation with strict limits, provider policy, cooldown/access-block handling, and no automatic economics write.
+- Large tender rule: for tenders with more than 5 positions, hide or disable the active `Найти цены` discovery button so it cannot accidentally launch many external requests. Large tenders should default to quick links, manual product URL paste, price/quote/feed import, and operator confirmation.
+- Provider policy should become the central gate before any supplier fetch. It must distinguish operator quick links from automatic collectors and describe each provider's allowed actions, recommended flow, and risk state.
+- Required provider policy fields: `provider`, `label`, `default_mode`, `allow_quick_links`, `allow_public_search_fetch`, `allow_product_page_fetch`, `allow_browser_fetch`, `allow_internal_api`, `recommended_flow`, `risk_level`, and `operator_note`.
+- Provider direction:
+  - `lemanapro`: quick links/manual product URL only; no automatic search-page fetch.
+  - `officemag`: quick links/manual product URL; no automatic background search-page fetch.
+  - `komus`: quick links plus feed/quote recommended; no automatic public search fetch and no browser fetch.
+  - `vseinstrumenti`: limited public search only for small tenders, public product URL allowed, no internal APIs, stop on `access_blocked`.
+  - `petrovich`: no confirmed public price API. `api-lkpartners.petrovich.ru` is a JWT-protected partner API candidate only if official credentials are provided later. Without that, use product URL/B2B quote/manual feed and only limited public search for small tenders.
+- Important Petrovich research from 2026-06-09:
+  - Old `https://api.petrovich.ru/catalog/v2.3/...` endpoints return HTTP `410` with `API закрыто. Больше не поддерживается`.
+  - `https://api-lkpartners.petrovich.ru/docs.json` exposes OpenAPI 3.1 with `/auth`, `/products`, `/product-stocks`, `/orders`, etc., but useful endpoints return `401 JWT Token not found` without partner access.
+  - `SimplyKot/petrovich-api` is unrelated to the store catalog; it is about Russian name declension.
+  - `aaron-ty/petrovich-auth-api` is about checking Petrovich account existence by phone/email through session/auth endpoints, not product prices or stock; do not use it for supplier pricing.
+  - 1C-Presta/smartHUB paid integrations may be commercially useful later if the product gets paying customers, but current architecture should only leave a connector slot for paid feed/API sources rather than depending on them now.
+- URL safety must block fetches for private or unsafe paths/parameters such as `login`, `auth`, `checkout`, `cart`, `cabinet`, `lk`, `user`, `order`, `orders`, `token`, `session`, `password`, `secret`, `cookie`, `authorization`, `/api-common/`, `/get_price`, `/price`, `/ajax`, and non-official `/graphql`.
+- Browser fetch must not become a workaround for WAF/captcha. It can only be an explicit `manual_only` operator action and must stop on captcha/challenge/403/429/503, preserving diagnostics and prompting for manual price/quote/feed instead.
+- Price candidates remain review-first. Candidate evidence should show supplier, product name, unit price, VAT, availability, delivery, unit, packaging/multiplicity, minimum order, source URL, confidence, quality status, and quality flags. Only `review_status = confirmed` or an explicit ready-candidate bulk accept action may write to `raw_payload.economics.unit_cost`.
+- The next implementation should start by adding tests for provider policy, URL safety, large-vs-small discovery button behavior, manual product URL discovery, and regression coverage for existing price-candidate confirm flow.
+
+## Supplier provider policy implementation checkpoint
+
+Date: 2026-06-09.
+
+- Implemented central supplier provider policy in `src/tender_killer/supplier_provider_policy.py`.
+- Active supplier price discovery is now capped at small tenders with 1-5 positions. Larger tenders return `status = manual_required`, do not start a background job, and should use quick links/manual URL/feed/quote.
+- OfficeMag and Lemana Pro are quick-link/manual product URL providers only; OfficeMag background search-page fetches now skip with policy diagnostics instead of fetching.
+- Vseinstrumenti and Petrovich retain limited public search only for small tenders plus product URL/manual flows; unsafe/private URLs are blocked before fetch.
+- Browser fetch fallback is no longer automatic for catalog fetches. It is only allowed for manual product URL fetch paths where the provider policy allows the action.
+- Economics UI hides the active `Найти цены` button for large tenders and shows the manual-flow note instead.
+- Focused verification after implementation: supplier policy tests, supplier price-discovery slices, job service tests, frontend contract tests, encoding guard, Python `py_compile`, and Vite production build through bundled Node all passed.

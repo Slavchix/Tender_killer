@@ -2,6 +2,8 @@ import { TenderEconomicsMetrics } from './TenderEconomicsMetrics'
 import { EconomicsSummary } from './TenderEconomicsSummary'
 import { TenderEconomicsWorkbench } from './TenderEconomicsWorkbench'
 
+const SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT = 5
+
 export function TenderEconomicsTab({
   tender,
   economics,
@@ -36,6 +38,8 @@ export function TenderEconomicsTab({
   })
   const readyPriceCandidateCount = profiles.filter(hasReadyPriceCandidateWithoutCost).length
   const priceDiscoveryRunCount = profiles.filter(profileNeedsPriceDiscovery).length
+  const canRunActivePriceDiscovery = profiles.length > 0 && profiles.length <= SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT
+  const requiresManualPriceFlow = profiles.length > SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT
   const priceDiscoveryJobText = priceDiscoveryJobStatusText(priceDiscoveryJob)
 
   return (
@@ -47,14 +51,16 @@ export function TenderEconomicsTab({
             <p>Закрой цены по позициям, проверь кандидатов и собери расчет участия.</p>
           </div>
           <div className="economics-command-actions">
-            <button
-              className="secondary-button compact"
-              disabled={runningPriceDiscovery || !onPriceDiscoveryRun || priceDiscoveryRunCount === 0}
-              onClick={() => ignoreEconomicsActionError(onPriceDiscoveryRun?.())}
-              type="button"
-            >
-              {runningPriceDiscovery ? 'Ищу...' : `Найти цены (${priceDiscoveryRunCount})`}
-            </button>
+            {canRunActivePriceDiscovery && (
+              <button
+                className="secondary-button compact"
+                disabled={runningPriceDiscovery || !onPriceDiscoveryRun || priceDiscoveryRunCount === 0}
+                onClick={() => ignoreEconomicsActionError(onPriceDiscoveryRun?.())}
+                type="button"
+              >
+                {runningPriceDiscovery ? 'Ищу...' : `Найти цены (${priceDiscoveryRunCount})`}
+              </button>
+            )}
             <button
               className="secondary-button compact"
               disabled={confirmingReadyPriceCandidates || !onReadyPriceCandidatesConfirmAll || readyPriceCandidateCount === 0}
@@ -73,6 +79,11 @@ export function TenderEconomicsTab({
             </button>
           </div>
         </div>
+        {requiresManualPriceFlow && (
+          <p className="muted-text price-discovery-manual-required">
+            Крупная закупка: используй quick links/manual URL/feed вместо активного автопоиска цен.
+          </p>
+        )}
         {priceDiscoveryJobText && <p className="muted-text price-discovery-progress">{priceDiscoveryJobText}</p>}
         <TenderEconomicsMetrics tender={tender} economics={economics} profiles={profiles} />
       </div>

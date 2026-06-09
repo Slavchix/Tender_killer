@@ -34,11 +34,11 @@ def fetch_public_text(url: str, *, timeout: float | None = None, headers: dict[s
     return response.text
 
 
-def fetch_catalog_text(url: str, provider: str) -> str:
+def fetch_catalog_text(url: str, provider: str, *, allow_browser_fetch: bool = False) -> str:
     try:
         return fetch_public_text(url)
     except httpx.HTTPError as exc:
-        if not supplier_browser_fetcher.is_enabled_for_provider(provider):
+        if not allow_browser_fetch or not supplier_browser_fetcher.is_enabled_for_provider(provider):
             raise
         try:
             return supplier_browser_fetcher.fetch_text(url, provider=provider)

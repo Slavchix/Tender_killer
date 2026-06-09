@@ -41,6 +41,9 @@ function isPriceDiscoveryJobComplete(job) {
 }
 
 function priceDiscoveryStatusMessage(job) {
+  if (job?.status === 'manual_required') {
+    return job.message || 'Крупная закупка: используй quick links/manual URL/feed вместо активного автопоиска цен.'
+  }
   if (!job?.job_id) return ''
 
   const staged = Number(job.staged_count || job.result?.staged_count || 0)
