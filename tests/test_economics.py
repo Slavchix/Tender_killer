@@ -154,6 +154,120 @@ def test_build_economics_summary_returns_bid_thresholds():
     assert summary["interesting_price"] == 83529.41
 
 
+def test_build_economics_summary_adds_price_passport_and_unit_normalization():
+    summary = build_economics_summary(
+        {
+            "price": 200000.0,
+            "product_profiles": [
+                {
+                    "position_index": 1,
+                    "product_name": "Cement M500",
+                    "quantity": 100,
+                    "unit": "kg",
+                    "raw_payload": {
+                        "economics": {"unit_cost": 12.5},
+                        "economics_price_source": {
+                            "source": "price_candidate",
+                            "selection": "manual_confirmed",
+                            "provider": "lemanapro",
+                            "supplier_name": "Lemana Pro",
+                            "source_url": "https://lemanapro.example/catalog/cement",
+                            "unit_price": 12.5,
+                            "currency": "RUB",
+                            "review_status": "confirmed",
+                            "confidence": "high",
+                            "unit": "pack",
+                            "normalization": {
+                                "source": "catalog_lemanapro",
+                                "original_unit_price": 625.0,
+                                "pack_quantity": 50.0,
+                                "normalized_unit_price": 12.5,
+                            },
+                        },
+                    },
+                }
+            ],
+        }
+    )
+
+    item = summary["items"][0]
+    assert item["position_index"] == 1
+    assert item["price_passport"] == {
+        "status": "confirmed",
+        "source_type": "price_candidate",
+        "source_label": "Lemana Pro",
+        "supplier_name": "Lemana Pro",
+        "url": "https://lemanapro.example/catalog/cement",
+        "provider": "lemanapro",
+        "confidence": "high",
+        "included_in_calculation": True,
+        "unit_price": 12.5,
+        "total_price": 1250.0,
+        "currency": "RUB",
+        "selection": "manual_confirmed",
+    }
+    assert item["unit_normalization"] == {
+        "tender_unit": "kg",
+        "supplier_unit": "pack",
+        "coefficient": 50.0,
+        "original_unit_price": 625.0,
+        "normalized_unit_price": 12.5,
+        "source": "catalog_lemanapro",
+        "status": "normalized",
+    }
+
+
+def test_build_economics_summary_returns_market_bid_scenarios_with_profit_roles():
+    summary = build_economics_summary(
+        {
+            "price": 100000.0,
+            "market_state": {
+                "status": "has_current_offer",
+                "participant_count": 2,
+                "current_offer_price": 90000.0,
+                "next_bid_price": 85000.0,
+                "nmc_price": 100000.0,
+            },
+            "product_profiles": [
+                {
+                    "product_name": "Fuel",
+                    "quantity": 10,
+                    "raw_payload": {"economics": {"unit_cost": 7000}},
+                }
+            ],
+        }
+    )
+
+    scenarios = {scenario["id"]: scenario for scenario in summary["bid_scenarios"]}
+    assert scenarios["break_even"]["profit"] == 0.0
+    assert scenarios["break_even"]["role"] == "threshold"
+    assert scenarios["target"]["role"] == "target"
+    assert scenarios["current_offer"]["is_current"] is True
+    assert scenarios["current_offer"]["profit"] == 20000.0
+    assert scenarios["nmc"] == {
+        "id": "nmc",
+        "label": "НМЦК",
+        "price": 100000.0,
+        "margin_amount": 30000.0,
+        "profit": 30000.0,
+        "margin_percent": 30.0,
+        "role": "reference",
+        "decision": "nmc_reference",
+        "is_current": False,
+    }
+    assert scenarios["next_bid"] == {
+        "id": "next_bid",
+        "label": "Следующий шаг",
+        "price": 85000.0,
+        "margin_amount": 15000.0,
+        "profit": 15000.0,
+        "margin_percent": 17.65,
+        "role": "aggressive",
+        "decision": "next_bid",
+        "is_current": False,
+    }
+
+
 def test_build_economics_summary_ignores_zero_participant_bid_and_falls_back_to_nmc():
     summary = build_economics_summary(
         {
@@ -520,35 +634,55 @@ def test_build_economics_summary_returns_bid_scenarios():
             "label": "Безубыток",
             "price": 13860.0,
             "margin_amount": 0.0,
+            "profit": 0.0,
             "margin_percent": 0.0,
+            "role": "threshold",
+            "decision": "break_even",
+            "is_current": False,
         },
         {
             "id": "minimum_margin",
             "label": "Минимум",
             "price": 14903.23,
             "margin_amount": 1043.23,
+            "profit": 1043.23,
             "margin_percent": 7.0,
+            "role": "threshold",
+            "decision": "minimum_margin",
+            "is_current": False,
         },
         {
             "id": "target",
             "label": "Цель",
             "price": 17325.0,
             "margin_amount": 3465.0,
+            "profit": 3465.0,
             "margin_percent": 20.0,
+            "role": "target",
+            "decision": "target_margin",
+            "is_current": False,
         },
         {
             "id": "interesting",
             "label": "Интересно",
             "price": 16305.88,
             "margin_amount": 2445.88,
+            "profit": 2445.88,
             "margin_percent": 15.0,
+            "role": "target",
+            "decision": "interesting_margin",
+            "is_current": False,
         },
         {
             "id": "current_nmc",
             "label": "НМЦК",
             "price": 20000.0,
             "margin_amount": 6140.0,
+            "profit": 6140.0,
             "margin_percent": 30.7,
+            "role": "current",
+            "decision": "current_nmc",
+            "is_current": True,
         },
     ]
 

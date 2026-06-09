@@ -1781,6 +1781,30 @@ def test_economics_tab_renders_bid_scenarios():
     assert find_mojibake(scenarios_source, TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
+
+def test_economics_summary_renders_price_passport_and_unit_normalization():
+    source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
+    scenarios_source = (
+        TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE.exists()
+        else ""
+    )
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "item.price_passport" in source
+    assert "item.unit_normalization" in source
+    assert "formatPricePassport" in source
+    assert "formatUnitNormalization" in source
+    assert "scenario.profit" in scenarios_source
+    assert "scenario.role" in scenarios_source
+    assert "scenario.is_current" in scenarios_source
+    assert ".economics-item-passport" in styles_source
+    assert ".bid-scenario.current" in styles_source
+    assert find_mojibake(source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
+    assert find_mojibake(scenarios_source, TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_economics_tab_renders_participation_decision():
     source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
     scenarios_source = (

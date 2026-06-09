@@ -3686,8 +3686,18 @@ textarea:focus {
   font-style: normal;
 }
 
+.bid-scenario small {
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
 .bid-scenario.target {
   border-color: var(--color-primary);
+}
+
+.bid-scenario.current {
+  border-color: var(--color-success);
 }
 
 .participation-decision {
@@ -3818,6 +3828,21 @@ textarea:focus {
   color: var(--color-text-secondary);
   font-size: 12px;
   white-space: nowrap;
+}
+
+.economics-item-passport {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding-top: 3px;
+  border-top: 1px solid var(--color-border);
+}
+
+.economics-item-passport span {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  white-space: normal;
 }
 
 .document-list {

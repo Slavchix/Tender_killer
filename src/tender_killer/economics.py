@@ -156,6 +156,8 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         target_bid_price,
         target_margin_percent,
         revenue_kind,
+        nmc_price,
+        market_state,
     )
     gross_margin = _round_money(revenue - estimated_total_cost)
     margin_percent = _round_percent((gross_margin / revenue) * 100) if revenue else None
@@ -194,6 +196,7 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
 def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
     economics = _economics_payload(profile)
     assumptions = _assumptions_payload(profile)
+    price_source = _price_source_payload(profile)
     quantity = _number(profile.get("quantity"))
     if quantity is not None and quantity <= 0:
         quantity = None
@@ -224,12 +227,15 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
         if estimated_total_cost is not None and target_margin_percent is not None and target_margin_percent < 100
         else None
     )
+    rounded_unit_cost = _round_money(unit_cost) if unit_cost is not None else None
+    rounded_total_cost = _round_money(total_cost) if total_cost is not None else None
     return {
+        "position_index": _positive_int(profile.get("position_index")),
         "product_name": str(profile.get("product_name") or "товарная позиция"),
         "quantity": quantity,
         "unit": profile.get("unit"),
-        "unit_cost": _round_money(unit_cost) if unit_cost is not None else None,
-        "total_cost": _round_money(total_cost) if total_cost is not None else None,
+        "unit_cost": rounded_unit_cost,
+        "total_cost": rounded_total_cost,
         "extra_costs": _round_money(extra_costs),
         "vat_mode": vat_mode,
         "vat_rate_percent": _round_percent(vat_rate_percent) if vat_rate_percent is not None else None,
@@ -239,6 +245,8 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
         "estimated_total_cost": estimated_total_cost,
         "target_margin_percent": _round_percent(target_margin_percent) if target_margin_percent is not None else None,
         "target_price": target_price,
+        "price_passport": _price_passport(price_source, economics, rounded_unit_cost, rounded_total_cost),
+        "unit_normalization": _unit_normalization(profile, price_source, rounded_unit_cost),
     }
 
 
@@ -303,11 +311,112 @@ def _economics_payload(profile: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
+def _price_source_payload(profile: dict[str, Any]) -> dict[str, Any]:
+    raw_payload = profile.get("raw_payload")
+    if isinstance(raw_payload, dict) and isinstance(raw_payload.get("economics_price_source"), dict):
+        return raw_payload["economics_price_source"]
+    return {}
+
+
 def _assumptions_payload(profile: dict[str, Any]) -> dict[str, Any]:
     raw_payload = profile.get("raw_payload")
     if isinstance(raw_payload, dict) and isinstance(raw_payload.get("economics_assumptions"), dict):
         return raw_payload["economics_assumptions"]
     return {}
+
+
+def _price_passport(
+    price_source: dict[str, Any],
+    economics: dict[str, Any],
+    unit_cost: float | None,
+    total_cost: float | None,
+) -> dict[str, Any]:
+    included = total_cost is not None
+    source_type = str(price_source.get("source") or "").strip()
+    if not source_type:
+        source_type = "manual" if economics and included else "missing"
+    status = _price_passport_status(price_source, source_type, included)
+    supplier_name = _text(price_source.get("supplier_name"))
+    provider = _text(price_source.get("provider"))
+    source_label = (
+        supplier_name
+        or provider
+        or _text(price_source.get("product_name"))
+        or ("Manual input" if source_type == "manual" else "No price")
+    )
+    url = _text(price_source.get("source_url") or price_source.get("supplier_url") or price_source.get("url"))
+    return {
+        "status": status,
+        "source_type": source_type,
+        "source_label": source_label,
+        "supplier_name": supplier_name,
+        "url": url,
+        "provider": provider,
+        "confidence": _text(price_source.get("confidence") or price_source.get("quality_status")),
+        "included_in_calculation": included,
+        "unit_price": unit_cost,
+        "total_price": total_cost,
+        "currency": _text(price_source.get("currency")) or ("RUB" if unit_cost is not None else None),
+        "selection": _text(price_source.get("selection")),
+    }
+
+
+def _price_passport_status(price_source: dict[str, Any], source_type: str, included: bool) -> str:
+    if not included:
+        return "missing"
+    review_status = str(price_source.get("review_status") or price_source.get("status") or "").strip()
+    selection = str(price_source.get("selection") or "").strip()
+    confidence = str(price_source.get("confidence") or "").strip()
+    if review_status in {"confirmed", "selected"} or selection in {"manual_confirmed", "manual_selected"}:
+        return "confirmed"
+    if confidence == "confirmed":
+        return "confirmed"
+    if source_type == "manual":
+        return "manual"
+    return "review"
+
+
+def _unit_normalization(
+    profile: dict[str, Any],
+    price_source: dict[str, Any],
+    unit_cost: float | None,
+) -> dict[str, Any]:
+    normalization = price_source.get("normalization") if isinstance(price_source.get("normalization"), dict) else {}
+    tender_unit = _text(profile.get("unit"))
+    supplier_unit = (
+        _text(price_source.get("supplier_unit"))
+        or _text(price_source.get("source_unit"))
+        or _text(price_source.get("candidate_unit"))
+        or _text(price_source.get("unit"))
+        or tender_unit
+    )
+    coefficient = (
+        _first_number(normalization, ("pack_quantity", "coefficient", "quantity_coefficient"))
+        or _first_number(price_source, ("pack_quantity", "coefficient", "quantity_coefficient"))
+        or 1.0
+    )
+    original_unit_price = (
+        _first_number(normalization, ("original_unit_price",))
+        or _first_number(price_source, ("original_unit_price", "unit_price"))
+        or unit_cost
+    )
+    normalized_unit_price = (
+        _first_number(normalization, ("normalized_unit_price",))
+        or _first_number(price_source, ("normalized_unit_price",))
+        or unit_cost
+    )
+    status = "normalized" if coefficient and coefficient != 1.0 else "same_unit"
+    if unit_cost is None:
+        status = "missing"
+    return {
+        "tender_unit": tender_unit,
+        "supplier_unit": supplier_unit,
+        "coefficient": _round_percent(coefficient),
+        "original_unit_price": _round_money(original_unit_price) if original_unit_price is not None else None,
+        "normalized_unit_price": _round_money(normalized_unit_price) if normalized_unit_price is not None else None,
+        "source": _text(normalization.get("source") or price_source.get("source_kind") or price_source.get("source")),
+        "status": status,
+    }
 
 
 def _vat_mode(value: Any) -> str:
@@ -381,6 +490,8 @@ def _bid_scenarios(
     target_bid_price: float,
     target_margin_percent: float,
     revenue_kind: str,
+    nmc_price: float | None,
+    market_state: dict[str, Any],
 ) -> list[dict[str, Any]]:
     current_id = "current_offer" if revenue_kind == "current_offer" else "current_nmc"
     current_label = "Текущая ставка" if revenue_kind == "current_offer" else "НМЦК"
@@ -391,10 +502,54 @@ def _bid_scenarios(
         ("interesting", "Интересно", interesting_price, INTERESTING_MARGIN_PERCENT),
         (current_id, current_label, _round_money(revenue), _margin_percent(revenue, estimated_total_cost)),
     ]
-    return [
-        _bid_scenario(scenario_id, label, price, margin_percent, estimated_total_cost)
-        for scenario_id, label, price, margin_percent in scenarios
-    ]
+    current_scenario = scenarios.pop()
+    if revenue_kind == "current_offer" and nmc_price is not None:
+        scenarios.append(
+            (
+                "nmc",
+                "НМЦК",
+                _round_money(nmc_price),
+                _margin_percent(nmc_price, estimated_total_cost),
+                "reference",
+                "nmc_reference",
+                False,
+            )
+        )
+    next_bid_price = _positive_number(market_state.get("next_bid_price"))
+    if next_bid_price is not None and next_bid_price != revenue:
+        scenarios.append(
+            (
+                "next_bid",
+                "Следующий шаг",
+                next_bid_price,
+                _margin_percent(next_bid_price, estimated_total_cost),
+                "aggressive",
+                "next_bid",
+                False,
+            )
+        )
+    scenarios.append(current_scenario)
+
+    result = []
+    for scenario in scenarios:
+        scenario_id, label, price, margin_percent = scenario[:4]
+        if len(scenario) >= 7:
+            role, decision, is_current = scenario[4:7]
+        else:
+            role, decision, is_current = _bid_scenario_meta(str(scenario_id))
+        result.append(
+            _bid_scenario(
+                str(scenario_id),
+                str(label),
+                price,
+                margin_percent,
+                estimated_total_cost,
+                str(role),
+                str(decision),
+                bool(is_current),
+            )
+        )
+    return result
 
 
 def _participation_decision(
@@ -438,14 +593,34 @@ def _bid_scenario(
     price: float,
     margin_percent: float,
     estimated_total_cost: float,
+    role: str,
+    decision: str,
+    is_current: bool,
 ) -> dict[str, Any]:
+    profit = _round_money(price - estimated_total_cost)
     return {
         "id": scenario_id,
         "label": label,
         "price": _round_money(price),
-        "margin_amount": _round_money(price - estimated_total_cost),
+        "margin_amount": profit,
+        "profit": profit,
         "margin_percent": _round_percent(margin_percent),
+        "role": role,
+        "decision": decision,
+        "is_current": is_current,
     }
+
+
+def _bid_scenario_meta(scenario_id: str) -> tuple[str, str, bool]:
+    metadata = {
+        "break_even": ("threshold", "break_even", False),
+        "minimum_margin": ("threshold", "minimum_margin", False),
+        "target": ("target", "target_margin", False),
+        "interesting": ("target", "interesting_margin", False),
+        "current_offer": ("current", "current_offer", True),
+        "current_nmc": ("current", "current_nmc", True),
+    }
+    return metadata.get(scenario_id, ("reference", scenario_id, False))
 
 
 def _margin_percent(price: float, cost: float) -> float:
@@ -617,6 +792,13 @@ def _first_number(data: dict[str, Any], keys: tuple[str, ...]) -> float | None:
         if value is not None:
             return value
     return None
+
+
+def _text(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _number(value: Any) -> float | None:

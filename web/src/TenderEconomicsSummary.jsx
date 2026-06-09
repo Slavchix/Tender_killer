@@ -91,6 +91,8 @@ export function EconomicsSummary({ economics, tender, profiles = [] }) {
               const profile = itemProfiles.get(Number(item?.position_index)) || itemProfiles.get(index + 1)
               const unitCost = positiveValue(item?.unit_cost, tenderReferenceUnitPrice(profile))
               const totalCost = positiveValue(item?.total_cost, tenderReferenceTotalPrice(profile))
+              const pricePassport = item.price_passport || null
+              const unitNormalization = item.unit_normalization || null
 
               return (
                 <div className="economics-item" key={`${item.product_name}-${index}`}>
@@ -98,6 +100,10 @@ export function EconomicsSummary({ economics, tender, profiles = [] }) {
                   <span>{formatQuantity(item.quantity, item.unit)}</span>
                   <span>{unitCost != null ? `${formatMoney(unitCost)} за ед.` : 'цена не указана'}</span>
                   <span>{formatMoney(totalCost)}</span>
+                  <div className="economics-item-passport">
+                    <span>{formatPricePassport(pricePassport)}</span>
+                    <span>{formatUnitNormalization(unitNormalization)}</span>
+                  </div>
                 </div>
               )
             })}
@@ -125,4 +131,38 @@ function profilesByEconomicsItem(profiles = []) {
 function positiveValue(primary, fallback) {
   const number = Number(primary)
   return Number.isFinite(number) && number > 0 ? primary : fallback
+}
+
+function formatPricePassport(passport) {
+  if (!passport) return 'Источник: не указан'
+  const source = passport.source_label || passport.provider || passport.source_type || 'не указан'
+  const status = pricePassportStatusLabel(passport.status)
+  const inclusion = passport.included_in_calculation ? 'в расчете' : 'не в расчете'
+  return `Источник: ${source} · ${status} · ${inclusion}`
+}
+
+function pricePassportStatusLabel(status) {
+  return {
+    confirmed: 'подтверждена',
+    manual: 'ручная',
+    review: 'на проверке',
+    missing: 'нет цены',
+  }[status] || 'на проверке'
+}
+
+function formatUnitNormalization(normalization) {
+  if (!normalization) return 'Единицы: не проверены'
+  const tenderUnit = normalization.tender_unit || 'ед.'
+  const supplierUnit = normalization.supplier_unit || tenderUnit
+  const coefficient = Number(normalization.coefficient)
+  const coefficientText = Number.isFinite(coefficient) && coefficient !== 1 ? ` · x${formatCompactNumber(coefficient)}` : ''
+  const normalizedPrice = Number(normalization.normalized_unit_price)
+  const priceText = Number.isFinite(normalizedPrice) ? ` · ${formatMoney(normalizedPrice)} за ${tenderUnit}` : ''
+  return `Единицы: ${supplierUnit} -> ${tenderUnit}${coefficientText}${priceText}`
+}
+
+function formatCompactNumber(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return String(value || '1')
+  return Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/\.?0+$/, '')
 }
