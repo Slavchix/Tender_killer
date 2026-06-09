@@ -13,16 +13,16 @@ const SUPPLIER_CATALOG_DASHBOARD_FALLBACKS = [
 
 const SUPPLIER_CATALOG_PROVIDER_POLICY = {
   officemag: {
-    search_mode: 'manual_only',
-    small_tender_active_search: false,
-    recommended_flow: 'quick links/manual URL',
-    operator_note: 'Quick links или вручную выбранная публичная карточка товара.',
+    search_mode: 'active_small_search',
+    small_tender_active_search: true,
+    recommended_flow: 'limited search/manual URL',
+    operator_note: 'Активный поиск только для закупок до 5 позиций; цены попадают в кандидаты на проверку.',
   },
   komus: {
-    search_mode: 'manual_only',
-    small_tender_active_search: false,
-    recommended_flow: 'quick links/feed/КП',
-    operator_note: 'Quick links, прайс/feed или коммерческое предложение.',
+    search_mode: 'active_small_search',
+    small_tender_active_search: true,
+    recommended_flow: 'limited search/feed/КП',
+    operator_note: 'Активный поиск только для закупок до 5 позиций; при блокировке используй feed или КП.',
   },
   petrovich: {
     search_mode: 'active_small_search',
@@ -37,10 +37,10 @@ const SUPPLIER_CATALOG_PROVIDER_POLICY = {
     operator_note: 'Активный поиск только для закупок до 5 позиций.',
   },
   lemanapro: {
-    search_mode: 'manual_only',
-    small_tender_active_search: false,
-    recommended_flow: 'quick links/manual URL',
-    operator_note: 'Quick links или вручную выбранная публичная карточка товара.',
+    search_mode: 'active_small_search',
+    small_tender_active_search: true,
+    recommended_flow: 'limited search/manual URL',
+    operator_note: 'Активный поиск только для закупок до 5 позиций; цены попадают в кандидаты на проверку.',
   },
 }
 

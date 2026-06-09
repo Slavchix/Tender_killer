@@ -25,9 +25,10 @@ def test_provider_policy_documents_required_supplier_modes() -> None:
     komus = get_supplier_provider_policy("komus")
 
     assert REQUIRED_POLICY_FIELDS.issubset(officemag.keys())
-    assert officemag["default_mode"] == "quick_links_manual_url"
+    assert officemag["default_mode"] == "limited_public_search"
     assert officemag["allow_quick_links"] is True
-    assert officemag["allow_public_search_fetch"] is False
+    assert officemag["allow_public_search_fetch"] is True
+    assert officemag["public_search_max_positions"] == 5
     assert officemag["allow_product_page_fetch"] is True
     assert officemag["allow_browser_fetch"] is False
     assert officemag["allow_internal_api"] is False
@@ -37,9 +38,10 @@ def test_provider_policy_documents_required_supplier_modes() -> None:
     assert vseinstrumenti["allow_product_page_fetch"] is True
 
     assert komus["allow_quick_links"] is True
-    assert komus["allow_public_search_fetch"] is False
-    assert komus["allow_product_page_fetch"] is False
-    assert komus["recommended_flow"] == "quick_links_feed_quote"
+    assert komus["allow_public_search_fetch"] is True
+    assert komus["public_search_max_positions"] == 5
+    assert komus["allow_product_page_fetch"] is True
+    assert komus["recommended_flow"] == "limited_search_feed_quote"
 
 
 def test_supplier_fetch_decision_separates_quick_links_from_collectors() -> None:
@@ -49,11 +51,17 @@ def test_supplier_fetch_decision_separates_quick_links_from_collectors() -> None
         action="quick_link",
         tender_position_count=20,
     )
-    blocked_search = supplier_fetch_decision(
+    small_search = supplier_fetch_decision(
         "https://www.officemag.ru/search/?q=paper",
         provider="officemag",
         action="public_search_fetch",
         tender_position_count=1,
+    )
+    large_search = supplier_fetch_decision(
+        "https://www.officemag.ru/search/?q=paper",
+        provider="officemag",
+        action="public_search_fetch",
+        tender_position_count=20,
     )
     manual_product = supplier_fetch_decision(
         "https://www.officemag.ru/catalog/goods/110532/",
@@ -63,8 +71,9 @@ def test_supplier_fetch_decision_separates_quick_links_from_collectors() -> None
     )
 
     assert quick_link["allowed"] is True
-    assert blocked_search["allowed"] is False
-    assert blocked_search["reason"] == "public_search_fetch_not_allowed"
+    assert small_search["allowed"] is True
+    assert large_search["allowed"] is False
+    assert large_search["reason"] == "large_tender_manual_required"
     assert manual_product["allowed"] is True
 
 

@@ -1536,7 +1536,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "Отклонить" in source
     assert "supplier_options" in source
     assert "SupplierOptionsList" in source
-    assert "searching: 'Ссылки'" in formatter_source
+    assert "searching: 'Поиск'" in formatter_source
     assert "supplier_search" not in source
     assert "supplier_discovery" not in source
     assert "SupplierSearchPreview" not in source

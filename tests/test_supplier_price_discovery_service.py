@@ -360,6 +360,7 @@ def test_provider_catalog_collector_skips_policy_blocked_search_fetches() -> Non
         "officemag",
         fetch_text=lambda url: calls.append(url) or "<html></html>",
     )
+    collector.tender_position_count = 6
 
     result = collector.collect_with_diagnostics(
         {
@@ -380,7 +381,7 @@ def test_provider_catalog_collector_skips_policy_blocked_search_fetches() -> Non
     assert calls == []
     assert result["candidates"] == []
     assert result["diagnostics"]["run_state"] == "skipped"
-    assert result["diagnostics"]["skip_reason"] == "public_search_fetch_not_allowed"
+    assert result["diagnostics"]["skip_reason"] == "large_tender_manual_required"
     assert result["diagnostics"]["links_seen"] == 1
     assert result["diagnostics"]["links_skipped"] == 1
 
@@ -478,12 +479,14 @@ def test_provider_catalog_collector_uses_officemag_section_fallback_for_empty_se
         }
     )
 
-    assert calls == []
-    assert result["candidates"] == []
-    assert result["diagnostics"]["run_state"] == "skipped"
-    assert result["diagnostics"]["skip_reason"] == "public_search_fetch_not_allowed"
-    assert result["diagnostics"]["pages_fetched"] == 0
-    assert result["diagnostics"]["candidates_found"] == 0
+    assert calls == [
+        "https://www.officemag.ru/search/?q=paper+a4",
+        "https://www.officemag.ru/catalog/785/",
+    ]
+    assert result["diagnostics"]["pages_fetched"] == 2
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"][0]["name"] == "Бумага белая А4, 80 г/м2, 100 л., STAFF СТАНДАРТ, 115351"
+    assert result["candidates"][0]["unit_price"] == 166.08
 
 
 def test_provider_catalog_collector_follows_officemag_hidden_product_ids_from_section_fallback() -> None:
@@ -560,12 +563,17 @@ def test_provider_catalog_collector_follows_officemag_hidden_product_ids_from_se
         }
     )
 
-    assert calls == []
-    assert result["candidates"] == []
-    assert result["diagnostics"]["run_state"] == "skipped"
-    assert result["diagnostics"]["skip_reason"] == "public_search_fetch_not_allowed"
-    assert result["diagnostics"]["pages_fetched"] == 0
-    assert result["diagnostics"]["candidates_found"] == 0
+    assert calls == [
+        "https://www.officemag.ru/search/?q=office+paper+a4+500+sheets",
+        "https://www.officemag.ru/catalog/785/",
+        "https://www.officemag.ru/catalog/goods/110071/",
+        "https://www.officemag.ru/catalog/goods/110095/",
+        "https://www.officemag.ru/catalog/goods/115351/",
+    ]
+    assert result["diagnostics"]["pages_fetched"] == 5
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"][0]["name"] == "Office paper A4, 80 g/m2, 500 sheets, Snegurochka, 110071"
+    assert result["candidates"][0]["unit_price"] == 409.3
 
 
 def test_profile_intent_uses_strict_catalog_hints_for_generic_supplier_candidates() -> None:
@@ -1059,8 +1067,9 @@ def test_provider_catalog_collector_skips_officemag_browser_fallback_for_policy_
     assert browser_calls == []
     assert result["candidates"] == []
     assert result["diagnostics"]["pages_fetched"] == 0
-    assert result["diagnostics"]["run_state"] == "skipped"
-    assert result["diagnostics"]["skip_reason"] == "public_search_fetch_not_allowed"
+    assert result["diagnostics"]["run_state"] == "blocked"
+    assert result["diagnostics"]["skip_reason"] == "access_blocked"
+    assert result["diagnostics"]["error_kind"] == "access_blocked"
 
 
 def test_provider_catalog_collector_extracts_vseinstrumenti_visible_offer_without_schema_org() -> None:
