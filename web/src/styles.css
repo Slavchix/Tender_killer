@@ -4665,6 +4665,34 @@ textarea:focus {
   line-height: 1.35;
 }
 
+.supplier-manual-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 3px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+}
+
+.supplier-manual-mode-tabs button {
+  min-width: 0;
+  height: 30px;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.supplier-manual-mode-tabs button.active {
+  color: var(--color-text);
+  background: var(--color-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
 .supplier-manual-url-form {
   display: grid;
   gap: 6px;
@@ -4724,6 +4752,46 @@ textarea:focus {
 
 .supplier-manual-candidate-form .secondary-button.compact {
   width: fit-content;
+}
+
+.supplier-manual-links-mode {
+  display: grid;
+  gap: 8px;
+}
+
+.supplier-manual-links-mode > .secondary-button.compact {
+  width: fit-content;
+}
+
+.supplier-manual-result {
+  margin: 0;
+  padding: 7px 9px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.supplier-manual-result.success {
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.supplier-manual-result.info,
+.supplier-manual-result.progress {
+  color: var(--color-text-secondary);
+  border-color: var(--color-border-strong);
+}
+
+.supplier-manual-result.warning {
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+
+.supplier-manual-result.error {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 
 .supplier-search-preview {
@@ -4830,6 +4898,18 @@ textarea:focus {
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.technical-discovery-details {
+  display: grid;
+  gap: 6px;
+}
+
+.technical-discovery-details > summary {
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .supplier-discovery-diagnostics {

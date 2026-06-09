@@ -1490,16 +1490,24 @@ def test_product_profile_renders_supplier_option_form():
     assert "onSupplierDiscoveryImport" in workbench_source
     assert "onSupplierManualPriceStage" in workbench_source
     assert "ManualSupplierPricePanel" in profile_workspace_source
+    assert "manualPriceMode" in profile_workspace_source
+    assert "supplier-manual-mode-tabs" in profile_workspace_source
+    assert "manual-url-result" in profile_workspace_source
+    assert "manualUrlResultFromTender" in profile_workspace_source
     assert "SupplierSearchPreview" in profile_workspace_source
     assert "SupplierDiscoveryPreview" in profile_workspace_source
+    assert "compact={manualPriceMode === 'links'}" in profile_workspace_source
+    assert "diagnosticsOpen={false}" in profile_workspace_source
     assert "manual-product-url-input" in profile_workspace_source
     assert "manual-price-source-select" in profile_workspace_source
     assert "manual-price-unit-input" in profile_workspace_source
     assert "onSupplierUrlDiscoveryRun?.(selectedEconomicsProfile, {" in profile_workspace_source
     assert "onSupplierManualPriceStage?.(selectedEconomicsProfile, candidate)" in profile_workspace_source
     assert "onSupplierDiscoveryImport?.(selectedEconomicsProfile, candidateIndex)" in profile_workspace_source
-    assert "quick links/manual URL/feed" in profile_workspace_source
+    assert "Ссылка, КП/прайс или быстрые ссылки" in profile_workspace_source
     assert "supplier-manual-price-panel" in styles_source
+    assert "supplier-manual-mode-tabs" in styles_source
+    assert "supplier-manual-result" in styles_source
     assert "price_candidates" in source
     assert "PriceCandidatesList" in source
     assert "tenderReferenceUnitPrice(profile)" in source
@@ -1528,6 +1536,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "Отклонить" in source
     assert "supplier_options" in source
     assert "SupplierOptionsList" in source
+    assert "searching: 'Ссылки'" in formatter_source
     assert "supplier_search" not in source
     assert "supplier_discovery" not in source
     assert "SupplierSearchPreview" not in source
@@ -1536,9 +1545,11 @@ def test_product_profile_renders_supplier_option_form():
     assert "export function SupplierSearchPreview" in discovery_source
     assert "export function SupplierDiscoveryPreview" in discovery_source
     assert "function SupplierDiscoveryDiagnostics" in discovery_source
+    assert "technical-discovery-details" in discovery_source
+    assert "diagnosticsOpen" in discovery_source
     assert "discovery?.status === 'no_candidates'" in discovery_source
     assert "Кандидаты не найдены" in discovery_source
-    assert "Смотри диагностику ниже" in discovery_source
+    assert "Цена не прочиталась автоматически" in discovery_source
     assert "candidates.length > 0" in discovery_source
     assert "collector_diagnostics" in discovery_source
     assert "diagnostics.pages_fetched" in discovery_source

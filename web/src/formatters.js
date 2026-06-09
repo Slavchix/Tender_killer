@@ -119,7 +119,7 @@ export function profileStatusLabel(status) {
     draft: 'Черновик',
     needs_review: 'Проверить',
     ready: 'Готов',
-    searching: 'Поиск',
+    searching: 'Ссылки',
     matched: 'Найдено',
     priced: 'Расчет',
     rejected: 'Отклонено',

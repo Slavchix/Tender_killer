@@ -1,6 +1,6 @@
 import { formatMoney, supplierConfidenceLabel } from './formatters'
 
-export function SupplierDiscoveryPreview({ discovery, importing = false, onImport }) {
+export function SupplierDiscoveryPreview({ discovery, importing = false, diagnosticsOpen = false, onImport }) {
   const candidates = Array.isArray(discovery?.candidates) ? discovery.candidates : []
   const diagnostics = Array.isArray(discovery?.collector_diagnostics) ? discovery.collector_diagnostics : []
   const noCandidates = discovery?.status === 'no_candidates'
@@ -9,8 +9,7 @@ export function SupplierDiscoveryPreview({ discovery, importing = false, onImpor
   return (
     <div className="supplier-discovery-preview">
       <span>{noCandidates && !candidates.length ? 'Кандидаты не найдены' : 'Найденные кандидаты'}</span>
-      {noCandidates && !candidates.length && <p>Смотри диагностику ниже: она показывает, какие каталоги и страницы проверялись.</p>}
-      <SupplierDiscoveryDiagnostics diagnostics={diagnostics} />
+      {noCandidates && !candidates.length && <p>Цена не прочиталась автоматически. Открой ссылку вручную или внеси цену из КП/прайса.</p>}
       {candidates.length > 0 && candidates.map((candidate, index) => {
         const imported = candidate.review_status === 'imported'
         const confidenceReasons = Array.isArray(candidate.confidence_reasons) ? candidate.confidence_reasons : []
@@ -41,6 +40,12 @@ export function SupplierDiscoveryPreview({ discovery, importing = false, onImpor
           </div>
         )
       })}
+      {diagnostics.length > 0 && (
+        <details className="technical-discovery-details" open={diagnosticsOpen}>
+          <summary>Техническая диагностика</summary>
+          <SupplierDiscoveryDiagnostics diagnostics={diagnostics} />
+        </details>
+      )}
     </div>
   )
 }
@@ -170,7 +175,7 @@ function formatDiscoveryError(error) {
   }
 }
 
-export function SupplierSearchPreview({ search }) {
+export function SupplierSearchPreview({ search, compact = false }) {
   const queries = Array.isArray(search?.queries) ? search.queries : []
   if (!queries.length) return null
   const catalogSearchLinks = uniqueCatalogSearchLinks(queries)
@@ -190,13 +195,26 @@ export function SupplierSearchPreview({ search }) {
           </div>
         </section>
       )}
-      <div className="supplier-search-query-list">
-        {queries.map((item) => (
-          <section key={`${item.kind}-${item.priority}-${item.query}`}>
-            <code>{item.query}</code>
-          </section>
-        ))}
-      </div>
+      {compact ? (
+        <details className="technical-discovery-details">
+          <summary>Поисковые формулировки</summary>
+          <SupplierSearchQueries queries={queries} />
+        </details>
+      ) : (
+        <SupplierSearchQueries queries={queries} />
+      )}
+    </div>
+  )
+}
+
+function SupplierSearchQueries({ queries }) {
+  return (
+    <div className="supplier-search-query-list">
+      {queries.map((item) => (
+        <section key={`${item.kind}-${item.priority}-${item.query}`}>
+          <code>{item.query}</code>
+        </section>
+      ))}
     </div>
   )
 }
