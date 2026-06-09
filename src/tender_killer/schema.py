@@ -14,6 +14,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
     ensure_analysis_history_table(connection)
     ensure_product_profiles_table(connection)
     ensure_price_candidates_table(connection)
+    ensure_price_discovery_jobs_table(connection)
     ensure_source_runs_table(connection)
     ensure_app_state_table(connection)
 
@@ -306,6 +307,38 @@ def ensure_price_candidates_table(connection: sqlite3.Connection) -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_price_candidates_profile
         ON price_candidates(tender_source, tender_external_id, position_index, review_status, confidence)
+        """
+    )
+
+
+def ensure_price_discovery_jobs_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS price_discovery_jobs (
+            job_id TEXT NOT NULL PRIMARY KEY,
+            source TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            total_profiles INTEGER NOT NULL DEFAULT 0,
+            searched_count INTEGER NOT NULL DEFAULT 0,
+            limited_count INTEGER NOT NULL DEFAULT 0,
+            partial INTEGER NOT NULL DEFAULT 0,
+            positions_json TEXT NOT NULL DEFAULT '[]',
+            result_json TEXT,
+            error TEXT,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL,
+            owner_token TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(price_discovery_jobs)").fetchall()}
+    if "owner_token" not in columns:
+        connection.execute("ALTER TABLE price_discovery_jobs ADD COLUMN owner_token TEXT NOT NULL DEFAULT ''")
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_price_discovery_jobs_tender_status
+        ON price_discovery_jobs(source, external_id, status, updated_at DESC)
         """
     )
 

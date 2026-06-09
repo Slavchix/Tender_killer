@@ -1185,8 +1185,9 @@ def test_handle_get_request_routes_tender_price_discovery_job_status(tmp_path, m
         ],
     )
 
-    def fake_get(job_id):
+    def fake_get(job_id, database_path):
         assert job_id == "job-1"
+        assert database_path == store.database_path
         return {
             "job_id": "job-1",
             "status": "running",

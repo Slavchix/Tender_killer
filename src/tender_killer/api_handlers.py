@@ -318,7 +318,7 @@ def run_tender_price_discovery(database_path: str | Path, source: str, external_
 
 
 def get_price_discovery_job_payload(database_path: str | Path, job_id: str) -> dict[str, Any]:
-    job = get_tender_price_discovery_job(job_id)
+    job = get_tender_price_discovery_job(job_id, database_path)
     payload: dict[str, Any] = {"ok": True, "price_discovery_job": job}
     source = str(job.get("source") or "")
     external_id = str(job.get("external_id") or "")
