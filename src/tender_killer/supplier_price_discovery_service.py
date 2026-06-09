@@ -22,6 +22,7 @@ from tender_killer.supplier_catalog_fetcher import fetch_public_text
 from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
 from tender_killer.supplier_catalog_presets import supplier_catalog_providers_for_profile
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
+from tender_killer.supplier_provider_policy import ACTION_BROWSER_FETCH
 from tender_killer.supplier_provider_policy import ACTION_PRODUCT_PAGE_FETCH
 from tender_killer.supplier_provider_policy import ACTION_PUBLIC_SEARCH_FETCH
 from tender_killer.supplier_provider_policy import SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT
@@ -329,10 +330,16 @@ class ProviderCatalogCollector:
     def _fetch_link_text(self, url: str, action: str) -> str:
         if self.fetch_text is not None:
             return self.fetch_text(url)
+        browser_decision = supplier_fetch_decision(
+            url,
+            provider=self.catalog_provider,
+            action=ACTION_BROWSER_FETCH,
+            tender_position_count=self.tender_position_count,
+        )
         return _fetch_catalog_text(
             url,
             self.catalog_provider,
-            allow_browser_fetch=action == ACTION_PRODUCT_PAGE_FETCH,
+            allow_browser_fetch=action == ACTION_PRODUCT_PAGE_FETCH and bool(browser_decision["allowed"]),
         )
 
     def _allow_fetch_url(self, url: str, action: str, diagnostics: dict[str, Any]) -> bool:

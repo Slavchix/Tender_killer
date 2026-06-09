@@ -118,7 +118,10 @@ def test_handle_get_request_routes_supplier_catalog_health(tmp_path) -> None:
         "vseinstrumenti",
         "lemanapro",
     ]
-    assert response.payload["catalogs"][0]["status"] == "configured"
+    assert response.payload["catalogs"][0]["status"] == "manual_only"
+    assert response.payload["catalogs"][0]["search_mode"] == "manual_only"
+    assert response.payload["catalogs"][2]["status"] == "configured"
+    assert response.payload["catalogs"][2]["search_mode"] == "active_small_search"
 
 
 def test_handle_get_request_routes_supplier_catalog_health_live_to_cached_service(tmp_path, monkeypatch) -> None:

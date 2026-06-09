@@ -16,6 +16,11 @@ from bs4 import BeautifulSoup
 from tender_killer import supplier_browser_fetcher
 from tender_killer.schema import initialize_schema
 from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
+from tender_killer.supplier_provider_policy import ACTION_BROWSER_FETCH
+from tender_killer.supplier_provider_policy import ACTION_PUBLIC_SEARCH_FETCH
+from tender_killer.supplier_provider_policy import SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT
+from tender_killer.supplier_provider_policy import get_supplier_provider_policy
+from tender_killer.supplier_provider_policy import supplier_fetch_decision
 
 
 CatalogHealthFetchResult = tuple[int, str]
@@ -37,6 +42,9 @@ CATALOG_CONNECTION_NO_CARDS = "no_cards"
 CATALOG_CONNECTION_PARSER_BROKEN = "parser_broken"
 CATALOG_CONNECTION_TIMEOUT = "timeout"
 CATALOG_CONNECTION_NETWORK_ERROR = "network_error"
+CATALOG_CONNECTION_MANUAL_ONLY = "manual_only"
+CATALOG_SEARCH_MODE_ACTIVE_SMALL = "active_small_search"
+CATALOG_SEARCH_MODE_MANUAL_ONLY = "manual_only"
 
 
 def get_supplier_catalog_health_payload(
@@ -51,8 +59,11 @@ def get_supplier_catalog_health_payload(
     for preset in SUPPLIER_CATALOG_PRESETS:
         catalog = _catalog_health_item(preset)
         if live:
-            _check_catalog_live(catalog, timeout, fetch)
-            if catalog["status"] != "ok":
+            if catalog.get("small_tender_active_search"):
+                _check_catalog_live(catalog, timeout, fetch)
+            else:
+                _mark_catalog_manual_only(catalog)
+            if catalog.get("small_tender_active_search") and catalog["status"] != "ok":
                 ok = False
         catalogs.append(catalog)
     return {
@@ -91,19 +102,38 @@ def _catalog_health_item(preset: dict[str, Any]) -> dict[str, Any]:
     provider = str(preset["provider"])
     sample_query = CATALOG_SAMPLE_QUERIES.get(provider.casefold(), "office paper a4")
     sample_url = str(preset["url_template"]).format(query=quote_plus(sample_query))
+    policy = get_supplier_provider_policy(provider)
+    public_search_decision = supplier_fetch_decision(
+        sample_url,
+        provider=provider,
+        action=ACTION_PUBLIC_SEARCH_FETCH,
+        tender_position_count=SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
+    )
+    active_small_search = bool(public_search_decision.get("allowed"))
+    status = "configured" if active_small_search else "manual_only"
+    connection_state = CATALOG_CONNECTION_CONFIGURED if active_small_search else CATALOG_CONNECTION_MANUAL_ONLY
+    access_mode = "configured" if active_small_search else "policy"
     return {
         "preset_id": str(preset["preset_id"]),
         "label": str(preset["label"]),
         "provider": provider,
         "sample_query": sample_query,
         "sample_url": sample_url,
-        "status": "configured",
-        "connection_state": CATALOG_CONNECTION_CONFIGURED,
+        "status": status,
+        "connection_state": connection_state,
         "http_status": None,
         "error_kind": "",
         "error": "",
         "body_preview": "",
-        "access_mode": "configured",
+        "access_mode": access_mode,
+        "search_mode": CATALOG_SEARCH_MODE_ACTIVE_SMALL if active_small_search else CATALOG_SEARCH_MODE_MANUAL_ONLY,
+        "small_tender_active_search": active_small_search,
+        "policy_reason": str(public_search_decision.get("reason") or ""),
+        "policy_mode": str(policy.get("default_mode") or ""),
+        "recommended_flow": str(policy.get("recommended_flow") or ""),
+        "risk_level": str(policy.get("risk_level") or ""),
+        "operator_note": str(policy.get("operator_note") or ""),
+        "max_active_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
     }
 
 
@@ -200,8 +230,27 @@ def _check_catalog_live(catalog: dict[str, Any], timeout: float, fetch: CatalogH
     catalog["access_mode"] = "http"
 
 
+def _mark_catalog_manual_only(catalog: dict[str, Any]) -> None:
+    catalog["status"] = "manual_only"
+    catalog["connection_state"] = CATALOG_CONNECTION_MANUAL_ONLY
+    catalog["http_status"] = None
+    catalog["error_kind"] = ""
+    catalog["error"] = ""
+    catalog["body_preview"] = ""
+    catalog["access_mode"] = "policy"
+    catalog.pop("browser_error", None)
+
+
 def _try_browser_catalog_health(catalog: dict[str, Any], timeout: float) -> bool:
     provider = str(catalog.get("provider") or "")
+    decision = supplier_fetch_decision(
+        str(catalog.get("sample_url") or ""),
+        provider=provider,
+        action=ACTION_BROWSER_FETCH,
+        tender_position_count=SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
+    )
+    if not decision["allowed"]:
+        return False
     if not supplier_browser_fetcher.is_enabled_for_provider(provider):
         return False
     try:

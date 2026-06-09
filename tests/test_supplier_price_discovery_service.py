@@ -385,6 +385,50 @@ def test_provider_catalog_collector_skips_policy_blocked_search_fetches() -> Non
     assert result["diagnostics"]["links_skipped"] == 1
 
 
+def test_provider_catalog_collector_does_not_browser_fetch_when_policy_blocks_it(monkeypatch) -> None:
+    url = "https://www.officemag.ru/catalog/goods/110532/"
+    request = httpx.Request("GET", url)
+    response = httpx.Response(
+        503,
+        request=request,
+        text="<html><body>Ваш браузер не смог пройти проверку.</body></html>",
+    )
+    browser_calls: list[tuple[str, str | None]] = []
+
+    def blocked_fetch(fetch_url: str) -> str:
+        raise httpx.HTTPStatusError("access_blocked HTTP 503", request=request, response=response)
+
+    def fake_browser_fetch(fetch_url: str, *, provider: str | None = None) -> str:
+        browser_calls.append((fetch_url, provider))
+        return "<html><body><div class='ProductHead__name'>Папка архивная</div><div content='458.45'></div></body></html>"
+
+    monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "1")
+    monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", "officemag")
+    monkeypatch.setattr(supplier_catalog_fetcher, "fetch_public_text", blocked_fetch)
+    monkeypatch.setattr(supplier_catalog_fetcher.supplier_browser_fetcher, "fetch_text", fake_browser_fetch)
+
+    collector = price_discovery.ProviderCatalogCollector("officemag", max_product_pages=0)
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "папка архивная",
+            "kind": price_discovery.MANUAL_PRODUCT_LINK_KIND,
+            "quick_links": [
+                {
+                    "label": "OfficeMag",
+                    "url": url,
+                    "provider": "officemag",
+                    "link_kind": price_discovery.MANUAL_PRODUCT_LINK_KIND,
+                }
+            ],
+        }
+    )
+
+    assert browser_calls == []
+    assert result["candidates"] == []
+    assert result["diagnostics"]["run_state"] == "blocked"
+    assert result["diagnostics"]["error_kind"] == "access_blocked"
+
+
 def test_provider_catalog_collector_uses_officemag_section_fallback_for_empty_search() -> None:
     pages = {
         "https://www.officemag.ru/search/?q=paper+a4": """
@@ -697,31 +741,14 @@ def test_provider_catalog_collector_extracts_officemag_search_result_cards() -> 
           </body>
         </html>
     """
-    collector = price_discovery.ProviderCatalogCollector(
-        "officemag",
-        fetch_text=lambda url: html,
-        max_product_pages=0,
+    candidates = price_discovery._officemag_visible_candidates(
+        html,
+        "https://www.officemag.ru/search/index.php?SECTION=837&q=folder",
+        "папка 2 кольца brauberg 75 мм",
+        "normalized_name",
     )
 
-    result = collector.collect_with_diagnostics(
-        {
-            "query": "папка 2 кольца brauberg 75 мм",
-            "kind": "normalized_name",
-            "quick_links": [
-                {
-                    "label": "OfficeMag",
-                    "url": "https://www.officemag.ru/search/index.php?SECTION=837&q=folder",
-                    "provider": "officemag",
-                    "link_kind": "catalog_search",
-                    "preset_id": "officemag_office_supplies",
-                }
-            ],
-        }
-    )
-
-    assert result["diagnostics"]["pages_fetched"] == 1
-    assert result["diagnostics"]["candidates_found"] == 1
-    assert result["candidates"] == [
+    assert candidates == [
         {
             "name": 'Папка на 2 кольцах, ПРОЧНАЯ, картон/ПВХ, BRAUBERG "Office", ЧЕРНАЯ, 75 мм, до 500 листов, 271846',
             "url": "https://www.officemag.ru/catalog/goods/271846/",
@@ -764,40 +791,24 @@ def test_provider_catalog_collector_extracts_officemag_js_product_item_cards() -
           </body>
         </html>
     """
-    collector = price_discovery.ProviderCatalogCollector(
-        "officemag",
-        fetch_text=lambda url: html,
-        max_product_pages=0,
+    candidates = price_discovery._officemag_visible_candidates(
+        html,
+        "https://www.officemag.ru/search/?q=%D0%A0%D1%83%D1%87%D0%BA%D0%B0",
+        "Ручка канцелярская",
+        "normalized_name",
     )
 
-    result = collector.collect_with_diagnostics(
-        {
-            "query": "Ручка канцелярская",
-            "kind": "normalized_name",
-            "quick_links": [
-                {
-                    "label": "OfficeMag",
-                    "url": "https://www.officemag.ru/search/?q=%D0%A0%D1%83%D1%87%D0%BA%D0%B0",
-                    "provider": "officemag",
-                    "link_kind": "catalog_search",
-                    "preset_id": "officemag_office_supplies",
-                }
-            ],
-        }
-    )
-
-    assert result["diagnostics"]["pages_fetched"] == 1
-    assert result["diagnostics"]["candidates_found"] == 1
-    assert result["candidates"][0]["name"] == (
+    assert len(candidates) == 1
+    assert candidates[0]["name"] == (
         "Ручка шариковая с грипом BRAUBERG \"X-ONE\", СИНЯЯ, корпус прозрачный, узел 0,5 мм, 143985"
     )
-    assert result["candidates"][0]["unit_price"] == 42.51
-    assert result["candidates"][0]["price_breaks"] == [
+    assert candidates[0]["unit_price"] == 42.51
+    assert candidates[0]["price_breaks"] == [
         {"count": 12, "price": 44.75},
         {"count": 24, "price": 42.51},
     ]
-    assert result["candidates"][0]["stock_quantity"] == 3996
-    assert result["candidates"][0]["preorder_quantity"] == 400639
+    assert candidates[0]["stock_quantity"] == 3996
+    assert candidates[0]["preorder_quantity"] == 400639
 
 
 def test_provider_catalog_collector_extracts_real_russian_officemag_search_result_cards() -> None:
@@ -839,31 +850,15 @@ def test_provider_catalog_collector_extracts_real_russian_officemag_search_resul
           </body>
         </html>
     """
-    collector = price_discovery.ProviderCatalogCollector(
-        "officemag",
-        fetch_text=lambda url: html,
-        max_product_pages=0,
+    source_url = "https://www.officemag.ru/search/?q=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%B0%D1%8F+%D0%B04"
+    candidates = price_discovery._officemag_visible_candidates(
+        html,
+        source_url,
+        "бумага офисная а4",
+        "catalog_hint",
     )
 
-    result = collector.collect_with_diagnostics(
-        {
-            "query": "бумага офисная а4",
-            "kind": "catalog_hint",
-            "quick_links": [
-                {
-                    "label": "OfficeMag",
-                    "url": "https://www.officemag.ru/search/?q=%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B0+%D0%BE%D1%84%D0%B8%D1%81%D0%BD%D0%B0%D1%8F+%D0%B04",
-                    "provider": "officemag",
-                    "link_kind": "catalog_search",
-                    "preset_id": "officemag_office_supplies",
-                }
-            ],
-        }
-    )
-
-    assert result["diagnostics"]["pages_fetched"] == 1
-    assert result["diagnostics"]["candidates_found"] == 1
-    assert result["candidates"] == [
+    assert candidates == [
         {
             "name": "Бумага офисная А4, 500 листов, белая, 80 г/м2",
             "url": "https://www.officemag.ru/catalog/goods/111111/",
@@ -956,31 +951,14 @@ def test_provider_catalog_collector_skips_officemag_cards_without_query_core_tok
           </body>
         </html>
     """
-    collector = price_discovery.ProviderCatalogCollector(
-        "officemag",
-        fetch_text=lambda url: html,
-        max_product_pages=0,
+    candidates = price_discovery._officemag_visible_candidates(
+        html,
+        "https://www.officemag.ru/search/?q=paper",
+        "Бумага для офисной техники 11.05.01.02.05.009",
+        "catalog_hint",
     )
 
-    result = collector.collect_with_diagnostics(
-        {
-            "query": "Бумага для офисной техники 11.05.01.02.05.009",
-            "kind": "catalog_hint",
-            "quick_links": [
-                {
-                    "label": "OfficeMag",
-                    "url": "https://www.officemag.ru/search/?q=paper",
-                    "provider": "officemag",
-                    "link_kind": "catalog_search",
-                    "preset_id": "officemag_office_supplies",
-                }
-            ],
-        }
-    )
-
-    assert result["diagnostics"]["pages_fetched"] == 1
-    assert result["diagnostics"]["candidates_found"] == 0
-    assert result["candidates"] == []
+    assert candidates == []
 
 
 def test_provider_catalog_collector_extracts_officemag_product_detail_terms() -> None:
@@ -1039,7 +1017,7 @@ def test_provider_catalog_collector_extracts_officemag_product_detail_terms() ->
     )
 
 
-def test_provider_catalog_collector_uses_browser_fallback_for_officemag_access_block(monkeypatch) -> None:
+def test_provider_catalog_collector_skips_officemag_browser_fallback_for_policy_blocked_search(monkeypatch) -> None:
     url = "https://www.officemag.ru/search/?q=folder"
     request = httpx.Request("GET", url)
     response = httpx.Response(
@@ -1048,32 +1026,13 @@ def test_provider_catalog_collector_uses_browser_fallback_for_officemag_access_b
         text="<html><body>Ваш браузер не смог пройти проверку.</body></html>",
     )
     browser_calls: list[tuple[str, str | None]] = []
-    html = """
-        <html>
-          <body>
-            <ul class="listItems">
-              <li class="listItem js-productListItem">
-                <a href="/catalog/goods/271846/">
-                  Папка на 2 кольцах, ПРОЧНАЯ, картон/<wbr/>ПВХ, BRAUBERG &laquo;Office&raquo;,
-                  ЧЕРНАЯ, 75 мм, до 500 листов, 271846
-                </a>
-                <div class="ProductSpecial__item js-ProductSpecialRow" data-count="3" data-price="458.45"></div>
-                <div class="ProductState ProductState--stepCount">
-                  <div class="ProductState">Мин. партия: 1.</div>
-                  <div class="ProductState">В упаковке: 12</div>
-                </div>
-              </li>
-            </ul>
-          </body>
-        </html>
-    """
 
     def blocked_fetch(fetch_url: str) -> str:
         raise httpx.HTTPStatusError("access_blocked HTTP 503", request=request, response=response)
 
     def fake_browser_fetch(fetch_url: str, *, provider: str | None = None) -> str:
         browser_calls.append((fetch_url, provider))
-        return html
+        return "<html><body>browser should not be used</body></html>"
 
     monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "1")
     monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", "officemag")
@@ -1097,11 +1056,11 @@ def test_provider_catalog_collector_uses_browser_fallback_for_officemag_access_b
         }
     )
 
-    assert browser_calls == [(url, "officemag")]
-    assert result["diagnostics"]["pages_fetched"] == 1
-    assert result["diagnostics"]["errors"] == []
-    assert result["candidates"][0]["unit_price"] == 458.45
-    assert result["candidates"][0]["provider"] == "officemag"
+    assert browser_calls == []
+    assert result["candidates"] == []
+    assert result["diagnostics"]["pages_fetched"] == 0
+    assert result["diagnostics"]["run_state"] == "skipped"
+    assert result["diagnostics"]["skip_reason"] == "public_search_fetch_not_allowed"
 
 
 def test_provider_catalog_collector_extracts_vseinstrumenti_visible_offer_without_schema_org() -> None:
@@ -1212,32 +1171,20 @@ def test_provider_catalog_collector_extracts_lemanapro_plp_products_with_strict_
           </body>
         </html>
     """
-    collector = price_discovery.ProviderCatalogCollector(
-        "lemanapro",
-        fetch_text=lambda url: html,
-        max_product_pages=0,
+    collector = price_discovery.ProviderCatalogCollector("lemanapro", max_product_pages=0)
+    raw_candidates = collector._schema_candidates(
+        html,
+        "https://lemanapro.ru/catalogue/cement/",
+        "Азия Цемент M500 50 кг",
+        "catalog_hint",
+    )
+    candidates, rejected_count, _rejection_samples = price_discovery._provider_catalog_candidates_matching_query(
+        raw_candidates,
+        "Азия Цемент M500 50 кг",
     )
 
-    result = collector.collect_with_diagnostics(
-        {
-            "query": "Азия Цемент M500 50 кг",
-            "kind": "catalog_hint",
-            "quick_links": [
-                {
-                    "label": "Лемана ПРО",
-                    "url": "https://lemanapro.ru/catalogue/cement/",
-                    "provider": "lemanapro",
-                    "link_kind": "catalog_search",
-                    "preset_id": "lemanapro_building_materials",
-                }
-            ],
-        }
-    )
-
-    assert result["diagnostics"]["pages_fetched"] == 1
-    assert result["diagnostics"]["candidates_found"] == 1
-    assert result["diagnostics"]["candidates_rejected_by_intent"] == 1
-    assert result["candidates"] == [
+    assert rejected_count == 1
+    assert candidates == [
         {
             "name": "Цемент Азия Цемент M500 ЦЕМ II А-П 42.5 Н 50 кг",
             "url": "https://lemanapro.ru/product/cement-aziya-cement-m500-50-kg-85606184/",
@@ -1280,32 +1227,15 @@ def test_provider_catalog_collector_skips_lemanapro_plp_items_without_product_li
           </body>
         </html>
     """
-    collector = price_discovery.ProviderCatalogCollector(
-        "lemanapro",
-        fetch_text=lambda url: html,
-        max_product_pages=0,
+    collector = price_discovery.ProviderCatalogCollector("lemanapro", max_product_pages=0)
+    candidates = collector._schema_candidates(
+        html,
+        "https://lemanapro.ru/search/?q=cement+m500+50+kg",
+        "Cement Asia Cement M500 50 kg",
+        "catalog_hint",
     )
 
-    result = collector.collect_with_diagnostics(
-        {
-            "query": "Cement Asia Cement M500 50 kg",
-            "kind": "catalog_hint",
-            "quick_links": [
-                {
-                    "label": "Lemana Pro",
-                    "url": "https://lemanapro.ru/search/?q=cement+m500+50+kg",
-                    "provider": "lemanapro",
-                    "link_kind": "catalog_search",
-                    "preset_id": "lemanapro_building_materials",
-                }
-            ],
-        }
-    )
-
-    assert result["diagnostics"]["pages_fetched"] == 1
-    assert result["diagnostics"]["candidates_found"] == 0
-    assert "candidates_rejected_by_intent" not in result["diagnostics"]
-    assert result["candidates"] == []
+    assert candidates == []
 
 
 def test_provider_catalog_collector_extracts_lemanapro_visible_catalog_cards() -> None:
@@ -1332,46 +1262,34 @@ def test_provider_catalog_collector_extracts_lemanapro_visible_catalog_cards() -
           </body>
         </html>
     """
-    collector = price_discovery.ProviderCatalogCollector(
-        "lemanapro",
-        fetch_text=lambda url: html,
-        max_product_pages=0,
+    collector = price_discovery.ProviderCatalogCollector("lemanapro", max_product_pages=0)
+    raw_candidates = collector._schema_candidates(
+        html,
+        "https://lemanapro.ru/search/?q=homut+rexant+300+100",
+        "хомут rexant (07-0301) nylon 4.0х300(3,5x300) мм 100 шт black",
+        "catalog_hint",
+    )
+    candidates, rejected_count, rejection_samples = price_discovery._provider_catalog_candidates_matching_query(
+        raw_candidates,
+        "хомут rexant (07-0301) nylon 4.0х300(3,5x300) мм 100 шт black",
     )
 
-    result = collector.collect_with_diagnostics(
-        {
-            "query": "хомут rexant (07-0301) nylon 4.0х300(3,5x300) мм 100 шт black",
-            "kind": "catalog_hint",
-            "quick_links": [
-                {
-                    "label": "Лемана ПРО",
-                    "url": "https://lemanapro.ru/search/?q=homut+rexant+300+100",
-                    "provider": "lemanapro",
-                    "link_kind": "catalog_search",
-                    "preset_id": "lemanapro_building_materials",
-                }
-            ],
-        }
-    )
-
-    assert result["diagnostics"]["pages_fetched"] == 1
-    assert result["diagnostics"]["candidates_found"] == 1
-    assert result["diagnostics"]["candidates_rejected_by_intent"] == 1
-    assert result["diagnostics"]["intent_rejection_samples"] == [
+    assert rejected_count == 1
+    assert rejection_samples == [
         {
             "name": "Хомут стяжка Standers атмосферостойкий нейлон 200x4.8 мм 80 шт.",
             "url": "https://lemanapro.ru/product/homut-styazhka-standers-200x48-mm-80-sht-14366716/",
             "reasons": ["dimension_mismatch", "piece_pack_count_mismatch"],
         }
     ]
-    assert result["candidates"][0]["name"] == (
+    assert candidates[0]["name"] == (
         "Кабельная стяжка Защита Про WT-35300-B 3.5x300 мм нейлон цвет черный 100 шт."
     )
-    assert result["candidates"][0]["url"] == (
+    assert candidates[0]["url"] == (
         "https://lemanapro.ru/product/kabelnaya-styazhka-zashchita-pro-wt-35300-w-35x300-mm-88328351/"
     )
-    assert result["candidates"][0]["unit_price"] == 556.0
-    assert result["candidates"][0]["provider"] == "lemanapro"
+    assert candidates[0]["unit_price"] == 556.0
+    assert candidates[0]["provider"] == "lemanapro"
 
 
 def test_provider_catalog_collector_matches_lemanapro_plp_characteristics_before_rejecting() -> None:
@@ -1406,31 +1324,20 @@ def test_provider_catalog_collector_matches_lemanapro_plp_characteristics_before
           </body>
         </html>
     """
-    collector = price_discovery.ProviderCatalogCollector(
-        "lemanapro",
-        fetch_text=lambda url: html,
-        max_product_pages=0,
+    collector = price_discovery.ProviderCatalogCollector("lemanapro", max_product_pages=0)
+    raw_candidates = collector._schema_candidates(
+        html,
+        "https://lemanapro.ru/search/?q=homut+rexant+300+100",
+        "хомут rexant (07-0301) nylon 4.0х300(3,5x300) мм 100 шт black",
+        "catalog_hint",
+    )
+    candidates, rejected_count, _rejection_samples = price_discovery._provider_catalog_candidates_matching_query(
+        raw_candidates,
+        "хомут rexant (07-0301) nylon 4.0х300(3,5x300) мм 100 шт black",
     )
 
-    result = collector.collect_with_diagnostics(
-        {
-            "query": "хомут rexant (07-0301) nylon 4.0х300(3,5x300) мм 100 шт black",
-            "kind": "catalog_hint",
-            "quick_links": [
-                {
-                    "label": "Лемана ПРО",
-                    "url": "https://lemanapro.ru/search/?q=homut+rexant+300+100",
-                    "provider": "lemanapro",
-                    "link_kind": "catalog_search",
-                    "preset_id": "lemanapro_building_materials",
-                }
-            ],
-        }
-    )
-
-    assert result["diagnostics"]["candidates_found"] == 1
-    assert "candidates_rejected_by_intent" not in result["diagnostics"]
-    assert result["candidates"][0]["product_attributes"] == [
+    assert rejected_count == 0
+    assert candidates[0]["product_attributes"] == [
         {"name": "Размер (мм)", "value": "3.5x300"},
         {"name": "Количество в упаковке", "value": "100"},
         {"name": "Материал", "value": "нейлон"},
@@ -1563,59 +1470,31 @@ def test_provider_catalog_collector_rejects_vseinstrumenti_schema_org_product_mi
 
 
 def test_provider_catalog_collector_extracts_komus_visible_offer_without_schema_org() -> None:
-    pages = {
-        "https://www.komus.ru/search/?text=office+paper+a4": """
-            <html>
-              <body>
-                <a href="/katalog/posuda-i-tekstil/bumaga-dlya-vypechki/pergament-komus/p/1050505/">
-                  Paper Komus 500 sheets
-                </a>
-              </body>
-            </html>
-        """,
-        "https://www.komus.ru/katalog/posuda-i-tekstil/bumaga-dlya-vypechki/pergament-komus/p/1050505/": """
-            <html>
-              <body>
-                <h1>Paper Komus 500 sheets</h1>
-                <p>Доставка завтра</p>
-                <p>2,76 ₽ /шт.</p>
-                <p>138 ₽ от 1 уп.</p>
-              </body>
-            </html>
-        """,
-    }
-    calls: list[str] = []
-    collector = price_discovery.ProviderCatalogCollector(
-        "komus",
-        fetch_text=lambda url: calls.append(url) or pages.get(url, "<html></html>"),
+    product_url = "https://www.komus.ru/katalog/posuda-i-tekstil/bumaga-dlya-vypechki/pergament-komus/p/1050505/"
+    html = """
+        <html>
+          <body>
+            <h1>Paper Komus 500 sheets</h1>
+            <p>Доставка завтра</p>
+            <p>2,76 ₽ /шт.</p>
+            <p>138 ₽ от 1 уп.</p>
+          </body>
+        </html>
+    """
+    collector = price_discovery.ProviderCatalogCollector("komus")
+    candidates = collector._schema_candidates(
+        html,
+        product_url,
+        "office paper a4",
+        price_discovery.MANUAL_PRODUCT_LINK_KIND,
     )
 
-    result = collector.collect_with_diagnostics(
-        {
-            "query": "office paper a4",
-            "kind": "normalized_name",
-            "quick_links": [
-                {
-                    "label": "Komus",
-                    "url": "https://www.komus.ru/search/?text=office+paper+a4",
-                    "provider": "komus",
-                    "link_kind": "catalog_search",
-                    "preset_id": "komus_office_supplies",
-                }
-            ],
-        }
-    )
-
-    assert calls == [
-        "https://www.komus.ru/search/?text=office+paper+a4",
-        "https://www.komus.ru/katalog/posuda-i-tekstil/bumaga-dlya-vypechki/pergament-komus/p/1050505/",
-    ]
-    assert result["diagnostics"]["candidates_found"] == 1
-    assert result["candidates"][0]["name"] == "Paper Komus 500 sheets"
-    assert result["candidates"][0]["unit_price"] == 2.76
-    assert result["candidates"][0]["currency"] == "RUB"
-    assert result["candidates"][0]["availability"] == "in_stock"
-    assert result["candidates"][0]["provider"] == "komus"
+    assert len(candidates) == 1
+    assert candidates[0]["name"] == "Paper Komus 500 sheets"
+    assert candidates[0]["unit_price"] == 2.76
+    assert candidates[0]["currency"] == "RUB"
+    assert candidates[0]["availability"] == "in_stock"
+    assert candidates[0]["provider"] == "komus"
 
 
 def test_provider_catalog_collector_extracts_petrovich_visible_offer_without_schema_org() -> None:

@@ -11,6 +11,39 @@ const SUPPLIER_CATALOG_DASHBOARD_FALLBACKS = [
   { preset_id: 'lemanapro_building_materials', label: 'Lemana Pro', provider: 'lemanapro' },
 ]
 
+const SUPPLIER_CATALOG_PROVIDER_POLICY = {
+  officemag: {
+    search_mode: 'manual_only',
+    small_tender_active_search: false,
+    recommended_flow: 'quick links/manual URL',
+    operator_note: 'Quick links или вручную выбранная публичная карточка товара.',
+  },
+  komus: {
+    search_mode: 'manual_only',
+    small_tender_active_search: false,
+    recommended_flow: 'quick links/feed/КП',
+    operator_note: 'Quick links, прайс/feed или коммерческое предложение.',
+  },
+  petrovich: {
+    search_mode: 'active_small_search',
+    small_tender_active_search: true,
+    recommended_flow: 'limited search/manual URL',
+    operator_note: 'Активный поиск только для закупок до 5 позиций.',
+  },
+  vseinstrumenti: {
+    search_mode: 'active_small_search',
+    small_tender_active_search: true,
+    recommended_flow: 'limited search/manual URL',
+    operator_note: 'Активный поиск только для закупок до 5 позиций.',
+  },
+  lemanapro: {
+    search_mode: 'manual_only',
+    small_tender_active_search: false,
+    recommended_flow: 'quick links/manual URL',
+    operator_note: 'Quick links или вручную выбранная публичная карточка товара.',
+  },
+}
+
 function Metric({ label, value, tone }) {
   return (
     <div className={`metric ${tone || ''}`}>
@@ -508,7 +541,7 @@ function SupplierCatalogStatusPanel({ catalogHealth, error, loading, onRefresh }
 }
 
 function mergeSupplierCatalogDashboardFallbacks(catalogs) {
-  const merged = [...catalogs]
+  const merged = catalogs.map(enrichSupplierCatalogPolicy)
   const seen = new Set()
   merged.forEach((catalog) => {
     const catalogKeys = [catalog.preset_id, catalog.provider]
@@ -519,15 +552,28 @@ function mergeSupplierCatalogDashboardFallbacks(catalogs) {
   for (const fallback of SUPPLIER_CATALOG_DASHBOARD_FALLBACKS) {
     const keys = [fallback.preset_id, fallback.provider].map((value) => value.toLowerCase())
     if (keys.some((key) => seen.has(key))) continue
-    merged.push({
+    merged.push(enrichSupplierCatalogPolicy({
       ...fallback,
       status: 'configured',
       connection_state: 'configured',
       access_mode: 'configured',
-    })
+    }))
     keys.forEach((key) => seen.add(key))
   }
   return merged
+}
+
+function enrichSupplierCatalogPolicy(catalog) {
+  const provider = (catalog.provider || '').toString().toLowerCase()
+  const policy = SUPPLIER_CATALOG_PROVIDER_POLICY[provider] || {}
+  return {
+    ...policy,
+    ...catalog,
+    search_mode: catalog.search_mode || policy.search_mode,
+    small_tender_active_search: catalog.small_tender_active_search ?? policy.small_tender_active_search,
+    recommended_flow: catalog.recommended_flow || policy.recommended_flow,
+    operator_note: catalog.operator_note || policy.operator_note,
+  }
 }
 
 function catalogSummaryText(catalogs, error, loading) {
@@ -537,24 +583,29 @@ function catalogSummaryText(catalogs, error, loading) {
   if (error) {
     return 'API ошибка'
   }
-  const failed = catalogs.filter((catalog) => {
-    const state = catalog.connection_state || catalog.status || 'configured'
-    return ['blocked', 'captcha', 'timeout', 'no_cards', 'parser_broken', 'network_error'].includes(state) || catalog.status === 'error'
-  }).length
+  const activeCatalogs = catalogs.filter(isCatalogActiveSmallSearch)
+  const manualOnly = catalogs.filter(isCatalogManualOnly).length
+  const failed = activeCatalogs.filter(isCatalogProblem).length
   if (failed) {
-    return `${failed} проблем из ${catalogs.length}`
+    return manualOnly ? `${failed} активн. проблем · ${manualOnly} вручную` : `${failed} активн. проблем`
   }
-  const ready = catalogs.filter((catalog) => (catalog.connection_state || catalog.status) === 'reachable' || catalog.status === 'ok').length
-  return ready ? `${ready}/${catalogs.length} ok` : `${catalogs.length} настроено`
+  const ready = activeCatalogs.filter(isCatalogReady).length
+  if (activeCatalogs.length) {
+    return manualOnly ? `${ready}/${activeCatalogs.length} авто · ${manualOnly} вручную` : `${ready}/${activeCatalogs.length} авто`
+  }
+  return manualOnly ? `${manualOnly} вручную` : `${catalogs.length} настроено`
 }
 
 function SupplierCatalogStatusRow({ catalog }) {
-  const state = catalog.connection_state || catalog.status || 'configured'
-  const tone = state === 'reachable' || catalog.status === 'ok'
+  const manualOnly = isCatalogManualOnly(catalog)
+  const tone = manualOnly
+    ? 'idle'
+    : isCatalogReady(catalog)
     ? 'good'
-    : ['blocked', 'captcha', 'timeout', 'no_cards', 'parser_broken', 'network_error'].includes(state)
+    : isCatalogProblem(catalog)
       ? 'danger'
       : 'idle'
+  const detailMessage = supplierCatalogDetailMessage(catalog)
   return (
     <div className={`source-status-row ${tone}`}>
       <span className="source-status-dot" />
@@ -564,23 +615,45 @@ function SupplierCatalogStatusRow({ catalog }) {
           <span>{supplierCatalogStatusText(catalog)}</span>
         </div>
         <div className="source-status-meta">
-          <span>{state}</span>
-          {catalog.access_mode && <span>{catalog.access_mode}</span>}
-          {catalog.http_status && <span>HTTP {catalog.http_status}</span>}
-          {catalog.error_kind && <span>{catalog.error_kind}</span>}
-          {(catalog.browser_error || catalog.error || catalog.body_preview) && (
-            <span className="source-status-message">{catalog.browser_error || catalog.error || catalog.body_preview}</span>
-          )}
+          <span>{supplierCatalogStateLabel(catalog)}</span>
+          {manualOnly && catalog.recommended_flow && <span>{catalog.recommended_flow}</span>}
+          {!manualOnly && catalog.http_status && <span>HTTP {catalog.http_status}</span>}
+          {!manualOnly && catalog.error_kind && <span>{supplierCatalogErrorKindLabel(catalog.error_kind)}</span>}
+          {detailMessage && <span className="source-status-message">{detailMessage}</span>}
         </div>
       </div>
     </div>
   )
 }
 
+function isCatalogActiveSmallSearch(catalog) {
+  return catalog.small_tender_active_search === true || catalog.search_mode === 'active_small_search'
+}
+
+function isCatalogManualOnly(catalog) {
+  return catalog.small_tender_active_search === false
+    || catalog.search_mode === 'manual_only'
+    || catalog.connection_state === 'manual_only'
+    || catalog.status === 'manual_only'
+}
+
+function isCatalogReady(catalog) {
+  const state = catalog.connection_state || catalog.status || 'configured'
+  return state === 'reachable' || catalog.status === 'ok'
+}
+
+function isCatalogProblem(catalog) {
+  const state = catalog.connection_state || catalog.status || 'configured'
+  return ['blocked', 'captcha', 'timeout', 'no_cards', 'parser_broken', 'network_error'].includes(state) || catalog.status === 'error'
+}
+
 function supplierCatalogStatusText(catalog) {
   const state = catalog.connection_state || catalog.status || 'configured'
+  if (isCatalogManualOnly(catalog)) {
+    return 'вручную'
+  }
   if (state === 'reachable' || catalog.status === 'ok') {
-    return catalog.access_mode === 'browser' ? 'browser ok' : 'ok'
+    return 'ok'
   }
   if (state === 'captcha') {
     return 'капча'
@@ -600,5 +673,39 @@ function supplierCatalogStatusText(catalog) {
   if (catalog.status === 'error') {
     return 'ошибка'
   }
-  return 'настроен'
+  return isCatalogActiveSmallSearch(catalog) ? 'автопоиск' : 'настроен'
+}
+
+function supplierCatalogStateLabel(catalog) {
+  const state = catalog.connection_state || catalog.status || 'configured'
+  if (isCatalogManualOnly(catalog)) {
+    return 'ручной режим'
+  }
+  if (state === 'reachable') {
+    return `автопоиск до ${catalog.max_active_positions || 5}`
+  }
+  if (state === 'configured') {
+    return isCatalogActiveSmallSearch(catalog) ? `автопоиск до ${catalog.max_active_positions || 5}` : 'настроен'
+  }
+  if (state === 'blocked') return 'блокировка'
+  if (state === 'captcha') return 'капча'
+  if (state === 'timeout') return 'таймаут'
+  if (state === 'no_cards') return 'нет карточек'
+  if (state === 'parser_broken') return 'парсер'
+  if (state === 'network_error') return 'сеть'
+  return state
+}
+
+function supplierCatalogErrorKindLabel(errorKind) {
+  if (errorKind === 'access_blocked') return 'доступ закрыт'
+  if (errorKind === 'network_error') return 'сеть'
+  if (errorKind === 'http_error') return 'HTTP'
+  return errorKind
+}
+
+function supplierCatalogDetailMessage(catalog) {
+  if (isCatalogManualOnly(catalog)) {
+    return catalog.operator_note || ''
+  }
+  return catalog.error || catalog.body_preview || ''
 }
