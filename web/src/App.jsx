@@ -37,6 +37,7 @@ import {
 } from './constants'
 
 const THEME_STORAGE_KEY = 'tender-killer-theme'
+const DASHBOARD_RETRY_MS = 5000
 
 function initialTheme() {
   if (typeof window === 'undefined') return 'light'
@@ -80,6 +81,16 @@ function App() {
   useEffect(() => {
     loadDashboardQueues(appliedFilters)
   }, [appliedFilters])
+
+  useEffect(() => {
+    if (view !== 'dashboard') return undefined
+    if (!error && !dashboardQueueError) return undefined
+    const retry = window.setInterval(() => {
+      loadTenders(appliedFilters, pageOffset)
+      loadDashboardQueues(appliedFilters)
+    }, DASHBOARD_RETRY_MS)
+    return () => window.clearInterval(retry)
+  }, [view, error, dashboardQueueError, appliedFilters, pageOffset, pageLimit])
 
   useEffect(() => {
     loadSourceStatus()

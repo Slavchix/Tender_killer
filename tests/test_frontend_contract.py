@@ -201,6 +201,19 @@ def test_frontend_uses_dedicated_dashboard_module():
     assert find_mojibake(dashboard_source, DASHBOARD_SOURCE) == []
 
 
+def test_dashboard_api_errors_retry_after_backend_recovers():
+    app_source = APP_SOURCE.read_text(encoding="utf-8")
+
+    assert "const DASHBOARD_RETRY_MS = 5000" in app_source
+    assert "if (view !== 'dashboard') return undefined" in app_source
+    assert "if (!error && !dashboardQueueError) return undefined" in app_source
+    assert "const retry = window.setInterval(() => {" in app_source
+    assert "loadTenders(appliedFilters, pageOffset)" in app_source
+    assert "loadDashboardQueues(appliedFilters)" in app_source
+    assert "return () => window.clearInterval(retry)" in app_source
+    assert "}, [view, error, dashboardQueueError, appliedFilters, pageOffset, pageLimit])" in app_source
+
+
 def test_frontend_uses_dedicated_database_view_module():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     database_view_source = (
