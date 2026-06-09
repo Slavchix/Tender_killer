@@ -87,6 +87,28 @@ def test_supplier_catalog_presets_route_abrasive_paper_away_from_office_catalogs
     assert [preset["provider"] for preset in presets] == ["vseinstrumenti", "lemanapro"]
 
 
+def test_supplier_catalog_presets_route_pipe_fittings_to_diy_catalogs() -> None:
+    pipe_presets = supplier_catalog_presets_for_profile(
+        {
+            "product_name": "\u0424\u043b\u0430\u043d\u0435\u0446 \u0441\u0442\u0430\u043b\u044c\u043d\u043e\u0439 \u0414\u0423 80",
+            "normalized_name": "\u0444\u043b\u0430\u043d\u0435\u0446 \u0441\u0442\u0430\u043b\u044c\u043d\u043e\u0439 \u0434\u0443 80",
+            "search_phrases": [
+                "\u0410\u0440\u043c\u0430\u0442\u0443\u0440\u0430 (\u043a\u0440\u0430\u043d\u044b, \u043a\u043b\u0430\u043f\u0430\u043d\u044b) \u0434\u043b\u044f \u0442\u0440\u0443\u0431\u043e\u043f\u0440\u043e\u0432\u043e\u0434\u043e\u0432"
+            ],
+        }
+    )
+    fastener_presets = supplier_catalog_presets_for_profile(
+        {
+            "product_name": "\u0411\u043e\u043b\u0442 \u0441\u0442\u0430\u043b\u044c\u043d\u043e\u0439 \u0448\u0435\u0441\u0442\u0438\u0433\u0440\u0430\u043d\u043d\u044b\u0439 \u041c16\u044580 \u0413\u041e\u0421\u0422 7798-70",
+            "normalized_name": "\u0431\u043e\u043b\u0442 \u0441\u0442\u0430\u043b\u044c\u043d\u043e\u0439 \u0448\u0435\u0441\u0442\u0438\u0433\u0440\u0430\u043d\u043d\u044b\u0439 \u043c16\u044580 \u0433\u043e\u0441\u0442 7798-70",
+            "search_phrases": ["\u0411\u043e\u043b\u0442\u044b \u0438 \u0432\u0438\u043d\u0442\u044b \u0438\u0437 \u0447\u0435\u0440\u043d\u044b\u0445 \u043c\u0435\u0442\u0430\u043b\u043b\u043e\u0432"],
+        }
+    )
+
+    assert [preset["provider"] for preset in pipe_presets] == ["vseinstrumenti", "lemanapro"]
+    assert [preset["provider"] for preset in fastener_presets] == ["vseinstrumenti", "lemanapro"]
+
+
 def test_supplier_catalog_presets_match_real_russian_office_paper_without_okpd2() -> None:
     presets = supplier_catalog_presets_for_profile(
         {

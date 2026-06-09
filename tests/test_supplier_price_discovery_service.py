@@ -242,6 +242,55 @@ def test_provider_catalog_collector_follows_matching_catalog_product_links() -> 
     ]
 
 
+def test_provider_catalog_collector_stops_after_access_blocked_body() -> None:
+    calls: list[str] = []
+    blocked_html = """
+        <html>
+          <body>
+            <h1>Forbidden</h1>
+            <p>If you are not a bot, please copy the report and send it to our support team.</p>
+            <p>Origin: https://www.vseinstrumenti.ru</p>
+          </body>
+        </html>
+    """
+    collector = price_discovery.ProviderCatalogCollector(
+        "vseinstrumenti",
+        fetch_text=lambda url: calls.append(url) or blocked_html,
+    )
+
+    result = collector.collect_with_diagnostics(
+        {
+            "query": "профиль пвх",
+            "kind": "normalized_name",
+            "quick_links": [
+                {
+                    "label": "ВсеИнструменты 1",
+                    "url": "https://www.vseinstrumenti.ru/search/?what=profile",
+                    "provider": "vseinstrumenti",
+                    "link_kind": "catalog_search",
+                },
+                {
+                    "label": "ВсеИнструменты 2",
+                    "url": "https://www.vseinstrumenti.ru/search/?what=profile+pvh",
+                    "provider": "vseinstrumenti",
+                    "link_kind": "catalog_search",
+                },
+            ],
+        }
+    )
+
+    assert calls == ["https://www.vseinstrumenti.ru/search/?what=profile"]
+    assert result["candidates"] == []
+    assert result["diagnostics"]["run_state"] == "blocked"
+    assert result["diagnostics"]["error_kind"] == "access_blocked"
+    assert result["diagnostics"]["skip_reason"] == "access_blocked"
+    assert result["diagnostics"]["links_skipped"] == 1
+    assert result["diagnostics"]["pages_fetched"] == 0
+    assert result["diagnostics"]["errors"] == [
+        "access_blocked body from https://www.vseinstrumenti.ru/search/?what=profile"
+    ]
+
+
 def test_provider_catalog_collector_extracts_officemag_visible_offer_without_schema_org() -> None:
     pages = {
         "https://www.officemag.ru/search/?q=office+paper+a4": """
@@ -1814,6 +1863,47 @@ def test_relevant_catalog_collectors_ignore_stale_query_links_when_profile_route
     assert diagnostics["catalog_officemag"]["skip_reason"] == "not_relevant_for_profile"
 
 
+def test_refreshed_supplier_search_queries_enrich_stale_pipe_queries_with_catalog_links() -> None:
+    profile = {
+        "product_name": "\u0424\u043b\u0430\u043d\u0435\u0446 \u0441\u0442\u0430\u043b\u044c\u043d\u043e\u0439 \u0414\u0423 80",
+        "normalized_name": "\u0444\u043b\u0430\u043d\u0435\u0446 \u0441\u0442\u0430\u043b\u044c\u043d\u043e\u0439 \u0434\u0443 80",
+        "search_phrases": [
+            "\u0410\u0440\u043c\u0430\u0442\u0443\u0440\u0430 (\u043a\u0440\u0430\u043d\u044b, \u043a\u043b\u0430\u043f\u0430\u043d\u044b) \u0434\u043b\u044f \u0442\u0440\u0443\u0431\u043e\u043f\u0440\u043e\u0432\u043e\u0434\u043e\u0432"
+        ],
+    }
+    stale_raw_payload = {
+        "supplier_search": {
+            "status": "ready",
+            "queries": [
+                {
+                    "query": "\u0444\u043b\u0430\u043d\u0435\u0446 \u0441\u0442\u0430\u043b\u044c\u043d\u043e\u0439 \u0434\u0443 80",
+                    "kind": "normalized_name",
+                    "priority": 1,
+                    "quick_links": [
+                        {
+                            "label": "Google",
+                            "url": "https://www.google.com/search?q=%D1%84%D0%BB%D0%B0%D0%BD%D0%B5%D1%86",
+                        },
+                        {
+                            "label": "Yandex",
+                            "url": "https://yandex.ru/search/?text=%D1%84%D0%BB%D0%B0%D0%BD%D0%B5%D1%86",
+                        },
+                    ],
+                }
+            ],
+        }
+    }
+
+    queries = price_discovery._refreshed_supplier_search_queries(profile, stale_raw_payload)
+
+    providers = [
+        link.get("provider")
+        for link in queries[0]["quick_links"]
+        if link.get("link_kind") == "catalog_search"
+    ]
+    assert providers == ["vseinstrumenti", "lemanapro"]
+
+
 def test_relevant_catalog_collectors_route_cable_accessories_without_catalog_links() -> None:
     class OfficeCatalogCollector:
         provider = "catalog_officemag"
@@ -3161,6 +3251,198 @@ def test_run_profile_supplier_price_discovery_records_diagnostics_without_candid
         ],
         "candidates": [],
     }
+
+
+def test_run_profile_supplier_price_discovery_skips_blocked_provider_after_first_query() -> None:
+    database_path = Path("pytest_tmp_supplier_blocked_provider") / "tenders.sqlite"
+    database_path.parent.mkdir(exist_ok=True)
+    if database_path.exists():
+        database_path.unlink()
+    store = TenderStore(database_path)
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-discovery-blocked-provider",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-discovery-blocked-provider",
+            title="Blocked provider tender",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-discovery-blocked-provider",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-blocked-provider",
+                position_index=1,
+                product_name="PVC profile",
+                raw_payload={
+                    "supplier_search": {
+                        "status": "ready",
+                        "queries": [
+                            {
+                                "query": "pvc profile",
+                                "kind": "normalized_name",
+                                "priority": 1,
+                                "quick_links": [
+                                    {
+                                        "label": "Supplier",
+                                        "url": "https://supplier.example/search?q=pvc+profile",
+                                    },
+                                ],
+                            },
+                            {
+                                "query": "profile polymer",
+                                "kind": "catalog_hint",
+                                "priority": 2,
+                                "quick_links": [
+                                    {
+                                        "label": "Supplier",
+                                        "url": "https://supplier.example/search?q=profile+polymer",
+                                    },
+                                ],
+                            },
+                        ],
+                    }
+                },
+            )
+        ],
+    )
+    calls: list[str] = []
+
+    class BlockedCollector:
+        provider = "blocked_public_catalog"
+
+        def collect_with_diagnostics(self, query):
+            calls.append(query["query"])
+            return {
+                "candidates": [],
+                "diagnostics": {
+                    "provider": self.provider,
+                    "queries_seen": 1,
+                    "links_seen": 1,
+                    "links_skipped": 0,
+                    "pages_fetched": 0,
+                    "candidates_found": 0,
+                    "errors": ["access_blocked body from https://supplier.example/search?q=pvc+profile"],
+                    "error_kind": "access_blocked",
+                    "run_state": "blocked",
+                    "skip_reason": "access_blocked",
+                },
+            }
+
+    with pytest.raises(ValueError, match=price_discovery.NO_SUPPLIER_CANDIDATES_MESSAGE):
+        run_profile_supplier_price_discovery(
+            store.database_path,
+            "mosreg_market",
+            "supplier-price-discovery-blocked-provider",
+            1,
+            collectors=[BlockedCollector()],
+        )
+
+    assert calls == ["pvc profile"]
+    detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-price-discovery-blocked-provider")
+    diagnostics = detail["product_profiles"][0]["raw_payload"]["supplier_discovery"]["collector_diagnostics"]
+    assert diagnostics == [
+        {
+            "provider": "blocked_public_catalog",
+            "queries_seen": 1,
+            "links_seen": 1,
+            "links_skipped": 0,
+            "pages_fetched": 0,
+            "candidates_found": 0,
+            "errors": ["access_blocked body from https://supplier.example/search?q=pvc+profile"],
+            "run_state": "blocked",
+            "skip_reason": "access_blocked",
+            "error_kind": "access_blocked",
+        }
+    ]
+
+
+def test_run_tender_supplier_price_discovery_skips_blocked_provider_across_positions() -> None:
+    database_path = Path("pytest_tmp_supplier_blocked_tender") / "tenders.sqlite"
+    database_path.parent.mkdir(exist_ok=True)
+    if database_path.exists():
+        database_path.unlink()
+    store = TenderStore(database_path)
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-price-discovery-blocked-tender",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-price-discovery-blocked-tender",
+            title="Blocked provider tender",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-price-discovery-blocked-tender",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-blocked-tender",
+                position_index=1,
+                product_name="PVC profile",
+                normalized_name="pvc profile",
+                quantity=10,
+                unit="pcs",
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-price-discovery-blocked-tender",
+                position_index=2,
+                product_name="Polymer panel",
+                normalized_name="polymer panel",
+                quantity=5,
+                unit="pcs",
+            ),
+        ],
+    )
+    calls: list[str] = []
+
+    class BlockedCollector:
+        provider = "blocked_public_catalog"
+
+        def collect_with_diagnostics(self, query):
+            calls.append(query["query"])
+            return {
+                "candidates": [],
+                "diagnostics": {
+                    "provider": self.provider,
+                    "queries_seen": 1,
+                    "links_seen": 1,
+                    "links_skipped": 0,
+                    "pages_fetched": 0,
+                    "candidates_found": 0,
+                    "errors": ["access_blocked body from https://supplier.example/search"],
+                    "error_kind": "access_blocked",
+                    "run_state": "blocked",
+                    "skip_reason": "access_blocked",
+                },
+            }
+
+    result = run_tender_supplier_price_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-price-discovery-blocked-tender",
+        collectors=[BlockedCollector()],
+        max_positions=10,
+    )
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-price-discovery-blocked-tender")
+    profiles = {profile["position_index"]: profile for profile in detail["product_profiles"]}
+    first_diagnostics = profiles[1]["raw_payload"]["supplier_discovery"]["collector_diagnostics"][0]
+    second_diagnostics = profiles[2]["raw_payload"]["supplier_discovery"]["collector_diagnostics"][0]
+    assert len(calls) == 1
+    assert result["searched_count"] == 2
+    assert result["no_candidates_count"] == 2
+    assert result["diagnostics_by_provider"][0]["queries_seen"] == 1
+    assert first_diagnostics["queries_seen"] == 1
+    assert first_diagnostics["error_kind"] == "access_blocked"
+    assert second_diagnostics["queries_seen"] == 0
+    assert second_diagnostics["run_state"] == "blocked"
+    assert second_diagnostics["error_kind"] == "access_blocked"
 
 
 def test_run_profile_supplier_price_discovery_prepares_missing_queries_from_profile_terms(tmp_path) -> None:

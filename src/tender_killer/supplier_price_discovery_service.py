@@ -32,8 +32,10 @@ from tender_killer.supplier_search_service import prepare_profile_supplier_searc
 SCHEMA_ORG_PRODUCT_PROVIDER = "schema_org_product"
 CATALOG_SEARCH_LINK_KIND = "catalog_search"
 MANUAL_PRODUCT_LINK_KIND = "manual_product_url"
+ACCESS_BLOCKED_ERROR_KIND = "access_blocked"
 BUILT_IN_CATALOG_PROVIDERS = tuple(str(preset["provider"]) for preset in SUPPLIER_CATALOG_PRESETS)
 BUILT_IN_CATALOG_PROVIDER_SET = {provider.casefold() for provider in BUILT_IN_CATALOG_PROVIDERS}
+ACCESS_BLOCKED_STATUS_CODES = {401, 403, 429, 503}
 SEARCH_ENGINE_HOSTS = ("google.", "yandex.")
 MAX_INTENT_REJECTION_SAMPLES = 5
 FetchText = Callable[[str], str]
@@ -157,7 +159,8 @@ class ProviderCatalogCollector:
         diagnostics["queries_seen"] = 1
         source_kind = _text(query.get("kind")) or "supplier_search"
         candidates: list[dict[str, Any]] = []
-        for link in _quick_links(query):
+        links = _quick_links(query)
+        for link_index, link in enumerate(links):
             diagnostics["links_seen"] += 1
             url = _text(link.get("url"))
             if not url or not _is_catalog_search_link_for_provider(link, self.catalog_provider):
@@ -169,8 +172,16 @@ class ProviderCatalogCollector:
             try:
                 html = self.fetch_text(url)
             except httpx.HTTPError as exc:
+                if _catalog_access_block_reason_from_error(exc):
+                    _mark_catalog_access_blocked(diagnostics, url, error=exc)
+                    _skip_remaining_links(diagnostics, links, link_index)
+                    break
                 diagnostics["errors"].append(str(exc))
                 continue
+            if _catalog_access_block_reason_from_body(html):
+                _mark_catalog_access_blocked(diagnostics, url)
+                _skip_remaining_links(diagnostics, links, link_index)
+                break
             diagnostics["pages_fetched"] += 1
 
             raw_page_candidates = self._schema_candidates(html, url, query_text, source_kind)
@@ -189,6 +200,7 @@ class ProviderCatalogCollector:
                 if (candidate_url := _text(candidate.get("url")))
             }
             product_source_pages = [(html, url)]
+            blocked = False
             if not page_candidates:
                 for fallback_url in _catalog_fallback_page_urls(html, url, self.catalog_provider):
                     fallback_url_key = fallback_url.casefold()
@@ -197,8 +209,18 @@ class ProviderCatalogCollector:
                     try:
                         fallback_html = self.fetch_text(fallback_url)
                     except httpx.HTTPError as exc:
+                        if _catalog_access_block_reason_from_error(exc):
+                            _mark_catalog_access_blocked(diagnostics, fallback_url, error=exc)
+                            _skip_remaining_links(diagnostics, links, link_index)
+                            blocked = True
+                            break
                         diagnostics["errors"].append(str(exc))
                         continue
+                    if _catalog_access_block_reason_from_body(fallback_html):
+                        _mark_catalog_access_blocked(diagnostics, fallback_url)
+                        _skip_remaining_links(diagnostics, links, link_index)
+                        blocked = True
+                        break
                     fetched_urls.add(fallback_url_key)
                     product_source_pages.append((fallback_html, fallback_url))
                     diagnostics["pages_fetched"] += 1
@@ -220,6 +242,8 @@ class ProviderCatalogCollector:
                         for candidate in fallback_candidates
                         if (candidate_url := _text(candidate.get("url")))
                     )
+            if blocked:
+                break
             followed_pages = 0
             for source_html, source_page_url in product_source_pages:
                 for product_url in _catalog_product_page_urls(source_html, source_page_url):
@@ -237,8 +261,18 @@ class ProviderCatalogCollector:
                     try:
                         product_html = self.fetch_text(product_url)
                     except httpx.HTTPError as exc:
+                        if _catalog_access_block_reason_from_error(exc):
+                            _mark_catalog_access_blocked(diagnostics, product_url, error=exc)
+                            _skip_remaining_links(diagnostics, links, link_index)
+                            blocked = True
+                            break
                         diagnostics["errors"].append(str(exc))
                         continue
+                    if _catalog_access_block_reason_from_body(product_html):
+                        _mark_catalog_access_blocked(diagnostics, product_url)
+                        _skip_remaining_links(diagnostics, links, link_index)
+                        blocked = True
+                        break
                     fetched_urls.add(product_url_key)
                     followed_pages += 1
                     diagnostics["pages_fetched"] += 1
@@ -250,8 +284,12 @@ class ProviderCatalogCollector:
                     _add_rejected_by_intent(diagnostics, rejected_count, rejection_samples)
                     diagnostics["candidates_found"] += len(product_candidates)
                     candidates.extend(product_candidates)
+                if blocked:
+                    break
                 if followed_pages >= self.max_product_pages:
                     break
+            if blocked:
+                break
         return {"candidates": candidates, "diagnostics": diagnostics}
 
     def _schema_candidates(
@@ -582,8 +620,16 @@ def _run_supplier_discovery_with_queries(
         diagnostics_by_provider,
         profile=target,
     )
+    blocked_providers: set[str] = set()
     for query in queries:
         for collector in price_collectors:
+            provider_name = _collector_provider_name(collector)
+            if provider_name in blocked_providers or _collector_is_access_blocked(collector):
+                _merge_diagnostics(
+                    diagnostics_by_provider,
+                    _blocked_collector_diagnostics(provider_name),
+                )
+                continue
             result = collector.collect_with_diagnostics(query)
             accepted_candidates: list[dict[str, Any]] = []
             rejected_by_intent = 0
@@ -614,6 +660,9 @@ def _run_supplier_discovery_with_queries(
             )
             if _diagnostics_has_signal(diagnostics):
                 _merge_diagnostics(diagnostics_by_provider, diagnostics)
+            if _diagnostics_is_access_blocked(diagnostics):
+                blocked_providers.add(provider_name)
+                _mark_collector_access_blocked(collector)
             candidates.extend(accepted_candidates)
     if not candidates:
         if diagnostics_by_provider:
@@ -808,6 +857,17 @@ def _collector_catalog_provider(collector: Any) -> str | None:
 
 def _collector_provider_name(collector: Any) -> str:
     return _text(getattr(collector, "provider", None)) or collector.__class__.__name__
+
+
+def _collector_is_access_blocked(collector: Any) -> bool:
+    return bool(getattr(collector, "_tender_killer_access_blocked", False))
+
+
+def _mark_collector_access_blocked(collector: Any) -> None:
+    try:
+        setattr(collector, "_tender_killer_access_blocked", True)
+    except Exception:
+        return
 
 
 def _candidate_matches_profile_intent(profile: dict[str, Any], candidate: dict[str, Any]) -> bool:
@@ -1013,16 +1073,57 @@ def _refreshed_supplier_search_queries(profile: dict[str, Any], raw_payload: dic
 
 def _unique_supplier_search_queries(queries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     unique: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    index_by_key: dict[str, int] = {}
     for query in queries:
         query_text = _text(query.get("query"))
         if not query_text:
             continue
         key = query_text.casefold()
+        if key in index_by_key:
+            unique[index_by_key[key]] = _merge_supplier_search_query(unique[index_by_key[key]], query)
+            continue
+        index_by_key[key] = len(unique)
+        unique.append(dict(query))
+    return unique
+
+
+def _merge_supplier_search_query(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(left)
+    if _has_direct_supplier_quick_link(left):
+        return merged
+    merged_links = _unique_quick_links([*_quick_links(left), *_quick_links(right)])
+    if merged_links:
+        merged["quick_links"] = merged_links
+    return merged
+
+
+def _has_direct_supplier_quick_link(query: dict[str, Any]) -> bool:
+    for link in _quick_links(query):
+        if _text(link.get("link_kind")) == CATALOG_SEARCH_LINK_KIND:
+            continue
+        url = _text(link.get("url"))
+        if url and _is_public_product_page_url(url):
+            return True
+    return False
+
+
+def _unique_quick_links(links: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    unique: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for link in links:
+        url = _text(link.get("url"))
+        if not url:
+            continue
+        key = (
+            url.casefold(),
+            _text(link.get("provider")) or "",
+            _text(link.get("link_kind")) or "",
+            _text(link.get("preset_id")) or "",
+        )
         if key in seen:
             continue
         seen.add(key)
-        unique.append(dict(query))
+        unique.append(dict(link))
     return unique
 
 
@@ -1088,6 +1189,78 @@ def _skipped_collector_diagnostics(provider: str, reason: str) -> dict[str, Any]
     return diagnostics
 
 
+def _blocked_collector_diagnostics(provider: str) -> dict[str, Any]:
+    diagnostics = _collector_diagnostics(provider)
+    diagnostics["run_state"] = "blocked"
+    diagnostics["skip_reason"] = ACCESS_BLOCKED_ERROR_KIND
+    diagnostics["error_kind"] = ACCESS_BLOCKED_ERROR_KIND
+    return diagnostics
+
+
+def _mark_catalog_access_blocked(
+    diagnostics: dict[str, Any],
+    url: str,
+    *,
+    error: BaseException | None = None,
+) -> None:
+    diagnostics["run_state"] = "blocked"
+    diagnostics["skip_reason"] = ACCESS_BLOCKED_ERROR_KIND
+    diagnostics["error_kind"] = ACCESS_BLOCKED_ERROR_KIND
+    if error is None:
+        diagnostics["errors"].append(f"{ACCESS_BLOCKED_ERROR_KIND} body from {url}")
+        return
+    diagnostics["errors"].append(f"{ACCESS_BLOCKED_ERROR_KIND} error from {url}: {error}")
+
+
+def _skip_remaining_links(diagnostics: dict[str, Any], links: list[dict[str, Any]], current_index: int) -> None:
+    diagnostics["links_skipped"] += max(0, len(links) - int(current_index) - 1)
+
+
+def _catalog_access_block_reason_from_error(exc: BaseException) -> str | None:
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if isinstance(status_code, int) and status_code in ACCESS_BLOCKED_STATUS_CODES:
+        return ACCESS_BLOCKED_ERROR_KIND
+    text = str(exc).casefold()
+    if any(
+        marker in text
+        for marker in (
+            ACCESS_BLOCKED_ERROR_KIND,
+            "forbidden",
+            "captcha",
+            "\u043a\u0430\u043f\u0447",
+            "browser check",
+            "\u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u0432\u0430\u0448\u0435\u0433\u043e \u0432\u0435\u0431-\u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430",
+            "\u043f\u0440\u043e\u0439\u0434\u0438\u0442\u0435 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0443",
+        )
+    ):
+        return ACCESS_BLOCKED_ERROR_KIND
+    return None
+
+
+def _catalog_access_block_reason_from_body(body: str) -> str | None:
+    text = re.sub(r"\s+", " ", str(body or "")).casefold()
+    if not text:
+        return None
+    if "if you are not a bot" in text:
+        return ACCESS_BLOCKED_ERROR_KIND
+    if "forbidden" in text and ("origin:" in text or "copy the report" in text):
+        return ACCESS_BLOCKED_ERROR_KIND
+    if any(
+        marker in text
+        for marker in (
+            "access denied",
+            "captcha",
+            "\u043a\u0430\u043f\u0447",
+            "browser check",
+            "\u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u0432\u0430\u0448\u0435\u0433\u043e \u0432\u0435\u0431-\u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430",
+            "\u043f\u0440\u043e\u0439\u0434\u0438\u0442\u0435 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0443",
+        )
+    ):
+        return ACCESS_BLOCKED_ERROR_KIND
+    return None
+
+
 def _merge_diagnostics(current: dict[str, dict[str, Any]], item: dict[str, Any]) -> None:
     provider = str(item.get("provider") or "unknown")
     target = current.setdefault(provider, _collector_diagnostics(provider))
@@ -1114,10 +1287,20 @@ def _merge_diagnostics(current: dict[str, dict[str, Any]], item: dict[str, Any])
         target["run_state"] = run_state
     if skip_reason := _text(item.get("skip_reason")):
         target["skip_reason"] = skip_reason
+    if error_kind := _text(item.get("error_kind")):
+        target["error_kind"] = error_kind
     for field in ("candidate_limit", "candidates_seen", "candidates_limited", "candidates_staged"):
         if field in item:
             target[field] = int(item.get(field) or 0)
     target["errors"].extend([str(error) for error in item.get("errors") or []])
+
+
+def _diagnostics_is_access_blocked(item: dict[str, Any]) -> bool:
+    if _text(item.get("error_kind")) == ACCESS_BLOCKED_ERROR_KIND:
+        return True
+    if _text(item.get("skip_reason")) == ACCESS_BLOCKED_ERROR_KIND:
+        return True
+    return any(_catalog_access_block_reason_from_error(RuntimeError(str(error))) for error in item.get("errors") or [])
 
 
 def _diagnostics_has_signal(item: dict[str, Any]) -> bool:
@@ -1126,7 +1309,9 @@ def _diagnostics_has_signal(item: dict[str, Any]) -> bool:
         or item.get("candidates_found")
         or item.get("candidates_rejected_by_intent")
         or item.get("run_state") == "skipped"
+        or item.get("run_state") == "blocked"
         or item.get("skip_reason")
+        or item.get("error_kind")
         or item.get("errors")
     )
 
