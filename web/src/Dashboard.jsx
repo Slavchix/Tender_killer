@@ -584,20 +584,22 @@ function catalogSummaryText(catalogs, error, loading) {
     return 'API ошибка'
   }
   const activeCatalogs = catalogs.filter(isCatalogActiveSmallSearch)
-  const manualOnly = catalogs.filter(isCatalogManualOnly).length
-  const failed = activeCatalogs.filter(isCatalogProblem).length
-  if (failed) {
-    return manualOnly ? `${failed} активн. проблем · ${manualOnly} вручную` : `${failed} активн. проблем`
-  }
   const ready = activeCatalogs.filter(isCatalogReady).length
-  if (activeCatalogs.length) {
-    return manualOnly ? `${ready}/${activeCatalogs.length} авто · ${manualOnly} вручную` : `${ready}/${activeCatalogs.length} авто`
+  const manualRoutes = catalogs.filter(isCatalogManualRoute).length
+  const pending = catalogs.filter((catalog) => !isCatalogReady(catalog) && !isCatalogManualRoute(catalog)).length
+  if (ready || manualRoutes || pending) {
+    const parts = []
+    if (ready) parts.push(`${ready} доступны`)
+    if (manualRoutes) parts.push(`${manualRoutes} ручной режим`)
+    if (pending) parts.push(`${pending} ждут проверки`)
+    return parts.join(' · ')
   }
-  return manualOnly ? `${manualOnly} вручную` : `${catalogs.length} настроено`
+  return catalogs.length ? `${catalogs.length} ждут проверки` : 'нет данных'
 }
 
 function SupplierCatalogStatusRow({ catalog }) {
   const manualOnly = isCatalogManualOnly(catalog)
+  const manualRoute = isCatalogManualRoute(catalog)
   const tone = manualOnly
     ? 'idle'
     : isCatalogReady(catalog)
@@ -616,9 +618,9 @@ function SupplierCatalogStatusRow({ catalog }) {
         </div>
         <div className="source-status-meta">
           <span>{supplierCatalogStateLabel(catalog)}</span>
-          {manualOnly && catalog.recommended_flow && <span>{catalog.recommended_flow}</span>}
-          {!manualOnly && catalog.http_status && <span>HTTP {catalog.http_status}</span>}
-          {!manualOnly && catalog.error_kind && <span>{supplierCatalogErrorKindLabel(catalog.error_kind)}</span>}
+          {manualRoute && catalog.recommended_flow && <span>{catalog.recommended_flow}</span>}
+          {catalog.http_status && <span>HTTP {catalog.http_status}</span>}
+          {catalog.error_kind && <span>{supplierCatalogErrorKindLabel(catalog.error_kind)}</span>}
           {detailMessage && <span className="source-status-message">{detailMessage}</span>}
         </div>
       </div>
@@ -637,6 +639,10 @@ function isCatalogManualOnly(catalog) {
     || catalog.status === 'manual_only'
 }
 
+function isCatalogManualRoute(catalog) {
+  return isCatalogManualOnly(catalog) || isCatalogProblem(catalog)
+}
+
 function isCatalogReady(catalog) {
   const state = catalog.connection_state || catalog.status || 'configured'
   return state === 'reachable' || catalog.status === 'ok'
@@ -650,30 +656,15 @@ function isCatalogProblem(catalog) {
 function supplierCatalogStatusText(catalog) {
   const state = catalog.connection_state || catalog.status || 'configured'
   if (isCatalogManualOnly(catalog)) {
-    return 'вручную'
+    return 'ручной режим'
   }
   if (state === 'reachable' || catalog.status === 'ok') {
-    return 'ok'
+    return 'доступен'
   }
-  if (state === 'captcha') {
-    return 'капча'
+  if (isCatalogProblem(catalog)) {
+    return 'ручной режим'
   }
-  if (state === 'blocked') {
-    return 'блокировка'
-  }
-  if (state === 'timeout') {
-    return 'таймаут'
-  }
-  if (state === 'no_cards') {
-    return 'нет карточек'
-  }
-  if (state === 'parser_broken') {
-    return 'проверить парсер'
-  }
-  if (catalog.status === 'error') {
-    return 'ошибка'
-  }
-  return isCatalogActiveSmallSearch(catalog) ? 'автопоиск' : 'настроен'
+  return isCatalogActiveSmallSearch(catalog) ? 'проверка' : 'настроен'
 }
 
 function supplierCatalogStateLabel(catalog) {
@@ -682,18 +673,26 @@ function supplierCatalogStateLabel(catalog) {
     return 'ручной режим'
   }
   if (state === 'reachable') {
-    return `автопоиск до ${catalog.max_active_positions || 5}`
+    return supplierCatalogPublicSearchLabel(catalog)
   }
   if (state === 'configured') {
-    return isCatalogActiveSmallSearch(catalog) ? `автопоиск до ${catalog.max_active_positions || 5}` : 'настроен'
+    return isCatalogActiveSmallSearch(catalog) ? 'ждет live-проверки' : 'настроен'
   }
-  if (state === 'blocked') return 'блокировка'
-  if (state === 'captcha') return 'капча'
-  if (state === 'timeout') return 'таймаут'
-  if (state === 'no_cards') return 'нет карточек'
-  if (state === 'parser_broken') return 'парсер'
-  if (state === 'network_error') return 'сеть'
+  if (state === 'blocked') return 'ручной режим: сайт блокирует авто'
+  if (state === 'captcha') return 'ручной режим: капча'
+  if (state === 'timeout') return 'ручной режим: сайт не ответил'
+  if (state === 'no_cards') return 'ручной режим: карточки не прочитались'
+  if (state === 'parser_broken') return 'проверить парсер'
+  if (state === 'network_error') return 'ручной режим: сеть'
   return state
+}
+
+function supplierCatalogPublicSearchLabel(catalog) {
+  const provider = (catalog.provider || '').toString().toLowerCase()
+  if (provider === 'officemag' || provider === 'komus') {
+    return 'публичный поиск офиски'
+  }
+  return 'публичный поиск доступен'
 }
 
 function supplierCatalogErrorKindLabel(errorKind) {
@@ -706,6 +705,9 @@ function supplierCatalogErrorKindLabel(errorKind) {
 function supplierCatalogDetailMessage(catalog) {
   if (isCatalogManualOnly(catalog)) {
     return catalog.operator_note || ''
+  }
+  if (isCatalogProblem(catalog)) {
+    return 'Используй quick link, manual URL, КП или прайс.'
   }
   return catalog.error || catalog.body_preview || ''
 }

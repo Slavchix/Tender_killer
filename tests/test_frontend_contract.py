@@ -2981,9 +2981,14 @@ def test_dashboard_surfaces_supplier_catalog_connectivity():
     assert "catalogSummaryText(catalogs, error, loading)" in dashboard_source
     assert "function isCatalogActiveSmallSearch" in dashboard_source
     assert "function isCatalogManualOnly" in dashboard_source
+    assert "function isCatalogManualRoute" in dashboard_source
     assert "const activeCatalogs = catalogs.filter(isCatalogActiveSmallSearch)" in dashboard_source
-    assert "активн. проблем" in dashboard_source
-    assert "вручную" in dashboard_source
+    assert "доступны" in dashboard_source
+    assert "ручной режим" in dashboard_source
+    assert "публичный поиск офиски" in dashboard_source
+    assert "сайт блокирует авто" in dashboard_source
+    assert "автопоиск до" not in dashboard_source
+    assert "активн. проблем" not in dashboard_source
     assert "browser_error" not in dashboard_source
     assert "sourceSummaryText(sources, error)" in dashboard_source
     assert ".supplier-catalog-dashboard" in styles_source
