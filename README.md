@@ -181,6 +181,8 @@ Recent architecture cleanup:
 - `TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, analysis/document preparation, and economics UI live in dedicated modules.
 - The economics tab owns product cost entry, supplier candidates, assumptions, auto-estimate preview/accept, bid thresholds, and participation decision UI.
 - Decision Engine v1 now lives in `src/tender_killer/decision_service.py`. `get_tender_payload(...)` attaches a stable `decision` object that combines economics, analysis, documents, market state, and product profiles into one status/label/next-step payload for future card, list, dashboard, and report surfaces.
+- `get_tender_payload(...)` now also attaches `eis_reference` and `customer_risk_profile`: EIS is represented as safe official lookup links with no background fetch, while customer risk uses local tender history and future `raw_payload.eis_customer_context` evidence.
+- Decision Engine now treats a high `customer_risk_profile` as `needs_review`, so a priced tender cannot quietly remain green if the customer history has strong warning signals.
 - The tender card decision strip, tender list badges, and dashboard previews now read the shared backend `tender.decision` payload through frontend formatter helpers, falling back to saved economics only for older payloads.
 - The tender card decision strip and Word report now surface backend decision reasons and blockers, so the operator can see why the current status/next step was recommended.
 - Dashboard decision queues now live on the backend in `src/tender_killer/dashboard_queue_service.py` and are exposed as `GET /api/dashboard/queues`. The dashboard no longer infers core queues from the currently visible 25 rows; it scans the active filtered set and returns counts/items for missing prices, TZ review, bid limits, interesting tenders, document text gaps, and urgent deadlines.
@@ -212,7 +214,7 @@ Current verification command:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full
 ```
 
-Latest full verified result after backend dashboard queues and decision-first list cues: `465 passed`.
+Latest full verified result after EIS reference and customer risk profile: `663 passed`.
 
 Good next steps:
 

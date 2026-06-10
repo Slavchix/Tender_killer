@@ -1224,3 +1224,15 @@ Date: 2026-06-09.
 - The manual panel supports quick links preparation, manual public product URL checking, and direct review-first candidate staging from quote/feed/manual price evidence.
 - Direct quote/feed/manual price staging goes through the existing `supplier-discovery/candidates` endpoint and creates price candidates for review. It does not write `raw_payload.economics.unit_cost` until the operator confirms a price candidate.
 - Verification for this slice: frontend contract, supplier discovery API handler slice with local basetemp/escalation, encoding guard, `git diff --check`, and Vite production build through bundled Node passed.
+
+## EIS reference and customer risk checkpoint
+
+Date: 2026-06-10.
+
+- Step 5/6 audit direction is now represented in code without adding unsafe network automation.
+- Added `src/tender_killer/eis_reference_service.py`: `build_eis_reference(...)` prepares official EIS lookup links for purchase search, customer contracts, customer complaints, RNP, and the EIS home page. It sets `network_fetch_enabled = false`; this is a manual/operator lookup layer and a future adapter contract, not an active EIS scraper.
+- Added `src/tender_killer/customer_risk_service.py`: `build_customer_risk_profile(...)` scores current tender signals, local same-customer history, analysis red flags, and future `raw_payload.eis_customer_context` fields such as terminated contracts, complaints, payment delays, and rejected applications.
+- `get_tender_payload(...)` now attaches both `eis_reference` and `customer_risk_profile`. Local history is matched by normalized `customer_inn` first, then by customer name when INN is missing.
+- `build_tender_decision(...)` now turns high customer risk into `needs_review` before the normal green `interesting` branch, preserving missing-price and hard economics blockers as higher-priority decisions.
+- Tests cover the pure EIS/reference contract, customer risk scoring, detail payload integration, and decision gating for high-risk customers.
+- Full verification after this checkpoint: `663 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=.pytest-tmp-full-risk4`.

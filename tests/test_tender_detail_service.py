@@ -245,3 +245,49 @@ def test_get_tender_payload_includes_latest_price_change(tmp_path):
     assert detail["price_change"]["direction"] == "decreased"
     assert detail["price_change"]["previous_price"] == 100000.0
     assert detail["price_change"]["current_price"] == 95000.0
+
+
+def test_get_tender_payload_includes_eis_reference_and_customer_risk_profile(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    for external_id, title in (("history-1", "Old paper"), ("history-2", "Old frames")):
+        store.upsert_tender(
+            Tender(
+                source="mosreg_market",
+                external_id=external_id,
+                url=f"https://example.test/{external_id}",
+                title=title,
+                customer="School",
+                status="completed",
+                raw_payload={
+                    "customers": [{"inn": "5047152960"}],
+                    "__detail": {"uniqueSupplierCount": 0},
+                },
+            )
+        )
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="current-risk",
+            url="https://example.test/current-risk",
+            title="Paper supply",
+            customer="School",
+            status="active",
+            raw_payload={
+                "purchaseNumber": "0373200000126000012",
+                "customers": [{"inn": "5047152960"}],
+                "__detail": {"uniqueSupplierCount": 0},
+            },
+        )
+    )
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "current-risk")
+
+    assert detail["eis_reference"]["identifiers"]["purchase_number"] == "0373200000126000012"
+    assert detail["eis_reference"]["identifiers"]["customer_inn"] == "5047152960"
+    assert detail["customer_risk_profile"]["status"] == "ready"
+    assert detail["customer_risk_profile"]["history"]["total"] == 2
+    assert detail["customer_risk_profile"]["history"]["market_state_counts"]["no_participants"] == 2
+    assert "repeated_no_participants" in {
+        factor["id"] for factor in detail["customer_risk_profile"]["factors"]
+    }

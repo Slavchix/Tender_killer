@@ -12,10 +12,12 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
     documents = _list_of_dicts(tender.get("document_records"))
     profiles = _list_of_dicts(tender.get("product_profiles"))
     participation = _dict(economics.get("participation_decision"))
+    customer_risk = _dict(tender.get("customer_risk_profile"))
     metrics = _decision_metrics(economics, market_state, documents, profiles)
     context = {
         "economics": economics,
         "analysis": analysis,
+        "customer_risk": customer_risk,
         "metrics": metrics,
         "participation": participation,
         "operator_decision": _operator_decision(analysis),
@@ -32,6 +34,7 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
     analysis_blockers = _compact_reasons([*red_flags, *passport_blockers, *operator_blockers])
     operator_reasons = _operator_decision_reasons(operator_decision)
     passport_reasons = _compact_reasons([*passport_blockers, *passport_price_factors])
+    customer_risk_reasons = _customer_risk_reasons(customer_risk)
     economics_status = str(economics.get("status") or "")
     participation_status = str(participation.get("status") or "")
 
@@ -76,6 +79,20 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
             next_step=_text(operator_decision.get("next_step"), "Проверить анализ"),
             reasons=_compact_reasons([*operator_reasons, *passport_reasons, *analysis_blockers, *risks, *requirements]),
             blockers=analysis_blockers,
+            limit_price=participation.get("limit_price"),
+            metrics=metrics,
+            context=context,
+        )
+
+    if customer_risk.get("level") == "high":
+        return _decision(
+            status="needs_review",
+            label="Проверить заказчика",
+            tone="warning",
+            summary="Профиль заказчика содержит риск-сигналы, которые нужно сверить перед участием.",
+            next_step="Проверить историю заказчика в ЕИС",
+            reasons=_compact_reasons([*customer_risk_reasons, *operator_reasons, *passport_reasons, *risks, *requirements]),
+            blockers=customer_risk_reasons,
             limit_price=participation.get("limit_price"),
             metrics=metrics,
             context=context,
@@ -304,6 +321,23 @@ def _operator_section_labels(analysis: dict[str, Any], section_id: str) -> list[
                 labels.append(_text(item, ""))
         return _compact_reasons(labels)
     return []
+
+
+def _customer_risk_reasons(customer_risk: dict[str, Any]) -> list[str]:
+    if not customer_risk:
+        return []
+    factors = customer_risk.get("factors")
+    reasons: list[Any] = []
+    if isinstance(factors, list):
+        for factor in factors:
+            if not isinstance(factor, dict):
+                continue
+            if str(factor.get("severity") or "") not in {"high", "medium"}:
+                continue
+            reasons.append(factor.get("evidence") or factor.get("id"))
+    if not reasons and customer_risk.get("level") == "high":
+        reasons.append("Высокий риск-профиль заказчика.")
+    return _compact_reasons(reasons)
 
 
 def _passport_section_labels(analysis: dict[str, Any], section_id: str) -> list[str]:

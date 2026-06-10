@@ -20,9 +20,11 @@ from tender_killer.analysis_passport_service import build_analysis_tz_passport
 from tender_killer.analysis_prompt_context_service import build_analysis_prompt_context
 from tender_killer.analysis_source_service import attach_document_sources
 from tender_killer.analysis_text_index_service import build_analysis_text_index
+from tender_killer.customer_risk_service import build_customer_risk_profile
 from tender_killer.decision_service import build_tender_decision
 from tender_killer.document_service import document_row_to_payload
 from tender_killer.economics import build_economics_summary
+from tender_killer.eis_reference_service import build_eis_reference
 from tender_killer.market_state import extract_market_state
 from tender_killer.price_tracking import latest_price_change
 from tender_killer.price_candidate_service import rank_profile_price_candidates
@@ -138,6 +140,7 @@ def get_tender_payload(
             (source, external_id),
         ).fetchone()
         analysis_history = list_analysis_history(connection, source=source, external_id=external_id)
+        customer_history = _customer_history_rows(connection, row) if row is not None else []
     if row is None:
         raise KeyError(f"Tender {source}/{external_id} not found.")
     payload = dict(row)
@@ -160,6 +163,8 @@ def get_tender_payload(
     payload["product_profiles"] = product_profiles
     payload["product_profile_summary"] = product_profile_summary(product_profiles)
     payload["market_state"] = extract_market_state(payload)
+    payload["eis_reference"] = build_eis_reference(payload)
+    payload["customer_risk_profile"] = build_customer_risk_profile(payload, customer_history)
     payload["economics"] = build_economics_summary(payload)
     payload["decision"] = build_tender_decision(payload)
     payload["price_change"] = latest_price_change(
@@ -217,6 +222,47 @@ def _detail_refresh_summary(tender: dict[str, Any]) -> dict[str, int]:
         "documents_count": len(tender.get("document_records") or []),
         "product_profiles_count": len(tender.get("product_profiles") or []),
     }
+
+
+def _customer_history_rows(
+    connection: sqlite3.Connection,
+    row: sqlite3.Row,
+    *,
+    limit: int = 25,
+) -> list[dict[str, Any]]:
+    current = dict(row)
+    customer_inn = str(current.get("customer_inn") or "").strip()
+    customer = str(current.get("customer") or "").strip()
+    if customer_inn:
+        where = "customer_inn = ?"
+        params: list[Any] = [customer_inn]
+    elif customer:
+        where = "LOWER(customer) = LOWER(?)"
+        params = [customer]
+    else:
+        return []
+
+    rows = connection.execute(
+        f"""
+        SELECT source, external_id, title, customer, customer_inn, price, status,
+               status_normalized, law, raw_payload_json, updated_at
+        FROM tenders
+        WHERE {where}
+          AND NOT (source = ? AND external_id = ?)
+        ORDER BY updated_at DESC, external_id DESC
+        LIMIT ?
+        """,
+        [*params, current["source"], current["external_id"], max(1, int(limit))],
+    ).fetchall()
+
+    history: list[dict[str, Any]] = []
+    for history_row in rows:
+        item = dict(history_row)
+        raw_payload_json = item.pop("raw_payload_json", None)
+        item["raw_payload"] = _json_object(raw_payload_json)
+        item["market_state"] = extract_market_state(item)
+        history.append(item)
+    return history
 
 
 def _connect(database_path: str | Path) -> sqlite3.Connection:
