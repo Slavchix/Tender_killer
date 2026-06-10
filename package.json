@@ -7,6 +7,7 @@
     "dev:doctor": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control doctor",
     "dev:health": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_health",
     "dev:smoke": ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_health --timeout 1.5",
+    "dev:visual": "node scripts/visual-smoke.mjs",
     "dev:web": "npm --prefix web run dev",
     "dev:api": ".\\.venv\\Scripts\\python.exe -m tender_killer.web_api"
   }

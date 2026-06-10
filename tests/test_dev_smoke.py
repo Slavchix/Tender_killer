@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 
@@ -93,6 +94,20 @@ def test_check_dev_site_accepts_blocked_supplier_catalog_diagnostics():
     )
 
     assert payload["ok"] is True
+
+
+def test_visual_smoke_script_covers_key_frontend_surfaces():
+    package = json.loads(Path("package.json").read_text(encoding="utf-8"))
+    script = Path("scripts/visual-smoke.mjs").read_text(encoding="utf-8")
+
+    assert package["scripts"]["dev:visual"] == "node scripts/visual-smoke.mjs"
+    assert "Page.captureScreenshot" in script
+    assert ".dashboard-queue-board" in script
+    assert ".tender-list .rows" in script
+    assert ".tender-row" in script
+    assert ".fullscreen-workspace.analysis" in script
+    assert ".fullscreen-workspace.economics" in script
+    assert "No tender rows available in the current dev database." in script
 
 
 def test_check_dev_site_reports_missing_page_size_label():

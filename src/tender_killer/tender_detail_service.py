@@ -17,6 +17,7 @@ from tender_killer.analysis_missing_checks import build_missing_checks
 from tender_killer.analysis_missing_checks import missing_checklist_items
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 from tender_killer.analysis_passport_service import build_analysis_tz_passport
+from tender_killer.analysis_prompt_context_service import build_analysis_prompt_context
 from tender_killer.analysis_source_service import attach_document_sources
 from tender_killer.analysis_text_index_service import build_analysis_text_index
 from tender_killer.decision_service import build_tender_decision
@@ -280,6 +281,12 @@ def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) 
             and _items_have_source_context(analysis_facts.get("items"))
         )
         else build_analysis_facts(payload, documents)
+    )
+    prompt_context = payload["raw_payload"].get("agent_prompt_context")
+    payload["agent_prompt_context"] = (
+        prompt_context
+        if isinstance(prompt_context, dict) and prompt_context.get("version") == 1
+        else build_analysis_prompt_context(payload, documents)
     )
     payload["operator_view"] = build_analysis_operator_view(payload, documents)
     apply_analysis_feedback(payload)
