@@ -386,7 +386,7 @@ def test_provider_catalog_collector_skips_policy_blocked_search_fetches() -> Non
     assert result["diagnostics"]["links_skipped"] == 1
 
 
-def test_provider_catalog_collector_does_not_browser_fetch_when_policy_blocks_it(monkeypatch) -> None:
+def test_provider_catalog_collector_uses_browser_fallback_for_manual_product_link(monkeypatch) -> None:
     url = "https://www.officemag.ru/catalog/goods/110532/"
     request = httpx.Request("GET", url)
     response = httpx.Response(
@@ -401,7 +401,14 @@ def test_provider_catalog_collector_does_not_browser_fetch_when_policy_blocks_it
 
     def fake_browser_fetch(fetch_url: str, *, provider: str | None = None) -> str:
         browser_calls.append((fetch_url, provider))
-        return "<html><body><div class='ProductHead__name'>Папка архивная</div><div content='458.45'></div></body></html>"
+        return """
+            <html>
+              <body>
+                <h1 class="ProductHead__name">Папка архивная</h1>
+                <div class="Product__price" content="458.45"></div>
+              </body>
+            </html>
+        """
 
     monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "1")
     monkeypatch.setenv("TENDER_KILLER_SUPPLIER_BROWSER_FETCH_PROVIDERS", "officemag")
@@ -425,10 +432,10 @@ def test_provider_catalog_collector_does_not_browser_fetch_when_policy_blocks_it
         }
     )
 
-    assert browser_calls == []
-    assert result["candidates"] == []
-    assert result["diagnostics"]["run_state"] == "blocked"
-    assert result["diagnostics"]["error_kind"] == "access_blocked"
+    assert browser_calls == [(url, "officemag")]
+    assert result["diagnostics"]["pages_fetched"] == 1
+    assert result["diagnostics"]["candidates_found"] == 1
+    assert result["candidates"][0]["unit_price"] == 458.45
 
 
 def test_provider_catalog_collector_uses_officemag_section_fallback_for_empty_search() -> None:

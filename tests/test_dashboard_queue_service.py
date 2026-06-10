@@ -66,3 +66,49 @@ def test_dashboard_queue_service_counts_only_positive_current_offer():
     assert _has_current_offer({"market_state": {"current_offer_price": 1000}}) is True
     assert _has_current_offer({"market_state": {"current_offer_price": 0}}) is False
     assert _has_current_offer({"market_state": {"current_offer_price": ""}}) is False
+
+
+def test_dashboard_queue_service_surfaces_customer_review_queue(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    for external_id in ("customer-history-1", "customer-history-2"):
+        store.upsert_tender(
+            Tender(
+                source="mosreg_market",
+                external_id=external_id,
+                url=f"https://example.test/{external_id}",
+                title="Previous tender",
+                customer="School",
+                status="Completed",
+                raw_payload={
+                    "customers": [{"inn": "5047152960"}],
+                    "__detail": {"uniqueSupplierCount": 0},
+                },
+            )
+        )
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="customer-risk",
+            url="https://example.test/customer-risk",
+            title="Current tender",
+            customer="School",
+            price=100000.0,
+            status="Active",
+            raw_payload={
+                "purchaseNumber": "0373200000126000012",
+                "customers": [{"inn": "5047152960"}],
+                "__detail": {"uniqueSupplierCount": 0},
+                "eis_customer_context": {"terminated_contracts_count": 3},
+            },
+        )
+    )
+
+    payload = build_dashboard_queues_payload(store.database_path, {"status": "active"})
+    queues = {queue["id"]: queue for queue in payload["queues"]}
+
+    assert queues["customer_review"]["count"] == 1
+    item = queues["customer_review"]["items"][0]
+    assert item["external_id"] == "customer-risk"
+    assert item["customer_risk_profile"]["level"] == "high"
+    assert item["eis_reference"]["identifiers"]["purchase_number"] == "0373200000126000012"

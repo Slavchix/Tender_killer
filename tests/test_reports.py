@@ -620,6 +620,54 @@ def test_build_tender_report_docx_renders_backend_decision_reasons():
     assert "Проверить сертификат/декларацию" in document_xml
 
 
+def test_build_tender_report_docx_renders_customer_eis_and_risk_summary():
+    payload = {
+        "source": "mosreg_market",
+        "external_id": "customer-risk",
+        "title": "Paper supply",
+        "customer": "School",
+        "customer_risk_profile": {
+            "level": "high",
+            "score": 72,
+            "customer": {"name": "School", "inn": "5047152960"},
+            "history": {"total": 4},
+            "factors": [
+                {"severity": "high", "evidence": "Terminated contracts: 3."},
+                {"severity": "medium", "evidence": "Local history has tenders without participants."},
+            ],
+        },
+        "eis_reference": {
+            "network_fetch_enabled": False,
+            "identifiers": {
+                "purchase_number": "0373200000126000012",
+                "customer_inn": "5047152960",
+            },
+            "links": [
+                {
+                    "id": "eis_purchase_search",
+                    "label": "EIS purchase search",
+                    "url": "https://zakupki.gov.ru/epz/order/extendedsearch/results.html?searchString=0373200000126000012",
+                },
+                {
+                    "id": "eis_contracts_by_customer",
+                    "label": "EIS customer contracts",
+                    "url": "https://zakupki.gov.ru/epz/contract/search/results.html?searchString=5047152960",
+                },
+            ],
+        },
+    }
+
+    content = build_tender_report_docx(payload)
+    document_xml = _document_xml(content)
+
+    assert "Заказчик / ЕИС" in document_xml
+    assert "5047152960" in document_xml
+    assert "0373200000126000012" in document_xml
+    assert "Terminated contracts: 3." in document_xml
+    assert "network fetch: off" in document_xml
+    assert "EIS purchase search" in document_xml
+
+
 def test_build_tender_report_docx_falls_back_to_card_subject_when_items_missing():
     payload = {
         "source": "mosreg_market",

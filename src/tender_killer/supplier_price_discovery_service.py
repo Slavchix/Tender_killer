@@ -336,11 +336,12 @@ class ProviderCatalogCollector:
     def _fetch_link_text(self, url: str, action: str) -> str:
         if self.fetch_text is not None:
             return self.fetch_text(url)
+        browser_position_count = 1 if action == ACTION_PRODUCT_PAGE_FETCH else self.tender_position_count
         browser_decision = supplier_fetch_decision(
             url,
             provider=self.catalog_provider,
             action=ACTION_BROWSER_FETCH,
-            tender_position_count=self.tender_position_count,
+            tender_position_count=browser_position_count,
         )
         allow_browser_fetch = bool(browser_decision["allowed"])
         html = _fetch_catalog_text(

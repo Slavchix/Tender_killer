@@ -140,7 +140,10 @@ function ManualSupplierPricePanel({
           if (nextResult.tone === 'success') setManualProductUrl('')
         })
         .catch((error) => {
-          setManualUrlResult({
+          const payloadResult = error?.payload
+            ? manualUrlResultFromTender(error?.payload, selectedEconomicsProfile?.position_index, url)
+            : null
+          setManualUrlResult(payloadResult || {
             tone: 'error',
             text: error?.message || 'Не удалось проверить ссылку. Открой ее вручную или внеси цену из КП/прайса.',
           })

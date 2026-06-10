@@ -2374,6 +2374,100 @@ textarea:focus {
   gap: 9px;
 }
 
+.customer-eis-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 7px;
+}
+
+.customer-eis-panel.high {
+  border-left-color: var(--color-warning);
+}
+
+.customer-eis-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.customer-eis-head > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.customer-eis-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.customer-eis-head strong {
+  color: var(--color-text);
+  font-size: 15px;
+}
+
+.customer-eis-head p {
+  max-width: 52%;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.customer-eis-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.customer-eis-reasons {
+  display: grid;
+  gap: 4px;
+}
+
+.customer-eis-reasons p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.customer-eis-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.customer-eis-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 9px;
+  color: var(--color-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
 .summary-work-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5498,6 +5592,7 @@ textarea:focus {
   .detail-grid,
   .raw-grid,
   .overview-brief-grid,
+  .customer-eis-facts,
   .summary-work-grid,
   .item-facts,
   .document-row,
@@ -5578,5 +5673,15 @@ textarea:focus {
 
   .profile-row .profile-meta {
     display: none;
+  }
+
+  .customer-eis-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .customer-eis-head p {
+    max-width: none;
+    text-align: left;
   }
 }

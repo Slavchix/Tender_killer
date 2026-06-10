@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bell, CheckCircle2, ChevronDown, Clock, FileText, Layers, RefreshCcw, WalletCards } from 'lucide-react'
+import { Bell, CheckCircle2, ChevronDown, Clock, FileText, Layers, RefreshCcw, ShieldAlert, WalletCards } from 'lucide-react'
 import { sourceLabels } from './constants'
 import { formatDate, formatDateTime, formatMoney, hasParticipantBid, nmcPriceValue, participantBidValue, tenderDecisionLabel } from './formatters'
 
@@ -90,6 +90,7 @@ export function DashboardView({
   const queueColumns = dashboardQueueColumns(dashboardQueues, tenders)
   const urgentQueue = queueById(dashboardQueues, 'urgent_deadline')
   const documentsQueue = queueById(dashboardQueues, 'documents_review')
+  const customerReviewQueue = queueById(dashboardQueues, 'customer_review')
   const totalActive = numberOrFallback(summary.total, tenderPage.total || stats.active)
   const tzReviewCount = queueCount(dashboardQueues, 'needs_review')
   const noCostCount = queueCount(dashboardQueues, 'missing_prices')
@@ -139,6 +140,7 @@ export function DashboardView({
         <aside className="dashboard-right-rail">
           <DashboardDeadlinePanel onOpenTender={onOpenTender} queue={urgentQueue} />
           <DashboardDocumentProblemsPanel onOpenTender={onOpenTender} queue={documentsQueue} />
+          <DashboardCustomerReviewPanel onOpenTender={onOpenTender} queue={customerReviewQueue} />
           <DashboardAttentionPanel
             dashboardQueueError={dashboardQueueError}
             dashboardQueues={dashboardQueues}
@@ -291,6 +293,37 @@ function DashboardDocumentProblemsPanel({ queue, onOpenTender }) {
       </div>
     </section>
   )
+}
+
+function DashboardCustomerReviewPanel({ queue, onOpenTender }) {
+  const items = (queue?.items || []).slice(0, 4)
+  return (
+    <section className="dashboard-panel dashboard-rail-panel">
+      <div className="panel-title"><ShieldAlert size={18} /> Заказчик / ЕИС</div>
+      <div className="dashboard-rail-list">
+        {items.map((item) => {
+          const risk = item.customer_risk_profile || {}
+          const reason = risk.factors?.find((factor) => factor?.evidence)?.evidence || item.decision?.blockers?.[0] || item.title
+          return (
+            <button key={`${item.source}-${item.external_id}-customer`} onClick={() => onOpenTender(item)} type="button">
+              <strong>{item.customer || 'заказчик не указан'}</strong>
+              <span>{customerRiskDashboardLine(risk, reason)}</span>
+            </button>
+          )
+        })}
+        {!items.length && <div className="dashboard-empty-note">Критичных сигналов по заказчикам нет</div>}
+      </div>
+    </section>
+  )
+}
+
+function customerRiskDashboardLine(risk, reason) {
+  const level = {
+    high: 'высокий риск',
+    medium: 'нужна сверка',
+    low: 'низкий риск',
+  }[risk?.level] || 'проверка'
+  return reason ? `${level} · ${reason}` : level
 }
 
 function DashboardAttentionPanel({ dashboardQueueError, dashboardQueues, error, sources, tenders, workflowCounts, onOpenTender }) {

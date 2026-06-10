@@ -10,8 +10,10 @@ from typing import Any
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 from tender_killer.analysis_facts_service import build_analysis_facts
 from tender_killer.analysis_passport_service import build_analysis_tz_passport
+from tender_killer.customer_risk_service import build_customer_risk_profile
 from tender_killer.decision_service import build_tender_decision
 from tender_killer.economics import build_economics_summary
+from tender_killer.eis_reference_service import build_eis_reference
 from tender_killer.filter_store import FilterProfileCollection, NamedFilterProfile
 from tender_killer.filters import FilterProfile
 from tender_killer.market_state import extract_market_state
@@ -470,10 +472,22 @@ def _row_to_list_item(row: sqlite3.Row, database_path: str | Path) -> dict[str, 
     documents_total = max(len(documents), document_records_count)
     document_records = _document_records_for_decision(documents_total, document_text_ready_count)
     raw_payload_json = payload.pop("raw_payload_json", None)
+    raw_payload = _json_object(raw_payload_json)
+    context_payload = {**payload, "raw_payload": raw_payload}
     analysis = _analysis_from_list_row(payload)
     payload["documents_count"] = documents_total
-    payload["market_state"] = extract_market_state({**payload, "raw_payload_json": raw_payload_json})
+    payload["market_state"] = extract_market_state(context_payload)
     payload["law"] = payload.get("law") or _law_label(raw_payload_json)
+    payload["eis_reference"] = build_eis_reference({**context_payload, "law": payload.get("law")})
+    payload["customer_risk_profile"] = build_customer_risk_profile(
+        {
+            **context_payload,
+            "law": payload.get("law"),
+            "market_state": payload["market_state"],
+            "analysis": analysis,
+        },
+        _customer_history_rows(database_path, context_payload),
+    )
     profiles = TenderStore(database_path).get_product_profiles(payload["source"], payload["external_id"])
     payload["economics"] = (
         build_economics_summary(
@@ -501,6 +515,47 @@ def _row_to_list_item(row: sqlite3.Row, database_path: str | Path) -> dict[str, 
         else None
     )
     return payload
+
+
+def _customer_history_rows(
+    database_path: str | Path,
+    tender: dict[str, Any],
+    *,
+    limit: int = 25,
+) -> list[dict[str, Any]]:
+    customer_inn = str(tender.get("customer_inn") or "").strip()
+    customer = str(tender.get("customer") or "").strip()
+    if customer_inn:
+        where = "customer_inn = ?"
+        params: list[Any] = [customer_inn]
+    elif customer:
+        where = "LOWER(customer) = LOWER(?)"
+        params = [customer]
+    else:
+        return []
+
+    with _connect(database_path) as connection:
+        rows = connection.execute(
+            f"""
+            SELECT source, external_id, title, customer, customer_inn, price, status,
+                   status_normalized, law, raw_payload_json, updated_at
+            FROM tenders
+            WHERE {where}
+              AND NOT (source = ? AND external_id = ?)
+            ORDER BY updated_at DESC, external_id DESC
+            LIMIT ?
+            """,
+            [*params, tender["source"], tender["external_id"], max(1, int(limit))],
+        ).fetchall()
+
+    history: list[dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        raw_payload_json = item.pop("raw_payload_json", None)
+        item["raw_payload"] = _json_object(raw_payload_json)
+        item["market_state"] = extract_market_state(item)
+        history.append(item)
+    return history
 
 
 def _analysis_from_list_row(payload: dict[str, Any]) -> dict[str, Any] | None:

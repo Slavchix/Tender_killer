@@ -1331,6 +1331,32 @@ def test_product_profile_renders_fulfillment_requirements():
     assert find_mojibake(source, TENDER_PRODUCTS_TAB_SOURCE) == []
 
 
+def test_tender_overview_surfaces_compact_customer_eis_panel():
+    source = TENDER_OVERVIEW_TAB_SOURCE.read_text(encoding="utf-8")
+    styles = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "CustomerEisPanel" in source
+    assert "tender.customer_risk_profile" in source
+    assert "tender.eis_reference" in source
+    assert "customer-eis-panel" in source
+    assert "customer-eis-link" in source
+    assert "eis_reference.links" in source
+    assert ".customer-eis-panel" in styles
+    assert ".customer-eis-links" in styles
+    assert find_mojibake(source, TENDER_OVERVIEW_TAB_SOURCE) == []
+
+
+def test_dashboard_surfaces_customer_review_queue_in_right_rail():
+    source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
+
+    assert "customerReviewQueue = queueById(dashboardQueues, 'customer_review')" in source
+    assert "DashboardCustomerReviewPanel" in source
+    assert "item.customer_risk_profile" in source
+    assert "Заказчик / ЕИС" in source
+    assert "customerRiskDashboardLine" in source
+    assert find_mojibake(source, DASHBOARD_SOURCE) == []
+
+
 def test_tender_details_render_economics_summary():
     tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
     summary_source = TENDER_SUMMARY_TAB_SOURCE.read_text(encoding="utf-8")
@@ -1507,6 +1533,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "supplier-manual-mode-tabs" in profile_workspace_source
     assert "manual-url-result" in profile_workspace_source
     assert "manualUrlResultFromTender" in profile_workspace_source
+    assert "manualUrlResultFromTender(error?.payload" in profile_workspace_source
     assert "SupplierSearchPreview" in profile_workspace_source
     assert "SupplierDiscoveryPreview" in profile_workspace_source
     assert "compact={manualPriceMode === 'links'}" in profile_workspace_source
@@ -1558,11 +1585,14 @@ def test_product_profile_renders_supplier_option_form():
     assert "export function SupplierSearchPreview" in discovery_source
     assert "export function SupplierDiscoveryPreview" in discovery_source
     assert "function SupplierDiscoveryDiagnostics" in discovery_source
+    assert "supplierDiscoveryNoCandidateHint" in discovery_source
     assert "technical-discovery-details" in discovery_source
     assert "diagnosticsOpen" in discovery_source
     assert "discovery?.status === 'no_candidates'" in discovery_source
     assert "Кандидаты не найдены" in discovery_source
     assert "Цена не прочиталась автоматически" in discovery_source
+    assert "Сайт поставщика заблокировал автоматическую проверку" in discovery_source
+    assert "Страница прочиталась, но товар не совпал с позицией" in discovery_source
     assert "candidates.length > 0" in discovery_source
     assert "collector_diagnostics" in discovery_source
     assert "diagnostics.pages_fetched" in discovery_source

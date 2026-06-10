@@ -35,6 +35,7 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
             ]
         ),
         *_tender_decision_elements(tender.get("decision")),
+        *_customer_eis_elements(tender),
         *_analysis_tz_passport_elements(analysis, documents),
         _p("Паспорт закупки", "heading"),
         _table(
@@ -330,6 +331,66 @@ def _analysis_decision_elements(analysis: dict[str, Any], documents: list[dict[s
         elements.append(_p("Ключевые причины", "heading2"))
         elements.extend(_list_elements(decision["reasons"][:3]))
     return elements
+
+
+def _customer_eis_elements(tender: dict[str, Any]) -> list[DocxElement]:
+    risk_profile = tender.get("customer_risk_profile")
+    eis_reference = tender.get("eis_reference")
+    if not isinstance(risk_profile, dict) and not isinstance(eis_reference, dict):
+        return []
+
+    risk_profile = risk_profile if isinstance(risk_profile, dict) else {}
+    eis_reference = eis_reference if isinstance(eis_reference, dict) else {}
+    customer = risk_profile.get("customer") if isinstance(risk_profile.get("customer"), dict) else {}
+    identifiers = eis_reference.get("identifiers") if isinstance(eis_reference.get("identifiers"), dict) else {}
+    history = risk_profile.get("history") if isinstance(risk_profile.get("history"), dict) else {}
+    network_fetch = "network fetch: on" if eis_reference.get("network_fetch_enabled") else "network fetch: off"
+    rows = [
+        ["Заказчик", _value(customer.get("name") or tender.get("customer"))],
+        ["ИНН", _value(customer.get("inn") or identifiers.get("customer_inn") or tender.get("customer_inn"))],
+        ["Риск", _customer_risk_text(risk_profile)],
+        ["История", f"{_int_value(history.get('total'))} закупок"],
+        ["Номер ЕИС", _value(identifiers.get("purchase_number"), "ручной поиск")],
+        ["Проверка ЕИС", network_fetch],
+    ]
+    elements: list[DocxElement] = [_p("Заказчик / ЕИС", "heading"), _table(rows)]
+
+    factors = [
+        factor
+        for factor in risk_profile.get("factors") or []
+        if isinstance(factor, dict) and factor.get("evidence")
+    ]
+    if factors:
+        elements.append(_p("Сигналы по заказчику", "heading2"))
+        elements.extend(_list_elements([factor["evidence"] for factor in factors[:4]]))
+
+    links = [
+        link
+        for link in eis_reference.get("links") or []
+        if isinstance(link, dict) and link.get("url")
+    ]
+    if links:
+        elements.append(_p("Ссылки ЕИС", "heading2"))
+        elements.append(
+            _table(
+                [
+                    ["Раздел", "Ссылка"],
+                    *[
+                        [_value(link.get("label") or link.get("id")), _value(link.get("url"))]
+                        for link in links[:4]
+                    ],
+                ]
+            )
+        )
+    return elements
+
+
+def _customer_risk_text(risk_profile: dict[str, Any]) -> str:
+    level = _value(risk_profile.get("level"), "не рассчитан")
+    score = risk_profile.get("score")
+    if score in (None, ""):
+        return level
+    return f"{level} / {score}"
 
 
 def _analysis_four_block_elements(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[DocxElement]:

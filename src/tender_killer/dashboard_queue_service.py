@@ -31,6 +31,13 @@ def build_dashboard_queues_payload(database_path: str | Path, query: dict[str, s
             lambda tender: _decision_status(tender) == "needs_review",
         ),
         _decision_queue(
+            "customer_review",
+            "Проверить заказчика",
+            "История заказчика, ЕИС-связка или повторные закупки требуют ручной проверки.",
+            tenders,
+            _customer_needs_review,
+        ),
+        _decision_queue(
             "with_limit",
             "Только с лимитом",
             "Экономика допускает участие только при жестком ценовом лимите.",
@@ -66,6 +73,7 @@ def build_dashboard_queues_payload(database_path: str | Path, query: dict[str, s
             "scanned": len(tenders),
             "decisions": sum(1 for tender in tenders if tender.get("decision")),
             "current_offers": sum(1 for tender in tenders if _has_current_offer(tender)),
+            "customer_reviews": sum(1 for tender in tenders if _customer_needs_review(tender)),
             "no_participants": sum(
                 1 for tender in tenders if tender.get("market_state", {}).get("status") == "no_participants"
             ),
@@ -126,6 +134,8 @@ def _queue_item(tender: dict[str, Any]) -> dict[str, Any]:
         "workflow_status": tender.get("workflow_status"),
         "market_state": tender.get("market_state"),
         "decision": tender.get("decision"),
+        "eis_reference": tender.get("eis_reference"),
+        "customer_risk_profile": tender.get("customer_risk_profile"),
     }
 
 
@@ -144,6 +154,25 @@ def _documents_need_review(tender: dict[str, Any]) -> bool:
     total = int(metrics.get("documents_total") or 0)
     ready = int(metrics.get("documents_ready") or 0)
     return total > 0 and ready < total
+
+
+def _customer_needs_review(tender: dict[str, Any]) -> bool:
+    profile = tender.get("customer_risk_profile")
+    if not isinstance(profile, dict):
+        return False
+    if profile.get("level") == "high" or profile.get("status") == "needs_customer_identity":
+        return True
+    factors = profile.get("factors")
+    if not isinstance(factors, list):
+        return False
+    important_ids = {
+        "repeated_no_participants",
+        "customer_complaints",
+        "terminated_contracts",
+        "payment_delay",
+        "missing_customer_identity",
+    }
+    return any(isinstance(factor, dict) and factor.get("id") in important_ids for factor in factors)
 
 
 def _deadline_within_24_hours(tender: dict[str, Any]) -> bool:

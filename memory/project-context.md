@@ -1236,3 +1236,24 @@ Date: 2026-06-10.
 - `build_tender_decision(...)` now turns high customer risk into `needs_review` before the normal green `interesting` branch, preserving missing-price and hard economics blockers as higher-priority decisions.
 - Tests cover the pure EIS/reference contract, customer risk scoring, detail payload integration, and decision gating for high-risk customers.
 - Full verification after this checkpoint: `663 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=.pytest-tmp-full-risk4`.
+
+## Customer/EIS product surface checkpoint
+
+Date: 2026-06-10.
+
+- The customer/EIS backend context is now visible in the product surfaces rather than only in JSON.
+- Tender overview shows a compact `Заказчик / ЕИС` block with risk level, customer/INN, local history count, official EIS lookup value, up to two risk reasons, and up to three official EIS links.
+- Dashboard queues now include `customer_review`; the right rail renders a compact `Заказчик / ЕИС` panel for high-risk customer signals, missing identity, repeated no-participant history, complaints, terminated contracts, or payment-delay evidence.
+- Word reports now include a short `Заказчик / ЕИС` section with customer identity, risk score, history size, EIS purchase number, network-fetch status, risk reasons, and links.
+- `list_tenders_payload(...)` now attaches `eis_reference` and `customer_risk_profile` so dashboard/list surfaces can use the same backend contract as detail payloads.
+- Verification: related dashboard/detail/customer/EIS/report/frontend contract slice passed with `123 passed`; encoding guard passed with `2 passed`; full suite passed with `667 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=.pytest-tmp-full-ui-risk`.
+- Visual/browser verification was not run in this environment because the Browser callable tool was not exposed by tool search and Node/npm are not available on PATH for Vite/dev-smoke.
+
+## Manual OfficeMag URL fallback checkpoint
+
+Date: 2026-06-10.
+
+- Root cause from live `data/tenders.sqlite` for OfficeMag URL `https://www.officemag.ru/catalog/goods/128875/`: supplier discovery recorded `catalog_officemag` with `HTTP 503 access_blocked`, `pages_fetched = 0`, `candidates_found = 0`; the public fetch was blocked before the parser could read the product price.
+- Backend policy nuance: active catalog/search-page fetch remains limited to small tenders, but a manually pasted product-card URL is now treated as a single operator action. `ProviderCatalogCollector._fetch_link_text(...)` passes a one-position context to `ACTION_BROWSER_FETCH` only when the original action is `ACTION_PRODUCT_PAGE_FETCH`, so browser fallback can rescue manual OfficeMag product URLs in larger tenders without re-enabling mass search.
+- UI now preserves API error payload diagnostics for manual URL checks and surfaces the real no-candidate reason in the main economics panel: supplier access blocked, product mismatch, or price not recognized. The collapsed technical diagnostics still show provider counters/errors.
+- Focused verification passed: OfficeMag manual browser fallback, large search still blocked, OfficeMag product-detail parser, API manual URL route, and frontend supplier contract (`5 passed`).

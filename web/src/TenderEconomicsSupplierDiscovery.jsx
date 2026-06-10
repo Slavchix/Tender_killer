@@ -4,12 +4,13 @@ export function SupplierDiscoveryPreview({ discovery, importing = false, diagnos
   const candidates = Array.isArray(discovery?.candidates) ? discovery.candidates : []
   const diagnostics = Array.isArray(discovery?.collector_diagnostics) ? discovery.collector_diagnostics : []
   const noCandidates = discovery?.status === 'no_candidates'
+  const noCandidateHint = noCandidates && !candidates.length ? supplierDiscoveryNoCandidateHint(diagnostics) : ''
   if (!candidates.length && !diagnostics.length) return null
 
   return (
     <div className="supplier-discovery-preview">
       <span>{noCandidates && !candidates.length ? 'Кандидаты не найдены' : 'Найденные кандидаты'}</span>
-      {noCandidates && !candidates.length && <p>Цена не прочиталась автоматически. Открой ссылку вручную или внеси цену из КП/прайса.</p>}
+      {noCandidates && !candidates.length && <p>{noCandidateHint}</p>}
       {candidates.length > 0 && candidates.map((candidate, index) => {
         const imported = candidate.review_status === 'imported'
         const confidenceReasons = Array.isArray(candidate.confidence_reasons) ? candidate.confidence_reasons : []
@@ -48,6 +49,36 @@ export function SupplierDiscoveryPreview({ discovery, importing = false, diagnos
       )}
     </div>
   )
+}
+
+function supplierDiscoveryNoCandidateHint(diagnostics) {
+  const items = Array.isArray(diagnostics) ? diagnostics : []
+  const errors = items.flatMap((item) => (Array.isArray(item?.errors) ? item.errors : []))
+  const diagnosticText = errors.join(' ').toLowerCase()
+  const accessBlocked = items.some((item) => item?.error_kind === 'access_blocked' || item?.skip_reason === 'access_blocked')
+    || diagnosticText.includes('access_blocked')
+    || diagnosticText.includes('browser_fetch_error')
+    || diagnosticText.includes('captcha')
+    || diagnosticText.includes('403')
+    || diagnosticText.includes('429')
+    || diagnosticText.includes('503')
+  if (accessBlocked) {
+    return 'Сайт поставщика заблокировал автоматическую проверку. Открой ссылку вручную или внеси цену из КП/прайса.'
+  }
+
+  const rejectedByIntent = items.reduce((total, item) => total + (Number(item?.candidates_rejected_by_intent) || 0), 0)
+  const hasIntentReasons = items.some((item) => item?.intent_rejection_reasons && Object.keys(item.intent_rejection_reasons).length > 0)
+  if (rejectedByIntent > 0 || hasIntentReasons) {
+    return 'Страница прочиталась, но товар не совпал с позицией. Проверь ссылку или внеси цену вручную.'
+  }
+
+  const pagesFetched = items.reduce((total, item) => total + (Number(item?.pages_fetched) || 0), 0)
+  const candidatesFound = items.reduce((total, item) => total + (Number(item?.candidates_found) || 0), 0)
+  if (pagesFetched > 0 && candidatesFound === 0) {
+    return 'Страница открылась, но цена не распознана. Внеси цену из карточки вручную или приложи КП/прайс.'
+  }
+
+  return 'Цена не прочиталась автоматически. Открой ссылку вручную или внеси цену из КП/прайса.'
 }
 
 function SupplierDiscoveryDiagnostics({ diagnostics }) {
@@ -101,6 +132,9 @@ function SupplierDiscoveryDiagnostics({ diagnostics }) {
 }
 
 function formatDiscoveryRunState(diagnostics = {}) {
+  if (diagnostics.run_state === 'blocked' || diagnostics.error_kind === 'access_blocked') {
+    return 'Заблокирован: сайт требует браузерную проверку'
+  }
   if (diagnostics.run_state !== 'skipped') return ''
   if (diagnostics.skip_reason === 'not_relevant_for_profile') {
     return 'Пропущен: каталог не подходит этой позиции'
