@@ -344,6 +344,12 @@ function manualUrlResultFromTender(nextTender, positionIndex, checkedUrl = '') {
   const diagnostics = Array.isArray(discovery.collector_diagnostics) ? discovery.collector_diagnostics : []
   const errors = diagnostics.flatMap((item) => (Array.isArray(item?.errors) ? item.errors : []))
   const diagnosticText = errors.join(' ').toLowerCase()
+  if (diagnosticText.includes('spawn eperm') || diagnosticText.includes('node.exe')) {
+    return {
+      tone: 'error',
+      text: 'Локальный browser-fetch не запустился. Перезапусти API/dev stack вне sandbox и повтори проверку ссылки.',
+    }
+  }
   if (
     diagnosticText.includes('access_blocked')
     || diagnosticText.includes('browser_fetch_error')

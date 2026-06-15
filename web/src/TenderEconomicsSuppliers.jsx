@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import { SupplierOptionsList } from './TenderEconomicsSupplierOptions'
 import { priceComparisonForUnitPrice, tenderReferenceUnitPrice } from './TenderEconomicsPriceComparison'
 import { formatMoney, formatQuantity as formatTenderQuantity, supplierConfidenceLabel } from './formatters'
@@ -14,19 +15,16 @@ export function ProductSupplierOptionsForm({
     ? profile.raw_payload.supplier_options
     : []
   const priceCandidates = Array.isArray(profile?.price_candidates) ? profile.price_candidates : []
-  const visiblePriceCandidates = priceCandidates.filter((candidate) => {
-    const reviewStatus = String(candidate?.review_status || 'pending').toLowerCase()
-    const qualityStatus = String(candidate?.quality_status || '').toLowerCase()
-    return reviewStatus === 'pending' && qualityStatus !== 'blocked'
-  })
-  const showSupplierOptions = supplierOptions.length > 0 && visiblePriceCandidates.length === 0
-  const showEmptyState = visiblePriceCandidates.length === 0 && supplierOptions.length === 0
+  const candidateBuckets = candidateQueueBuckets(priceCandidates)
+  const queuedCandidateCount = candidateBuckets.ready.length + candidateBuckets.review.length + candidateBuckets.blocked.length
+  const showSupplierOptions = supplierOptions.length > 0 && queuedCandidateCount === 0
+  const showEmptyState = queuedCandidateCount === 0 && supplierOptions.length === 0
 
   return (
     <section className="profile-block supplier-options-block">
-      <PriceCandidatesList
+      <PriceCandidateQueue
         profile={profile}
-        price_candidates={visiblePriceCandidates}
+        price_candidates={priceCandidates}
         reviewingPriceCandidateId={reviewingPriceCandidateId}
         onConfirm={(candidate) => onPriceCandidateConfirm?.(profile, candidate)}
         onReject={(candidate) => onPriceCandidateReject?.(profile, candidate)}
@@ -53,23 +51,126 @@ function PriceCandidatesEmptyState() {
   )
 }
 
-function PriceCandidatesList({
+function candidateQueueBuckets(priceCandidates = []) {
+  const buckets = {
+    ready: [],
+    review: [],
+    blocked: [],
+  }
+  ;(Array.isArray(priceCandidates) ? priceCandidates : []).forEach((candidate) => {
+    const reviewStatus = String(candidate?.review_status || 'pending').toLowerCase()
+    if (reviewStatus !== 'pending') return
+    const qualityStatus = String(candidate?.quality_status || '').toLowerCase()
+    if (qualityStatus === 'blocked') {
+      buckets.blocked.push(candidate)
+    } else if (candidate?.auto_eligible || qualityStatus === 'ready') {
+      buckets.ready.push(candidate)
+    } else {
+      buckets.review.push(candidate)
+    }
+  })
+  Object.values(buckets).forEach((bucket) => bucket.sort(comparePriceCandidates))
+  return buckets
+}
+
+function comparePriceCandidates(left, right) {
+  const leftAuto = left?.auto_eligible ? 1 : 0
+  const rightAuto = right?.auto_eligible ? 1 : 0
+  if (leftAuto !== rightAuto) return rightAuto - leftAuto
+  const scoreDelta = Number(right?.score || 0) - Number(left?.score || 0)
+  if (scoreDelta !== 0) return scoreDelta
+  return Number(left?.unit_price || Number.POSITIVE_INFINITY) - Number(right?.unit_price || Number.POSITIVE_INFINITY)
+}
+
+function BestPriceCandidate({
+  profile,
+  candidate,
+  tenderUnitPrice,
+  busy = false,
+  onConfirm,
+}) {
+  const candidateUnitPrice = numberOrNull(candidate?.unit_price)
+  const profileQuantity = numberOrNull(profile?.quantity)
+  const totalCost = profileQuantity != null && candidateUnitPrice != null
+    ? profileQuantity * candidateUnitPrice
+    : null
+  const priceComparison = priceComparisonForUnitPrice(candidateUnitPrice, tenderUnitPrice)
+  const qualityStatus = String(candidate?.quality_status || 'review').toLowerCase()
+  const blocked = qualityStatus === 'blocked'
+
+  return (
+    <div className={`best-price-candidate quality-${qualityStatus}`}>
+      <div>
+        <span>Лучший кандидат</span>
+        <strong>{formatMoney(candidate?.unit_price)}</strong>
+        <p>
+          {candidate?.product_name || candidate?.supplier_name || 'Кандидат цены'}
+          {totalCost != null ? ` · ${formatMoney(totalCost)} итого` : ''}
+        </p>
+        {priceComparison && <em className={priceComparison.tone}>{priceComparison.label}</em>}
+      </div>
+      <button
+        className="secondary-button compact"
+        disabled={busy || blocked || !onConfirm}
+        onClick={() => ignorePriceCandidateActionError(onConfirm?.(candidate))}
+        type="button"
+      >
+        {blocked ? 'Нужна проверка' : 'Принять'}
+      </button>
+    </div>
+  )
+}
+
+function PriceCandidateQueue({
   profile,
   price_candidates = [],
   reviewingPriceCandidateId = null,
   onConfirm,
   onReject,
 }) {
-  if (!price_candidates.length) return null
+  const buckets = useMemo(() => candidateQueueBuckets(price_candidates), [price_candidates])
+  const [activeBucket, setActiveBucket] = useState('ready')
+  const preferredBucket = buckets.ready.length ? 'ready' : buckets.review.length ? 'review' : 'blocked'
+  const selectedBucket = buckets[activeBucket]?.length ? activeBucket : preferredBucket
+  const visibleCandidates = buckets[selectedBucket] || []
+  const queuedCandidateCount = buckets.ready.length + buckets.review.length + buckets.blocked.length
+  const bestCandidate = buckets.ready[0] || buckets.review[0] || buckets.blocked[0] || null
+  if (!queuedCandidateCount) return null
   const tenderUnitPrice = tenderReferenceUnitPrice(profile)
 
   return (
-    <div className="price-candidates-list">
+    <div className="price-candidates-list price-candidate-queue">
       <div className="price-candidates-heading">
         <span>Кандидаты цен</span>
-        <em>{price_candidates.length}</em>
+        <em>{queuedCandidateCount}</em>
       </div>
-      {price_candidates.map((candidate) => {
+      {bestCandidate && (
+        <BestPriceCandidate
+          busy={reviewingPriceCandidateId === bestCandidate.id}
+          candidate={bestCandidate}
+          onConfirm={onConfirm}
+          profile={profile}
+          tenderUnitPrice={tenderUnitPrice}
+        />
+      )}
+      <div className="candidate-queue-tabs" aria-label="Очередь кандидатов цен">
+        {[
+          ['ready', 'Готовые', buckets.ready.length],
+          ['review', 'Проверить', buckets.review.length],
+          ['blocked', 'Блок', buckets.blocked.length],
+        ].map(([id, label, count]) => (
+          <button
+            className={selectedBucket === id ? 'active' : ''}
+            disabled={count === 0}
+            key={id}
+            onClick={() => setActiveBucket(id)}
+            type="button"
+          >
+            {label} <span>{count}</span>
+          </button>
+        ))}
+      </div>
+      {visibleCandidates.map((candidate) => {
         const confirmed = candidate.review_status === 'confirmed'
         const rejected = candidate.review_status === 'rejected'
         const busy = reviewingPriceCandidateId === candidate.id

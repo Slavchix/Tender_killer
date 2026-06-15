@@ -348,6 +348,102 @@ def test_doctor_reports_ports_logs_and_recommendations(capsys, monkeypatch):
     assert any("static fallback" in item for item in payload["recommendations"])
 
 
+def test_doctor_reports_browser_fetch_runtime_failure(capsys, monkeypatch):
+    tmp_path = _workspace_tmp_path("doctor-browser-fetch")
+    api_log = tmp_path / "logs" / "api.err.log"
+    web_log = tmp_path / "logs" / "web.err.log"
+    api_log.parent.mkdir()
+    api_log.write_text("api booted\n", encoding="utf-8")
+    web_log.write_text("web booted\n", encoding="utf-8")
+    config = dev_control.DevControlConfig(root=tmp_path, api_port=8000, web_port=5175)
+    dev_control.write_manifest(
+        config.manifest_path,
+        dev_control.DevProcessManifest(
+            api_pid=111,
+            web_pid=222,
+            api=config.api_url,
+            frontend=config.frontend_url,
+            api_log=str(api_log),
+            web_log=str(web_log),
+            api_ready=True,
+            web_ready=True,
+            worker_pid=333,
+        ),
+    )
+    monkeypatch.setattr(dev_control, "_http_ok", lambda url: True)
+    monkeypatch.setattr(dev_control, "_pid_alive", lambda pid: pid in {111, 222, 333})
+    monkeypatch.setattr(dev_control, "_port_owner_pids", lambda port: {8000: [111], 5175: [222]}.get(port, []))
+    monkeypatch.setattr(
+        dev_control,
+        "_browser_fetch_runtime_check",
+        lambda config: {
+            "ok": False,
+            "enabled": True,
+            "node_path": "node.exe",
+            "script_path": str(tmp_path / "scripts" / "browser-fetch.mjs"),
+            "error": "spawn EPERM",
+        },
+        raising=False,
+    )
+
+    exit_code = dev_control.doctor_dev(config)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["runtime"]["browser_fetch"]["ok"] is False
+    assert payload["runtime"]["browser_fetch"]["error"] == "spawn EPERM"
+    assert any("browser-fetch helper" in item for item in payload["recommendations"])
+
+
+def test_doctor_keeps_reachable_stack_ok_when_manifest_supervisor_is_stale(capsys, monkeypatch):
+    tmp_path = _workspace_tmp_path("doctor-stale-supervisor")
+    api_log = tmp_path / "logs" / "api.err.log"
+    web_log = tmp_path / "logs" / "web.err.log"
+    api_log.parent.mkdir()
+    api_log.write_text("api booted\n", encoding="utf-8")
+    web_log.write_text("web booted\n", encoding="utf-8")
+    config = dev_control.DevControlConfig(root=tmp_path, api_port=8000, web_port=5175)
+    dev_control.write_manifest(
+        config.manifest_path,
+        dev_control.DevProcessManifest(
+            api_pid=111,
+            web_pid=222,
+            api=config.api_url,
+            frontend=config.frontend_url,
+            api_log=str(api_log),
+            web_log=str(web_log),
+            api_ready=True,
+            web_ready=True,
+            worker_pid=333,
+        ),
+    )
+    monkeypatch.setattr(dev_control, "_http_ok", lambda url: True)
+    monkeypatch.setattr(dev_control, "_pid_alive", lambda pid: pid == 222)
+    monkeypatch.setattr(dev_control, "_port_owner_pids", lambda port: {8000: [444], 5175: [222]}.get(port, []))
+    monkeypatch.setattr(
+        dev_control,
+        "_browser_fetch_runtime_check",
+        lambda config: {
+            "ok": True,
+            "enabled": True,
+            "node_path": "node.exe",
+            "script_path": str(tmp_path / "scripts" / "browser-fetch.mjs"),
+            "error": "",
+        },
+        raising=False,
+    )
+
+    exit_code = dev_control.doctor_dev(config)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["ok"] is True
+    assert payload["services"]["api"]["alive"] is False
+    assert payload["services"]["api"]["http_ok"] is True
+    assert payload["ports"]["api"]["owners"] == [444]
+    assert any("dev supervisor is not running" in item for item in payload["recommendations"])
+
+
 def test_package_restart_script_uses_python_dev_control():
     package = json.loads(Path("package.json").read_text(encoding="utf-8"))
 

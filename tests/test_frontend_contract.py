@@ -161,6 +161,31 @@ def test_frontend_uses_dedicated_formatters_module():
     assert find_mojibake(formatter_source, FORMATTERS_SOURCE) == []
 
 
+def test_economics_workspace_exposes_compact_operator_flow():
+    tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
+    profile_workspace_source = TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "EconomicsProgressStepper" in tab_source
+    assert "economics-stepper" in tab_source
+    assert "nextEconomicsAction" in tab_source
+    assert "primaryEconomicsAction" in tab_source
+    assert "PriceCandidateQueue" in suppliers_source
+    assert "best-price-candidate" in suppliers_source
+    assert "candidate-queue-tabs" in suppliers_source
+    assert "candidateQueueBuckets" in suppliers_source
+    assert "Локальный browser-fetch не запустился" in profile_workspace_source
+    assert "spawn eperm" in profile_workspace_source.lower()
+    assert ".economics-stepper" in styles_source
+    assert ".best-price-candidate" in styles_source
+    assert ".candidate-queue-tabs" in styles_source
+    assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
+    assert find_mojibake(profile_workspace_source, TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_frontend_uses_dedicated_constants_module():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     constants_source = (

@@ -16,9 +16,12 @@ from dataclasses import dataclass
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 from urllib.error import URLError
 from urllib.request import Request
 from urllib.request import urlopen
+
+from tender_killer import supplier_browser_fetcher
 
 
 DEFAULT_API_PORT = 8000
@@ -304,6 +307,7 @@ def doctor_dev(config: DevControlConfig) -> int:
     web_http_ok = _http_ok(config.frontend_url)
     api_port_pids = _unique_ints(_port_owner_pids(config.api_port))
     web_port_pids = _unique_ints(_port_owner_pids(config.web_port))
+    browser_fetch = _browser_fetch_runtime_check(config)
     services = {
         "api": {
             "pid": manifest.api_pid if manifest else None,
@@ -327,7 +331,7 @@ def doctor_dev(config: DevControlConfig) -> int:
         "ok": (
             api_http_ok
             and web_http_ok
-            and bool(services["supervisor"]["alive"])
+            and bool(browser_fetch.get("ok"))
             and len(api_port_pids) <= 1
             and len(web_port_pids) <= 1
         ),
@@ -335,6 +339,9 @@ def doctor_dev(config: DevControlConfig) -> int:
         "api": config.api_url,
         "frontend": config.frontend_url,
         "services": services,
+        "runtime": {
+            "browser_fetch": browser_fetch,
+        },
         "ports": {
             "api": {"port": config.api_port, "owners": api_port_pids},
             "web": {"port": config.web_port, "owners": web_port_pids},
@@ -352,6 +359,55 @@ def doctor_dev(config: DevControlConfig) -> int:
     payload["recommendations"] = _doctor_recommendations(payload)
     _print_json(payload)
     return 0 if payload["ok"] else 1
+
+
+def _browser_fetch_runtime_check(config: DevControlConfig) -> dict[str, object]:
+    node = _find_node(config.root)
+    script_path = supplier_browser_fetcher.resolve_script_path()
+    enabled = os.environ.get("TENDER_KILLER_SUPPLIER_BROWSER_FETCH", "1").strip().casefold() in {"1", "true", "yes", "on"}
+    result: dict[str, object] = {
+        "ok": False,
+        "enabled": enabled,
+        "node_path": node or "",
+        "script_path": str(script_path),
+        "error": "",
+    }
+    if not enabled:
+        result["error"] = "browser fetch disabled"
+        return result
+    if not node:
+        result["error"] = "node.exe not found"
+        return result
+    if not script_path.exists():
+        result["error"] = f"browser fetch helper not found: {script_path}"
+        return result
+
+    env = _dev_environment(config, node)
+    env["TENDER_KILLER_BROWSER_TIMEOUT_SECONDS"] = "1"
+    env["TENDER_KILLER_BROWSER_PROVIDER"] = "runtime"
+    html = "<!doctype html><title>runtime</title><main>" + ("ok " * 260) + "</main>"
+    command = [node, str(script_path), "data:text/html;charset=utf-8," + quote(html)]
+    try:
+        process = subprocess.run(
+            command,
+            cwd=str(config.root),
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        result["error"] = str(exc)
+        return result
+    if process.returncode != 0:
+        result["error"] = (process.stderr or process.stdout or f"exit code {process.returncode}").strip()
+        return result
+    if "runtime" not in (process.stdout or ""):
+        result["error"] = "browser fetch returned unexpected output"
+        return result
+    result["ok"] = True
+    return result
 
 
 def _spawn_service(
@@ -668,6 +724,11 @@ def _doctor_recommendations(payload: dict[str, object]) -> list[str]:
         recommendations.append(f"Run {restart_command} because the dev supervisor is not running.")
     if web.get("mode") == "static":
         recommendations.append("Frontend is running through static fallback; check the web log before expecting Vite hot reload.")
+    runtime = payload.get("runtime", {})
+    browser_fetch = runtime.get("browser_fetch", {}) if isinstance(runtime, dict) else {}
+    if isinstance(browser_fetch, dict) and not browser_fetch.get("ok"):
+        error = str(browser_fetch.get("error") or "unknown runtime error")
+        recommendations.append(f"Check the browser-fetch helper runtime: {error}.")
     logs = payload["logs"]
     assert isinstance(logs, dict)
     web_log = logs["web"]
