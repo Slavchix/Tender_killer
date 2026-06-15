@@ -5,12 +5,15 @@ export function SupplierDiscoveryPreview({ discovery, importing = false, diagnos
   const diagnostics = Array.isArray(discovery?.collector_diagnostics) ? discovery.collector_diagnostics : []
   const noCandidates = discovery?.status === 'no_candidates'
   const noCandidateHint = noCandidates && !candidates.length ? supplierDiscoveryNoCandidateHint(diagnostics) : ''
+  const nextAction = supplierDiscoveryNextAction(diagnostics, { noCandidates, candidateCount: candidates.length })
   if (!candidates.length && !diagnostics.length) return null
 
   return (
     <div className="supplier-discovery-preview">
       <span>{noCandidates && !candidates.length ? 'Кандидаты не найдены' : 'Найденные кандидаты'}</span>
       {noCandidates && !candidates.length && <p>{noCandidateHint}</p>}
+      <ProviderRunSummary diagnostics={diagnostics} />
+      {nextAction && <p className="supplier-discovery-next-action">{nextAction}</p>}
       {candidates.length > 0 && candidates.map((candidate, index) => {
         const imported = candidate.review_status === 'imported'
         const confidenceReasons = Array.isArray(candidate.confidence_reasons) ? candidate.confidence_reasons : []
@@ -49,6 +52,66 @@ export function SupplierDiscoveryPreview({ discovery, importing = false, diagnos
       )}
     </div>
   )
+}
+
+function ProviderRunSummary({ diagnostics }) {
+  const buckets = supplierDiscoveryRunBuckets(diagnostics)
+  if (!buckets.total) return null
+  const blockedTone = buckets.blocked > 0 ? 'warning' : 'ok'
+
+  return (
+    <div className="provider-run-summary" aria-label="Сводка проверки поставщиков">
+      <span className={blockedTone}>Провайдеры: {buckets.checked}/{buckets.total}</span>
+      <span>Кандидаты: {buckets.candidates}</span>
+      <span>Страницы: {buckets.pages}</span>
+      {buckets.blocked > 0 && <span className="warning">Блок: {buckets.blocked}</span>}
+      {buckets.skipped > 0 && <span>Пропущено: {buckets.skipped}</span>}
+    </div>
+  )
+}
+
+function supplierDiscoveryRunBuckets(diagnostics) {
+  const buckets = {
+    total: 0,
+    checked: 0,
+    blocked: 0,
+    skipped: 0,
+    pages: 0,
+    links: 0,
+    candidates: 0,
+  }
+  ;(Array.isArray(diagnostics) ? diagnostics : []).forEach((item) => {
+    if (!item || typeof item !== 'object') return
+    buckets.total += 1
+    buckets.pages += Number(item.pages_fetched || 0)
+    buckets.links += Number(item.links_seen || 0)
+    buckets.candidates += Number(item.candidates_found || 0)
+    if (item.run_state === 'blocked' || item.error_kind === 'access_blocked' || item.skip_reason === 'access_blocked') {
+      buckets.blocked += 1
+    } else if (item.run_state === 'skipped') {
+      buckets.skipped += 1
+    } else {
+      buckets.checked += 1
+    }
+  })
+  return buckets
+}
+
+function supplierDiscoveryNextAction(diagnostics, { noCandidates = false, candidateCount = 0 } = {}) {
+  const buckets = supplierDiscoveryRunBuckets(diagnostics)
+  if (!buckets.total) return ''
+  const items = Array.isArray(diagnostics) ? diagnostics : []
+  const rejectedByIntent = items.reduce((total, item) => total + (Number(item?.candidates_rejected_by_intent) || 0), 0)
+  if (buckets.blocked > 0) {
+    return 'Следующий шаг: открыть карточку товара вручную или внести цену из КП/прайса.'
+  }
+  if (rejectedByIntent > 0) {
+    return 'Следующий шаг: проверить соответствие товара позиции или вставить более точную ссылку.'
+  }
+  if (noCandidates && candidateCount === 0 && buckets.pages > 0) {
+    return 'Следующий шаг: цена не распознана автоматически, внеси цену из карточки вручную.'
+  }
+  return ''
 }
 
 function supplierDiscoveryNoCandidateHint(diagnostics) {

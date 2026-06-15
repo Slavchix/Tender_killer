@@ -186,6 +186,27 @@ def test_economics_workspace_exposes_compact_operator_flow():
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
+def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
+    suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
+    discovery_source = TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "ProviderRunSummary" in discovery_source
+    assert "provider-run-summary" in discovery_source
+    assert "supplierDiscoveryRunBuckets" in discovery_source
+    assert "supplier-discovery-next-action" in discovery_source
+    assert "CandidateDecisionTrace" in suppliers_source
+    assert "candidate-decision-trace" in suppliers_source
+    assert "candidateBestReasonItems" in suppliers_source
+    assert "score_reasons" in suppliers_source
+    assert ".provider-run-summary" in styles_source
+    assert ".candidate-decision-trace" in styles_source
+    assert ".supplier-discovery-next-action" in styles_source
+    assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
+    assert find_mojibake(discovery_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_frontend_uses_dedicated_constants_module():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     constants_source = (
@@ -1574,13 +1595,14 @@ def test_product_profile_renders_supplier_option_form():
     assert "supplier-manual-mode-tabs" in styles_source
     assert "supplier-manual-result" in styles_source
     assert "price_candidates" in source
-    assert "PriceCandidatesList" in source
+    assert "PriceCandidateQueue" in source
     assert "tenderReferenceUnitPrice(profile)" in source
     assert "priceComparisonForUnitPrice(candidateUnitPrice, tenderUnitPrice)" in source
     assert "price-candidate-reference-price" in source
     assert "price-candidate-price-delta" in source
-    assert "visiblePriceCandidates" in source
-    assert "reviewStatus === 'pending'" in source
+    assert "candidateQueueBuckets" in source
+    assert "queuedCandidateCount" in source
+    assert "reviewStatus !== 'pending'" in source
     assert "showSupplierOptions" in source
     assert "PriceCandidatesEmptyState" in source
     assert "manual URL" in source

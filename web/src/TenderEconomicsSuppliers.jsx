@@ -107,6 +107,7 @@ function BestPriceCandidate({
           {candidate?.product_name || candidate?.supplier_name || 'Кандидат цены'}
           {totalCost != null ? ` · ${formatMoney(totalCost)} итого` : ''}
         </p>
+        <CandidateDecisionTrace candidate={candidate} compact />
         {priceComparison && <em className={priceComparison.tone}>{priceComparison.label}</em>}
       </div>
       <button
@@ -119,6 +120,65 @@ function BestPriceCandidate({
       </button>
     </div>
   )
+}
+
+function CandidateDecisionTrace({ candidate, compact = false }) {
+  const reasons = candidateBestReasonItems(candidate)
+  if (!reasons.length) return null
+  const visibleReasons = compact ? reasons.slice(0, 3) : reasons.slice(0, 5)
+
+  return (
+    <div className="candidate-decision-trace" aria-label="Почему кандидат в этой очереди">
+      {visibleReasons.map((reason) => (
+        <span className={reason.tone || 'neutral'} key={`${reason.tone || 'neutral'}-${reason.label}`}>
+          {reason.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function candidateBestReasonItems(candidate = {}) {
+  const items = []
+  const pushReason = (id, tone = 'neutral') => {
+    const label = priceCandidateDecisionReasonLabel(id)
+    if (label && !items.some((item) => item.label === label)) {
+      items.push({ label, tone })
+    }
+  }
+  ;(Array.isArray(candidate.score_reasons) ? candidate.score_reasons : []).forEach((reason) => pushReason(reason, 'match'))
+  ;(Array.isArray(candidate.match_reasons) ? candidate.match_reasons : []).forEach((reason) => pushReason(reason, 'match'))
+  const flags = Array.isArray(candidate.quality_flags) ? candidate.quality_flags : []
+  flags.forEach((flag) => {
+    const tone = flag?.severity === 'block' ? 'risk' : 'review'
+    const label = priceCandidateFlagLabel(flag)
+    if (label && !items.some((item) => item.label === label)) {
+      items.push({ label, tone })
+    }
+  })
+  if (!items.length && candidate.quality_status) {
+    pushReason(`quality_${candidate.quality_status}`, candidate.quality_status === 'blocked' ? 'risk' : 'review')
+  }
+  return items
+}
+
+function priceCandidateDecisionReasonLabel(reason) {
+  const labels = {
+    confirmed: 'уже принято',
+    source_url: 'есть ссылка',
+    high_confidence: 'высокая уверенность',
+    medium_confidence: 'средняя уверенность',
+    has_price: 'есть цена',
+    quality_ready: 'готово к расчету',
+    quality_review: 'нужна проверка',
+    quality_blocked: 'не брать автоматически',
+    strict_source_query: 'точный запрос',
+    profile_intent_match: 'позиция совпала',
+    lower_price: 'ниже рынка',
+    provider_present: 'поставщик указан',
+    weak_signal: 'слабый сигнал',
+  }
+  return labels[reason] || priceCandidateReasonLabel(reason)
 }
 
 function PriceCandidateQueue({
@@ -232,6 +292,7 @@ function PriceCandidateQueue({
                   В расчет выбрана ступень от {formatQuantity(selectedPriceBreak.count)} шт.
                 </p>
               )}
+              <CandidateDecisionTrace candidate={candidate} />
               {(matchReasons.length > 0 || reviewReasons.length > 0) && (
                 <div className="price-candidate-reasons" aria-label="candidate match reasons">
                   {matchReasons.slice(0, 5).map((reason) => (
