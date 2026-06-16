@@ -220,6 +220,70 @@ def test_build_analysis_operator_view_returns_pending_four_block_contract_withou
     assert view["sections"][1]["items"][0]["type"] == "document_summary"
 
 
+def test_build_analysis_operator_view_marks_unbound_non_blockers_as_weak_facts():
+    view = build_analysis_operator_view(
+        {
+            "summary": "Supply goods.",
+            "analysis_facts": {
+                "version": 1,
+                "items": [
+                    {
+                        "id": "requirement:unclear",
+                        "kind": "requirement",
+                        "label": "temperature mode",
+                        "value": "temperature mode",
+                        "category": "general",
+                        "severity": "medium",
+                        "fragment": "temperature mode",
+                        "needs_review": True,
+                    }
+                ],
+            },
+        },
+        [],
+    )
+
+    sections = {section["id"]: section for section in view["sections"]}
+    item = sections["product_compliance"]["items"][0]
+
+    assert item["display_tier"] == "weak"
+    assert item["weak_reason"]
+    assert item["operator_summary"]
+    assert item["operator_check"]
+    assert not item["is_blocker"]
+
+
+def test_build_analysis_operator_view_adds_structured_fact_interpretation():
+    view = build_analysis_operator_view(
+        {
+            "summary": "Supply goods.",
+            "analysis_facts": {
+                "version": 1,
+                "items": [
+                    {
+                        "id": "payment:advance",
+                        "kind": "execution_term",
+                        "label": "Аванс",
+                        "value": "Авансирование не предусмотрено.",
+                        "category": "financial",
+                        "severity": "medium",
+                        "document_name": "Контракт.docx",
+                        "fragment": "Авансирование не предусмотрено. Оплата после приемки.",
+                    }
+                ],
+            },
+        },
+        [],
+    )
+
+    sections = {section["id"]: section for section in view["sections"]}
+    item = sections["acceptance_payment"]["items"][0]
+
+    assert item["interpretation"]["found"] == "Авансирование не предусмотрено."
+    assert "авансом" in item["interpretation"]["meaning"].casefold()
+    assert "оборот" in item["interpretation"]["impact"].casefold()
+
+
 def test_build_analysis_operator_view_dedupes_semantic_risks_and_adds_operator_context():
     analysis = {
         "summary": "Поставка электроинструмента",

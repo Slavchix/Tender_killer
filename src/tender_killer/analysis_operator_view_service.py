@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from tender_killer.analysis_interpretation_service import build_fact_interpretation
+
 
 BLOCKER_CATEGORIES = {"legal", "national_regime"}
 DOCUMENT_CATEGORIES = {"documents", "standards", "qualification", "subject"}
@@ -434,6 +436,50 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         fragment=fragment,
         needs_review=needs_review,
     )
+    confidence_level = _operator_confidence_level(
+        raw_item,
+        source_binding,
+        fragment=fragment,
+        source_context=source_context,
+    )
+    operator_action = _operator_action(
+        kind,
+        category,
+        is_blocker,
+        needs_review,
+        label=label,
+        raw_action=_text(raw_item.get("operator_action")),
+    )
+    price_impact = _text(raw_item.get("price_impact")) or _price_impact(category, label=label)
+    display_tier = _operator_display_tier(
+        source_binding=source_binding,
+        confidence_level=confidence_level,
+        is_blocker=is_blocker,
+        needs_review=needs_review,
+    )
+    description = _operator_description(
+        label=label,
+        raw_description=_text(raw_item.get("description")),
+        value=value,
+        fragment=fragment,
+        category=category,
+        kind=kind,
+        is_blocker=is_blocker,
+    )
+    interpretation = build_fact_interpretation(
+        {
+            **raw_item,
+            "label": label,
+            "value": value,
+            "description": description,
+            "category": category,
+            "fragment": fragment,
+            "source_context": source_context,
+            "evidence_summary": evidence_summary,
+            "operator_action": operator_action,
+            "source_label": source_label,
+        }
+    )
 
     return {
         "id": _text(raw_item.get("id")) or f"{kind}:{_slug(label)}",
@@ -441,14 +487,24 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         "kind": kind,
         "label": label,
         "value": value,
-        "description": _operator_description(
+        "description": description,
+        "operator_summary": _operator_summary(
             label=label,
-            raw_description=_text(raw_item.get("description")),
-            value=value,
-            fragment=fragment,
-            category=category,
-            kind=kind,
+            description=description,
+            impact=impact,
             is_blocker=is_blocker,
+            needs_review=needs_review,
+            source_binding=source_binding,
+            confidence_level=confidence_level,
+        ),
+        "operator_check": _operator_check(label=label, action=operator_action, needs_review=needs_review),
+        "interpretation": interpretation,
+        "display_tier": display_tier,
+        "weak_reason": _operator_weak_reason(
+            display_tier=display_tier,
+            source_binding=source_binding,
+            confidence_level=confidence_level,
+            needs_review=needs_review,
         ),
         "category": category,
         "severity": severity,
@@ -460,12 +516,7 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         "evidence_summary": evidence_summary,
         "fragment": fragment,
         "source_binding": source_binding,
-        "confidence_level": _operator_confidence_level(
-            raw_item,
-            source_binding,
-            fragment=fragment,
-            source_context=source_context,
-        ),
+        "confidence_level": confidence_level,
         "impact": impact,
         "document_role": _text(raw_item.get("document_role")),
         "document_stage": _text(raw_item.get("document_stage")),
@@ -475,15 +526,8 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         "deadline_type": _text(raw_item.get("deadline_type")),
         "responsible_party": _text(raw_item.get("responsible_party")),
         "operator_group": _text(raw_item.get("operator_group")) or _operator_group(kind, category, is_blocker, needs_review),
-        "operator_action": _operator_action(
-            kind,
-            category,
-            is_blocker,
-            needs_review,
-            label=label,
-            raw_action=_text(raw_item.get("operator_action")),
-        ),
-        "price_impact": _text(raw_item.get("price_impact")) or _price_impact(category, label=label),
+        "operator_action": operator_action,
+        "price_impact": price_impact,
         "priority": _int_metric(raw_item.get("priority"), _priority(kind, category, severity, is_blocker, needs_review)),
         "rule_id": _text(raw_item.get("rule_id")),
         "is_blocker": is_blocker,
@@ -853,6 +897,71 @@ def _operator_action(
     if category in {"financial", "payment"}:
         return "Проверить оплату, аванс, обеспечение и денежный цикл."
     return "Проверить условие перед решением."
+
+
+def _operator_display_tier(
+    *,
+    source_binding: dict[str, str],
+    confidence_level: dict[str, str],
+    is_blocker: bool,
+    needs_review: bool,
+) -> str:
+    if is_blocker:
+        return "primary"
+    if needs_review:
+        return "weak"
+    if source_binding.get("level") in {"unbound", "inferred"}:
+        return "weak"
+    if confidence_level.get("level") == "low":
+        return "weak"
+    if source_binding.get("level") == "explicit" and confidence_level.get("level") == "high":
+        return "primary"
+    return "standard"
+
+
+def _operator_weak_reason(
+    *,
+    display_tier: str,
+    source_binding: dict[str, str],
+    confidence_level: dict[str, str],
+    needs_review: bool,
+) -> str:
+    if display_tier != "weak":
+        return ""
+    if needs_review or source_binding.get("level") == "unbound":
+        return "Факт не привязан к надежному месту в документах; учитывайте его только после ручной проверки источника."
+    if source_binding.get("level") == "inferred":
+        return "Это вывод из общего контекста, а не прямое требование; проверьте формулировку в документах."
+    if confidence_level.get("level") == "low":
+        return "Низкая уверенность извлечения; нужна проверка перед расчетом и решением."
+    return "Слабое совпадение: проверьте источник перед тем, как считать условие обязательным."
+
+
+def _operator_summary(
+    *,
+    label: str,
+    description: str,
+    impact: str,
+    is_blocker: bool,
+    needs_review: bool,
+    source_binding: dict[str, str],
+    confidence_level: dict[str, str],
+) -> str:
+    binding_level = source_binding.get("level")
+    confidence = confidence_level.get("level")
+    if is_blocker:
+        return f"Это условие может заблокировать участие или изменить решение по тендеру. {description}"
+    if needs_review or binding_level in {"unbound", "inferred"} or confidence == "low":
+        return f"Найден возможный признак «{label}», но источник слабый. Сначала подтвердите его в документе, затем учитывайте в решении."
+    if impact and impact != description:
+        return f"{description} Практический смысл: {impact}"
+    return description
+
+
+def _operator_check(*, label: str, action: str, needs_review: bool) -> str:
+    if needs_review:
+        return f"Найти точное место в документе по условию «{label}» и подтвердить, что оно относится к заявке."
+    return action
 
 
 def _price_impact(category: str, *, label: str = "") -> str:

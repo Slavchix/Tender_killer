@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnalysisDecisionBrief } from './TenderAnalysisDecisionBrief'
 import { AnalysisDocumentsPanel } from './TenderAnalysisDocumentsPanel'
 import { AnalysisPassport } from './TenderAnalysisPassport'
@@ -23,6 +23,8 @@ export function TenderAnalysisTab({
   documents = [],
 }) {
   const [selectedAnalysisSection, setSelectedAnalysisSection] = useState('decision_risks')
+  const [analysisViewMode, setAnalysisViewMode] = useState('compact')
+  const userSelectedAnalysisSectionRef = useRef(false)
   const analysisSections = analysisSectionItems(analysis, documents)
   const analysisSectionKey = analysisSections.map((section) => section.id).join('|')
   const analysisActionDisabled = preparingAnalysis || downloading || extracting || analyzing
@@ -32,15 +34,21 @@ export function TenderAnalysisTab({
   useEffect(() => {
     const sectionIds = new Set(analysisSections.map((section) => section.id))
     setSelectedAnalysisSection((currentSection) => {
-      if (primarySection && sectionIds.has(primarySection)) {
+      if (!userSelectedAnalysisSectionRef.current && primarySection && sectionIds.has(primarySection)) {
         return primarySection
       }
       if (!sectionIds.has(currentSection)) {
+        userSelectedAnalysisSectionRef.current = false
         return analysisSections[0]?.id || 'decision_risks'
       }
       return currentSection
     })
   }, [analysisSectionKey, primarySection])
+
+  function selectAnalysisSection(sectionId) {
+    userSelectedAnalysisSectionRef.current = true
+    setSelectedAnalysisSection(sectionId)
+  }
 
   return (
     <section className="detail-section active analysis-section">
@@ -72,13 +80,13 @@ export function TenderAnalysisTab({
       <AnalysisDecisionBrief
         analysis={analysis}
         documents={documents}
-        onOpenSection={setSelectedAnalysisSection}
+        onOpenSection={selectAnalysisSection}
       />
       <AnalysisPassport
         analysis={analysis}
         sections={analysisSections}
         selectedSection={selectedAnalysisSection}
-        onSelectSection={setSelectedAnalysisSection}
+        onSelectSection={selectAnalysisSection}
       />
 
       <div className="analysis-workspace">
@@ -88,6 +96,8 @@ export function TenderAnalysisTab({
               sectionId={selectedAnalysisSection}
               analysis={analysis}
               documents={documents}
+              viewMode={analysisViewMode}
+              onViewModeChange={setAnalysisViewMode}
               onFeedback={onAnalysisFeedback}
               savingFeedbackId={savingAnalysisFeedbackId}
             />
@@ -123,9 +133,42 @@ function AnalysisHistory({ history = [] }) {
                 +{changes.added_count || 0} / -{changes.removed_count || 0} / Δ{changes.changed_count || 0}
                 {changes.feedback_count ? ` · меток: ${changes.feedback_count}` : ''}
               </small>
+              <AnalysisHistoryDetails changes={changes} />
             </article>
           )
         })}
+      </div>
+    </details>
+  )
+}
+
+function AnalysisHistoryDetails({ changes = {} }) {
+  const groups = [
+    ['Добавлено', changes.added],
+    ['Изменено', changes.changed],
+    ['Удалено', changes.removed],
+    ['Метки оператора', changes.feedback],
+  ]
+    .map(([label, values]) => [label, Array.isArray(values) ? values.filter(Boolean).slice(0, 5) : []])
+    .filter(([, values]) => values.length)
+
+  if (!groups.length) {
+    return null
+  }
+  return (
+    <details className="analysis-history-details">
+      <summary>Показать изменения</summary>
+      <div>
+        {groups.map(([label, values]) => (
+          <section key={label}>
+            <strong>{label}</strong>
+            <ul>
+              {values.map((value) => (
+                <li key={value}>{value}</li>
+              ))}
+            </ul>
+          </section>
+        ))}
       </div>
     </details>
   )

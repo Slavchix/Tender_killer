@@ -13,6 +13,8 @@ export const MAJOR_ANALYSIS_SECTIONS = [
   { id: 'acceptance_payment', title: 'Приемка, документы и оплата', empty: 'Условия приемки, документов и оплаты пока не найдены.' },
 ]
 
+const ANALYSIS_COMPACT_LIMIT = 3
+
 export function analysisSectionItems(analysis, documents = []) {
   return visibleMajorAnalysisSections(analysis, documents).map((section) => ({
     id: section.id,
@@ -37,7 +39,15 @@ export function AnalysisSectionRail({ sections, selectedSection, onSelectSection
   )
 }
 
-export function AnalysisSectionBody({ sectionId, analysis, documents = [], onFeedback, savingFeedbackId }) {
+export function AnalysisSectionBody({
+  sectionId,
+  analysis,
+  documents = [],
+  viewMode = 'compact',
+  onViewModeChange,
+  onFeedback,
+  savingFeedbackId,
+}) {
   const sections = visibleMajorAnalysisSections(analysis, documents)
   const section = sections.find((item) => item.id === sectionId) || sections[0]
   if (!section) {
@@ -47,7 +57,15 @@ export function AnalysisSectionBody({ sectionId, analysis, documents = [], onFee
       </div>
     )
   }
-  return <AnalysisOperatorSection section={section} onFeedback={onFeedback} savingFeedbackId={savingFeedbackId} />
+  return (
+    <AnalysisOperatorSection
+      section={section}
+      viewMode={viewMode}
+      onViewModeChange={onViewModeChange}
+      onFeedback={onFeedback}
+      savingFeedbackId={savingFeedbackId}
+    />
+  )
 }
 
 function visibleMajorAnalysisSections(analysis, documents = []) {
@@ -243,10 +261,21 @@ function dedupeItems(items) {
   })
 }
 
-function AnalysisOperatorSection({ section, onFeedback, savingFeedbackId }) {
+function AnalysisOperatorSection({
+  section,
+  viewMode = 'compact',
+  onViewModeChange,
+  onFeedback,
+  savingFeedbackId,
+}) {
   const items = displayableAnalysisItems(section.items)
   const documentSummary = items.find((item) => item.type === 'document_summary')
   const analysisItems = items.filter(isAnalysisFactItem)
+  const primaryItems = analysisItems.filter((item) => !isWeakAnalysisFact(item))
+  const weakItems = analysisItems.filter(isWeakAnalysisFact)
+  const compact = viewMode !== 'detailed'
+  const visiblePrimaryItems = compact ? primaryItems.slice(0, ANALYSIS_COMPACT_LIMIT) : primaryItems
+  const hiddenPrimaryItems = compact ? primaryItems.slice(ANALYSIS_COMPACT_LIMIT) : []
 
   return (
     <div className={`analysis-card operator-section ${section.tone || 'default'}`}>
@@ -256,51 +285,227 @@ function AnalysisOperatorSection({ section, onFeedback, savingFeedbackId }) {
       </div>
       {documentSummary && <DocumentSummaryItem item={documentSummary} />}
       {analysisItems.length ? (
-        <div className="analysis-checklist-list">
-          {analysisItems.map((item, index) => {
-            const sourceLabel = item.source_label || item.source
-            const sourceBinding = analysisSourceBinding(item)
-            const confidenceLevel = analysisConfidenceLevel(item)
-            return (
-              <article className={`analysis-checklist-row severity-${item.severity || 'medium'} feedback-${item.feedback_state || 'none'}`} key={item.id || `${item.label}-${index}`}>
-                <div className="analysis-checklist-main">
-                  <strong>{item.label}</strong>
-                  <div className="analysis-checklist-tags">
-                    {analysisItemTags(item).map((tag) => (
-                      <span key={tag}>{tag}</span>
-                    ))}
-                  </div>
+        <>
+          <AnalysisViewControls
+            totalCount={analysisItems.length}
+            viewMode={viewMode}
+            onViewModeChange={onViewModeChange}
+          />
+          <div className="analysis-checklist-list">
+            {visiblePrimaryItems.map((item, index) => (
+              <AnalysisFactCard
+                detailed={!compact}
+                item={item}
+                key={item.id || `${item.label}-${index}`}
+                onFeedback={onFeedback}
+                savingFeedbackId={savingFeedbackId}
+              />
+            ))}
+            {hiddenPrimaryItems.length ? (
+              <details className="analysis-hidden-facts">
+                <summary>Показать еще {hiddenPrimaryItems.length}</summary>
+                <div className="analysis-checklist-list">
+                  {hiddenPrimaryItems.map((item, index) => (
+                    <AnalysisFactCard
+                      detailed={!compact}
+                      item={item}
+                      key={item.id || `${item.label}-hidden-${index}`}
+                      onFeedback={onFeedback}
+                      savingFeedbackId={savingFeedbackId}
+                    />
+                  ))}
                 </div>
-                <AnalysisFeedbackControls
-                  disabled={!item.id || !onFeedback || savingFeedbackId === item.id}
-                  item={item}
-                  onFeedback={onFeedback}
-                />
-                {item.description && <p>{item.description}</p>}
-                {item.operator_action && <em className="analysis-evidence-impact">{item.operator_action}</em>}
-                {item.impact && item.impact !== item.operator_action && <em className="analysis-evidence-impact">{item.impact}</em>}
-                {sourceLabel && (
-                  <div className="analysis-source-context" aria-label="Источник">
-                    <div className="analysis-source-meta">
-                      <span className={`analysis-source-binding-${sourceBinding.level}`}>{sourceBinding.label}</span>
-                      <span className={`analysis-confidence-${confidenceLevel.level}`}>{confidenceLevel.label}</span>
-                    </div>
-                    <strong>{sourceLabel}</strong>
-                    {sourceBinding.detail && <p>{sourceBinding.detail}</p>}
-                    {confidenceLevel.detail && <p>{confidenceLevel.detail}</p>}
-                    {item.source_context && <p>{item.source_context}</p>}
-                    {item.fragment && <p>{item.fragment}</p>}
-                  </div>
-                )}
-              </article>
-            )
-          })}
-        </div>
+              </details>
+            ) : null}
+            {weakItems.length ? (
+              <details className="analysis-weak-facts" open={!compact}>
+                <summary>Слабые совпадения / ручная проверка ({weakItems.length})</summary>
+                <div className="analysis-checklist-list">
+                  {weakItems.map((item, index) => (
+                    <AnalysisFactCard
+                      detailed={!compact}
+                      item={item}
+                      key={item.id || `${item.label}-weak-${index}`}
+                      onFeedback={onFeedback}
+                      savingFeedbackId={savingFeedbackId}
+                      weak
+                    />
+                  ))}
+                </div>
+              </details>
+            ) : null}
+            {!analysisItems.length && <p className="muted-text">В анализе пока нет подтвержденных пунктов.</p>}
+          </div>
+        </>
       ) : (
         !documentSummary && <p className="muted-text">{section.empty}</p>
       )}
     </div>
   )
+}
+
+function AnalysisViewControls({ totalCount, viewMode, onViewModeChange }) {
+  return (
+    <div className="analysis-view-controls" aria-label="Настройки отображения анализа">
+      <div className="analysis-mode-toggle" role="group" aria-label="Детализация">
+        <button
+          className={viewMode !== 'detailed' ? 'active' : ''}
+          onClick={() => onViewModeChange?.('compact')}
+          type="button"
+        >
+          Кратко
+        </button>
+        <button
+          className={viewMode === 'detailed' ? 'active' : ''}
+          onClick={() => onViewModeChange?.('detailed')}
+          type="button"
+        >
+          Подробно
+        </button>
+      </div>
+      <div className="analysis-filter-chips" role="group" aria-label="Фильтр фактов">
+        <span className="active">
+          <span>Все</span>
+          <strong>{totalCount || 0}</strong>
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function AnalysisFactCard({ item, detailed = false, onFeedback, savingFeedbackId, weak = false }) {
+  const sourceLabel = item.source_label || item.source
+  const sourceBinding = analysisSourceBinding(item)
+  const confidenceLevel = analysisConfidenceLevel(item)
+  const interpretation = item.interpretation && typeof item.interpretation === 'object' ? item.interpretation : {}
+  const summary = cleanAnalysisText(item.operator_summary) || cleanAnalysisText(item.description)
+  const operatorCheck = cleanAnalysisText(item.operator_check) || cleanAnalysisText(item.operator_action)
+  const impact = cleanAnalysisText(item.impact)
+  const weakReason = cleanAnalysisText(item.weak_reason)
+  const compactSentence = compactAnalysisFactSentence(item, interpretation)
+  const detailParts = [
+    cleanAnalysisText(interpretation.found) ? ['Что найдено', cleanAnalysisText(interpretation.found)] : null,
+    cleanAnalysisText(interpretation.meaning) || summary ? ['Что означает', cleanAnalysisText(interpretation.meaning) || summary] : null,
+    cleanAnalysisText(interpretation.impact) || impact ? ['Влияние', cleanAnalysisText(interpretation.impact) || impact] : null,
+    cleanAnalysisText(interpretation.action) || operatorCheck ? ['Что сделать', cleanAnalysisText(interpretation.action) || operatorCheck] : null,
+  ].filter(Boolean)
+  const sourceDetail = Boolean(sourceLabel || sourceBinding.detail || confidenceLevel.detail || item.source_context || item.fragment)
+  return (
+    <article className={`analysis-checklist-row severity-${item.severity || 'medium'} feedback-${item.feedback_state || 'none'}${weak ? ' weak' : ''}`}>
+      <div className="analysis-checklist-main">
+        <strong>{item.label}</strong>
+        <div className="analysis-checklist-tags">
+          {analysisItemTags(item).map((tag) => (
+            <span key={tag}>{tag}</span>
+          ))}
+        </div>
+      </div>
+      <AnalysisFeedbackControls
+        disabled={!item.id || !onFeedback || savingFeedbackId === item.id}
+        item={item}
+        onFeedback={onFeedback}
+      />
+      <div className="analysis-fact-body">
+        {!detailed && compactSentence ? (
+          <p className="analysis-fact-line compact">
+            <span>{compactSentence}</span>
+          </p>
+        ) : detailParts.length ? (
+          <div className="analysis-fact-detail-grid">
+            {detailParts.map(([label, value]) => (
+              <section key={label}>
+                <strong>{label}</strong>
+                <p>{value}</p>
+              </section>
+            ))}
+          </div>
+        ) : null}
+        {weakReason && (
+          <p className="analysis-fact-warning">
+            <span>Ограничение</span>
+            {weakReason}
+          </p>
+        )}
+      </div>
+      {detailed && sourceDetail && (
+        <details className="analysis-source-context" aria-label="Источник" open>
+          <summary>
+            <span>Источник</span>
+            <strong>{sourceLabel || sourceBinding.label}</strong>
+          </summary>
+          <div className="analysis-source-meta">
+            <span className={`analysis-source-binding-${sourceBinding.level}`}>{sourceBinding.label}</span>
+            <span className={`analysis-confidence-${confidenceLevel.level}`}>{confidenceLevel.label}</span>
+          </div>
+          {sourceBinding.detail && <p>{sourceBinding.detail}</p>}
+          {confidenceLevel.detail && <p>{confidenceLevel.detail}</p>}
+          {item.source_context && <p>{item.source_context}</p>}
+          {item.fragment && <p>{item.fragment}</p>}
+        </details>
+      )}
+    </article>
+  )
+}
+
+function compactAnalysisFactSentence(item, interpretation = {}) {
+  const label = cleanAnalysisText(item?.label) || 'Условие'
+  const candidates = [
+    interpretation?.found,
+    item?.value,
+    item?.fragment,
+    item?.source_context,
+    item?.evidence_summary,
+  ]
+  const specific = candidates
+    .map((value) => cleanAnalysisText(value))
+    .find((value) => isSpecificCompactFactText(label, value))
+  if (specific) {
+    return `${label} — ${compactFactText(specific)}`
+  }
+  return `${label} — точная формулировка в извлеченном тексте не найдена.`
+}
+
+function isSpecificCompactFactText(label, value) {
+  if (!value) return false
+  const normalizedValue = normalizedAnalysisText(value)
+  const normalizedLabel = normalizedAnalysisText(label)
+  if (!normalizedValue || normalizedValue === normalizedLabel) return false
+  if (normalizedValue.length < 8 && !/\d/.test(normalizedValue) && !normalizedValue.includes('нет')) return false
+  const genericPrefixes = [
+    'это влияет',
+    'это условие',
+    'нужно понять',
+    'условие нужно',
+    'проверить',
+    'найден возможный признак',
+    'практический смысл',
+  ]
+  return !genericPrefixes.some((prefix) => normalizedValue.startsWith(prefix))
+}
+
+function compactFactText(value) {
+  const text = cleanAnalysisText(value)
+  const sentenceEnd = text.search(/[.!?](\s|$)/)
+  const sentence = sentenceEnd > 20 ? text.slice(0, sentenceEnd + 1) : text
+  if (sentence.length <= 220) return sentence
+  return `${sentence.slice(0, 219).trim()}…`
+}
+
+function isWeakAnalysisFact(item) {
+  if (isBlockerAnalysisFact(item)) return false
+  const sourceBinding = analysisSourceBinding(item)
+  const confidenceLevel = analysisConfidenceLevel(item)
+  return (
+    item.display_tier === 'weak' ||
+    item.needs_review ||
+    sourceBinding.level === 'unbound' ||
+    sourceBinding.level === 'inferred' ||
+    confidenceLevel.level === 'low'
+  )
+}
+
+function isBlockerAnalysisFact(item) {
+  return Boolean(item?.is_blocker || item?.kind === 'blocker' || item?.kind === 'red_flag' || item?.severity === 'high' && item?.category !== 'subject')
 }
 
 function analysisSourceBinding(item) {

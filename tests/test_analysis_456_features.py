@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 
 from tender_killer.analysis_facts_service import build_analysis_facts
+from tender_killer.analysis_history_service import build_analysis_change_summary
 from tender_killer.analysis_service import analyze_tender_payload
 from tender_killer.api_handlers import handle_post_request
 from tender_killer.models import Tender
@@ -230,3 +231,27 @@ def test_analysis_history_tracks_reanalysis_changes(tmp_path):
     assert latest_history["changes"]["added_count"] >= 1
     assert latest_history["changes"]["summary"].startswith("Добавлено")
     assert latest_history["changes"]["feedback_count"] == 0
+
+
+def test_analysis_history_summarizes_operator_feedback_labels():
+    current = {
+        "analysis_facts": {
+            "version": 1,
+            "items": [
+                {"id": "fact:certificate", "label": "сертификат/декларация"},
+                {"id": "fact:delivery", "label": "срок поставки"},
+            ],
+        },
+        "analysis_feedback": {
+            "fact:certificate": {"state": "confirmed"},
+            "fact:delivery": {"state": "ignored"},
+        },
+    }
+
+    changes = build_analysis_change_summary({}, current)
+
+    assert changes["feedback_count"] == 2
+    assert changes["feedback"] == [
+        "сертификат/декларация: подтверждено",
+        "срок поставки: отклонено",
+    ]

@@ -122,6 +122,7 @@ def build_analysis_change_summary(
         "added": added[:10],
         "removed": removed[:10],
         "changed": changed[:10],
+        "feedback": _feedback_labels(feedback, current_facts)[:10],
         "summary": _change_summary_text(
             previous_run_id=previous_run_id,
             added_count=len(added),
@@ -162,6 +163,34 @@ def _fact_signature(item: dict[str, Any]) -> tuple[str, ...]:
         "feedback_state",
     )
     return tuple(str(item.get(field) or "") for field in fields)
+
+
+def _feedback_labels(feedback: Any, facts_by_id: dict[str, dict[str, Any]]) -> list[str]:
+    if not isinstance(feedback, dict):
+        return []
+    rows: list[str] = []
+    for fact_id, payload in feedback.items():
+        if not isinstance(payload, dict):
+            continue
+        state = str(payload.get("state") or "").strip()
+        if not state:
+            continue
+        fact = facts_by_id.get(str(fact_id), {})
+        label = _fact_label(fact) if fact else str(fact_id)
+        rows.append(f"{label}: {_feedback_state_label(state)}")
+    return rows
+
+
+def _feedback_state_label(state: str) -> str:
+    if state == "not_risk":
+        return "принято как не риск"
+    if state == "confirmed":
+        return "подтверждено"
+    if state == "ignored":
+        return "отклонено"
+    if state == "favorite":
+        return "важно"
+    return state
 
 
 def _change_summary_text(
