@@ -96,16 +96,17 @@ function BestPriceCandidate({
     : null
   const priceComparison = priceComparisonForUnitPrice(candidateUnitPrice, tenderUnitPrice)
   const qualityStatus = String(candidate?.quality_status || 'review').toLowerCase()
+  const manualPriceRequired = candidateNeedsManualPrice(candidate)
   const blocked = qualityStatus === 'blocked'
 
   return (
     <div className={`best-price-candidate quality-${qualityStatus}`}>
       <div>
-        <span>Лучший кандидат</span>
-        <strong>{formatMoney(candidate?.unit_price)}</strong>
+        <span>{manualPriceRequired ? 'Ссылка сохранена' : 'Лучший кандидат'}</span>
+        <strong>{manualPriceRequired ? 'нужна цена' : formatMoney(candidate?.unit_price)}</strong>
         <p>
           {candidate?.product_name || candidate?.supplier_name || 'Кандидат цены'}
-          {totalCost != null ? ` · ${formatMoney(totalCost)} итого` : ''}
+          {manualPriceRequired ? ' · цена не прочиталась автоматически' : totalCost != null ? ` · ${formatMoney(totalCost)} итого` : ''}
         </p>
         <CandidateDecisionTrace candidate={candidate} compact />
         <CandidatePricePassport candidate={candidate} profile={profile} compact />
@@ -117,7 +118,7 @@ function BestPriceCandidate({
         onClick={() => ignorePriceCandidateActionError(onConfirm?.(candidate))}
         type="button"
       >
-        {blocked ? 'Нужна проверка' : 'Принять'}
+        {manualPriceRequired ? 'Внести цену' : blocked ? 'Нужна проверка' : 'Принять'}
       </button>
     </div>
   )
@@ -348,6 +349,7 @@ function PriceCandidateQueue({
         const stockText = formatSupplierStock(candidate)
         const profileQuantity = numberOrNull(profile?.quantity)
         const candidateUnitPrice = numberOrNull(candidate.unit_price)
+        const manualPriceRequired = candidateNeedsManualPrice(candidate)
         const priceComparison = priceComparisonForUnitPrice(candidateUnitPrice, tenderUnitPrice)
         const totalCost = profileQuantity != null && candidateUnitPrice != null
           ? profileQuantity * candidateUnitPrice
@@ -423,8 +425,8 @@ function PriceCandidateQueue({
               )}
             </div>
             <div className="price-candidate-price-summary">
-              <strong>{formatMoney(candidate.unit_price)}</strong>
-              <small>за ед.</small>
+              <strong>{manualPriceRequired ? 'нужна цена' : formatMoney(candidate.unit_price)}</strong>
+              <small>{manualPriceRequired ? 'ссылка сохранена' : 'за ед.'}</small>
               {tenderUnitPrice != null && (
                 <em className="price-candidate-reference-price">Тендер: {formatMoney(tenderUnitPrice)}</em>
               )}
@@ -458,6 +460,11 @@ function PriceCandidateQueue({
       })}
     </div>
   )
+}
+
+function candidateNeedsManualPrice(candidate = {}) {
+  return Boolean(candidate?.manual_price_required || candidate?.raw_payload?.manual_price_required)
+    || (String(candidate?.source_kind || '').toLowerCase() === 'manual_product_url' && numberOrNull(candidate?.unit_price) == null)
 }
 
 function priceBreaksForCandidate(candidate = {}) {

@@ -334,6 +334,18 @@ function manualUrlResultFromTender(nextTender, positionIndex, checkedUrl = '') {
   const matchingCandidates = checkedUrlKey
     ? candidates.filter((candidate) => String(candidate?.url || candidate?.source_url || '').trim().toLowerCase() === checkedUrlKey)
     : candidates
+  const manualPriceCandidates = matchingCandidates.filter((candidate) => (
+    candidate?.manual_price_required
+    || candidate?.raw_payload?.manual_price_required
+    || candidate?.unit_price === null
+    || candidate?.unit_price === undefined
+  ))
+  if (manualPriceCandidates.length > 0) {
+    return {
+      tone: 'warning',
+      text: 'Ссылка сохранена, но цена не прочиталась автоматически. Открой карточку вручную или внеси цену из КП/прайса.',
+    }
+  }
   if (matchingCandidates.length > 0) {
     return {
       tone: 'success',

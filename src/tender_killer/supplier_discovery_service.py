@@ -45,6 +45,9 @@ DISCOVERY_JSON_FIELDS = (
     "price_breaks",
     "product_attributes",
 )
+DISCOVERY_BOOL_FIELDS = (
+    "manual_price_required",
+)
 DISCOVERY_CONFIDENCE_VALUES = {"high", "medium", "needs_review"}
 LOCKED_PROFILE_STATUSES = {"priced", "rejected"}
 TOKEN_PATTERN = re.compile(r"[^\w]+", re.UNICODE)
@@ -175,6 +178,9 @@ def _discovery_candidate(data: dict[str, Any]) -> dict[str, Any]:
         value = _json_list_or_dicts(data.get(field))
         if value:
             candidate[field] = value
+    for field in DISCOVERY_BOOL_FIELDS:
+        if data.get(field) is not None:
+            candidate[field] = bool(data.get(field))
     has_candidate_signal = any(candidate.get(field) for field in ("name", "url", "note")) or "unit_price" in candidate
     if not has_candidate_signal:
         return {}
@@ -199,6 +205,9 @@ def _supplier_option_from_candidate(candidate: dict[str, Any]) -> dict[str, Any]
         value = _json_list_or_dicts(candidate.get(field))
         if value:
             option[field] = value
+    for field in DISCOVERY_BOOL_FIELDS:
+        if candidate.get(field) is not None:
+            option[field] = bool(candidate.get(field))
     has_candidate_signal = any(option.get(field) for field in ("name", "url", "note")) or "unit_price" in option
     return option if has_candidate_signal else {}
 

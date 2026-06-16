@@ -783,6 +783,16 @@ def _run_supplier_discovery_with_queries(
                 _mark_collector_access_blocked(collector)
             candidates.extend(accepted_candidates)
     if not candidates:
+        manual_link_candidates = _manual_product_link_review_candidates(target, queries, existing_keys)
+        if manual_link_candidates:
+            return stage_profile_supplier_candidates(
+                database_path,
+                source,
+                external_id,
+                int(target.get("position_index") or 0),
+                manual_link_candidates,
+                collector_diagnostics=list(diagnostics_by_provider.values()),
+            )
         if diagnostics_by_provider:
             _record_supplier_discovery_diagnostics(
                 store,
@@ -813,6 +823,45 @@ def _run_supplier_discovery_with_queries(
         limited_candidates,
         collector_diagnostics=list(diagnostics_by_provider.values()),
     )
+
+
+def _manual_product_link_review_candidates(
+    profile: dict[str, Any],
+    queries: list[dict[str, Any]],
+    existing_keys: set[tuple[str, str]],
+) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    for query in queries:
+        if _text(query.get("kind")) != MANUAL_PRODUCT_LINK_KIND:
+            continue
+        source_query = _text(query.get("query")) or _text(profile.get("normalized_name")) or _text(profile.get("product_name")) or ""
+        for link in _quick_links(query):
+            if _text(link.get("link_kind")) != MANUAL_PRODUCT_LINK_KIND:
+                continue
+            url = _text(link.get("url"))
+            if not url:
+                continue
+            provider = _text(link.get("provider")) or _provider_from_url(url) or "manual_supplier_url"
+            candidate = {
+                "name": _text(profile.get("product_name")) or source_query or _text(link.get("label")) or "Manual supplier URL",
+                "url": url,
+                "source_url": url,
+                "provider": provider,
+                "supplier_name": _catalog_provider_label(provider),
+                "source_query": source_query,
+                "source_kind": MANUAL_PRODUCT_LINK_KIND,
+                "confidence": "needs_review",
+                "confidence_reasons": ["manual_product_url", "price_not_read"],
+                "match_reasons": ["manual_product_url"],
+                "note": "Manual URL saved; price was not read automatically.",
+                "manual_price_required": True,
+            }
+            key = _candidate_key(candidate)
+            if key in existing_keys:
+                continue
+            existing_keys.add(key)
+            candidates.append(candidate)
+    return candidates
 
 
 def _relevant_price_collectors_for_queries(

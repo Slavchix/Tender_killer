@@ -3008,6 +3008,82 @@ def test_run_profile_supplier_url_discovery_stages_visible_provider_candidate(tm
     assert "economics" not in profile["raw_payload"]
 
 
+def test_run_profile_supplier_url_discovery_saves_manual_link_when_price_is_not_read(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="supplier-url-discovery-manual-link",
+            url="https://market.mosreg.ru/Trade/ViewTrade/supplier-url-discovery-manual-link",
+            title="Paper tender",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "supplier-url-discovery-manual-link",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="supplier-url-discovery-manual-link",
+                position_index=1,
+                product_name="Office paper A4",
+                normalized_name="office paper a4",
+                quantity=12,
+                unit="pack",
+            )
+        ],
+    )
+
+    class EmptyManualCollector:
+        provider = "catalog_officemag"
+        catalog_provider = "officemag"
+
+        def collect_with_diagnostics(self, query):
+            return {
+                "candidates": [],
+                "diagnostics": {
+                    "provider": "catalog_officemag",
+                    "queries_seen": 1,
+                    "links_seen": 1,
+                    "links_skipped": 0,
+                    "pages_fetched": 1,
+                    "candidates_found": 0,
+                    "errors": ["price not found"],
+                },
+            }
+
+    result = run_profile_supplier_url_discovery(
+        store.database_path,
+        "mosreg_market",
+        "supplier-url-discovery-manual-link",
+        1,
+        {
+            "url": "https://www.officemag.ru/catalog/goods/128875/",
+            "source_query": "office paper a4",
+            "label": "OfficeMag manual",
+        },
+        collectors=[EmptyManualCollector()],
+    )
+
+    assert result["staged_count"] == 1
+    candidate = result["supplier_discovery"]["candidates"][0]
+    assert candidate["url"] == "https://www.officemag.ru/catalog/goods/128875/"
+    assert candidate["source_url"] == "https://www.officemag.ru/catalog/goods/128875/"
+    assert candidate["provider"] == "officemag"
+    assert candidate["source_kind"] == "manual_product_url"
+    assert candidate["confidence"] == "needs_review"
+    assert candidate["review_status"] == "pending"
+    assert candidate["note"] == "Manual URL saved; price was not read automatically."
+    assert "unit_price" not in candidate
+
+    saved = store.list_price_candidates("mosreg_market", "supplier-url-discovery-manual-link", 1)
+    assert len(saved) == 1
+    assert saved[0]["source_url"] == "https://www.officemag.ru/catalog/goods/128875/"
+    assert saved[0]["unit_price"] is None
+    assert saved[0]["raw_payload"]["manual_price_required"] is True
+
+
 def test_run_profile_supplier_url_discovery_rejects_unsafe_supplier_urls() -> None:
     database_path = Path("pytest_tmp_supplier_url_unsafe.sqlite")
     database_path.unlink(missing_ok=True)
