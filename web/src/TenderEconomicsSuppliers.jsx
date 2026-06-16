@@ -108,6 +108,7 @@ function BestPriceCandidate({
           {totalCost != null ? ` · ${formatMoney(totalCost)} итого` : ''}
         </p>
         <CandidateDecisionTrace candidate={candidate} compact />
+        <CandidatePricePassport candidate={candidate} profile={profile} compact />
         {priceComparison && <em className={priceComparison.tone}>{priceComparison.label}</em>}
       </div>
       <button
@@ -136,6 +137,109 @@ function CandidateDecisionTrace({ candidate, compact = false }) {
       ))}
     </div>
   )
+}
+
+function CandidatePricePassport({ candidate, profile, compact = false }) {
+  const passport = candidatePricingPassport(candidate, profile)
+  if (!passport) return null
+  const qualityStatus = String(passport.quality_status || 'review').toLowerCase()
+  const positiveCount = passport.positive_checks.length
+  const issueCount = passport.review_checks.length + passport.block_checks.length
+
+  return (
+    <div className={`price-candidate-passport ${qualityStatus} ${compact ? 'compact' : ''}`}>
+      <strong>{passport.summary || candidatePassportNextActionLabel(passport.next_action)}</strong>
+      <div className="price-candidate-passport-grid">
+        <span>
+          <b>Итого</b>
+          <em>{formatMoney(passport.total_price)}</em>
+        </span>
+        <span>
+          <b>Наличие</b>
+          <em>{candidatePassportAvailability(passport)}</em>
+        </span>
+        <span>
+          <b>Условия</b>
+          <em>{candidatePassportTerms(passport)}</em>
+        </span>
+        <span>
+          <b>Действие</b>
+          <em>{candidatePassportNextActionLabel(passport.next_action)}</em>
+        </span>
+      </div>
+      {!compact && (
+        <small>
+          Проверки: {positiveCount} ок
+          {issueCount > 0 ? ` · ${issueCount} уточнить` : ' · без замечаний'}
+        </small>
+      )}
+    </div>
+  )
+}
+
+function candidatePricingPassport(candidate = {}, profile = {}) {
+  if (!candidate || typeof candidate !== 'object') return null
+  const passport = candidate.pricing_passport && typeof candidate.pricing_passport === 'object'
+    ? candidate.pricing_passport
+    : {}
+  const unitPrice = numberOrNull(passport.unit_price ?? candidate.unit_price)
+  const quantity = numberOrNull(passport.quantity ?? profile?.quantity)
+  const totalPrice = numberOrNull(passport.total_price) ?? (
+    unitPrice != null && quantity != null ? unitPrice * quantity : null
+  )
+  if (unitPrice == null && totalPrice == null && !passport.summary) return null
+
+  return {
+    ...passport,
+    unit_price: unitPrice,
+    total_price: totalPrice,
+    quantity,
+    unit: passport.unit ?? candidate.unit ?? profile?.unit,
+    availability: passport.availability ?? candidate.availability ?? candidate.raw_payload?.availability,
+    vat_mode: passport.vat_mode ?? candidate.vat_mode ?? candidate.raw_payload?.vat_mode,
+    delivery_note: passport.delivery_note ?? candidate.delivery_note ?? candidate.raw_payload?.delivery_note,
+    stock_quantity: numberOrNull(passport.stock_quantity ?? candidate.stock_quantity ?? candidate.raw_payload?.stock_quantity),
+    preorder_quantity: numberOrNull(passport.preorder_quantity ?? candidate.preorder_quantity ?? candidate.raw_payload?.preorder_quantity),
+    pack_quantity: numberOrNull(passport.pack_quantity ?? candidate.pack_quantity ?? candidate.raw_payload?.pack_quantity),
+    quality_status: passport.quality_status ?? candidate.quality_status ?? 'review',
+    positive_checks: Array.isArray(passport.positive_checks) ? passport.positive_checks : [],
+    review_checks: Array.isArray(passport.review_checks) ? passport.review_checks : [],
+    block_checks: Array.isArray(passport.block_checks) ? passport.block_checks : [],
+    next_action: passport.next_action ?? 'review_required',
+    summary: passport.summary,
+  }
+}
+
+function candidatePassportAvailability(passport = {}) {
+  if (passport.stock_quantity != null) return `склад ${formatQuantity(passport.stock_quantity)}`
+  if (passport.preorder_quantity != null) return `заказ ${formatQuantity(passport.preorder_quantity)}`
+  const availability = String(passport.availability || '').toLowerCase()
+  if (availability.includes('stock') || availability.includes('available')) return 'в наличии'
+  if (availability.includes('unavailable') || availability.includes('out_of_stock')) return 'нет'
+  return 'проверить'
+}
+
+function candidatePassportTerms(passport = {}) {
+  const parts = []
+  const vat = String(passport.vat_mode || '').toLowerCase()
+  if (vat.includes('included') || vat.includes('nds_included')) {
+    parts.push('НДС включен')
+  } else if (vat) {
+    parts.push('НДС уточнить')
+  }
+  if (passport.delivery_note) parts.push('доставка ясна')
+  if (passport.pack_quantity != null) parts.push(`упак. ${formatQuantity(passport.pack_quantity)}`)
+  return parts.slice(0, 3).join(' · ') || 'условия проверить'
+}
+
+function candidatePassportNextActionLabel(action) {
+  return {
+    already_confirmed: 'уже принята',
+    do_not_accept: 'не принимать',
+    ready_to_confirm: 'можно принять',
+    rejected: 'отклонена',
+    review_required: 'проверить',
+  }[action] || 'проверить'
 }
 
 function candidateBestReasonItems(candidate = {}) {
@@ -292,6 +396,7 @@ function PriceCandidateQueue({
                   В расчет выбрана ступень от {formatQuantity(selectedPriceBreak.count)} шт.
                 </p>
               )}
+              <CandidatePricePassport candidate={candidate} profile={profile} />
               <CandidateDecisionTrace candidate={candidate} />
               {(matchReasons.length > 0 || reviewReasons.length > 0) && (
                 <div className="price-candidate-reasons" aria-label="candidate match reasons">

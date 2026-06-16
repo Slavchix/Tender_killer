@@ -196,11 +196,16 @@ def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     assert "supplierDiscoveryRunBuckets" in discovery_source
     assert "supplier-discovery-next-action" in discovery_source
     assert "CandidateDecisionTrace" in suppliers_source
+    assert "CandidatePricePassport" in suppliers_source
     assert "candidate-decision-trace" in suppliers_source
+    assert "price-candidate-passport" in suppliers_source
     assert "candidateBestReasonItems" in suppliers_source
+    assert "candidatePricingPassport" in suppliers_source
+    assert "candidate.pricing_passport" in suppliers_source
     assert "score_reasons" in suppliers_source
     assert ".provider-run-summary" in styles_source
     assert ".candidate-decision-trace" in styles_source
+    assert ".price-candidate-passport" in styles_source
     assert ".supplier-discovery-next-action" in styles_source
     assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
     assert find_mojibake(discovery_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []
@@ -1893,13 +1898,21 @@ def test_economics_tab_renders_participation_decision():
 
     assert "from './TenderEconomicsDecisionScenarios'" in source
     assert "ParticipationDecisionCard" in source
+    assert "ParticipationCalculationCard" in source
     assert "economics.participation_decision" in source
+    assert "economics.participation_calculation" in source
     assert "function ParticipationDecisionCard" not in source
+    assert "function ParticipationCalculationCard" not in source
     assert "export function ParticipationDecisionCard" in scenarios_source
+    assert "export function ParticipationCalculationCard" in scenarios_source
     assert "Решение по участию" in scenarios_source
+    assert "Расчет участия" in scenarios_source
+    assert "Стоп-цена" in scenarios_source
     assert "Лимит" in scenarios_source
     assert "participation-decision" in scenarios_source
+    assert "participation-calculation-card" in scenarios_source
     assert ".participation-decision" in styles_source
+    assert ".participation-calculation-card" in styles_source
     assert find_mojibake(source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
     assert find_mojibake(scenarios_source, TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
@@ -2205,7 +2218,7 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     assert "analysisSectionItems(analysis, documents)" in analysis_source
     assert "<AnalysisSectionRail" not in analysis_source
     assert "sections={analysisSections}" in analysis_source
-    assert "onSelectSection={setSelectedAnalysisSection}" in analysis_source
+    assert "onSelectSection={selectAnalysisSection}" in analysis_source
     assert "<AnalysisSectionBody" in analysis_source
     assert "TenderAnalysisEvidencePanel" not in analysis_source
     assert "<AnalysisEvidencePanel" not in analysis_source
@@ -2236,7 +2249,7 @@ def test_analysis_tab_renders_decision_first_brief():
 
     assert "from './TenderAnalysisDecisionBrief'" in analysis_source
     assert "<AnalysisDecisionBrief" in analysis_source
-    assert "onOpenSection={setSelectedAnalysisSection}" in analysis_source
+    assert "onOpenSection={selectAnalysisSection}" in analysis_source
     assert "export function AnalysisDecisionBrief" in decision_source
     assert "analysis?.operator_view" in decision_source
     assert "operatorView?.decision_brief" in decision_source
@@ -2271,7 +2284,7 @@ def test_analysis_tab_renders_compact_tz_passport_navigation():
 
     assert "from './TenderAnalysisPassport'" in analysis_source
     assert "selectedSection={selectedAnalysisSection}" in analysis_source
-    assert "onSelectSection={setSelectedAnalysisSection}" in analysis_source
+    assert "onSelectSection={selectAnalysisSection}" in analysis_source
     assert "sections={analysisSections}" in analysis_source
     assert "<AnalysisSectionRail" not in analysis_source
     decision_index = analysis_source.index("<AnalysisDecisionBrief")

@@ -39,6 +39,8 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         "analysis_cost_drivers": analysis_cost_drivers,
         "analysis_reserve_hint": _analysis_reserve_hint(analysis_cost_drivers),
     }
+    security_obligations = _security_obligations(tender.get("analysis"), revenue)
+    security_amount = _round_money(sum(_number(item.get("amount")) or 0.0 for item in security_obligations))
     item_fallbacks = _items_by_position(tender.get("items"))
     profiles = [
         _profile_with_item_fallback(profile, item_fallbacks.get(_positive_int(profile.get("position_index")) or 0))
@@ -79,11 +81,26 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
     risk_reserve = _round_money(position_risk_reserve + execution_risk_reserve)
 
     if revenue is None:
+        decision = {
+            "status": "needs_price",
+            "label": "Нужна НМЦК",
+            "limit_price": None,
+            "recommendation": "Нужна НМЦК или цена закупки, чтобы принять решение по участию.",
+        }
+        cost_breakdown = _cost_breakdown(
+            items,
+            supplier_cost=None,
+            estimated_total_cost=None,
+            execution_risk_reserve=None,
+            risk_reserve=risk_reserve if risk_reserve else None,
+            security_amount=security_amount,
+        )
         return {
             "status": "needs_price",
             "recommendation": "Нужна НМЦК или цена закупки для расчета.",
             **price_context,
             **analysis_context,
+            "financial_model_version": 1,
             "supplier_cost": None,
             "risk_reserve_rate_percent": risk_reserve_rate_percent,
             "risk_reserve": risk_reserve if risk_reserve else None,
@@ -94,27 +111,66 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
             "minimum_margin_price": None,
             "interesting_price": None,
             "target_bid_price": None,
+            "stop_price": None,
+            "cost_breakdown": cost_breakdown,
+            "security_amount": security_amount,
+            "security_obligations": security_obligations,
+            "financial_model": _financial_model(
+                revenue=None,
+                revenue_kind=revenue_kind,
+                break_even_price=None,
+                minimum_margin_price=None,
+                target_margin_percent=None,
+                stop_price=None,
+                gross_margin=None,
+                margin_percent=None,
+                risk_reserve=risk_reserve if risk_reserve else None,
+                security_amount=security_amount,
+                cost_breakdown=cost_breakdown,
+                security_obligations=security_obligations,
+            ),
             "target_margin_percent": None,
             "gross_margin": None,
             "margin_percent": None,
             "missing_cost_inputs": missing_cost_inputs,
             "risk_types": risk_types,
             "bid_scenarios": [],
-            "participation_decision": {
-                "status": "needs_price",
-                "label": "Нужна НМЦК",
-                "limit_price": None,
-                "recommendation": "Нужна НМЦК или цена закупки, чтобы принять решение по участию.",
-            },
+            "participation_decision": decision,
+            "participation_calculation": _participation_calculation(
+                decision,
+                current_price=None,
+                stop_price=None,
+                break_even_price=None,
+                profit=None,
+                margin_percent=None,
+                target_margin_percent=None,
+                risk_reserve=risk_reserve if risk_reserve else None,
+                security_amount=security_amount,
+            ),
             "items": items,
         }
 
     if missing_cost_inputs or not profiles:
+        decision = {
+            "status": "needs_costs",
+            "label": "Не хватает цен",
+            "limit_price": None,
+            "recommendation": "Добавьте себестоимость по позициям, чтобы принять решение по участию.",
+        }
+        cost_breakdown = _cost_breakdown(
+            items,
+            supplier_cost=None,
+            estimated_total_cost=None,
+            execution_risk_reserve=execution_risk_reserve,
+            risk_reserve=risk_reserve,
+            security_amount=security_amount,
+        )
         return {
             "status": "needs_costs",
             "recommendation": "Нужно добавить закупочную себестоимость по позициям.",
             **price_context,
             **analysis_context,
+            "financial_model_version": 1,
             "supplier_cost": None,
             "risk_reserve_rate_percent": risk_reserve_rate_percent,
             "risk_reserve": risk_reserve,
@@ -125,18 +181,42 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
             "minimum_margin_price": None,
             "interesting_price": None,
             "target_bid_price": None,
+            "stop_price": None,
+            "cost_breakdown": cost_breakdown,
+            "security_amount": security_amount,
+            "security_obligations": security_obligations,
+            "financial_model": _financial_model(
+                revenue=revenue,
+                revenue_kind=revenue_kind,
+                break_even_price=None,
+                minimum_margin_price=None,
+                target_margin_percent=None,
+                stop_price=None,
+                gross_margin=None,
+                margin_percent=None,
+                risk_reserve=risk_reserve,
+                security_amount=security_amount,
+                cost_breakdown=cost_breakdown,
+                security_obligations=security_obligations,
+            ),
             "target_margin_percent": None,
             "gross_margin": None,
             "margin_percent": None,
             "missing_cost_inputs": missing_cost_inputs or ["товарные позиции"],
             "risk_types": risk_types,
             "bid_scenarios": [],
-            "participation_decision": {
-                "status": "needs_costs",
-                "label": "Не хватает цен",
-                "limit_price": None,
-                "recommendation": "Добавьте себестоимость по позициям, чтобы принять решение по участию.",
-            },
+            "participation_decision": decision,
+            "participation_calculation": _participation_calculation(
+                decision,
+                current_price=revenue,
+                stop_price=None,
+                break_even_price=None,
+                profit=None,
+                margin_percent=None,
+                target_margin_percent=None,
+                risk_reserve=risk_reserve,
+                security_amount=security_amount,
+            ),
             "items": items,
         }
 
@@ -162,11 +242,26 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
     gross_margin = _round_money(revenue - estimated_total_cost)
     margin_percent = _round_percent((gross_margin / revenue) * 100) if revenue else None
     status = _status_for_margin(margin_percent)
+    participation_decision = _participation_decision(
+        revenue,
+        break_even_price,
+        minimum_margin_price,
+        target_bid_price,
+    )
+    cost_breakdown = _cost_breakdown(
+        items,
+        supplier_cost=supplier_cost,
+        estimated_total_cost=estimated_total_cost,
+        execution_risk_reserve=execution_risk_reserve,
+        risk_reserve=risk_reserve,
+        security_amount=security_amount,
+    )
     return {
         "status": status,
         "recommendation": _recommendation_for_status(status),
         **price_context,
         **analysis_context,
+        "financial_model_version": 1,
         "supplier_cost": supplier_cost,
         "risk_reserve_rate_percent": risk_reserve_rate_percent,
         "risk_reserve": risk_reserve,
@@ -177,17 +272,41 @@ def build_economics_summary(tender: dict[str, Any]) -> dict[str, Any]:
         "minimum_margin_price": minimum_margin_price,
         "interesting_price": interesting_price,
         "target_bid_price": target_bid_price,
+        "stop_price": target_bid_price,
+        "cost_breakdown": cost_breakdown,
+        "security_amount": security_amount,
+        "security_obligations": security_obligations,
+        "financial_model": _financial_model(
+            revenue=revenue,
+            revenue_kind=revenue_kind,
+            break_even_price=break_even_price,
+            minimum_margin_price=minimum_margin_price,
+            target_margin_percent=target_margin_percent,
+            stop_price=target_bid_price,
+            gross_margin=gross_margin,
+            margin_percent=margin_percent,
+            risk_reserve=risk_reserve,
+            security_amount=security_amount,
+            cost_breakdown=cost_breakdown,
+            security_obligations=security_obligations,
+        ),
         "target_margin_percent": target_margin_percent,
         "gross_margin": gross_margin,
         "margin_percent": margin_percent,
         "missing_cost_inputs": [],
         "risk_types": risk_types,
         "bid_scenarios": bid_scenarios,
-        "participation_decision": _participation_decision(
-            revenue,
-            break_even_price,
-            minimum_margin_price,
-            target_bid_price,
+        "participation_decision": participation_decision,
+        "participation_calculation": _participation_calculation(
+            participation_decision,
+            current_price=revenue,
+            stop_price=target_bid_price,
+            break_even_price=break_even_price,
+            profit=gross_margin,
+            margin_percent=margin_percent,
+            target_margin_percent=target_margin_percent,
+            risk_reserve=risk_reserve,
+            security_amount=security_amount,
         ),
         "items": items,
     }
@@ -204,10 +323,10 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
     total_cost = _first_number(economics, ("total_cost", "total_cost_rub", "supplier_total_price", "supplier_total_price_rub"))
     if total_cost is None and unit_cost is not None and quantity is not None:
         total_cost = quantity * unit_cost
-    extra_costs = sum(
-        _first_number(economics, (key,)) or 0.0
-        for key in ("logistics_cost", "documents_cost", "other_costs")
-    )
+    logistics_cost = _first_number(economics, ("logistics_cost",)) or 0.0
+    documents_cost = _first_number(economics, ("documents_cost",)) or 0.0
+    other_costs = _first_number(economics, ("other_costs",)) or 0.0
+    extra_costs = logistics_cost + documents_cost + other_costs
     vat_mode = _vat_mode(assumptions.get("vat_mode"))
     vat_rate_percent = _percent(assumptions.get("vat_rate_percent"))
     if vat_mode == "no_vat":
@@ -236,6 +355,10 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
         "unit": profile.get("unit"),
         "unit_cost": rounded_unit_cost,
         "total_cost": rounded_total_cost,
+        "direct_cost": rounded_total_cost,
+        "logistics_cost": _round_money(logistics_cost),
+        "documents_cost": _round_money(documents_cost),
+        "other_costs": _round_money(other_costs),
         "extra_costs": _round_money(extra_costs),
         "vat_mode": vat_mode,
         "vat_rate_percent": _round_percent(vat_rate_percent) if vat_rate_percent is not None else None,
@@ -475,6 +598,175 @@ def _position_risk_reserve_base(item: dict[str, Any]) -> float:
     estimated_total = _number(item.get("estimated_total_cost")) or 0.0
     reserve = _number(item.get("position_risk_reserve")) or 0.0
     return max(0.0, estimated_total - reserve)
+
+
+def _cost_breakdown(
+    items: list[dict[str, Any]],
+    *,
+    supplier_cost: float | None,
+    estimated_total_cost: float | None,
+    execution_risk_reserve: float | None,
+    risk_reserve: float | None,
+    security_amount: float,
+) -> dict[str, Any]:
+    cash_required = (
+        _round_money((estimated_total_cost or 0.0) + security_amount)
+        if estimated_total_cost is not None or security_amount
+        else None
+    )
+    return {
+        "direct_cost": _sum_item_money(items, "direct_cost"),
+        "logistics_cost": _sum_item_money(items, "logistics_cost"),
+        "documents_cost": _sum_item_money(items, "documents_cost"),
+        "other_costs": _sum_item_money(items, "other_costs"),
+        "vat_cost": _sum_item_money(items, "vat_cost"),
+        "position_risk_reserve": _position_risk_reserve_total(items),
+        "execution_risk_reserve": _round_money(execution_risk_reserve) if execution_risk_reserve is not None else None,
+        "risk_reserve": _round_money(risk_reserve) if risk_reserve is not None else None,
+        "supplier_cost": _round_money(supplier_cost) if supplier_cost is not None else None,
+        "estimated_total_cost": _round_money(estimated_total_cost) if estimated_total_cost is not None else None,
+        "security_amount": security_amount,
+        "cash_required": cash_required,
+    }
+
+
+def _financial_model(
+    *,
+    revenue: float | None,
+    revenue_kind: str,
+    break_even_price: float | None,
+    minimum_margin_price: float | None,
+    target_margin_percent: float | None,
+    stop_price: float | None,
+    gross_margin: float | None,
+    margin_percent: float | None,
+    risk_reserve: float | None,
+    security_amount: float,
+    cost_breakdown: dict[str, Any],
+    security_obligations: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "version": 1,
+        "revenue": _round_money(revenue) if revenue is not None else None,
+        "revenue_kind": revenue_kind,
+        "break_even_price": _round_money(break_even_price) if break_even_price is not None else None,
+        "minimum_margin_price": _round_money(minimum_margin_price) if minimum_margin_price is not None else None,
+        "target_margin_percent": _round_percent(target_margin_percent) if target_margin_percent is not None else None,
+        "stop_price": _round_money(stop_price) if stop_price is not None else None,
+        "gross_margin": _round_money(gross_margin) if gross_margin is not None else None,
+        "margin_percent": _round_percent(margin_percent) if margin_percent is not None else None,
+        "risk_reserve": _round_money(risk_reserve) if risk_reserve is not None else None,
+        "security_amount": security_amount,
+        "cost_breakdown": cost_breakdown,
+        "security_obligations": security_obligations,
+    }
+
+
+def _participation_calculation(
+    decision: dict[str, Any],
+    *,
+    current_price: float | None,
+    stop_price: float | None,
+    break_even_price: float | None,
+    profit: float | None,
+    margin_percent: float | None,
+    target_margin_percent: float | None,
+    risk_reserve: float | None,
+    security_amount: float,
+) -> dict[str, Any]:
+    return {
+        "status": decision.get("status"),
+        "label": decision.get("label"),
+        "current_price": _round_money(current_price) if current_price is not None else None,
+        "stop_price": _round_money(stop_price) if stop_price is not None else None,
+        "break_even_price": _round_money(break_even_price) if break_even_price is not None else None,
+        "profit": _round_money(profit) if profit is not None else None,
+        "margin_percent": _round_percent(margin_percent) if margin_percent is not None else None,
+        "target_margin_percent": _round_percent(target_margin_percent) if target_margin_percent is not None else None,
+        "risk_reserve": _round_money(risk_reserve) if risk_reserve is not None else None,
+        "security_amount": security_amount,
+        "headroom_to_stop_price": _money_delta(current_price, stop_price),
+        "headroom_to_break_even": _money_delta(current_price, break_even_price),
+        "reason": _participation_reason(str(decision.get("status") or "")),
+    }
+
+
+def _security_obligations(analysis: Any, revenue: float | None) -> list[dict[str, Any]]:
+    if not isinstance(analysis, dict):
+        return []
+
+    items: list[dict[str, Any]] = []
+    facts = analysis.get("analysis_facts")
+    fact_items = facts.get("items") if isinstance(facts, dict) and facts.get("version") == 1 else None
+    if isinstance(fact_items, list):
+        items.extend(item for item in fact_items if isinstance(item, dict))
+    execution_terms = analysis.get("execution_terms")
+    if isinstance(execution_terms, list):
+        items.extend(item for item in execution_terms if isinstance(item, dict))
+
+    obligations: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in items:
+        if not _is_security_obligation(item):
+            continue
+        label = _text(item.get("label") or item.get("type")) or "Обеспечение исполнения"
+        source = _text(item.get("document_name") or item.get("source")) or ""
+        key = (label.casefold(), source.casefold())
+        if key in seen:
+            continue
+        seen.add(key)
+        amount_percent = _percent(item.get("amount_percent") or item.get("percent"))
+        amount = _first_number(item, ("amount", "amount_rub", "amount_value", "security_amount", "security_amount_rub"))
+        if amount is None and amount_percent is not None and revenue is not None:
+            amount = revenue * amount_percent / 100
+        obligations.append(
+            {
+                "label": label,
+                "amount_percent": _round_percent(amount_percent) if amount_percent is not None else None,
+                "amount": _round_money(amount) if amount is not None else None,
+                "source": source,
+                "source_page": _positive_int(item.get("source_page")),
+                "impact": _text(item.get("price_impact") or item.get("impact_type")) or "working_capital",
+            }
+        )
+    return obligations
+
+
+def _sum_item_money(items: list[dict[str, Any]], key: str) -> float:
+    return _round_money(sum(_number(item.get(key)) or 0.0 for item in items))
+
+
+def _money_delta(left: float | None, right: float | None) -> float | None:
+    if left is None or right is None:
+        return None
+    return _round_money(left - right)
+
+
+def _participation_reason(status: str) -> str:
+    if status == "can_bid":
+        return "Ставка выше стоп-цены, целевая маржа сохранена."
+    if status == "guarded_bid":
+        return "Ставка ниже целевой стоп-цены: можно участвовать только с жестким лимитом."
+    if status == "low_margin":
+        return "Ставка покрывает затраты, но запас ниже минимальной маржи."
+    if status == "do_not_bid":
+        return "Ставка ниже безубытка: участие убыточно без пересмотра затрат."
+    if status == "needs_price":
+        return "Нужна НМЦК или текущая ставка, чтобы посчитать лимит участия."
+    return "Нужны цены поставщиков, чтобы собрать расчет участия."
+
+
+def _is_security_obligation(item: dict[str, Any]) -> bool:
+    combined = " ".join(
+        str(item.get(key) or "")
+        for key in ("amount_type", "type", "family", "label", "value", "fragment", "evidence")
+    ).casefold()
+    return (
+        "contract_security" in combined
+        or "security" in combined
+        or "независим" in combined
+        or ("обеспеч" in combined and ("исполн" in combined or "контракт" in combined or "договор" in combined))
+    )
 
 
 def _combined_risk_reserve_rate_percent(position_rate: float, execution_rate: float) -> float:

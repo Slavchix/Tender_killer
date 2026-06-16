@@ -154,6 +154,108 @@ def test_build_economics_summary_returns_bid_thresholds():
     assert summary["interesting_price"] == 83529.41
 
 
+def test_build_economics_summary_returns_financial_model_v1_and_participation_calculation():
+    summary = build_economics_summary(
+        {
+            "price": 100000.0,
+            "analysis": {
+                "analysis_facts": {
+                    "version": 1,
+                    "items": [
+                        {
+                            "label": "Обеспечение исполнения",
+                            "category": "financial",
+                            "severity": "high",
+                            "is_blocker": True,
+                            "amount_type": "contract_security",
+                            "amount_percent": 10,
+                            "document_name": "Контракт.pdf",
+                            "source_page": 4,
+                        }
+                    ],
+                }
+            },
+            "product_profiles": [
+                {
+                    "product_name": "Paper",
+                    "quantity": 1000,
+                    "raw_payload": {
+                        "economics": {
+                            "unit_cost": 50,
+                            "logistics_cost": 3000,
+                            "documents_cost": 2000,
+                            "other_costs": 1000,
+                        },
+                        "economics_assumptions": {
+                            "vat_mode": "vat_excluded",
+                            "vat_rate_percent": 20,
+                            "risk_reserve_percent": 5,
+                            "target_margin_percent": 20,
+                        },
+                    },
+                }
+            ],
+        }
+    )
+
+    assert summary["financial_model_version"] == 1
+    assert summary["stop_price"] == 90700.0
+    assert summary["security_amount"] == 10000.0
+    assert summary["cost_breakdown"] == {
+        "direct_cost": 50000.0,
+        "logistics_cost": 3000.0,
+        "documents_cost": 2000.0,
+        "other_costs": 1000.0,
+        "vat_cost": 11200.0,
+        "position_risk_reserve": 3360.0,
+        "execution_risk_reserve": 2000.0,
+        "risk_reserve": 5360.0,
+        "supplier_cost": 70560.0,
+        "estimated_total_cost": 72560.0,
+        "security_amount": 10000.0,
+        "cash_required": 82560.0,
+    }
+    assert summary["financial_model"] == {
+        "version": 1,
+        "revenue": 100000.0,
+        "revenue_kind": "nmc",
+        "break_even_price": 72560.0,
+        "minimum_margin_price": 78021.51,
+        "target_margin_percent": 20.0,
+        "stop_price": 90700.0,
+        "gross_margin": 27440.0,
+        "margin_percent": 27.44,
+        "risk_reserve": 5360.0,
+        "security_amount": 10000.0,
+        "cost_breakdown": summary["cost_breakdown"],
+        "security_obligations": [
+            {
+                "label": "Обеспечение исполнения",
+                "amount_percent": 10.0,
+                "amount": 10000.0,
+                "source": "Контракт.pdf",
+                "source_page": 4,
+                "impact": "working_capital",
+            }
+        ],
+    }
+    assert summary["participation_calculation"] == {
+        "status": "can_bid",
+        "label": "Можно заходить",
+        "current_price": 100000.0,
+        "stop_price": 90700.0,
+        "break_even_price": 72560.0,
+        "profit": 27440.0,
+        "margin_percent": 27.44,
+        "target_margin_percent": 20.0,
+        "risk_reserve": 5360.0,
+        "security_amount": 10000.0,
+        "headroom_to_stop_price": 9300.0,
+        "headroom_to_break_even": 27440.0,
+        "reason": "Ставка выше стоп-цены, целевая маржа сохранена.",
+    }
+
+
 def test_build_economics_summary_adds_price_passport_and_unit_normalization():
     summary = build_economics_summary(
         {

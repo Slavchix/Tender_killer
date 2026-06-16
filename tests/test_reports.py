@@ -470,12 +470,15 @@ def test_build_tender_report_docx_renders_participation_map():
                         "items": [
                             {
                                 "label": "лицензия/СРО",
+                                "operator_summary": "Квалификационное условие может заблокировать заявку без подтверждения.",
+                                "operator_check": "Проверить наличие лицензии или СРО у участника.",
                                 "description": "Проверить, действительно ли требуется лицензия.",
                                 "operator_action": "Проверить до участия.",
                                 "source_label": "ТЗ.docx · стр. 2",
                                 "fragment": "Требуется лицензия.",
                                 "source_binding": {"label": "источник подтвержден"},
                                 "confidence_level": {"label": "уверенность высокая"},
+                                "weak_reason": "Нужна ручная проверка формулировки.",
                                 "priority": 1,
                             }
                         ],
@@ -486,6 +489,8 @@ def test_build_tender_report_docx_renders_participation_map():
                         "items": [
                             {
                                 "label": "сертификат/декларация",
+                                "operator_summary": "Нужно заранее получить документы соответствия у поставщика.",
+                                "operator_check": "Запросить сертификаты до подачи заявки.",
                                 "description": "Подготовить подтверждающие документы.",
                                 "operator_action": "Запросить документы у поставщика.",
                                 "source_label": "ТЗ.docx · стр. 4",
@@ -500,6 +505,19 @@ def test_build_tender_report_docx_renders_participation_map():
                     {"id": "acceptance_payment", "title": "Приемка, документы и оплата", "items": []},
                 ],
             },
+            "analysis_history": [
+                {
+                    "run_number": 2,
+                    "analyzed_at": "2026-06-04T12:30:00",
+                    "changes": {
+                        "summary": "Добавлено 1, удалено 0, изменено 1.",
+                        "added": ["сертификат/декларация"],
+                        "changed": ["лицензия/СРО"],
+                        "removed": [],
+                        "feedback": ["лицензия/СРО: подтверждено"],
+                    },
+                }
+            ],
         },
     }
 
@@ -514,9 +532,14 @@ def test_build_tender_report_docx_renders_participation_map():
     assert "Приложения" in document_xml
     assert "Нужна ручная проверка" in document_xml
     assert "лицензия/СРО" in document_xml
+    assert "Квалификационное условие может заблокировать заявку" in document_xml
+    assert "Проверить наличие лицензии или СРО" in document_xml
+    assert "История анализа" in document_xml
+    assert "лицензия/СРО: подтверждено" in document_xml
     assert "ТЗ.docx · стр. 2" in document_xml
     assert "источник подтвержден" in document_xml
     assert "уверенность высокая" in document_xml
+    assert "Нужна ручная проверка формулировки" in document_xml
 
 
 def test_build_tender_report_docx_renders_tz_passport_before_raw_analysis():
@@ -751,6 +774,66 @@ def test_build_tender_report_docx_keeps_word_report_compact():
     assert "Очень длинный извлеченный текст" not in document_xml
     assert "Выжимка ТЗ" not in document_xml
     assert "Красные флаги" not in document_xml
+
+
+def test_build_tender_report_docx_surfaces_financial_model_v1():
+    payload = {
+        "source": "mosreg_market",
+        "external_id": "finance-v1",
+        "title": "Поставка бумаги",
+        "price": 100000.0,
+        "product_profile_summary": {"total": 1, "ready": 1, "needs_review": 0, "matched": 0, "priced": 1, "rejected": 0},
+        "product_profiles": [],
+        "document_records": [],
+        "analysis": None,
+        "economics": {
+            "status": "interesting",
+            "revenue": 100000.0,
+            "supplier_cost": 70560.0,
+            "risk_reserve": 5360.0,
+            "risk_reserve_rate_percent": 7.0,
+            "estimated_total_cost": 72560.0,
+            "gross_margin": 27440.0,
+            "margin_percent": 27.44,
+            "stop_price": 90700.0,
+            "security_amount": 10000.0,
+            "missing_cost_inputs": [],
+            "risk_types": ["delivery"],
+            "participation_calculation": {
+                "label": "Можно заходить",
+                "current_price": 100000.0,
+                "stop_price": 90700.0,
+                "profit": 27440.0,
+                "headroom_to_stop_price": 9300.0,
+                "risk_reserve": 5360.0,
+                "security_amount": 10000.0,
+                "reason": "Ставка выше стоп-цены, целевая маржа сохранена.",
+            },
+            "cost_breakdown": {
+                "direct_cost": 50000.0,
+                "logistics_cost": 3000.0,
+                "documents_cost": 2000.0,
+                "other_costs": 1000.0,
+                "vat_cost": 11200.0,
+                "position_risk_reserve": 3360.0,
+                "execution_risk_reserve": 2000.0,
+                "cash_required": 82560.0,
+            },
+        },
+    }
+
+    content = build_tender_report_docx(payload)
+    document_xml = _document_xml(content)
+
+    assert "Стоп-цена" in document_xml
+    assert "90 700" in document_xml
+    assert "Расчет участия" in document_xml
+    assert "Можно заходить" in document_xml
+    assert "Запас до стоп-цены" in document_xml
+    assert "9 300" in document_xml
+    assert "Разбивка затрат" in document_xml
+    assert "Денежная нагрузка" in document_xml
+    assert "82 560" in document_xml
 
 
 def _document_xml(content: bytes) -> str:

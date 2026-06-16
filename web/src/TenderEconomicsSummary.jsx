@@ -9,7 +9,7 @@ import {
   participantBidValue,
 } from './formatters'
 import { Info } from './TenderDetailsShared'
-import { BidScenarioStrip, ParticipationDecisionCard } from './TenderEconomicsDecisionScenarios'
+import { BidScenarioStrip, ParticipationCalculationCard, ParticipationDecisionCard } from './TenderEconomicsDecisionScenarios'
 import { tenderReferenceTotalPrice, tenderReferenceUnitPrice } from './TenderEconomicsPriceComparison'
 
 export function EconomicsSummary({ economics, tender, profiles = [] }) {
@@ -27,6 +27,7 @@ export function EconomicsSummary({ economics, tender, profiles = [] }) {
   const itemProfiles = profilesByEconomicsItem(profiles)
   const bidScenarios = economics.bid_scenarios || []
   const participationDecision = economics.participation_decision || null
+  const participationCalculation = economics.participation_calculation || null
   const analysisCostDrivers = economics.analysis_cost_drivers || []
   const analysisReserveHint = economics.analysis_reserve_hint || {}
   const marketState = economics.market_state || tender?.market_state
@@ -47,6 +48,7 @@ export function EconomicsSummary({ economics, tender, profiles = [] }) {
         </div>
         {economics.recommendation && <p>{economics.recommendation}</p>}
         <ParticipationDecisionCard decision={participationDecision} />
+        <ParticipationCalculationCard calculation={participationCalculation} />
         <BidScenarioStrip scenarios={bidScenarios} />
         <div className="economics-grid">
           <Info label="НМЦК" value={nmcPriceValue(tender, marketState)} />

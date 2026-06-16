@@ -116,6 +116,7 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
             _p("Решение по анализу ТЗ", "heading"),
             *_analysis_decision_elements(analysis, documents),
             *_analysis_four_block_elements(analysis, documents),
+            *_analysis_history_elements(analysis),
             *_economics_elements(economics),
         ]
     )
@@ -189,8 +190,8 @@ def _participation_risk_rows(operator_view: dict[str, Any]) -> list[list[Any]]:
         rows.append(
             [
                 _short_text(item.get("label"), 80),
-                _short_text(item.get("description") or item.get("impact") or item.get("value"), 150),
-                _short_text(item.get("operator_action") or item.get("next_step"), 150),
+                _short_text(_report_item_meaning(item), 150),
+                _short_text(_report_item_action(item), 150),
                 _short_text(_source_label_for_item(item), 120),
                 _source_confidence_text(item),
             ]
@@ -217,7 +218,7 @@ def _participation_checklist_rows(operator_view: dict[str, Any]) -> list[list[An
         rows.append(
             [
                 _short_text(item.get("label"), 80),
-                _short_text(item.get("operator_action") or item.get("description"), 180),
+                _short_text(_report_item_action(item), 180),
                 _short_text(_source_label_for_item(item), 180),
             ]
         )
@@ -287,7 +288,24 @@ def _source_confidence_text(item: dict[str, Any]) -> str:
     confidence = item.get("confidence_level")
     binding_label = _value(binding.get("label"), "") if isinstance(binding, dict) else ""
     confidence_label = _value(confidence.get("label"), "") if isinstance(confidence, dict) else ""
-    return " / ".join(part for part in (binding_label, confidence_label) if part) or "нужна сверка"
+    weak_reason = _value(item.get("weak_reason"), "")
+    parts = [part for part in (binding_label, confidence_label, weak_reason) if part]
+    return " / ".join(parts) or "нужна сверка"
+
+
+def _report_item_meaning(item: dict[str, Any]) -> str:
+    return _value(
+        item.get("operator_summary")
+        or item.get("description")
+        or item.get("impact")
+        or item.get("value")
+        or item.get("fragment"),
+        "",
+    )
+
+
+def _report_item_action(item: dict[str, Any]) -> str:
+    return _value(item.get("operator_check") or item.get("operator_action") or item.get("next_step"), "")
 
 
 def _tender_decision_elements(decision: Any) -> list[DocxElement]:
@@ -436,20 +454,53 @@ def _analysis_four_block_rows(operator_view: dict[str, Any], analysis: dict[str,
                 [
                     title,
                     _short_text(item.get("label"), 90),
-                    _short_text(
-                        item.get("description")
-                        or item.get("value")
-                        or item.get("impact")
-                        or item.get("fragment"),
-                        220,
-                    ),
-                    _short_text(item.get("operator_action") or item.get("next_step"), 170),
+                    _short_text(_report_item_meaning(item), 220),
+                    _short_text(_report_item_action(item), 170),
                     _short_text(_item_source_text(item), 220),
                 ]
             )
         if len(items) > 7:
             rows.append([title, f"и еще {len(items) - 7} пункт — см. в интерфейсе", "", "", ""])
     return rows
+
+
+def _analysis_history_elements(analysis: dict[str, Any]) -> list[DocxElement]:
+    history = analysis.get("analysis_history") if isinstance(analysis, dict) else None
+    if not isinstance(history, list) or not history:
+        return []
+    rows: list[list[Any]] = [["Версия", "Когда", "Итог", "Детали"]]
+    for entry in history[:5]:
+        if not isinstance(entry, dict):
+            continue
+        changes = entry.get("changes") if isinstance(entry.get("changes"), dict) else {}
+        details = _analysis_history_detail_text(changes)
+        rows.append(
+            [
+                _value(entry.get("run_number"), "1"),
+                _value(entry.get("analyzed_at"), ""),
+                _short_text(changes.get("summary") or entry.get("summary"), 160),
+                _short_text(details, 240),
+            ]
+        )
+    if len(rows) <= 1:
+        return []
+    return [_p("История анализа", "heading"), _table(rows, "analysis")]
+
+
+def _analysis_history_detail_text(changes: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for label, key in (
+        ("добавлено", "added"),
+        ("изменено", "changed"),
+        ("удалено", "removed"),
+        ("метки", "feedback"),
+    ):
+        values = _text_list(changes.get(key))
+        if values:
+            parts.append(f"{label}: {', '.join(values[:3])}")
+    if parts:
+        return "; ".join(parts)
+    return f"+{_int_value(changes.get('added_count'))} / -{_int_value(changes.get('removed_count'))} / Δ{_int_value(changes.get('changed_count'))}"
 
 
 def _merge_report_items(left: list[dict[str, Any]], right: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -698,6 +749,27 @@ def _missing_costs_summary(values: Any) -> str:
     return f"{len(missing)} позиций"
 
 
+def _dict_value(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _append_money_row(rows: list[list[Any]], label: str, value: Any) -> None:
+    if value not in (None, ""):
+        rows.append([label, _money(value)])
+
+
+def _append_value_row(rows: list[list[Any]], label: str, value: Any) -> None:
+    if value not in (None, ""):
+        rows.append([label, _value(value)])
+
+
 def _economics_elements(economics: dict[str, Any]) -> list[DocxElement]:
     if not economics:
         return [
@@ -705,6 +777,8 @@ def _economics_elements(economics: dict[str, Any]) -> list[DocxElement]:
             _p("Расчет экономики еще не подготовлен.", "normal"),
         ]
     missing_cost_inputs = _text_list(economics.get("missing_cost_inputs"))
+    participation = _dict_value(economics.get("participation_calculation"))
+    cost_breakdown = _dict_value(economics.get("cost_breakdown"))
     rows = [
         ["Статус", _economics_status(economics.get("status"))],
         ["НМЦК/выручка", _money(economics.get("revenue"))],
@@ -715,9 +789,35 @@ def _economics_elements(economics: dict[str, Any]) -> list[DocxElement]:
         ["Не хватает цен", _missing_costs_summary(missing_cost_inputs)],
         ["Риски исполнения", ", ".join(_limited_text_list(economics.get("risk_types"), fallback="нет", limit=5))],
     ]
+    _append_money_row(rows, "Стоп-цена", _first_present(economics.get("stop_price"), participation.get("stop_price")))
+    _append_money_row(rows, "Обеспечение", _first_present(economics.get("security_amount"), participation.get("security_amount")))
     elements = [_p("Экономика", "heading"), _table(rows)]
     if economics.get("recommendation"):
         elements.append(_p(_value(economics.get("recommendation")), "normal"))
+    if participation:
+        participation_rows = [["Показатель", "Значение"]]
+        _append_value_row(participation_rows, "Решение", participation.get("label"))
+        _append_money_row(participation_rows, "Ставка", participation.get("current_price"))
+        _append_money_row(participation_rows, "Стоп-цена", participation.get("stop_price"))
+        _append_money_row(participation_rows, "Прибыль", participation.get("profit"))
+        _append_money_row(participation_rows, "Запас до стоп-цены", participation.get("headroom_to_stop_price"))
+        _append_money_row(participation_rows, "Резерв", participation.get("risk_reserve"))
+        _append_money_row(participation_rows, "Обеспечение", participation.get("security_amount"))
+        _append_value_row(participation_rows, "Причина", participation.get("reason"))
+        if len(participation_rows) > 1:
+            elements.extend([_p("Расчет участия", "heading2"), _table(participation_rows)])
+    if cost_breakdown:
+        breakdown_rows = [["Статья", "Сумма"]]
+        _append_money_row(breakdown_rows, "Товар", cost_breakdown.get("direct_cost"))
+        _append_money_row(breakdown_rows, "Логистика", cost_breakdown.get("logistics_cost"))
+        _append_money_row(breakdown_rows, "Документы", cost_breakdown.get("documents_cost"))
+        _append_money_row(breakdown_rows, "Прочее", cost_breakdown.get("other_costs"))
+        _append_money_row(breakdown_rows, "НДС", cost_breakdown.get("vat_cost"))
+        _append_money_row(breakdown_rows, "Резерв позиции", cost_breakdown.get("position_risk_reserve"))
+        _append_money_row(breakdown_rows, "Резерв исполнения", cost_breakdown.get("execution_risk_reserve"))
+        _append_money_row(breakdown_rows, "Денежная нагрузка", cost_breakdown.get("cash_required"))
+        if len(breakdown_rows) > 1:
+            elements.extend([_p("Разбивка затрат", "heading2"), _table(breakdown_rows)])
     if missing_cost_inputs:
         elements.append(_p("Первые позиции без себестоимости", "heading2"))
         elements.extend(_list_elements(_limited_text_list(missing_cost_inputs, fallback="нет", limit=5)))

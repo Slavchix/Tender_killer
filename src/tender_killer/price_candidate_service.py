@@ -57,7 +57,9 @@ def rank_profile_price_candidates(profile: dict[str, Any]) -> list[dict[str, Any
             continue
         quality = evaluate_price_candidate_quality(profile, candidate)
         score, reasons = _candidate_score(candidate, quality)
-        ranked.append({**candidate, **quality, "score": score, "score_reasons": reasons})
+        ranked_candidate = {**candidate, **quality, "score": score, "score_reasons": reasons}
+        ranked_candidate["pricing_passport"] = _pricing_passport(profile, ranked_candidate)
+        ranked.append(ranked_candidate)
     return sorted(ranked, key=_rank_key)
 
 
@@ -529,6 +531,93 @@ def _rank_key(candidate: dict[str, Any]) -> tuple[float, float, int]:
     price = _number(candidate.get("unit_price"))
     normalized_price = price if price is not None else float("inf")
     return (-float(candidate.get("score") or 0), normalized_price, int(candidate.get("id") or 0))
+
+
+def _pricing_passport(profile: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    raw_payload = _raw_payload(candidate)
+    unit_price = _number(candidate.get("unit_price"))
+    quantity = _number(profile.get("quantity"))
+    total_price = _round_money(unit_price * quantity) if unit_price is not None and quantity is not None else None
+    flags = [flag for flag in candidate.get("quality_flags") or [] if isinstance(flag, dict)]
+    flag_ids = {str(flag.get("id") or "") for flag in flags}
+    availability = _token(candidate.get("availability") or raw_payload.get("availability"))
+    vat_mode = _token(candidate.get("vat_mode") or raw_payload.get("vat_mode"))
+    delivery_note = str(candidate.get("delivery_note") or raw_payload.get("delivery_note") or "").strip()
+    pack_quantity = _first_number(candidate, raw_payload, PACK_QUANTITY_FIELDS)
+
+    positive_checks: list[str] = []
+    if candidate.get("source_url"):
+        positive_checks.append("source_url")
+    if unit_price is not None and unit_price > 0:
+        positive_checks.append("unit_price")
+    if availability and availability not in UNKNOWN_VALUES and availability not in UNAVAILABLE_VALUES:
+        positive_checks.append("availability")
+    if vat_mode in VAT_INCLUDED_VALUES:
+        positive_checks.append("vat")
+    if delivery_note and not any(flag_id.startswith("delivery_") for flag_id in flag_ids):
+        positive_checks.append("delivery")
+    if pack_quantity is not None and pack_quantity > 0 and "pack_quantity_invalid" not in flag_ids:
+        positive_checks.append("pack_quantity")
+
+    review_checks = [str(flag.get("id")) for flag in flags if flag.get("severity") == "review" and flag.get("id")]
+    block_checks = [str(flag.get("id")) for flag in flags if flag.get("severity") == "block" and flag.get("id")]
+    quality_status = str(candidate.get("quality_status") or "review")
+
+    return {
+        "provider": candidate.get("provider"),
+        "supplier_name": candidate.get("supplier_name"),
+        "product_name": candidate.get("product_name"),
+        "source_url": candidate.get("source_url"),
+        "unit_price": _round_money(unit_price) if unit_price is not None else None,
+        "total_price": total_price,
+        "quantity": _round_money(quantity) if quantity is not None else None,
+        "unit": candidate.get("unit") or profile.get("unit"),
+        "currency": candidate.get("currency") or "RUB",
+        "availability": candidate.get("availability") or raw_payload.get("availability"),
+        "vat_mode": candidate.get("vat_mode") or raw_payload.get("vat_mode"),
+        "delivery_note": delivery_note or None,
+        "stock_quantity": _first_number(candidate, raw_payload, SUPPLIER_STOCK_FIELDS),
+        "preorder_quantity": _first_number(candidate, raw_payload, SUPPLIER_PREORDER_FIELDS),
+        "pack_quantity": pack_quantity,
+        "minimum_order_quantity": _first_number(candidate, raw_payload, MIN_ORDER_QUANTITY_FIELDS),
+        "quality_status": quality_status,
+        "auto_eligible": bool(candidate.get("auto_eligible")),
+        "confidence": candidate.get("confidence"),
+        "positive_checks": positive_checks,
+        "review_checks": review_checks,
+        "block_checks": block_checks,
+        "next_action": _pricing_passport_next_action(candidate),
+        "summary": _pricing_passport_summary(quality_status, positive_checks, review_checks, block_checks),
+    }
+
+
+def _pricing_passport_next_action(candidate: dict[str, Any]) -> str:
+    review_status = str(candidate.get("review_status") or "pending").casefold()
+    if review_status == "confirmed":
+        return "already_confirmed"
+    if review_status == "rejected":
+        return "rejected"
+    quality_status = str(candidate.get("quality_status") or "review").casefold()
+    if quality_status == "ready":
+        return "ready_to_confirm"
+    if quality_status == "blocked":
+        return "do_not_accept"
+    return "review_required"
+
+
+def _pricing_passport_summary(
+    quality_status: str,
+    positive_checks: list[str],
+    review_checks: list[str],
+    block_checks: list[str],
+) -> str:
+    if block_checks or quality_status == "blocked":
+        return "Цена не готова: есть блокирующие признаки, нужен другой источник или ручная проверка."
+    if review_checks or quality_status == "review":
+        return "Цена требует проверки: уточни НДС, доставку, упаковку или наличие перед расчетом."
+    if {"source_url", "unit_price", "availability", "vat", "delivery"} <= set(positive_checks):
+        return "Цена готова к подтверждению: есть ссылка, цена, наличие, НДС и доставка."
+    return "Цена выглядит пригодной, но перед расчетом проверь источник и условия поставки."
 
 
 def _apply_confirmed_candidate(
@@ -1009,3 +1098,7 @@ def _number(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if number >= 0 else None
+
+
+def _round_money(value: float) -> float:
+    return round(float(value), 2)

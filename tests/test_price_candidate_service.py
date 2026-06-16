@@ -115,6 +115,62 @@ def test_rank_profile_price_candidates_marks_auto_ready_candidate() -> None:
     assert _flag_ids(ranked[1]) == {"availability_unavailable"}
 
 
+def test_rank_profile_price_candidates_adds_operator_pricing_passport() -> None:
+    profile = {
+        "position_index": 1,
+        "product_name": "Paper A4",
+        "quantity": 12,
+        "unit": "pack",
+        "price_candidates": [
+            {
+                "id": 1,
+                "provider": "officemag",
+                "product_name": "Paper A4 500 sheets",
+                "source_url": "https://www.officemag.ru/catalog/goods/110532/",
+                "unit_price": 359.0,
+                "currency": "RUB",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "delivery_note": "Delivery included",
+                "unit": "pack",
+                "pack_quantity": 1,
+                "stock_quantity": 14194,
+                "confidence": "high",
+                "match_reasons": ["profile_intent_match", "price_break_selected"],
+            }
+        ],
+    }
+
+    candidate = rank_profile_price_candidates(profile)[0]
+
+    assert candidate["pricing_passport"] == {
+        "provider": "officemag",
+        "supplier_name": None,
+        "product_name": "Paper A4 500 sheets",
+        "source_url": "https://www.officemag.ru/catalog/goods/110532/",
+        "unit_price": 359.0,
+        "total_price": 4308.0,
+        "quantity": 12.0,
+        "unit": "pack",
+        "currency": "RUB",
+        "availability": "in_stock",
+        "vat_mode": "vat_included",
+        "delivery_note": "Delivery included",
+        "stock_quantity": 14194.0,
+        "preorder_quantity": None,
+        "pack_quantity": 1.0,
+        "minimum_order_quantity": None,
+        "quality_status": "ready",
+        "auto_eligible": True,
+        "confidence": "high",
+        "positive_checks": ["source_url", "unit_price", "availability", "vat", "delivery", "pack_quantity"],
+        "review_checks": [],
+        "block_checks": [],
+        "next_action": "ready_to_confirm",
+        "summary": "Цена готова к подтверждению: есть ссылка, цена, наличие, НДС и доставка.",
+    }
+
+
 def test_rank_profile_price_candidates_prefers_strict_catalog_query_over_generic_fallback() -> None:
     profile = {
         "position_index": 1,

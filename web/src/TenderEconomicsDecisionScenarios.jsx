@@ -18,6 +18,40 @@ export function ParticipationDecisionCard({ decision }) {
   )
 }
 
+export function ParticipationCalculationCard({ calculation }) {
+  if (!calculation) return null
+
+  const metrics = [
+    ['Ставка', formatMoney(calculation.current_price)],
+    ['Стоп-цена', formatMoney(calculation.stop_price)],
+    ['Прибыль', formatMoney(calculation.profit)],
+    ['Запас', formatMoney(calculation.headroom_to_stop_price)],
+    ['Резерв', formatMoney(calculation.risk_reserve)],
+    ['Обеспечение', formatMoney(calculation.security_amount)],
+  ]
+
+  return (
+    <section className={`participation-calculation-card ${calculation.status || ''}`} aria-label="Расчет участия">
+      <div className="participation-calculation-heading">
+        <span>Расчет участия</span>
+        <strong>{calculation.label || 'проверить'}</strong>
+      </div>
+      <div className="participation-calculation-grid">
+        {metrics.map(([label, value]) => (
+          <div key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+        ))}
+      </div>
+      {calculation.reason && <p>{calculation.reason}</p>}
+      <small>
+        Цель {formatPercent(calculation.target_margin_percent)} · запас до безубытка {formatMoney(calculation.headroom_to_break_even)}
+      </small>
+    </section>
+  )
+}
+
 export function BidScenarioStrip({ scenarios = [] }) {
   if (!scenarios.length) return null
 
