@@ -8,7 +8,7 @@ from typing import Any
 
 from tender_killer.product_profile_service import ensure_product_profiles
 from tender_killer.storage import TenderStore
-from tender_killer.supplier_product_matcher import supplier_product_name_matches_query
+from tender_killer.supplier_product_matcher import supplier_product_name_mismatch_reasons
 
 
 REVIEW_STATUSES = {"confirmed", "rejected"}
@@ -75,7 +75,8 @@ def evaluate_price_candidate_quality(profile: dict[str, Any], candidate: dict[st
     if review_status == "rejected":
         flags.append(_quality_flag("candidate_rejected", "block", "Rejected", "Operator already rejected this candidate."))
 
-    if _candidate_name_mismatch(profile, candidate, raw_payload):
+    mismatch_reasons = _candidate_name_mismatch_reasons(profile, candidate, raw_payload)
+    if mismatch_reasons:
         flags.append(
             _quality_flag(
                 "product_name_mismatch",
@@ -84,6 +85,17 @@ def evaluate_price_candidate_quality(profile: dict[str, Any], candidate: dict[st
                 "Supplier product title does not match the tender position.",
             )
         )
+        for reason in mismatch_reasons:
+            if reason == "product_name_mismatch":
+                continue
+            flags.append(
+                _quality_flag(
+                    reason,
+                    "block",
+                    _quality_mismatch_label(reason),
+                    "Supplier product title conflicts with the tender position.",
+                )
+            )
 
     availability = _token(candidate.get("availability") or raw_payload.get("availability"))
     if availability in UNAVAILABLE_VALUES:
@@ -325,6 +337,7 @@ def review_profile_price_candidate(
 
     supplier_option_index: int | None = None
     if status == "confirmed":
+        _ensure_candidate_confirmable(target, candidate)
         supplier_option_index = _apply_confirmed_candidate(target, candidate)
         store.upsert_product_profiles(source, external_id, profiles)
 
@@ -435,11 +448,11 @@ def apply_tender_auto_prices(
     }
 
 
-def _candidate_name_mismatch(
+def _candidate_name_mismatch_reasons(
     profile: dict[str, Any],
     candidate: dict[str, Any],
     raw_payload: dict[str, Any],
-) -> bool:
+) -> list[str]:
     candidate_name = str(
         candidate.get("product_name")
         or candidate.get("name")
@@ -448,7 +461,7 @@ def _candidate_name_mismatch(
         or ""
     ).strip()
     if not candidate_name:
-        return False
+        return []
 
     profile_text = " ".join(
         str(value).strip()
@@ -461,8 +474,38 @@ def _candidate_name_mismatch(
         if value not in (None, "")
     )
     if not profile_text.strip():
-        return False
-    return not supplier_product_name_matches_query(profile_text, candidate_name)
+        return []
+    return supplier_product_name_mismatch_reasons(profile_text, candidate_name)
+
+
+def _quality_mismatch_label(reason: str) -> str:
+    return {
+        "brand_mismatch": "Brand mismatch",
+        "color_mismatch": "Color mismatch",
+        "dimension_mismatch": "Dimension mismatch",
+        "family_modifier_mismatch": "Product modifier mismatch",
+        "material_mismatch": "Material mismatch",
+        "paper_format_mismatch": "Paper format mismatch",
+        "paper_sheet_count_mismatch": "Paper sheet count mismatch",
+        "piece_pack_count_mismatch": "Pack quantity mismatch",
+        "product_family_mismatch": "Product family mismatch",
+        "product_name_mismatch": "Product name mismatch",
+        "volume_mismatch": "Volume mismatch",
+        "weight_mismatch": "Weight mismatch",
+    }.get(reason, "Product mismatch")
+
+
+def _ensure_candidate_confirmable(profile: dict[str, Any], candidate: dict[str, Any]) -> None:
+    quality = evaluate_price_candidate_quality(profile, candidate)
+    if str(quality.get("quality_status") or "").casefold() != "blocked":
+        return
+    block_reasons = [
+        str(flag.get("id"))
+        for flag in quality.get("quality_flags") or []
+        if isinstance(flag, dict) and flag.get("severity") == "block" and flag.get("id")
+    ]
+    reason_text = ", ".join(block_reasons) if block_reasons else "quality_blocked"
+    raise ValueError(f"Price candidate is blocked and cannot be confirmed: {reason_text}")
 
 
 def _price_match_stems(text: str, *, remove_stop_words: bool) -> set[str]:

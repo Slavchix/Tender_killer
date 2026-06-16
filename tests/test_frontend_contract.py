@@ -176,6 +176,7 @@ def test_economics_workspace_exposes_compact_operator_flow():
     assert "candidate-queue-tabs" in suppliers_source
     assert "candidateQueueBuckets" in suppliers_source
     assert "candidateNeedsManualPrice" in suppliers_source
+    assert "product_family_mismatch" in suppliers_source
     assert "manual_price_required" in profile_workspace_source
     assert "Локальный browser-fetch не запустился" in profile_workspace_source
     assert "spawn eperm" in profile_workspace_source.lower()

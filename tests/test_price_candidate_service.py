@@ -250,6 +250,8 @@ def test_rank_profile_price_candidates_blocks_wrong_product_family() -> None:
     assert ranked[0]["quality_status"] == "blocked"
     assert ranked[0]["auto_eligible"] is False
     assert "product_name_mismatch" in _flag_ids(ranked[0])
+    assert "product_family_mismatch" in _flag_ids(ranked[0])
+    assert "product_family_mismatch" in ranked[0]["pricing_passport"]["block_checks"]
 
 
 def test_rank_profile_price_candidates_flags_unknown_cost_drivers_before_auto_accept() -> None:
@@ -515,6 +517,74 @@ def test_confirm_profile_price_candidate_applies_price_to_economics_and_marks_re
         "quality_flags": [],
     }
     assert detail["economics"]["supplier_cost"] == 8800.0
+
+
+def test_confirm_profile_price_candidate_rejects_blocked_product_mismatch(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="price-review-blocked",
+            url="https://market.mosreg.ru/Trade/ViewTrade/price-review-blocked",
+            title="Blocked candidate",
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "price-review-blocked",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-review-blocked",
+                position_index=1,
+                product_name="cartridge for electrophotographic printing devices",
+                quantity=2,
+                unit="piece",
+                raw_payload={
+                    "supplier_options": [
+                        {
+                            "provider": "officemag",
+                            "name": "Office paper A4, 80 gsm, 500 sheets",
+                            "url": "https://www.officemag.ru/catalog/goods/112464/",
+                            "unit_price": 493,
+                            "currency": "RUB",
+                            "vat_mode": "vat_included",
+                            "availability": "in_stock",
+                            "confidence": "high",
+                            "delivery_note": "Delivery included",
+                            "pack_quantity": 1,
+                            "unit": "piece",
+                            "source_query": "cartridge for electrophotographic printing devices",
+                        }
+                    ]
+                },
+            )
+        ],
+    )
+    stage_tender_price_candidates(store.database_path, "mosreg_market", "price-review-blocked")
+    profile = get_tender_payload(store.database_path, "mosreg_market", "price-review-blocked")["product_profiles"][0]
+    candidate = profile["price_candidates"][0]
+
+    try:
+        review_profile_price_candidate(
+            store.database_path,
+            "mosreg_market",
+            "price-review-blocked",
+            1,
+            int(candidate["id"]),
+            review_status="confirmed",
+        )
+    except ValueError as exc:
+        assert "blocked" in str(exc).casefold()
+        assert "product_family_mismatch" in str(exc)
+    else:
+        raise AssertionError("blocked price candidate was confirmed")
+
+    profile = get_tender_payload(store.database_path, "mosreg_market", "price-review-blocked")["product_profiles"][0]
+    assert profile["raw_payload"].get("economics", {}) == {}
+    assert profile["profile_status"] != "priced"
+    assert profile["price_candidates"][0]["review_status"] == "pending"
 
 
 def test_confirm_profile_price_candidate_applies_price_break_total_by_quantity(tmp_path) -> None:
