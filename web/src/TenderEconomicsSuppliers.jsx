@@ -97,7 +97,17 @@ function BestPriceCandidate({
   const priceComparison = priceComparisonForUnitPrice(candidateUnitPrice, tenderUnitPrice)
   const qualityStatus = String(candidate?.quality_status || 'review').toLowerCase()
   const manualPriceRequired = candidateNeedsManualPrice(candidate)
+  const candidateUrl = String(candidate?.source_url || candidate?.url || '').trim()
   const blocked = qualityStatus === 'blocked'
+  const handlePrimaryAction = () => {
+    if (manualPriceRequired) {
+      if (candidateUrl) {
+        window.open(candidateUrl, '_blank', 'noopener,noreferrer')
+      }
+      return
+    }
+    ignorePriceCandidateActionError(onConfirm?.(candidate))
+  }
 
   return (
     <div className={`best-price-candidate quality-${qualityStatus}`}>
@@ -114,11 +124,11 @@ function BestPriceCandidate({
       </div>
       <button
         className="secondary-button compact"
-        disabled={busy || blocked || !onConfirm}
-        onClick={() => ignorePriceCandidateActionError(onConfirm?.(candidate))}
+        disabled={busy || blocked || (!manualPriceRequired && !onConfirm) || (manualPriceRequired && !candidateUrl)}
+        onClick={handlePrimaryAction}
         type="button"
       >
-        {manualPriceRequired ? 'Внести цену' : blocked ? 'Нужна проверка' : 'Принять'}
+        {manualPriceRequired ? 'Открыть ссылку' : blocked ? 'Нужна проверка' : 'Принять'}
       </button>
     </div>
   )
@@ -440,11 +450,11 @@ function PriceCandidateQueue({
             <div className="price-candidate-actions">
               <button
                 className="secondary-button compact"
-                disabled={busy || confirmed || rejected || !onConfirm}
+                disabled={busy || confirmed || rejected || manualPriceRequired || !onConfirm}
                 onClick={() => ignorePriceCandidateActionError(onConfirm?.(candidate))}
                 type="button"
               >
-                {confirmed ? 'Принята' : 'Принять цену'}
+                {manualPriceRequired ? 'Внеси цену вручную' : confirmed ? 'Принята' : 'Принять цену'}
               </button>
               <button
                 className="secondary-button compact"
