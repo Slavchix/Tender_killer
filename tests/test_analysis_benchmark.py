@@ -4,6 +4,9 @@ import pytest
 
 from tender_killer.analysis import analyze_tender_texts
 from tender_killer.analysis_benchmark_service import REQUIRED_TZ_BENCHMARK_CATEGORIES
+from tender_killer.analysis_benchmark_service import TZ_BENCHMARK_TARGET_CASE_COUNT
+from tender_killer.analysis_benchmark_service import load_tz_benchmark_cases
+from tender_killer.analysis_benchmark_service import run_tz_benchmark_suite
 from tender_killer.analysis_benchmark_service import score_tz_benchmark_case
 from tender_killer.analysis_benchmark_service import summarize_tz_benchmark_scores
 
@@ -174,3 +177,84 @@ def test_tz_benchmark_scorer_tracks_fact_quality_conflicts_and_coverage():
         "poor_ocr",
         "multiple_revisions",
     }
+
+
+def test_load_tz_benchmark_cases_exposes_product_fixture_contract():
+    cases = load_tz_benchmark_cases()
+
+    categories = {case["category"] for case in cases}
+
+    assert len(cases) >= TZ_BENCHMARK_TARGET_CASE_COUNT["min"]
+    assert len(cases) <= TZ_BENCHMARK_TARGET_CASE_COUNT["max"]
+    assert categories >= set(REQUIRED_TZ_BENCHMARK_CATEGORIES)
+    for case in cases:
+        assert case["name"]
+        assert case["category"] in REQUIRED_TZ_BENCHMARK_CATEGORIES
+        assert case["texts"] and all(isinstance(text, str) and text.strip() for text in case["texts"])
+        assert isinstance(case["expected_labels"], list)
+        assert isinstance(case["expected_terms"], list)
+        assert isinstance(case["expected_conflicts"], list)
+        assert isinstance(case["expected_missing"], list)
+        assert isinstance(case["absent_labels"], list)
+
+
+def test_run_tz_benchmark_suite_reports_saas_quality_metrics():
+    suite = run_tz_benchmark_suite(
+        [
+            {
+                "name": "service_with_sro_runner",
+                "category": "services",
+                "texts": [
+                    """
+                    Техническое задание: выполнение работ по обслуживанию инженерных систем.
+                    Исполнитель должен иметь действующее членство в СРО.
+                    Работы закрываются актом выполненных работ.
+                    За нарушение сроков выполнения работ начисляется пеня.
+                    Гарантийный срок на выполненные работы составляет 12 месяцев.
+                    """
+                ],
+                "expected_labels": [
+                    "лицензия/СРО",
+                    "акт выполненных работ",
+                    "штрафы/пени",
+                    "гарантия",
+                ],
+                "expected_terms": ["warranty_period", "penalties"],
+                "expected_conflicts": [],
+                "expected_missing": ["условия оплаты"],
+                "absent_labels": ["короткий срок поставки"],
+            },
+            {
+                "name": "supply_missing_payment_runner",
+                "category": "small_supply",
+                "texts": [
+                    """
+                    Техническое задание: поставка офисной бумаги А4.
+                    Поставщик предоставляет сертификат соответствия.
+                    Поставка товара осуществляется в течение 5 рабочих дней.
+                    """
+                ],
+                "expected_labels": ["сертификат/декларация", "срок поставки"],
+                "expected_terms": ["delivery_deadline"],
+                "expected_conflicts": [],
+                "expected_missing": ["условия оплаты", "приемка и закрывающие документы"],
+                "absent_labels": ["лицензия/СРО"],
+            },
+        ]
+    )
+
+    summary = suite["summary"]
+
+    assert suite["version"] == 1
+    assert summary["cases"] == 2
+    assert summary["case_count_gap"] == TZ_BENCHMARK_TARGET_CASE_COUNT["min"] - 2
+    assert summary["coverage_status"] == "needs_more_cases"
+    assert summary["quality_gates"]["target_case_count"]["passed"] is False
+    assert summary["quality_gates"]["required_categories"]["passed"] is False
+    assert summary["category_scores"]["services"]["cases"] == 1
+    assert summary["category_scores"]["small_supply"]["cases"] == 1
+    assert summary["fact_quality"]["found"] >= 9
+    assert summary["fact_quality"]["missed"] == 0
+    assert summary["fact_quality"]["hallucinated"] == 0
+    assert summary["fact_quality"]["expected_missing_caught"] >= 3
+    assert summary["fact_quality"]["conflicts_caught"] == 0
