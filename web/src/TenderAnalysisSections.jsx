@@ -46,6 +46,7 @@ export function AnalysisSectionBody({
   documents = [],
   viewMode = 'compact',
   onViewModeChange,
+  onEvidenceSelect,
   onFeedback,
   savingFeedbackId,
 }) {
@@ -63,6 +64,7 @@ export function AnalysisSectionBody({
       section={section}
       viewMode={viewMode}
       onViewModeChange={onViewModeChange}
+      onEvidenceSelect={onEvidenceSelect}
       onFeedback={onFeedback}
       savingFeedbackId={savingFeedbackId}
     />
@@ -266,6 +268,7 @@ function AnalysisOperatorSection({
   section,
   viewMode = 'compact',
   onViewModeChange,
+  onEvidenceSelect,
   onFeedback,
   savingFeedbackId,
 }) {
@@ -298,6 +301,7 @@ function AnalysisOperatorSection({
                 detailed={!compact}
                 item={item}
                 key={item.id || `${item.label}-${index}`}
+                onEvidenceSelect={onEvidenceSelect}
                 onFeedback={onFeedback}
                 savingFeedbackId={savingFeedbackId}
               />
@@ -311,6 +315,7 @@ function AnalysisOperatorSection({
                       detailed={!compact}
                       item={item}
                       key={item.id || `${item.label}-hidden-${index}`}
+                      onEvidenceSelect={onEvidenceSelect}
                       onFeedback={onFeedback}
                       savingFeedbackId={savingFeedbackId}
                     />
@@ -327,6 +332,7 @@ function AnalysisOperatorSection({
                       detailed={!compact}
                       item={item}
                       key={item.id || `${item.label}-weak-${index}`}
+                      onEvidenceSelect={onEvidenceSelect}
                       onFeedback={onFeedback}
                       savingFeedbackId={savingFeedbackId}
                       weak
@@ -374,7 +380,7 @@ function AnalysisViewControls({ totalCount, viewMode, onViewModeChange }) {
   )
 }
 
-function AnalysisFactCard({ item, detailed = false, onFeedback, savingFeedbackId, weak = false }) {
+function AnalysisFactCard({ item, detailed = false, onEvidenceSelect, onFeedback, savingFeedbackId, weak = false }) {
   const sourceLabel = item.source_label || item.source
   const sourceBinding = analysisSourceBinding(item)
   const confidenceLevel = analysisConfidenceLevel(item)
@@ -407,6 +413,11 @@ function AnalysisFactCard({ item, detailed = false, onFeedback, savingFeedbackId
         item={item}
         onFeedback={onFeedback}
       />
+      {sourceDetail && onEvidenceSelect ? (
+        <button className="analysis-evidence-link" onClick={() => onEvidenceSelect(item)} type="button">
+          Источник
+        </button>
+      ) : null}
       <div className="analysis-fact-body">
         {!detailed && compactSentence ? (
           <p className="analysis-fact-line compact">

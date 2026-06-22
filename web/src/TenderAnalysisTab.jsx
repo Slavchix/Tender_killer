@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpenCheck, CalendarDays, HelpCircle, Save, UserRound } from 'lucide-react'
+import { BookOpenCheck, CalendarDays, FileSearch, HelpCircle, Save, UserRound } from 'lucide-react'
 import { AnalysisDecisionBrief } from './TenderAnalysisDecisionBrief'
 import { AnalysisDocumentsPanel } from './TenderAnalysisDocumentsPanel'
 import { AnalysisPassport } from './TenderAnalysisPassport'
@@ -35,8 +35,10 @@ export function TenderAnalysisTab({
   const tzWorkflow = analysis?.operator_view?.tz_workflow || {}
   const aiQuestions = analysis?.operator_view?.ai_questions || {}
   const playbooks = analysis?.operator_view?.playbooks || {}
+  const evidenceDrilldowns = analysis?.operator_view?.evidence_drilldowns || {}
   const analysisHistory = analysis?.analysis_history || []
   const [workflowDraft, setWorkflowDraft] = useState(workflowDraftFromContract(tzWorkflow))
+  const [selectedEvidence, setSelectedEvidence] = useState(null)
 
   useEffect(() => {
     const sectionIds = new Set(analysisSections.map((section) => section.id))
@@ -56,9 +58,17 @@ export function TenderAnalysisTab({
     setWorkflowDraft(workflowDraftFromContract(tzWorkflow))
   }, [tzWorkflow.status, tzWorkflow.responsible, tzWorkflow.deadline, tzWorkflow.comment])
 
+  useEffect(() => {
+    setSelectedEvidence(null)
+  }, [analysis?.analyzed_at, analysis?.status])
+
   function selectAnalysisSection(sectionId) {
     userSelectedAnalysisSectionRef.current = true
     setSelectedAnalysisSection(sectionId)
+  }
+
+  function selectEvidenceDrilldown(value) {
+    setSelectedEvidence(resolveEvidenceDrilldown(value, evidenceDrilldowns))
   }
 
   function updateWorkflowDraft(field, value) {
@@ -112,8 +122,16 @@ export function TenderAnalysisTab({
             saving={savingAnalysisWorkflow}
             workflow={tzWorkflow}
           />
-          <AnalysisQuestionsPanel questions={aiQuestions} />
-          <AnalysisPlaybooksPanel playbooks={playbooks} />
+          <AnalysisQuestionsPanel
+            evidenceIndex={evidenceDrilldowns}
+            onEvidenceSelect={selectEvidenceDrilldown}
+            questions={aiQuestions}
+          />
+          <AnalysisPlaybooksPanel
+            evidenceIndex={evidenceDrilldowns}
+            onEvidenceSelect={selectEvidenceDrilldown}
+            playbooks={playbooks}
+          />
         </div>
       ) : null}
       <AnalysisPassport
@@ -130,6 +148,7 @@ export function TenderAnalysisTab({
               sectionId={selectedAnalysisSection}
               analysis={analysis}
               documents={documents}
+              onEvidenceSelect={selectEvidenceDrilldown}
               viewMode={analysisViewMode}
               onViewModeChange={setAnalysisViewMode}
               onFeedback={onAnalysisFeedback}
@@ -139,6 +158,12 @@ export function TenderAnalysisTab({
             <p className="muted-text">Сначала извлеки текст документов, затем запусти анализ ТЗ.</p>
           )}
         </div>
+        {analysis ? (
+          <AnalysisEvidenceDrilldownPanel
+            evidenceIndex={evidenceDrilldowns}
+            selectedEvidence={selectedEvidence}
+          />
+        ) : null}
 
       </div>
     </section>
@@ -199,7 +224,7 @@ function AnalysisWorkflowPanel({ workflow = {}, draft, disabled = false, saving 
   )
 }
 
-function AnalysisQuestionsPanel({ questions = {} }) {
+function AnalysisQuestionsPanel({ questions = {}, evidenceIndex = {}, onEvidenceSelect }) {
   const items = Array.isArray(questions.items) ? questions.items : []
   if (!items.length) return null
   return (
@@ -213,7 +238,11 @@ function AnalysisQuestionsPanel({ questions = {} }) {
           <article className={`analysis-question-card ${item.answer_status || 'not_found'}`} key={item.id || item.question}>
             <strong>{item.question}</strong>
             <p>{item.answer}</p>
-            <QuestionSources sources={item.sources} />
+            <QuestionSources
+              evidenceIndex={evidenceIndex}
+              onEvidenceSelect={onEvidenceSelect}
+              sources={item.sources}
+            />
           </article>
         ))}
       </div>
@@ -221,22 +250,28 @@ function AnalysisQuestionsPanel({ questions = {} }) {
   )
 }
 
-function QuestionSources({ sources }) {
+function QuestionSources({ sources, evidenceIndex = {}, onEvidenceSelect }) {
   const visibleSources = Array.isArray(sources) ? sources.slice(0, 2) : []
   if (!visibleSources.length) return <small>Источник не найден</small>
   return (
     <ul>
       {visibleSources.map((source, index) => (
         <li key={`${source.fact_id || index}-${source.source_label || index}`}>
-          <span>{source.source_label || source.document_name}</span>
-          <em>{source.fragment}</em>
+          <button
+            className="analysis-source-button"
+            onClick={() => onEvidenceSelect?.(resolveEvidenceDrilldown(source, evidenceIndex))}
+            type="button"
+          >
+            <span>{source.source_label || source.document_name}</span>
+            <em>{source.fragment}</em>
+          </button>
         </li>
       ))}
     </ul>
   )
 }
 
-function AnalysisPlaybooksPanel({ playbooks = {} }) {
+function AnalysisPlaybooksPanel({ playbooks = {}, evidenceIndex = {}, onEvidenceSelect }) {
   const items = Array.isArray(playbooks.items) ? playbooks.items : []
   if (!items.length) return null
   return (
@@ -251,6 +286,11 @@ function AnalysisPlaybooksPanel({ playbooks = {} }) {
             <strong>{item.title}</strong>
             <p>{item.summary}</p>
             <PlaybookList values={item.what_to_do} />
+            <PlaybookEvidenceButtons
+              evidenceIndex={evidenceIndex}
+              factIds={item.source_fact_ids}
+              onEvidenceSelect={onEvidenceSelect}
+            />
           </article>
         ))}
       </div>
@@ -268,6 +308,98 @@ function PlaybookList({ values }) {
       ))}
     </ul>
   )
+}
+
+function PlaybookEvidenceButtons({ factIds, evidenceIndex = {}, onEvidenceSelect }) {
+  const ids = Array.isArray(factIds) ? factIds.filter(Boolean).slice(0, 3) : []
+  if (!ids.length || !onEvidenceSelect) return null
+  return (
+    <div className="analysis-playbook-sources">
+      {ids.map((factId) => {
+        const evidence = resolveEvidenceDrilldown(factId, evidenceIndex)
+        if (!evidence) return null
+        return (
+          <button key={factId} onClick={() => onEvidenceSelect(evidence)} type="button">
+            {evidence.source_label || evidence.title || factId}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function AnalysisEvidenceDrilldownPanel({ evidenceIndex = {}, selectedEvidence }) {
+  const evidence = selectedEvidence || evidenceIndexItems(evidenceIndex)[0]
+  if (!evidence) {
+    return (
+      <aside className="analysis-evidence-drilldown empty">
+        <div className="analysis-saas-panel-head">
+          <span><FileSearch size={15} /> Источник</span>
+        </div>
+        <p>Выберите факт, вопрос или playbook, чтобы увидеть фрагмент документа.</p>
+      </aside>
+    )
+  }
+  const sourceBinding = evidence.source_binding && typeof evidence.source_binding === 'object' ? evidence.source_binding : {}
+  const confidence = evidence.confidence_level && typeof evidence.confidence_level === 'object' ? evidence.confidence_level : {}
+  const quality = evidence.evidence_quality && typeof evidence.evidence_quality === 'object' ? evidence.evidence_quality : {}
+  const relatedFactIds = Array.isArray(evidence.related_fact_ids) ? evidence.related_fact_ids : []
+  return (
+    <aside className="analysis-evidence-drilldown">
+      <div className="analysis-saas-panel-head">
+        <span><FileSearch size={15} /> Источник</span>
+        <strong>{quality.label || sourceBinding.label || evidence.source_label || 'фрагмент'}</strong>
+      </div>
+      <div className="analysis-evidence-drilldown-title">
+        <strong>{evidence.title || evidence.label || evidence.question || 'Источник'}</strong>
+        <span>{evidence.source_label || evidence.document_name || 'Источник не привязан'}</span>
+      </div>
+      <div className="analysis-evidence-meta">
+        {sourceBinding.label && <span className={`analysis-source-binding-${sourceBinding.level || 'context'}`}>{sourceBinding.label}</span>}
+        {confidence.label && <span className={`analysis-confidence-${confidence.level || 'medium'}`}>{confidence.label}</span>}
+        {quality.label && <span className={`analysis-evidence-quality-${quality.level || 'context'}`}>{quality.label}</span>}
+      </div>
+      {sourceBinding.detail && <p>{sourceBinding.detail}</p>}
+      {quality.detail && <p>{quality.detail}</p>}
+      {evidence.fragment && (
+        <blockquote className="analysis-evidence-fragment">
+          {evidence.fragment}
+        </blockquote>
+      )}
+      {evidence.source_context && evidence.source_context !== evidence.fragment && (
+        <p className="analysis-evidence-context">{evidence.source_context}</p>
+      )}
+      {relatedFactIds.length ? (
+        <div className="analysis-evidence-related">
+          <span>Связанные факты</span>
+          <strong>{relatedFactIds.join(', ')}</strong>
+        </div>
+      ) : null}
+    </aside>
+  )
+}
+
+function resolveEvidenceDrilldown(value, evidenceIndex = {}) {
+  if (!value) return null
+  if (typeof value === 'string') return evidenceByFactId(value, evidenceIndex)
+  const drilldownId = value.evidence_drilldown_id || value.drilldown_id
+  if (drilldownId) return evidenceById(drilldownId, evidenceIndex) || value
+  if (value.fact_id) return evidenceByFactId(value.fact_id, evidenceIndex) || value
+  if (value.id) return evidenceById(value.id, evidenceIndex) || value
+  return value
+}
+
+function evidenceByFactId(factId, evidenceIndex = {}) {
+  const itemId = evidenceIndex?.by_fact_id?.[factId] || factId
+  return evidenceById(itemId, evidenceIndex)
+}
+
+function evidenceById(id, evidenceIndex = {}) {
+  return evidenceIndexItems(evidenceIndex).find((item) => item.id === id) || null
+}
+
+function evidenceIndexItems(evidenceIndex = {}) {
+  return Array.isArray(evidenceIndex.items) ? evidenceIndex.items : []
 }
 
 function workflowDraftFromContract(workflow = {}) {

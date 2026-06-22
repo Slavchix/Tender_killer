@@ -3360,7 +3360,7 @@ textarea:focus {
 
 .analysis-workspace {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.42fr);
   gap: 10px;
   align-items: start;
 }
@@ -3718,6 +3718,51 @@ textarea:focus {
   opacity: 0.62;
 }
 
+.analysis-evidence-link,
+.analysis-source-button,
+.analysis-playbook-sources button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-width: 0;
+  min-height: 28px;
+  padding: 5px 9px;
+  color: var(--color-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.analysis-evidence-link:hover,
+.analysis-source-button:hover,
+.analysis-playbook-sources button:hover {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+
+.analysis-source-button {
+  display: grid;
+  justify-items: start;
+  width: 100%;
+  text-align: left;
+}
+
+.analysis-source-button span,
+.analysis-source-button em {
+  overflow-wrap: anywhere;
+}
+
+.analysis-playbook-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .analysis-feedback-note {
   display: grid;
   gap: 3px;
@@ -3859,6 +3904,102 @@ textarea:focus {
   line-height: 1.45;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.analysis-evidence-drilldown {
+  position: sticky;
+  top: 12px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+}
+
+.analysis-evidence-drilldown.empty p,
+.analysis-evidence-drilldown p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.analysis-evidence-drilldown-title {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.analysis-evidence-drilldown-title strong {
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.analysis-evidence-drilldown-title span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
+.analysis-evidence-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.analysis-evidence-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.analysis-evidence-fragment {
+  margin: 0;
+  padding: 10px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 7px;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.analysis-evidence-context {
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.analysis-evidence-related {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.analysis-evidence-related span {
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.analysis-evidence-related strong {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .analysis-document-summary {

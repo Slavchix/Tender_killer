@@ -128,6 +128,14 @@ def test_operator_view_exposes_tz_workflow_questions_and_playbooks():
     assert playbooks["skip_procurement"]["skip_conditions"]
     assert playbooks["supplier_dangerous_terms"]["dangerous_for_supplier"]
 
+    drilldowns = {item["id"]: item for item in view["evidence_drilldowns"]["items"]}
+    assert drilldowns["fact:advance-positive"]["title"] == "Advance payment"
+    assert drilldowns["fact:advance-positive"]["source_label"] == "Contract.docx p. 2"
+    assert drilldowns["fact:advance-positive"]["fragment"] == "Advance payment 30% of contract price."
+    assert drilldowns["fact:advance-positive"]["evidence_quality"]["level"] == "conflict"
+    assert drilldowns["fact:national-regime"]["related_fact_ids"] == ["fact:national-regime"]
+    assert view["evidence_drilldowns"]["by_fact_id"]["fact:payment-documents"] == "fact:payment-documents"
+
 
 def test_analysis_workflow_endpoint_persists_owner_deadline_comment_and_journal(tmp_path):
     store = TenderStore(tmp_path / "tenders.sqlite")
@@ -231,12 +239,17 @@ def test_frontend_exposes_tz_saas_workflow_questions_and_playbooks():
     assert "AnalysisWorkflowPanel" in analysis_source
     assert "AnalysisQuestionsPanel" in analysis_source
     assert "AnalysisPlaybooksPanel" in analysis_source
+    assert "AnalysisEvidenceDrilldownPanel" in analysis_source
+    assert "selectedEvidence" in analysis_source
+    assert "onEvidenceSelect" in analysis_source
+    assert "operator_view?.evidence_drilldowns" in analysis_source
     assert "operator_view?.tz_workflow" in analysis_source
     assert "operator_view?.ai_questions" in analysis_source
     assert "operator_view?.playbooks" in analysis_source
     assert "analysis-workflow-panel" in styles_source
     assert "analysis-questions-grid" in styles_source
     assert "analysis-playbook-list" in styles_source
+    assert "analysis-evidence-drilldown" in styles_source
 
 
 def test_word_report_renders_tz_workflow_questions_and_playbooks():
