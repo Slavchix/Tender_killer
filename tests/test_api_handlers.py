@@ -1072,6 +1072,53 @@ def test_handle_post_request_routes_price_candidate_auto_stage(tmp_path) -> None
     assert "economics" not in profile["raw_payload"]
 
 
+def test_handle_post_request_routes_tender_price_book_feed_stage(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/price-book/feed",
+        {
+            "feed_name": "Office suppliers",
+            "rows": [
+                {
+                    "position_index": 1,
+                    "supplier": "OfficeMag",
+                    "name": "Office paper A4, 500 sheets",
+                    "unit_price": 359,
+                    "currency": "RUB",
+                    "vat_mode": "vat_included",
+                    "availability": "in_stock",
+                    "delivery_note": "Delivery included",
+                    "unit": "pack",
+                    "pack_quantity": 1,
+                }
+            ],
+        },
+    )
+
+    assert response.status == 200
+    assert response.payload["price_book_feed"]["staged_count"] == 1
+    candidate = response.payload["product_profiles"][0]["price_candidates"][0]
+    assert candidate["origin"] == "price_book_feed"
+    assert candidate["source_kind"] == "price_book_feed"
+    assert candidate["pricing_passport"]["next_action"] == "ready_to_confirm"
+
+
 def test_handle_post_request_routes_tender_auto_prices_and_refreshes_economics(tmp_path) -> None:
     store = _store_with_tender(tmp_path)
     store.upsert_product_profiles(

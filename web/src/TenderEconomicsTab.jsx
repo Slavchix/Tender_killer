@@ -101,46 +101,27 @@ export function TenderEconomicsTab({
                 {primaryEconomicsAction.label}
               </button>
             )}
-            <div className="economics-secondary-actions" aria-label="Дополнительные действия экономики">
-              {secondaryEconomicsActions.map((action) => (
-                <button
-                  className="secondary-button compact"
-                  disabled={action.disabled}
-                  key={action.id}
-                  onClick={() => ignoreEconomicsActionError(action.onRun?.())}
-                  title={action.description}
-                  type="button"
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
-            {canRunActivePriceDiscovery && (
-              <button
-                className="secondary-button compact"
-                disabled={runningPriceDiscovery || !onPriceDiscoveryRun || priceDiscoveryRunCount === 0}
-                onClick={() => ignoreEconomicsActionError(onPriceDiscoveryRun?.())}
-                type="button"
-              >
-                {runningPriceDiscovery ? 'Ищу...' : `Найти цены (${priceDiscoveryRunCount})`}
-              </button>
+            {secondaryEconomicsActions.length > 0 && (
+              <details className="economics-secondary-menu">
+                <summary className="economics-secondary-summary">
+                  Еще <span>{secondaryEconomicsActions.filter((action) => !action.disabled).length}</span>
+                </summary>
+                <div className="economics-secondary-actions" aria-label="Дополнительные действия экономики">
+                  {secondaryEconomicsActions.map((action) => (
+                    <button
+                      className="secondary-button compact"
+                      disabled={action.disabled}
+                      key={action.id}
+                      onClick={() => ignoreEconomicsActionError(action.onRun?.())}
+                      title={action.description}
+                      type="button"
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+              </details>
             )}
-            <button
-              className="secondary-button compact"
-              disabled={confirmingReadyPriceCandidates || !onReadyPriceCandidatesConfirmAll || readyPriceCandidateCount === 0}
-              onClick={() => ignoreEconomicsActionError(onReadyPriceCandidatesConfirmAll?.())}
-              type="button"
-            >
-              {confirmingReadyPriceCandidates ? 'Принимаю...' : `Готовые цены в расчет (${readyPriceCandidateCount})`}
-            </button>
-            <button
-              className="secondary-button compact"
-              disabled={autoSelectingAllSuppliers || !onSupplierOptionAutoSelectAll || !hasSupplierOptions}
-              onClick={() => ignoreEconomicsActionError(onSupplierOptionAutoSelectAll?.())}
-              type="button"
-            >
-              {autoSelectingAllSuppliers ? 'Выбираю...' : 'Лучшие цены в расчет'}
-            </button>
           </div>
         </div>
         <EconomicsProgressStepper steps={economicsSteps} />

@@ -224,6 +224,14 @@ export function stageTenderPriceCandidates(tender) {
   })
 }
 
+export function stageTenderPriceBookFeed(tender, payload) {
+  return apiJson(`${tenderPath(tender)}/price-book/feed`, {
+    method: 'POST',
+    body: payload,
+    errorMessage: 'Не удалось загрузить прайс/feed в экономику',
+  })
+}
+
 export function applyTenderAutoPrices(tender) {
   return apiJson(`${tenderPath(tender)}/price-candidates/auto-apply`, {
     method: 'POST',

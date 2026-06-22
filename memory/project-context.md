@@ -1257,3 +1257,72 @@ Date: 2026-06-10.
 - Backend policy nuance: active catalog/search-page fetch remains limited to small tenders, but a manually pasted product-card URL is now treated as a single operator action. `ProviderCatalogCollector._fetch_link_text(...)` passes a one-position context to `ACTION_BROWSER_FETCH` only when the original action is `ACTION_PRODUCT_PAGE_FETCH`, so browser fallback can rescue manual OfficeMag product URLs in larger tenders without re-enabling mass search.
 - UI now preserves API error payload diagnostics for manual URL checks and surfaces the real no-candidate reason in the main economics panel: supplier access blocked, product mismatch, or price not recognized. The collapsed technical diagnostics still show provider counters/errors.
 - Focused verification passed: OfficeMag manual browser fallback, large search still blocked, OfficeMag product-detail parser, API manual URL route, and frontend supplier contract (`5 passed`).
+
+## Economics hardening session checkpoint
+
+Date: 2026-06-16.
+
+- Worktree/branch: `C:\Users\zinin.v.a\Documents\tender_killer`, branch `codex/moscow-mo-parser`.
+- Latest pushed economics commits from this session:
+  - `7dc9d0b Strengthen economics pricing model`
+  - `ef276da Preserve manual supplier links without prices`
+  - `6351c7a Clarify manual price candidate actions`
+  - `0e834de Strengthen price candidate gates`
+- Focused economics direction is now clearer: Tender Killer is a supplier price confirmation center, not a mass supplier scraping bot.
+- Manual supplier product URL behavior:
+  - If a pasted supplier URL cannot be parsed for price because the site blocks access, omits schema.org price, or returns no product candidate, the URL can still be saved as a review-only price candidate with `manual_price_required = true`.
+  - UI wording for this case is "Ссылка сохранена" / "нужна цена" rather than "new candidates not found".
+  - The compact action opens the supplier URL; the candidate cannot be accepted as a price until an actual price is entered or staged from КП/feed/manual evidence.
+- Price candidate quality gates:
+  - `evaluate_price_candidate_quality(...)` now keeps concrete supplier-product mismatch reasons from `supplier_product_matcher`, not only the generic `product_name_mismatch`.
+  - Block flags can include `product_family_mismatch`, `dimension_mismatch`, `piece_pack_count_mismatch`, `weight_mismatch`, `volume_mismatch`, `material_mismatch`, `color_mismatch`, `brand_mismatch`, `paper_format_mismatch`, `paper_sheet_count_mismatch`, and `family_modifier_mismatch`.
+  - `review_profile_price_candidate(..., review_status="confirmed")` now refuses to confirm a `quality_status = blocked` candidate. This prevents unrelated OfficeMag-style paper/sign/mop candidates from writing into `raw_payload.economics.unit_cost`.
+  - Bulk ready-confirm still only applies `auto_eligible` candidates and therefore remains gated by the quality status.
+- Operator UI:
+  - `TenderEconomicsSuppliers.jsx` exposes readable labels for the new mismatch reasons.
+  - Blocked/manual candidates remain visible as evidence, but the accept path is intentionally blocked or redirected to manual price entry.
+- Verification from this session:
+  - `tests/test_price_candidate_service.py tests/test_supplier_product_matcher.py tests/test_frontend_contract.py::test_economics_workspace_exposes_compact_operator_flow tests/test_frontend_contract.py::test_economics_workspace_surfaces_provider_run_and_candidate_explanations tests/test_api_handlers.py::test_handle_post_request_routes_product_profile_price_candidate_confirm tests/test_api_handlers.py::test_handle_post_request_routes_product_profile_price_candidate_reject tests/test_api_handlers.py::test_handle_post_request_routes_ready_price_candidate_bulk_confirm tests/test_api_handlers.py::test_handle_post_request_routes_tender_auto_prices_and_refreshes_economics` passed with `38 passed`.
+  - Vite production build through bundled Node passed.
+  - Local API/UI smoke passed on `http://127.0.0.1:5175/` and `GET /api/tenders/mosreg_market/3684752`: health ok, 2 product profiles, economics present.
+- Keep these economic changes separated from the parallel ТЗ dirty files unless the user explicitly asks to combine them.
+
+## Cloudflare tunnel and local preview checkpoint
+
+Date: 2026-06-16.
+
+- A `cloudflared` process was visible locally during the session.
+- The active local preview responded at `http://127.0.0.1:5175/` with HTTP 200.
+- Important mental model:
+  - Cloudflare tunnel does not read GitHub and does not update because of `git push`.
+  - The tunnel forwards to whatever local target it was started with, usually the Vite dev server or a local reverse proxy.
+  - Frontend edits are visible through the tunnel when the local Vite server has picked them up; browser refresh may be required if HMR did not reconnect through the tunnel.
+  - Backend/API edits are visible only if the API process is running with auto-reload or after restarting the API.
+  - If the tunnel points at static `dist`, run Vite build and restart/reload the static server before expecting changes on the public URL.
+
+## TZ interpretation and report handoff checkpoint
+
+Date: 2026-06-16.
+
+- Relevant pushed TZ commit before the current dirty slice: `88a9487 Improve TZ analysis interpretation`.
+- Current uncommitted TZ/report files in the shared worktree:
+  - `src/tender_killer/analysis_operator_view_service.py`
+  - `src/tender_killer/reports.py`
+  - `tests/test_analysis_operator_view_service.py`
+  - `tests/test_reports.py`
+- Intended behavior in the dirty TZ slice:
+  - `build_analysis_operator_view(...)` annotates conflicting extracted conditions. Current conflict detector covers advance and VAT polarity: for example "авансирование не предусмотрено" plus "предусмотрен аванс 30%" marks both items with `conflict_flags`, forces `needs_review`, and increments `metrics.conflicts`.
+  - Operator view adds expected-missing checks when documents have extracted text but important acceptance/payment conditions are absent from facts. Current expected checks cover `условия оплаты` and `приемка и закрывающие документы`; they use `display_tier = "expected_missing"`, `expected_missing = true`, and an interpretation with `confidence = "missing"`.
+  - Operator metrics add `conflicts` and `expected_missing`.
+  - Operator checks for conflicts and expected-missing items are written as direct human actions rather than generic "найти точное место".
+  - Word report 4-block table is being expanded from `Блок / Пункт / Что значит / Действие / Источник` to `Блок / Пункт / Что найдено / Что означает / Влияние / Что сделать / Источник`.
+  - Report rows now prefer structured `item.interpretation.found`, `meaning`, `impact`, and `action` where available.
+- New/changed tests in the dirty TZ slice:
+  - `test_build_analysis_operator_view_marks_conflicting_conditions_for_manual_review`
+  - `test_build_analysis_operator_view_adds_expected_missing_checks_from_context`
+  - `test_build_tender_report_docx_uses_structured_interpretation_in_four_block_table`
+  - Existing report assertion updated to expect `Что означает` and `Что сделать`.
+- Known caution for the next session:
+  - These files are dirty and not included in the economics commits. Review and test them as a separate ТЗ/report change before staging.
+  - The dirty slice adds about `269 insertions` across the four files.
+  - Run at least `tests/test_analysis_operator_view_service.py tests/test_reports.py` before committing this slice; broader report/analysis tests may be appropriate because report layout and operator-view metrics are shared surfaces.

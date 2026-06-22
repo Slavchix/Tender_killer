@@ -189,6 +189,22 @@ def test_economics_workspace_exposes_compact_operator_flow():
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
+def test_economics_command_center_keeps_secondary_actions_collapsed():
+    tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "economics-secondary-menu" in tab_source
+    assert "economics-secondary-summary" in tab_source
+    assert "secondaryEconomicsActions.map" in tab_source
+    assert "primaryEconomicsAction &&" in tab_source
+    assert ".economics-secondary-menu" in styles_source
+    assert ".economics-secondary-summary" in styles_source
+    assert "Готовые цены в расчет" not in tab_source
+    assert "Лучшие цены в расчет" not in tab_source
+    assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
     discovery_source = TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.read_text(encoding="utf-8")
@@ -2852,8 +2868,9 @@ def test_economics_tab_supports_bulk_best_supplier_selection():
     assert "autoSelectingAllSuppliers" in economics_source
     assert "confirmingReadyPriceCandidates" in economics_source
     assert "hasReadyPriceCandidateWithoutCost" in economics_source
-    assert "Готовые цены в расчет" in economics_source
-    assert "Лучшие цены в расчет" in economics_source
+    assert "economics-secondary-menu" in economics_source
+    assert "Готовые цены в расчет" not in economics_source
+    assert "Лучшие цены в расчет" not in economics_source
     assert find_mojibake(api_source, API_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
@@ -2870,6 +2887,8 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     assert "price-candidates/stage" in api_source
     assert "export function applyTenderAutoPrices" in api_source
     assert "price-candidates/auto-apply" in api_source
+    assert "export function stageTenderPriceBookFeed" in api_source
+    assert "price-book/feed" in api_source
     assert "export function runTenderPriceDiscovery" in api_source
     assert "price-discovery/run" in api_source
     assert "export function fetchPriceDiscoveryJob" in api_source

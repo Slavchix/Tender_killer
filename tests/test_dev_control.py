@@ -73,14 +73,25 @@ def test_print_json_falls_back_to_ascii_when_console_encoding_rejects(monkeypatc
 
 
 def test_detached_spawn_kwargs_breaks_away_from_parent_job_on_windows(monkeypatch):
+    class FakeStartupInfo:
+        dwFlags = 0
+        wShowWindow = None
+
     monkeypatch.setattr(dev_control.os, "name", "nt")
     monkeypatch.setattr(dev_control.subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200, raising=False)
     monkeypatch.setattr(dev_control.subprocess, "DETACHED_PROCESS", 0x00000008, raising=False)
     monkeypatch.setattr(dev_control.subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0x01000000, raising=False)
+    monkeypatch.setattr(dev_control.subprocess, "CREATE_NO_WINDOW", 0x08000000, raising=False)
+    monkeypatch.setattr(dev_control.subprocess, "STARTUPINFO", FakeStartupInfo, raising=False)
+    monkeypatch.setattr(dev_control.subprocess, "STARTF_USESHOWWINDOW", 0x00000001, raising=False)
+    monkeypatch.setattr(dev_control.subprocess, "SW_HIDE", 0, raising=False)
 
     kwargs = dev_control.detached_spawn_kwargs(Path.cwd())
 
     assert int(kwargs["creationflags"]) & 0x01000000
+    assert int(kwargs["creationflags"]) & 0x08000000
+    assert kwargs["startupinfo"].dwFlags & 0x00000001
+    assert kwargs["startupinfo"].wShowWindow == 0
 
 
 def test_spawn_service_breaks_away_from_parent_job_on_windows(monkeypatch):
@@ -452,6 +463,7 @@ def test_package_restart_script_uses_python_dev_control():
     assert package["scripts"]["dev:status"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control status"
     assert package["scripts"]["dev:stop"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control stop"
     assert package["scripts"]["dev:doctor"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control doctor"
+    assert package["scripts"]["dev:api"] == ".\\.venv\\Scripts\\python.exe -m tender_killer.dev_control restart"
 
 
 def test_package_smoke_script_uses_fast_api_health_check():

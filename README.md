@@ -2,11 +2,64 @@
 
 ## Current Handoff Snapshot
 
-Date: 2026-06-09.
+Date: 2026-06-16.
 
 Current branch: `codex/moscow-mo-parser`.
 
-Next-session starter prompt:
+Authoritative next-session starter prompt:
+
+```text
+Продолжаем Tender Killer в `C:\Users\zinin.v.a\Documents\tender_killer`, ветка `codex/moscow-mo-parser`.
+
+Сначала прочитай:
+- `README.md`
+- `memory/project-context.md`
+- `src/tender_killer/price_candidate_service.py`
+- `src/tender_killer/supplier_price_discovery_service.py`
+- `src/tender_killer/supplier_discovery_service.py`
+- `src/tender_killer/supplier_provider_policy.py`
+- `src/tender_killer/analysis_operator_view_service.py`
+- `src/tender_killer/reports.py`
+- `web/src/TenderEconomicsTab.jsx`
+- `web/src/TenderEconomicsProfileWorkspace.jsx`
+- `web/src/TenderEconomicsSuppliers.jsx`
+
+Последние запушенные коммиты экономики на этой ветке:
+- `7dc9d0b Strengthen economics pricing model`
+- `ef276da Preserve manual supplier links without prices`
+- `6351c7a Clarify manual price candidate actions`
+- `0e834de Strengthen price candidate gates`
+
+Текущая продуктовая рамка экономики:
+- Tender Killer остается supplier price confirmation center, а не ботом массового парсинга.
+- Мелкие закупки на 1-5 позиций могут запускать review-only поиск цен с ограничениями provider policy.
+- Крупные закупки должны идти через quick links/manual product URL/feed/КП без массового автопоиска.
+- Любая найденная цена остается evidence/price candidate до явного подтверждения оператором.
+- Подтверждение blocked-кандидата теперь запрещено backend-ом: если matcher видит product_family/dimension/material/pack mismatch, цена не пишется в `raw_payload.economics`.
+- Ручной supplier URL теперь сохраняется даже если цена не прочиталась автоматически; UI показывает "ссылка сохранена / нужна цена" и предлагает открыть ссылку или внести цену вручную.
+
+Текущее состояние ТЗ/анализа:
+- Запушен `88a9487 Improve TZ analysis interpretation`.
+- В рабочем дереве сейчас есть незакоммиченный ТЗ-срез в `analysis_operator_view_service.py`, `reports.py`, `tests/test_analysis_operator_view_service.py`, `tests/test_reports.py`.
+- Этот ТЗ-срез добавляет conflict flags для противоречивых условий, expected-missing checks для оплаты/приемки, метрики `conflicts`/`expected_missing`, и расширяет Word 4-блочную таблицу на "Что найдено / Что означает / Влияние / Что сделать / Источник".
+- Не смешивай эти dirty-файлы с экономическими коммитами без явного запроса.
+
+Локальный preview:
+- Активный локальный web обычно `http://127.0.0.1:5175`, API `http://127.0.0.1:8000`.
+- Cloudflare tunnel показывает то, что отдает локальный target. Frontend через Vite обновляется после HMR/refresh, backend-изменения видны только при auto-reload или после перезапуска API. `git push` сам по себе tunnel не обновляет.
+
+Проверки, которые уже проходили в этой сессии:
+- price/economics slice: `38 passed`
+- `vite build` через bundled Node: passed
+- API smoke на `mosreg_market/3684752`: health ok, 2 profiles, economics present
+
+Следующие безопасные шаги:
+1. Довести и проверить незакоммиченный ТЗ-срез отдельно от экономики.
+2. Проверить реальный UI на Cloudflare tunnel после refresh страницы и при необходимости перезапустить backend/API.
+3. Продолжить укреплять экономику: provider-specific ranking explanations, more official/feed-like supplier inputs, visual smoke for economics and analysis workspaces.
+```
+
+Historical encoded starter prompt from the 2026-06-09 supplier-policy checkpoint:
 
 ```text
 Продолжаем Tender Killer в `C:\Users\zinin.v.a\Documents\tender_killer`, ветка `codex/moscow-mo-parser`.

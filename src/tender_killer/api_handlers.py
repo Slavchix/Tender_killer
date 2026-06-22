@@ -39,6 +39,7 @@ from tender_killer.price_candidate_service import apply_tender_auto_prices
 from tender_killer.price_candidate_service import confirm_ready_price_candidates
 from tender_killer.price_candidate_service import review_profile_price_candidate
 from tender_killer.price_candidate_service import stage_tender_price_candidates
+from tender_killer.price_book_feed_service import stage_tender_price_book_feed
 from tender_killer.price_discovery_job_service import get_tender_price_discovery_job
 from tender_killer.price_discovery_job_service import start_tender_price_discovery_job
 from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
@@ -84,6 +85,7 @@ API_CAPABILITIES: tuple[str, ...] = (
     "price_candidate_bulk_review",
     "price_candidate_auto_stage",
     "price_auto_apply",
+    "price_book_feed",
     "price_discovery_run",
     "price_discovery_jobs",
 )
@@ -306,6 +308,20 @@ def apply_tender_auto_prices_request(database_path: str | Path, source: str, ext
     auto_apply = apply_tender_auto_prices(database_path, source, external_id)
     payload = get_tender_payload(database_path, source, external_id)
     payload["price_auto_apply"] = auto_apply
+    return payload
+
+
+def stage_tender_price_book_feed_request(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    rows = data.get("rows") if isinstance(data.get("rows"), list) else []
+    feed_name = str(data.get("feed_name") or data.get("name") or "price book").strip() or "price book"
+    feed = stage_tender_price_book_feed(database_path, source, external_id, rows, feed_name=feed_name)
+    payload = get_tender_payload(database_path, source, external_id)
+    payload["price_book_feed"] = feed
     return payload
 
 
@@ -656,6 +672,11 @@ def handle_post_request(
         if route is None:
             return ApiResponse({"error": "invalid price auto apply path"}, status=400)
         return ApiResponse(apply_tender_auto_prices_request(database_path, route.source, route.external_id))
+    if path.startswith("/api/tenders/") and path.endswith("/price-book/feed"):
+        route = parse_tender_path(path, suffix="price-book/feed")
+        if route is None:
+            return ApiResponse({"error": "invalid price book feed path"}, status=400)
+        return ApiResponse(stage_tender_price_book_feed_request(database_path, route.source, route.external_id, body))
     if path.startswith("/api/tenders/") and path.endswith("/price-discovery/run"):
         route = parse_tender_path(path, suffix="price-discovery/run")
         if route is None:

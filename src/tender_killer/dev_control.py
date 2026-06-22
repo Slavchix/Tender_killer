@@ -137,7 +137,7 @@ def static_web_command(config: DevControlConfig) -> list[str]:
 
 
 def detached_spawn_kwargs(cwd: Path) -> dict[str, object]:
-    return {
+    kwargs: dict[str, object] = {
         "cwd": str(cwd),
         "stdin": subprocess.DEVNULL,
         "stdout": subprocess.DEVNULL,
@@ -145,6 +145,10 @@ def detached_spawn_kwargs(cwd: Path) -> dict[str, object]:
         "close_fds": True,
         "creationflags": _detached_creationflags(),
     }
+    startupinfo = _hidden_windows_startupinfo()
+    if startupinfo is not None:
+        kwargs["startupinfo"] = startupinfo
+    return kwargs
 
 
 def supervisor_spawn_kwargs(config: DevControlConfig) -> dict[str, object]:
@@ -421,17 +425,20 @@ def _spawn_service(
     stdout_path.parent.mkdir(parents=True, exist_ok=True)
     stdout = stdout_path.open("ab", buffering=0)
     stderr = stderr_path.open("ab", buffering=0)
+    kwargs: dict[str, object] = {
+        "cwd": str(cwd),
+        "env": env,
+        "stdin": subprocess.DEVNULL,
+        "stdout": stdout,
+        "stderr": stderr,
+        "close_fds": True,
+        "creationflags": _detached_creationflags(),
+    }
+    startupinfo = _hidden_windows_startupinfo()
+    if startupinfo is not None:
+        kwargs["startupinfo"] = startupinfo
     try:
-        return subprocess.Popen(
-            command,
-            cwd=str(cwd),
-            env=env,
-            stdin=subprocess.DEVNULL,
-            stdout=stdout,
-            stderr=stderr,
-            close_fds=True,
-            creationflags=_detached_creationflags(),
-        )
+        return subprocess.Popen(command, **kwargs)
     finally:
         stdout.close()
         stderr.close()
@@ -589,7 +596,20 @@ def _detached_creationflags() -> int:
     creationflags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     creationflags |= getattr(subprocess, "DETACHED_PROCESS", 0)
     creationflags |= getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0x01000000)
+    creationflags |= getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
     return creationflags
+
+
+def _hidden_windows_startupinfo() -> object | None:
+    if os.name != "nt":
+        return None
+    startupinfo_cls = getattr(subprocess, "STARTUPINFO", None)
+    if startupinfo_cls is None:
+        return None
+    startupinfo = startupinfo_cls()
+    startupinfo.dwFlags |= getattr(subprocess, "STARTF_USESHOWWINDOW", 0x00000001)
+    startupinfo.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
+    return startupinfo
 
 
 def _print_json(payload: object) -> None:
