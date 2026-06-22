@@ -20,6 +20,7 @@ import {
   saveProfileEconomicsAssumptions as saveProfileEconomicsAssumptionsRequest,
   selectProfileSupplierOption,
   stageProfileSupplierDiscoveryCandidates as stageProfileSupplierDiscoveryCandidatesRequest,
+  stageTenderPriceBookFeed as stageTenderPriceBookFeedRequest,
   stageTenderPriceCandidates as stageTenderPriceCandidatesRequest,
 } from './api'
 
@@ -27,6 +28,7 @@ const READY_PRICE_CANDIDATES_REVIEW_ID = 'ready-price-candidates-bulk'
 const PRICE_CANDIDATE_STAGE_REVIEW_ID = 'price-candidates-stage'
 const PRICE_DISCOVERY_RUN_ID = 'price-discovery-run'
 const PRICE_AUTO_APPLY_ID = 'price-auto-apply'
+const PRICE_BOOK_FEED_STAGE_ID = 'price-book-feed-stage'
 
 function isPriceDiscoveryJobActive(job) {
   return job?.status === 'queued' || (job?.status === 'running' && !isPriceDiscoveryJobComplete(job))
@@ -278,6 +280,24 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .finally(() => setReviewingPriceCandidateId(null))
   }
 
+  function stagePriceBookFeed(payload) {
+    setReviewingPriceCandidateId(PRICE_BOOK_FEED_STAGE_ID)
+    setDetailStatus('')
+    return stageTenderPriceBookFeedRequest(tender, payload)
+      .then((nextTender) => {
+        const feed = nextTender.price_book_feed || {}
+        const staged = Number(feed.staged_count || 0)
+        const matched = Number(feed.matched_count || 0)
+        const skipped = Number(feed.skipped_count || 0)
+        return updateFromNextTender(nextTender, `Прайс загружен: кандидатов ${staged}, совпадений ${matched}, пропущено ${skipped}`)
+      })
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setReviewingPriceCandidateId(null))
+  }
+
   function applyAutoPrices() {
     setReviewingPriceCandidateId(PRICE_AUTO_APPLY_ID)
     setDetailStatus('')
@@ -445,6 +465,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
   const stagingPriceCandidates = reviewingPriceCandidateId === PRICE_CANDIDATE_STAGE_REVIEW_ID
   const runningPriceDiscovery = reviewingPriceCandidateId === PRICE_DISCOVERY_RUN_ID || isPriceDiscoveryJobActive(priceDiscoveryJob)
   const applyingAutoPrices = reviewingPriceCandidateId === PRICE_AUTO_APPLY_ID
+  const stagingPriceBookFeed = reviewingPriceCandidateId === PRICE_BOOK_FEED_STAGE_ID
 
   return {
     productProfiles,
@@ -464,6 +485,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     autoSelectingAllSuppliers,
     confirmingReadyPriceCandidates,
     stagingPriceCandidates,
+    stagingPriceBookFeed,
     runningPriceDiscovery,
     applyingAutoPrices,
     autoEstimatingPosition,
@@ -479,6 +501,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     autoSelectAllSupplierOptions,
     confirmReadyPriceCandidates,
     stagePriceCandidates,
+    stagePriceBookFeed,
     applyAutoPrices,
     runPriceDiscovery,
     importSupplierDiscoveryCandidate,

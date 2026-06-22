@@ -46,6 +46,9 @@ TENDER_ECONOMICS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src
 TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsDecisionScenarios.jsx"
 )
+TENDER_ECONOMICS_PRICE_BOOK_FEED_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPriceBookFeed.jsx"
+)
 TENDER_ECONOMICS_FORMS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsForms.jsx"
 TENDER_ECONOMICS_COST_FORM_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsCostForm.jsx"
 TENDER_ECONOMICS_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSummary.jsx"
@@ -2936,6 +2939,39 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     assert find_mojibake(api_source, API_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+
+
+def test_economics_tab_exposes_price_book_feed_import_ui():
+    hook_source = USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
+    details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
+    workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
+    economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    feed_source = TENDER_ECONOMICS_PRICE_BOOK_FEED_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "stageTenderPriceBookFeed as stageTenderPriceBookFeedRequest" in hook_source
+    assert "PRICE_BOOK_FEED_STAGE_ID" in hook_source
+    assert "function stagePriceBookFeed" in hook_source
+    assert "price_book_feed" in hook_source
+    assert "stagingPriceBookFeed" in hook_source
+    assert "onPriceBookFeedStage" in details_source
+    assert "onPriceBookFeedStage" in workspaces_source
+    assert "onPriceBookFeedStage" in economics_source
+    assert "TenderEconomicsPriceBookFeed" in economics_source
+    assert "<TenderEconomicsPriceBookFeed" in economics_source
+    assert "export function TenderEconomicsPriceBookFeed" in feed_source
+    assert "parsePriceBookFeedText" in feed_source
+    assert "normalizeFeedHeader" in feed_source
+    assert "splitDelimitedLine" in feed_source
+    assert "feedPreviewRows" in feed_source
+    assert "rows: parsed.rows" in feed_source
+    assert "price-book-feed-panel" in feed_source
+    assert ".price-book-feed-panel" in styles_source
+    assert ".price-book-feed-preview" in styles_source
+    assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
+    assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(feed_source, TENDER_ECONOMICS_PRICE_BOOK_FEED_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
 def test_dashboard_surfaces_current_offers_and_backend_decisions():

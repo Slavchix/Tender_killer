@@ -1,3 +1,4 @@
+import { TenderEconomicsPriceBookFeed } from './TenderEconomicsPriceBookFeed'
 import { TenderEconomicsMetrics } from './TenderEconomicsMetrics'
 import { EconomicsSummary } from './TenderEconomicsSummary'
 import { TenderEconomicsWorkbench } from './TenderEconomicsWorkbench'
@@ -15,6 +16,7 @@ export function TenderEconomicsTab({
   onSupplierOptionSelect,
   onSupplierOptionAutoSelectAll,
   onReadyPriceCandidatesConfirmAll,
+  onPriceBookFeedStage,
   onPriceDiscoveryRun,
   onSupplierDiscoveryImport,
   onSupplierSearchPrepare,
@@ -34,6 +36,7 @@ export function TenderEconomicsTab({
   discoveringSupplierPosition = null,
   autoSelectingAllSuppliers = false,
   confirmingReadyPriceCandidates = false,
+  stagingPriceBookFeed = false,
   runningPriceDiscovery = false,
   autoEstimatingPosition = null,
   acceptingAutoEconomicsPosition = null,
@@ -133,6 +136,11 @@ export function TenderEconomicsTab({
         {priceDiscoveryJobText && <p className="muted-text price-discovery-progress">{priceDiscoveryJobText}</p>}
         <TenderEconomicsMetrics tender={tender} economics={economics} profiles={profiles} />
       </div>
+      <TenderEconomicsPriceBookFeed
+        profiles={profiles}
+        onPriceBookFeedStage={onPriceBookFeedStage}
+        stagingPriceBookFeed={stagingPriceBookFeed}
+      />
       <TenderEconomicsWorkbench
         economics={economics}
         profiles={profiles}
