@@ -205,6 +205,7 @@ def test_build_economics_summary_returns_financial_model_v1_and_participation_ca
         "direct_cost": 50000.0,
         "logistics_cost": 3000.0,
         "documents_cost": 2000.0,
+        "packaging_cost": 0.0,
         "other_costs": 1000.0,
         "vat_cost": 11200.0,
         "position_risk_reserve": 3360.0,
@@ -317,6 +318,51 @@ def test_build_economics_summary_adds_price_passport_and_unit_normalization():
         "source": "catalog_lemanapro",
         "status": "normalized",
     }
+
+
+def test_build_economics_summary_calculates_landed_cost_with_pack_conversion():
+    summary = build_economics_summary(
+        {
+            "price": 5000.0,
+            "product_profiles": [
+                {
+                    "position_index": 1,
+                    "product_name": "Folder",
+                    "quantity": 25,
+                    "unit": "pcs",
+                    "raw_payload": {
+                        "economics": {
+                            "unit_cost": 100,
+                            "unit_cost_basis": "supplier_pack",
+                            "pack_quantity": 10,
+                            "logistics_cost": 300,
+                            "documents_cost": 50,
+                            "packaging_cost": 25,
+                            "other_costs": 10,
+                        },
+                        "economics_assumptions": {
+                            "vat_mode": "no_vat",
+                            "risk_reserve_percent": 0,
+                        },
+                    },
+                }
+            ],
+        }
+    )
+
+    item = summary["items"][0]
+    assert item["unit_cost_basis"] == "supplier_pack"
+    assert item["pack_quantity"] == 10.0
+    assert item["procurement_quantity"] == 3
+    assert item["normalized_unit_cost"] == 12.0
+    assert item["direct_cost"] == 300.0
+    assert item["total_cost"] == 300.0
+    assert item["packaging_cost"] == 25.0
+    assert item["extra_costs"] == 385.0
+    assert item["landed_cost"] == 685.0
+    assert item["estimated_total_cost"] == 685.0
+    assert summary["supplier_cost"] == 685.0
+    assert summary["cost_breakdown"]["packaging_cost"] == 25.0
 
 
 def test_build_economics_summary_returns_market_bid_scenarios_with_profit_roles():

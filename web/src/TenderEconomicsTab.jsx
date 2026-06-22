@@ -130,7 +130,7 @@ export function TenderEconomicsTab({
         <EconomicsProgressStepper steps={economicsSteps} />
         {requiresManualPriceFlow && (
           <p className="muted-text price-discovery-manual-required">
-            Крупная закупка: используй quick links/manual URL/feed вместо активного автопоиска цен.
+            Крупная закупка: используй быстрые ссылки/ссылка на товар/прайс вместо активного автопоиска цен.
           </p>
         )}
         {priceDiscoveryJobText && <p className="muted-text price-discovery-progress">{priceDiscoveryJobText}</p>}
@@ -220,7 +220,7 @@ function nextEconomicsAction({
     return {
       id: 'manual',
       label: `Добавить цены (${priceDiscoveryRunCount})`,
-      description: 'Для крупной закупки используй ссылки, ручной URL, feed или КП без массового запуска.',
+      description: 'Для крупной закупки используй ссылки, прайс или КП без массового запуска.',
       disabled: true,
     }
   }

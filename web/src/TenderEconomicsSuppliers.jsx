@@ -46,7 +46,7 @@ function PriceCandidatesEmptyState() {
   return (
     <div className="price-candidates-empty">
       <strong>Кандидатов цен пока нет</strong>
-      <p>Подготовь quick links, вставь manual URL товара или внеси цену из feed/КП после проверки.</p>
+      <p>Подготовь быстрые ссылки, вставь ссылку на товар или внеси цену из прайса/КП после проверки.</p>
     </div>
   )
 }
@@ -212,7 +212,7 @@ function CandidatePricePassportFacts({ passport, compact = false }) {
 
 function candidatePassportFacts(passport = {}) {
   return [
-    { id: 'source', label: 'Источник', value: passport.source_label || candidatePassportSourceLabel(passport) },
+    { id: 'source', label: 'Источник', value: formatSourceKindLabel(passport.source_label) || candidatePassportSourceLabel(passport) },
     { id: 'freshness', label: 'Свежесть', value: passport.freshness_label || passport.observed_at || 'нет даты' },
     { id: 'match', label: 'Совпадение', value: candidatePassportMatchLabel(passport) },
     { id: 'unit_pack', label: 'Ед./упак.', value: passport.unit_pack_label || candidatePassportUnitPackLabel(passport) },
@@ -275,8 +275,48 @@ function candidatePricingPassport(candidate = {}, profile = {}) {
 }
 
 function candidatePassportSourceLabel(passport = {}) {
-  const source = passport.provider || passport.supplier_name || 'источник'
-  return passport.source_kind ? `${source} · ${passport.source_kind}` : source
+  const source = formatSourceKindLabel(passport.provider || passport.supplier_name) || 'источник'
+  const sourceKind = formatSourceKindLabel(passport.source_kind)
+  return sourceKind && sourceKind !== source ? `${source} · ${sourceKind}` : source
+}
+
+function candidateSourceLabel(candidate = {}) {
+  return formatSourceKindLabel(candidate.provider || candidate.source_kind || candidate.supplier_name) || 'источник не указан'
+}
+
+function formatSourceKindLabel(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  const labels = {
+    catalog_search: 'Каталог поставщика',
+    catalog_komus: 'Комус',
+    catalog_lemanapro: 'Lemana Pro',
+    catalog_officemag: 'OfficeMag',
+    catalog_petrovich: 'Петрович',
+    catalog_vseinstrumenti: 'ВсеИнструменты',
+    feed: 'Прайс',
+    manual_feed: 'Прайс',
+    manual_price: 'Ручная проверка',
+    manual_product_url: 'Ссылка на товар',
+    manual_quote: 'КП',
+    price_book: 'Прайс',
+    quote: 'КП',
+    [`supplier_${['discovery'].join('_')}`]: 'Поиск поставщика',
+  }
+  const normalized = text.toLowerCase()
+  if (normalized.startsWith('operator_')) {
+    return `внесено оператором: ${formatSourceKindLabel(normalized.slice('operator_'.length))}`
+  }
+  if (labels[normalized]) return labels[normalized]
+  const parts = text
+    .split(/\s*[·-]\s*/)
+    .map((part) => {
+      const partKey = part.trim().toLowerCase()
+      return labels[partKey] || part.trim().replace(/_/g, ' ')
+    })
+    .filter(Boolean)
+  if (parts.length > 1) return [...new Set(parts)].join(' · ')
+  return text.replace(/_/g, ' ')
 }
 
 function candidatePassportMatchLabel(passport = {}) {
@@ -376,6 +416,12 @@ function priceCandidateDecisionReasonLabel(reason) {
     profile_intent_match: 'позиция совпала',
     lower_price: 'ниже рынка',
     provider_present: 'поставщик указан',
+    supplier_identity: 'Поставщик указан',
+    unit_price: 'Цена за единицу',
+    manual_feed: 'Прайс',
+    manual_price: 'Ручная проверка',
+    manual_product_url: 'Ссылка на товар',
+    manual_quote: 'КП',
     weak_signal: 'слабый сигнал',
   }
   return labels[reason] || priceCandidateReasonLabel(reason)
@@ -465,8 +511,8 @@ function PriceCandidateQueue({
                 <strong>{candidate.product_name || candidate.supplier_name || 'Кандидат цены'}</strong>
               )}
               <p>
-                {candidate.provider || 'источник не указан'}
-                {candidate.score != null ? ` · score ${candidate.score}` : ''}
+                {candidateSourceLabel(candidate)}
+                {candidate.score != null ? ` · оценка ${candidate.score}` : ''}
                 {candidate.confidence ? ` · ${supplierConfidenceLabel(candidate.confidence)}` : ''}
                 {candidate.quality_status ? ` · ${priceCandidateQualityLabel(candidate.quality_status)}` : ''}
                 {candidate.auto_eligible ? ' · авто готово' : ''}
@@ -496,7 +542,7 @@ function PriceCandidateQueue({
               <CandidatePricePassport candidate={candidate} profile={profile} />
               <CandidateDecisionTrace candidate={candidate} />
               {(matchReasons.length > 0 || reviewReasons.length > 0) && (
-                <div className="price-candidate-reasons" aria-label="candidate match reasons">
+                <div className="price-candidate-reasons" aria-label="Причины совпадения кандидата">
                   {matchReasons.slice(0, 5).map((reason) => (
                     <span className="match" key={`match-${reason}`}>
                       {priceCandidateReasonLabel(reason)}
@@ -637,6 +683,11 @@ function priceCandidateReasonLabel(reason) {
     minimum_order_amount: '\u043c\u0438\u043d\u0438\u043c\u0430\u043b\u044c\u043d\u0430\u044f \u0441\u0443\u043c\u043c\u0430',
     minimum_order_quantity: '\u043c\u0438\u043d\u0438\u043c\u0430\u043b\u044c\u043d\u044b\u0439 \u0437\u0430\u043a\u0430\u0437',
     model_match: '\u043c\u043e\u0434\u0435\u043b\u044c \u0441\u043e\u0432\u043f\u0430\u043b\u0430',
+    manual_feed: 'Прайс',
+    manual_price: 'ручная проверка',
+    manual_product_url: 'ссылка на товар',
+    manual_quote: 'КП',
+    provider_present: 'поставщик указан',
     pack_quantity_normalized: '\u0443\u043f\u0430\u043a\u043e\u0432\u043a\u0430 \u043f\u0435\u0440\u0435\u0441\u0447\u0438\u0442\u0430\u043d\u0430',
     pack_quantity_unknown: '\u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0443\u043f\u0430\u043a\u043e\u0432\u043a\u0443',
     paper_format_match: '\u0444\u043e\u0440\u043c\u0430\u0442 \u0441\u043e\u0432\u043f\u0430\u043b',
@@ -652,6 +703,8 @@ function priceCandidateReasonLabel(reason) {
     profile_intent_match: '\u043f\u043e\u0437\u0438\u0446\u0438\u044f \u0441\u043e\u0432\u043f\u0430\u043b\u0430',
     strict_source_query: '\u0442\u043e\u0447\u043d\u044b\u0439 \u0437\u0430\u043f\u0440\u043e\u0441',
     token_overlap: '\u0442\u0435\u0440\u043c\u0438\u043d\u044b \u0441\u043e\u0432\u043f\u0430\u043b\u0438',
+    supplier_identity: 'поставщик указан',
+    unit_price: 'цена за единицу',
     unit_mismatch: '\u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0435\u0434\u0438\u043d\u0438\u0446\u0443',
     vat_normalized: '\u041d\u0414\u0421 \u043f\u0435\u0440\u0435\u0441\u0447\u0438\u0442\u0430\u043d',
     vat_not_included: '\u041d\u0414\u0421 \u0441\u0432\u0435\u0440\u0445\u0443',

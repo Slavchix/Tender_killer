@@ -8,7 +8,16 @@ from tender_killer.product_profile_service import ensure_product_profiles
 from tender_killer.storage import TenderStore
 
 
-ECONOMICS_INPUT_FIELDS = ("unit_cost", "total_cost", "logistics_cost", "documents_cost", "other_costs")
+ECONOMICS_NUMERIC_INPUT_FIELDS = (
+    "unit_cost",
+    "total_cost",
+    "pack_quantity",
+    "logistics_cost",
+    "documents_cost",
+    "packaging_cost",
+    "other_costs",
+)
+ECONOMICS_UNIT_COST_BASES = {"tender_unit", "supplier_pack"}
 VAT_MODES = {"unknown", "vat_included", "vat_excluded", "no_vat"}
 DEFAULT_TARGET_MARGIN_PERCENT = 15.0
 
@@ -144,16 +153,19 @@ def _economics_from_auto_estimate(estimate: dict[str, Any]) -> dict[str, float]:
     if unit_cost is not None:
         economics["unit_cost"] = unit_cost
 
-    logistics_cost = _driver_amounts(estimate, {"delivery", "unloading", "packaging"})
+    logistics_cost = _driver_amounts(estimate, {"delivery", "unloading"})
     documents_cost = _driver_amounts(estimate, {"certificates"})
+    packaging_cost = _driver_amounts(estimate, {"packaging"})
     hidden_costs_total = _number(estimate.get("hidden_costs_total")) or 0.0
     risk_reserve = _number(estimate.get("risk_reserve")) or 0.0
-    other_costs = max(0.0, hidden_costs_total - logistics_cost - documents_cost) + risk_reserve
+    other_costs = max(0.0, hidden_costs_total - logistics_cost - documents_cost - packaging_cost) + risk_reserve
 
     if logistics_cost:
         economics["logistics_cost"] = _round_money(logistics_cost)
     if documents_cost:
         economics["documents_cost"] = _round_money(documents_cost)
+    if packaging_cost:
+        economics["packaging_cost"] = _round_money(packaging_cost)
     if other_costs:
         economics["other_costs"] = _round_money(other_costs)
 
@@ -169,13 +181,21 @@ def _driver_amounts(estimate: dict[str, Any], driver_types: set[str]) -> float:
     return _round_money(total)
 
 
-def _economics_inputs(data: dict[str, Any]) -> dict[str, float]:
-    values: dict[str, float] = {}
-    for field in ECONOMICS_INPUT_FIELDS:
+def _economics_inputs(data: dict[str, Any]) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    for field in ECONOMICS_NUMERIC_INPUT_FIELDS:
         number = _number(data.get(field))
         if number is not None:
             values[field] = number
+    unit_cost_basis = _unit_cost_basis(data.get("unit_cost_basis"))
+    if unit_cost_basis:
+        values["unit_cost_basis"] = unit_cost_basis
     return values
+
+
+def _unit_cost_basis(value: Any) -> str | None:
+    text = str(value or "").strip()
+    return text if text in ECONOMICS_UNIT_COST_BASES else None
 
 
 def _assumptions_inputs(data: dict[str, Any]) -> dict[str, Any]:

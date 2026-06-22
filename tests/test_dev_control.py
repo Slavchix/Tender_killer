@@ -27,7 +27,7 @@ def test_restart_worker_command_uses_python_module_not_shell_wrappers():
 
     command = dev_control.restart_worker_command(config)
 
-    assert command[:4] == [sys.executable, "-m", "tender_killer.dev_control", "worker"]
+    assert command[:4] == [dev_control._background_python_executable(), "-m", "tender_killer.dev_control", "worker"]
     assert "--api-port" in command
     assert "8000" in command
     assert "--web-port" in command
@@ -39,6 +39,59 @@ def test_restart_worker_command_uses_python_module_not_shell_wrappers():
     assert "--monitor" in command
     assert "restart-dev.ps1" not in " ".join(command)
     assert "restart-dev.mjs" not in " ".join(command)
+
+
+def test_background_python_executable_prefers_pythonw_on_windows(monkeypatch):
+    tmp_path = _workspace_tmp_path("pythonw")
+    scripts_dir = tmp_path / ".venv" / "Scripts"
+    scripts_dir.mkdir(parents=True)
+    python = scripts_dir / "python.exe"
+    pythonw = scripts_dir / "pythonw.exe"
+    python.write_text("", encoding="utf-8")
+    pythonw.write_text("", encoding="utf-8")
+    monkeypatch.setattr(dev_control.os, "name", "nt")
+    monkeypatch.setattr(dev_control.sys, "executable", str(python))
+
+    assert dev_control._background_python_executable() == str(pythonw)
+
+
+def test_restart_worker_command_uses_windowless_python_on_windows(monkeypatch):
+    tmp_path = _workspace_tmp_path("restart-pythonw")
+    scripts_dir = tmp_path / ".venv" / "Scripts"
+    scripts_dir.mkdir(parents=True)
+    python = scripts_dir / "python.exe"
+    pythonw = scripts_dir / "pythonw.exe"
+    python.write_text("", encoding="utf-8")
+    pythonw.write_text("", encoding="utf-8")
+    monkeypatch.setattr(dev_control.os, "name", "nt")
+    monkeypatch.setattr(dev_control.sys, "executable", str(python))
+
+    command = dev_control.restart_worker_command(dev_control.DevControlConfig(root=tmp_path))
+
+    assert command[0] == str(pythonw)
+    assert command[1:4] == ["-m", "tender_killer.dev_control", "worker"]
+
+
+def test_spawn_api_service_uses_windowless_python_on_windows(monkeypatch):
+    tmp_path = _workspace_tmp_path("api-pythonw")
+    captured = {}
+
+    class FakeProcess:
+        pid = 123
+
+    def fake_spawn_service(command, **kwargs):
+        captured["command"] = command
+        captured.update(kwargs)
+        return FakeProcess()
+
+    monkeypatch.setattr(dev_control, "_background_python_executable", lambda: "pythonw.exe")
+    monkeypatch.setattr(dev_control, "_spawn_service", fake_spawn_service)
+
+    process, api_log = dev_control._spawn_api_service(dev_control.DevControlConfig(root=tmp_path), {}, "run")
+
+    assert process.pid == 123
+    assert captured["command"][:3] == ["pythonw.exe", "-m", "tender_killer.web_api"]
+    assert api_log.name == "api-dev-8000-run.err.log"
 
 
 def test_detached_spawn_kwargs_do_not_keep_codex_exec_streams_open():
@@ -157,7 +210,7 @@ def test_static_web_command_uses_python_proxy():
 
     command = dev_control.static_web_command(config)
 
-    assert command[:3] == [sys.executable, "-m", "tender_killer.dev_static_proxy"]
+    assert command[:3] == [dev_control._background_python_executable(), "-m", "tender_killer.dev_static_proxy"]
     assert "--port" in command
     assert "5175" in command
     assert "--api-base-url" in command

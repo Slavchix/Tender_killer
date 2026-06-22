@@ -2193,7 +2193,7 @@ textarea:focus {
 }
 
 .fullscreen-workspace-body .economics-workspace-grid {
-  grid-template-columns: minmax(320px, 0.58fr) minmax(420px, 1fr) minmax(360px, 0.78fr);
+  grid-template-columns: minmax(320px, 0.38fr) minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
@@ -4597,7 +4597,7 @@ textarea:focus {
 }
 
 .economics-workspace-grid {
-  grid-template-columns: minmax(230px, 0.58fr) minmax(360px, 1.18fr) minmax(280px, 0.84fr);
+  grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr);
 }
 
 .economics-position-list {
@@ -4650,7 +4650,7 @@ textarea:focus {
 .economics-calculation-panel,
 .economics-supplier-panel,
 .economics-workbench-main,
-.economics-side-panel {
+.economics-center-calculation {
   display: grid;
   gap: 10px;
   min-width: 0;
@@ -4659,7 +4659,7 @@ textarea:focus {
 .economics-calculation-panel,
 .economics-supplier-panel,
 .economics-workbench-main,
-.economics-side-panel {
+.economics-center-calculation {
   align-content: start;
 }
 
@@ -5600,6 +5600,37 @@ textarea:focus {
   border-color: var(--color-primary);
   outline: none;
   box-shadow: 0 0 0 2px var(--color-primary-tint);
+}
+
+.economics-landed-preview {
+  display: grid;
+  grid-template-columns: auto minmax(96px, auto) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+}
+
+.economics-landed-preview span {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.economics-landed-preview strong {
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.economics-landed-preview em {
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-style: normal;
+  overflow-wrap: anywhere;
 }
 
 .assumptions-preview {
@@ -7093,7 +7124,8 @@ textarea:focus {
   .supplier-manual-price-heading,
   .supplier-manual-url-form > div,
   .supplier-manual-candidate-grid,
-  .economics-input-grid {
+  .economics-input-grid,
+  .economics-landed-preview {
     grid-template-columns: 1fr;
   }
 

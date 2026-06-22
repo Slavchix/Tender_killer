@@ -47,69 +47,61 @@ export function TenderEconomicsProfileWorkspace({
   const positionScenarioState = buildPositionScenarioState(selectedEconomicsProfile, selectedEconomicsItem)
 
   return (
-    <>
-      <main className="economics-workbench-main">
-        <section className="economics-position-card">
-          <span>Позиция #{selectedEconomicsProfile.position_index || selectedEconomicsProfileIndex + 1}</span>
-          <strong>{selectedEconomicsProfile.product_name || 'Без названия'}</strong>
-          <small>
-            {formatQuantity(selectedEconomicsProfile.quantity, selectedEconomicsProfile.unit)}
-            {positionTenderPrice ? ` · ${positionTenderPrice}` : ''}
-          </small>
-        </section>
-        <PositionEconomicsScenario
-          acceptingAutoEconomics={acceptingAutoEconomics}
-          autoEstimating={autoEstimating}
-          onAutoEconomicsAccept={onAutoEconomicsAccept}
-          onAutoEconomicsRun={onAutoEconomicsRun}
-          onPriceCandidateConfirm={onPriceCandidateConfirm}
+    <main className="economics-workbench-main">
+      <section className="economics-position-card">
+        <span>Позиция #{selectedEconomicsProfile.position_index || selectedEconomicsProfileIndex + 1}</span>
+        <strong>{selectedEconomicsProfile.product_name || 'Без названия'}</strong>
+        <small>
+          {formatQuantity(selectedEconomicsProfile.quantity, selectedEconomicsProfile.unit)}
+          {positionTenderPrice ? ` · ${positionTenderPrice}` : ''}
+        </small>
+      </section>
+      <PositionEconomicsScenario
+        acceptingAutoEconomics={acceptingAutoEconomics}
+        autoEstimating={autoEstimating}
+        onAutoEconomicsAccept={onAutoEconomicsAccept}
+        onAutoEconomicsRun={onAutoEconomicsRun}
+        onPriceCandidateConfirm={onPriceCandidateConfirm}
+        profile={selectedEconomicsProfile}
+        reviewingPriceCandidateId={reviewingPriceCandidateId}
+        scenario={positionScenarioState}
+      />
+      <section className="economics-center-calculation" id="position-calculation-panel" aria-label="Расчет позиции">
+        <ProductAutoEconomicsPanel
           profile={selectedEconomicsProfile}
-          reviewingPriceCandidateId={reviewingPriceCandidateId}
-          scenario={positionScenarioState}
+          onRun={onAutoEconomicsRun}
+          onAccept={onAutoEconomicsAccept}
+          saving={autoEstimating}
+          accepting={acceptingAutoEconomics}
         />
-        <ProductSupplierOptionsForm
+        <ProductEconomicsForm profile={selectedEconomicsProfile} onSave={onEconomicsSave} saving={savingEconomics} />
+        <ProductEconomicsAssumptionsForm
+          item={economics?.items?.[selectedEconomicsProfileIndex]}
           profile={selectedEconomicsProfile}
-          onSelect={onSupplierOptionSelect}
-          onPriceCandidateConfirm={onPriceCandidateConfirm}
-          onPriceCandidateReject={onPriceCandidateReject}
-          saving={savingSupplierOption}
-          reviewingPriceCandidateId={reviewingPriceCandidateId}
+          onSave={onEconomicsAssumptionsSave}
+          saving={savingAssumptions}
         />
-        <ManualSupplierPricePanel
-          selectedEconomicsProfile={selectedEconomicsProfile}
-          importingSupplierCandidate={importingSupplierCandidate}
-          preparingSupplierSearch={preparingSupplierSearch}
-          discoveringSupplier={discoveringSupplier}
-          onSupplierDiscoveryImport={onSupplierDiscoveryImport}
-          onSupplierSearchPrepare={onSupplierSearchPrepare}
-          onSupplierDiscoveryRun={onSupplierDiscoveryRun}
-          onSupplierUrlDiscoveryRun={onSupplierUrlDiscoveryRun}
-          onSupplierManualPriceStage={onSupplierManualPriceStage}
-        />
-      </main>
-      <aside className="economics-side-panel">
-        <details className="economics-side-section" id="position-calculation-panel" open>
-          <summary>Расчет позиции</summary>
-          <ProductAutoEconomicsPanel
-            profile={selectedEconomicsProfile}
-            onRun={onAutoEconomicsRun}
-            onAccept={onAutoEconomicsAccept}
-            saving={autoEstimating}
-            accepting={acceptingAutoEconomics}
-          />
-          <ProductEconomicsForm profile={selectedEconomicsProfile} onSave={onEconomicsSave} saving={savingEconomics} />
-        </details>
-        <details className="economics-side-section">
-          <summary>Допущения и резервы</summary>
-          <ProductEconomicsAssumptionsForm
-            item={economics?.items?.[selectedEconomicsProfileIndex]}
-            profile={selectedEconomicsProfile}
-            onSave={onEconomicsAssumptionsSave}
-            saving={savingAssumptions}
-          />
-        </details>
-      </aside>
-    </>
+      </section>
+      <ProductSupplierOptionsForm
+        profile={selectedEconomicsProfile}
+        onSelect={onSupplierOptionSelect}
+        onPriceCandidateConfirm={onPriceCandidateConfirm}
+        onPriceCandidateReject={onPriceCandidateReject}
+        saving={savingSupplierOption}
+        reviewingPriceCandidateId={reviewingPriceCandidateId}
+      />
+      <ManualSupplierPricePanel
+        selectedEconomicsProfile={selectedEconomicsProfile}
+        importingSupplierCandidate={importingSupplierCandidate}
+        preparingSupplierSearch={preparingSupplierSearch}
+        discoveringSupplier={discoveringSupplier}
+        onSupplierDiscoveryImport={onSupplierDiscoveryImport}
+        onSupplierSearchPrepare={onSupplierSearchPrepare}
+        onSupplierDiscoveryRun={onSupplierDiscoveryRun}
+        onSupplierUrlDiscoveryRun={onSupplierUrlDiscoveryRun}
+        onSupplierManualPriceStage={onSupplierManualPriceStage}
+      />
+    </main>
   )
 }
 
@@ -206,7 +198,7 @@ function buildPositionScenarioState(selectedEconomicsProfile = {}, selectedEcono
       action: 'run_auto',
       busy_cta: 'Считаю...',
       cta: 'Рассчитать',
-      description: `${selectedSupplier.name || selectedSupplier.supplier_name || 'Поставщик'} выбран как источник цены. Осталось собрать landed cost.`,
+      description: `${selectedSupplier.name || selectedSupplier.supplier_name || 'Поставщик'} выбран как источник цены. Осталось собрать полную себестоимость.`,
       primary_candidate: primaryCandidate,
       title: 'Цена принята',
     }
@@ -233,7 +225,7 @@ function buildPositionScenarioState(selectedEconomicsProfile = {}, selectedEcono
       description: 'Кандидат есть, но перед принятием нужно проверить совпадение, НДС, наличие, упаковку и доставку.',
       href: '#manual-product-url-input',
       primary_candidate: primaryCandidate,
-      title: 'Нужен review цены',
+      title: 'Нужна проверка цены',
     }
   }
 
@@ -242,7 +234,7 @@ function buildPositionScenarioState(selectedEconomicsProfile = {}, selectedEcono
     action: 'manual_anchor',
     busy_cta: '',
     cta: 'Добавить цену',
-    description: 'Добавь ссылку, КП, price book/feed или быстрые ссылки. Цена попадет в кандидаты и не изменит расчет без подтверждения.',
+    description: 'Добавь ссылку, КП, прайс или быстрые ссылки. Цена попадет в кандидаты и не изменит расчет без подтверждения.',
     href: '#manual-product-url-input',
     primary_candidate: null,
     title: 'Нужна цена поставщика',
@@ -330,7 +322,7 @@ function ManualSupplierPricePanel({
   const sourceQuery = (
     selectedEconomicsProfile?.normalized_name
     || selectedEconomicsProfile?.product_name
-    || `position ${selectedEconomicsProfile?.position_index || ''}`
+    || `позиция ${selectedEconomicsProfile?.position_index || ''}`
   ).trim()
   const canSubmitManualUrl = Boolean(manualProductUrl.trim()) && Boolean(onSupplierUrlDiscoveryRun) && !discoveringSupplier
   const canSubmitManualPrice = Number(manualUnitPrice) > 0 && Boolean(onSupplierManualPriceStage) && !discoveringSupplier
@@ -343,7 +335,7 @@ function ManualSupplierPricePanel({
     const result = onSupplierUrlDiscoveryRun?.(selectedEconomicsProfile, {
       url,
       source_query: sourceQuery,
-      label: 'Manual product URL',
+      label: 'Ссылка на товар',
     })
     if (result?.then) {
       result
@@ -467,7 +459,7 @@ function ManualSupplierPricePanel({
               value={manualSourceKind}
             >
               <option value="quote">КП</option>
-              <option value="feed">Прайс/feed</option>
+              <option value="feed">Прайс</option>
               <option value="manual">Ручная проверка</option>
             </select>
             <input
@@ -601,7 +593,7 @@ function manualUrlResultFromTender(nextTender, positionIndex, checkedUrl = '') {
 }
 
 function manualSourceLabel(sourceKind) {
-  if (sourceKind === 'feed') return 'Прайс/feed'
+  if (sourceKind === 'feed') return 'Прайс'
   if (sourceKind === 'manual') return 'Ручная проверка'
   return 'Коммерческое предложение'
 }

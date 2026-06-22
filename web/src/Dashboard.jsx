@@ -15,31 +15,31 @@ const SUPPLIER_CATALOG_PROVIDER_POLICY = {
   officemag: {
     search_mode: 'active_small_search',
     small_tender_active_search: true,
-    recommended_flow: 'limited search/manual URL',
+    recommended_flow: 'ограниченный поиск/ссылка',
     operator_note: 'Активный поиск только для закупок до 5 позиций; цены попадают в кандидаты на проверку.',
   },
   komus: {
     search_mode: 'active_small_search',
     small_tender_active_search: true,
-    recommended_flow: 'limited search/feed/КП',
-    operator_note: 'Активный поиск только для закупок до 5 позиций; при блокировке используй feed или КП.',
+    recommended_flow: 'ограниченный поиск/прайс/КП',
+    operator_note: 'Активный поиск только для закупок до 5 позиций; при блокировке используй прайс или КП.',
   },
   petrovich: {
     search_mode: 'active_small_search',
     small_tender_active_search: true,
-    recommended_flow: 'limited search/manual URL',
+    recommended_flow: 'ограниченный поиск/ссылка',
     operator_note: 'Активный поиск только для закупок до 5 позиций.',
   },
   vseinstrumenti: {
     search_mode: 'active_small_search',
     small_tender_active_search: true,
-    recommended_flow: 'limited search/manual URL',
+    recommended_flow: 'ограниченный поиск/ссылка',
     operator_note: 'Активный поиск только для закупок до 5 позиций.',
   },
   lemanapro: {
     search_mode: 'active_small_search',
     small_tender_active_search: true,
-    recommended_flow: 'limited search/manual URL',
+    recommended_flow: 'ограниченный поиск/ссылка',
     operator_note: 'Активный поиск только для закупок до 5 позиций; цены попадают в кандидаты на проверку.',
   },
 }
@@ -740,7 +740,7 @@ function supplierCatalogDetailMessage(catalog) {
     return catalog.operator_note || ''
   }
   if (isCatalogProblem(catalog)) {
-    return 'Используй quick link, manual URL, КП или прайс.'
+    return 'Используй быструю ссылку, ссылку на товар, КП или прайс.'
   }
   return catalog.error || catalog.body_preview || ''
 }

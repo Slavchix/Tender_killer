@@ -57,6 +57,65 @@ def test_update_profile_economics_persists_manual_cost_inputs_and_recalculates(t
     assert detail["economics"]["missing_cost_inputs"] == []
 
 
+def test_update_profile_economics_persists_landed_cost_pack_inputs(tmp_path):
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="economics-pack-input",
+            url="https://market.mosreg.ru/Trade/ViewTrade/economics-pack-input",
+            title="Folders tender",
+            price=5000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "economics-pack-input",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="economics-pack-input",
+                position_index=1,
+                product_name="Folder",
+                quantity=25,
+                unit="pcs",
+                raw_payload={"note": "keep me"},
+            )
+        ],
+    )
+
+    payload = update_profile_economics(
+        store.database_path,
+        "mosreg_market",
+        "economics-pack-input",
+        1,
+        {
+            "unit_cost": "100",
+            "unit_cost_basis": "supplier_pack",
+            "pack_quantity": "10",
+            "logistics_cost": "300",
+            "documents_cost": "50",
+            "packaging_cost": "25",
+            "other_costs": "10",
+        },
+    )
+
+    assert payload["ok"] is True
+    detail = get_tender_payload(store.database_path, "mosreg_market", "economics-pack-input")
+    profile = detail["product_profiles"][0]
+    assert profile["raw_payload"]["economics"] == {
+        "unit_cost": 100.0,
+        "unit_cost_basis": "supplier_pack",
+        "pack_quantity": 10.0,
+        "logistics_cost": 300.0,
+        "documents_cost": 50.0,
+        "packaging_cost": 25.0,
+        "other_costs": 10.0,
+    }
+    assert detail["economics"]["items"][0]["landed_cost"] == 685.0
+
+
 def test_update_profile_economics_assumptions_persists_and_recalculates(tmp_path):
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()

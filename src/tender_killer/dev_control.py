@@ -99,7 +99,7 @@ class PortBackedProcess:
 
 def restart_worker_command(config: DevControlConfig) -> list[str]:
     command = [
-        sys.executable,
+        _background_python_executable(),
         "-m",
         "tender_killer.dev_control",
         "worker",
@@ -122,7 +122,7 @@ def restart_worker_command(config: DevControlConfig) -> list[str]:
 
 def static_web_command(config: DevControlConfig) -> list[str]:
     return [
-        sys.executable,
+        _background_python_executable(),
         "-m",
         "tender_killer.dev_static_proxy",
         "--root",
@@ -452,7 +452,7 @@ def _spawn_api_service(
     api_log = config.logs_dir / f"api-dev-{config.api_port}-{run_id}.err.log"
     process = _spawn_service(
         [
-            sys.executable,
+            _background_python_executable(),
             "-m",
             "tender_killer.web_api",
             "--host",
@@ -466,6 +466,16 @@ def _spawn_api_service(
         stderr_path=api_log,
     )
     return process, api_log
+
+
+def _background_python_executable() -> str:
+    if os.name != "nt":
+        return sys.executable
+    executable = Path(sys.executable)
+    pythonw = executable.with_name("pythonw.exe")
+    if pythonw.exists():
+        return str(pythonw)
+    return sys.executable
 
 
 def _spawn_web_service(

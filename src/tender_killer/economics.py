@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
 
@@ -319,14 +320,29 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
     quantity = _number(profile.get("quantity"))
     if quantity is not None and quantity <= 0:
         quantity = None
+    unit_cost_basis = _unit_cost_basis(economics.get("unit_cost_basis"))
+    pack_quantity = _first_number(economics, ("pack_quantity", "supplier_pack_quantity", "quantity_per_pack", "items_per_pack"))
+    if pack_quantity is not None and pack_quantity <= 0:
+        pack_quantity = None
     unit_cost = _first_number(economics, ("unit_cost", "unit_cost_rub", "supplier_unit_price", "supplier_unit_price_rub"))
     total_cost = _first_number(economics, ("total_cost", "total_cost_rub", "supplier_total_price", "supplier_total_price_rub"))
+    procurement_quantity = None
+    normalized_unit_cost = unit_cost
     if total_cost is None and unit_cost is not None and quantity is not None:
-        total_cost = quantity * unit_cost
+        if unit_cost_basis == "supplier_pack" and pack_quantity:
+            procurement_quantity = math.ceil(quantity / pack_quantity)
+            total_cost = procurement_quantity * unit_cost
+        else:
+            total_cost = quantity * unit_cost
+    elif unit_cost_basis == "supplier_pack" and quantity is not None and pack_quantity:
+        procurement_quantity = math.ceil(quantity / pack_quantity)
+    if total_cost is not None and quantity is not None and quantity > 0:
+        normalized_unit_cost = total_cost / quantity
     logistics_cost = _first_number(economics, ("logistics_cost",)) or 0.0
     documents_cost = _first_number(economics, ("documents_cost",)) or 0.0
+    packaging_cost = _first_number(economics, ("packaging_cost",)) or 0.0
     other_costs = _first_number(economics, ("other_costs",)) or 0.0
-    extra_costs = logistics_cost + documents_cost + other_costs
+    extra_costs = logistics_cost + documents_cost + packaging_cost + other_costs
     vat_mode = _vat_mode(assumptions.get("vat_mode"))
     vat_rate_percent = _percent(assumptions.get("vat_rate_percent"))
     if vat_mode == "no_vat":
@@ -354,12 +370,18 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
         "quantity": quantity,
         "unit": profile.get("unit"),
         "unit_cost": rounded_unit_cost,
+        "unit_cost_basis": unit_cost_basis,
+        "pack_quantity": _round_percent(pack_quantity) if pack_quantity is not None else None,
+        "procurement_quantity": procurement_quantity,
+        "normalized_unit_cost": _round_money(normalized_unit_cost) if normalized_unit_cost is not None else None,
         "total_cost": rounded_total_cost,
         "direct_cost": rounded_total_cost,
         "logistics_cost": _round_money(logistics_cost),
         "documents_cost": _round_money(documents_cost),
+        "packaging_cost": _round_money(packaging_cost),
         "other_costs": _round_money(other_costs),
         "extra_costs": _round_money(extra_costs),
+        "landed_cost": _round_money(base_cost) if base_cost is not None else None,
         "vat_mode": vat_mode,
         "vat_rate_percent": _round_percent(vat_rate_percent) if vat_rate_percent is not None else None,
         "vat_cost": vat_cost,
@@ -499,6 +521,13 @@ def _price_passport_status(price_source: dict[str, Any], source_type: str, inclu
     return "review"
 
 
+def _unit_cost_basis(value: Any) -> str:
+    text = str(value or "tender_unit").strip()
+    if text in {"tender_unit", "supplier_pack"}:
+        return text
+    return "tender_unit"
+
+
 def _unit_normalization(
     profile: dict[str, Any],
     price_source: dict[str, Any],
@@ -618,6 +647,7 @@ def _cost_breakdown(
         "direct_cost": _sum_item_money(items, "direct_cost"),
         "logistics_cost": _sum_item_money(items, "logistics_cost"),
         "documents_cost": _sum_item_money(items, "documents_cost"),
+        "packaging_cost": _sum_item_money(items, "packaging_cost"),
         "other_costs": _sum_item_money(items, "other_costs"),
         "vat_cost": _sum_item_money(items, "vat_cost"),
         "position_risk_reserve": _position_risk_reserve_total(items),

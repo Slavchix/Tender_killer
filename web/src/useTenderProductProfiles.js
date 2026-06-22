@@ -45,7 +45,7 @@ function isPriceDiscoveryJobComplete(job) {
 
 function priceDiscoveryStatusMessage(job) {
   if (job?.status === 'manual_required') {
-    return job.message || 'Крупная закупка: используй quick links/manual URL/feed вместо активного автопоиска цен.'
+    return job.message || 'Крупная закупка: используй быстрые ссылки/ссылка на товар/прайс вместо активного автопоиска цен.'
   }
   if (!job?.job_id) return ''
 

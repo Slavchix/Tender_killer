@@ -87,7 +87,7 @@ export function TenderEconomicsPriceBookFeed({
   return (
     <details className="economics-card price-book-feed-panel">
       <summary>
-        <span>Price book / КП / feed</span>
+        <span>Прайс / КП</span>
         <em>{parsed.rows.length ? `${parsed.rows.length} строк · ${parsed.mapped_columns} колонок` : `${profiles.length} позиций`}</em>
       </summary>
       <form className="price-book-feed-form" onSubmit={submitFeed}>
@@ -116,7 +116,7 @@ export function TenderEconomicsPriceBookFeed({
           {parsed.skipped_rows > 0 && <em>Пропущено строк: {parsed.skipped_rows}</em>}
         </div>
         {feedPreviewRows.length > 0 && (
-          <div className="price-book-feed-preview" aria-label="Preview price book feed">
+          <div className="price-book-feed-preview" aria-label="Предпросмотр прайса">
             {feedPreviewRows.map((row, index) => (
               <div className="price-book-feed-row" key={`${row.position_index || row.product_name || index}-${index}`}>
                 <strong>{row.position_index ? `#${row.position_index}` : row.product_name || row.sku || 'строка'}</strong>

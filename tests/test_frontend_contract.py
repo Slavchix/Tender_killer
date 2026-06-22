@@ -1521,10 +1521,18 @@ def test_product_profile_renders_economics_input_form():
     assert "product-profiles/${profile.position_index}" in api_source
     assert "${productProfilePath(tender, profile)}/economics" in api_source
     assert "unit_cost" in cost_form_source
+    assert "unit_cost_basis" in cost_form_source
+    assert "supplier_pack" in cost_form_source
+    assert "pack_quantity" in cost_form_source
     assert "logistics_cost" in cost_form_source
     assert "documents_cost" in cost_form_source
+    assert "packaging_cost" in cost_form_source
     assert "other_costs" in cost_form_source
+    assert "economics-landed-preview" in cost_form_source
+    assert "buildLandedCostPreview" in cost_form_source
     assert "Себестоимость" in cost_form_source
+    assert "Итого себестоимость" in cost_form_source
+    assert "landed cost" not in cost_form_source.lower()
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
     assert find_mojibake(forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
@@ -1643,11 +1651,17 @@ def test_product_profile_renders_supplier_option_form():
     assert "reviewStatus !== 'pending'" in source
     assert "showSupplierOptions" in source
     assert "PriceCandidatesEmptyState" in source
-    assert "manual URL" in source
-    assert "feed/КП" in source
+    assert "ссылку на товар" in source
+    assert "прайса/КП" in source
     assert "formatSupplierStock(candidate)" in source
     assert "formatSupplierStock(option)" in options_source
     assert "candidate.score" in source
+    assert "` · оценка ${candidate.score}`" in source
+    assert "` · score ${candidate.score}`" not in source
+    assert "formatSourceKindLabel" in source
+    assert "Цена за единицу" in source
+    assert "Прайс" in source
+    assert "candidate match reasons" not in source
     assert "candidate.quality_status" in source
     assert "candidate.quality_flags" in source
     assert "candidate.match_reasons" in source
@@ -2009,14 +2023,15 @@ def test_economics_tab_is_a_focused_workbench():
     assert "analysisCostDrivers.length" in summary_source
     assert "economics-workspace-shell" in workbench_source
     assert "economics-workbench-main" in profile_workspace_source
-    assert "economics-side-panel" in profile_workspace_source
+    assert "economics-center-calculation" in profile_workspace_source
     assert "economics-position-card" in profile_workspace_source
-    assert "economics-side-section" in profile_workspace_source
+    assert "economics-side-panel" not in profile_workspace_source
+    assert "economics-side-section" not in profile_workspace_source
     assert "supplier-tools-drawer" not in suppliers_source
     assert ".economics-command-center" in styles_source
     assert ".economics-workspace-shell" in styles_source
     assert ".economics-workbench-main" in styles_source
-    assert ".economics-side-panel" in styles_source
+    assert ".economics-center-calculation" in styles_source
     assert ".economics-analysis-drawer" in styles_source
     assert ".supplier-tools-drawer" not in styles_source
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
@@ -2043,6 +2058,9 @@ def test_economics_position_workspace_exposes_unified_position_scenario():
     assert "Принять цену" in profile_workspace_source
     assert "Рассчитать" in profile_workspace_source
     assert "Решение" in profile_workspace_source
+    assert "Осталось собрать полную себестоимость." in profile_workspace_source
+    assert "Нужна проверка цены" in profile_workspace_source
+    assert "прайс" in profile_workspace_source
     assert "position-economics-scenario" in profile_workspace_source
     assert "position-scenario-steps" in profile_workspace_source
     assert "position-scenario-cta" in profile_workspace_source
@@ -2423,7 +2441,7 @@ def test_analysis_documents_render_structured_evidence_model():
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
-def test_economics_tab_uses_three_column_position_workspace():
+def test_economics_tab_uses_two_column_position_workspace():
     economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     workbench_source = (
         TENDER_ECONOMICS_WORKBENCH_SOURCE.read_text(encoding="utf-8")
@@ -2449,16 +2467,20 @@ def test_economics_tab_uses_three_column_position_workspace():
     assert "economics-position-rail" in rail_source
     assert "economics-workbench-main" in profile_workspace_source
     assert "economics-position-card" in profile_workspace_source
-    assert "economics-side-panel" in profile_workspace_source
-    assert "economics-side-section" in profile_workspace_source
+    assert "economics-center-calculation" in profile_workspace_source
+    assert "economics-side-panel" not in profile_workspace_source
+    assert "economics-side-section" not in profile_workspace_source
+    assert "<ProductAutoEconomicsPanel" in profile_workspace_source
     assert "<ProductEconomicsForm profile={selectedEconomicsProfile}" in profile_workspace_source
+    assert "<ProductEconomicsAssumptionsForm" in profile_workspace_source
     assert "<ProductSupplierOptionsForm" in profile_workspace_source
     assert ".economics-workspace-grid" in styles_source
     assert ".economics-position-rail" in styles_source
     assert ".economics-workbench-main" in styles_source
     assert ".economics-position-card" in styles_source
-    assert ".economics-side-panel" in styles_source
-    assert ".economics-side-section" in styles_source
+    assert ".economics-center-calculation" in styles_source
+    assert ".economics-workspace-grid {\n  grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr)" in styles_source
+    assert "minmax(230px, 0.58fr) minmax(360px, 1.18fr) minmax(280px, 0.84fr)" not in styles_source
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
     assert find_mojibake(rail_source, TENDER_ECONOMICS_POSITION_RAIL_SOURCE) == []
@@ -2725,12 +2747,11 @@ def test_fullscreen_economics_workspace_is_a_dedicated_workbench():
     supplier_actions_rule = _css_rule(styles_source, ".fullscreen-workspace-body .supplier-options-block .profile-block-actions")
 
     assert "width: min(1680px, calc(100vw - 36px))" in fullscreen_rule
-    assert "grid-template-columns: minmax(320px, 0.58fr) minmax(420px, 1fr) minmax(360px, 0.78fr)" in fullscreen_economics_rule
+    assert "grid-template-columns: minmax(320px, 0.38fr) minmax(0, 1fr)" in fullscreen_economics_rule
+    assert "minmax(320px, 0.58fr) minmax(420px, 1fr) minmax(360px, 0.78fr)" not in fullscreen_economics_rule
     assert "position: sticky" in rail_rule
     assert "top: 0" in rail_rule
     assert "max-height: calc(100vh - 220px)" in rail_rule
-    assert "position: sticky" in supplier_rule
-    assert "top: 0" in supplier_rule
     assert "display: grid" in supplier_heading_rule
     assert "align-items: stretch" in supplier_heading_rule
     assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in supplier_actions_rule
@@ -2969,7 +2990,7 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     assert "SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT = 5" in economics_source
     assert "canRunActivePriceDiscovery" in economics_source
     assert "price-discovery-manual-required" in economics_source
-    assert "quick links/manual URL/feed" in economics_source
+    assert "быстрые ссылки/ссылка на товар/прайс" in economics_source
     assert "Найти цены" in economics_source
     assert "Подготовить цены" not in economics_source
     assert "Автоцены в расчет" not in economics_source

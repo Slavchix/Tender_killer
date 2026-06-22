@@ -167,7 +167,7 @@ function formatDiscountBuffer(buffer) {
 function formatAutoPricePolicy(policy) {
   if (!policy) return 'ручная проверка'
   if (policy.level === 'small_review_only_auto_search') return `до ${policy.position_limit || 5}: review-only автопоиск`
-  if (policy.level === 'large_manual_sources') return 'feed/КП/manual URL/quick links'
+  if (policy.level === 'large_manual_sources') return 'прайс/КП/ссылка/быстрые ссылки'
   return 'сначала уточнить позиции'
 }
 

@@ -20,6 +20,8 @@ export function ProductEconomicsForm({ profile, onSave, saving = false }) {
     onSave(profile, values)
   }
 
+  const landedPreview = buildLandedCostPreview(profile, values)
+
   return (
     <form className="economics-input-form" onSubmit={submitEconomics}>
       <div className="profile-block-heading">
@@ -31,6 +33,17 @@ export function ProductEconomicsForm({ profile, onSave, saving = false }) {
       <EconomicsPriceSource source={priceSource} />
       <div className="economics-input-grid">
         <label>
+          <span>Режим цены</span>
+          <select
+            name="unit_cost_basis"
+            onChange={(event) => updateField('unit_cost_basis', event.target.value)}
+            value={values.unit_cost_basis}
+          >
+            <option value="tender_unit">За единицу</option>
+            <option value="supplier_pack">За упаковку</option>
+          </select>
+        </label>
+        <label>
           <span>За единицу</span>
           <input
             inputMode="decimal"
@@ -38,6 +51,16 @@ export function ProductEconomicsForm({ profile, onSave, saving = false }) {
             onChange={(event) => updateField('unit_cost', event.target.value)}
             placeholder="0"
             value={values.unit_cost}
+          />
+        </label>
+        <label>
+          <span>В упаковке</span>
+          <input
+            inputMode="decimal"
+            name="pack_quantity"
+            onChange={(event) => updateField('pack_quantity', event.target.value)}
+            placeholder="1"
+            value={values.pack_quantity}
           />
         </label>
         <label>
@@ -61,6 +84,16 @@ export function ProductEconomicsForm({ profile, onSave, saving = false }) {
           />
         </label>
         <label>
+          <span>Упаковка</span>
+          <input
+            inputMode="decimal"
+            name="packaging_cost"
+            onChange={(event) => updateField('packaging_cost', event.target.value)}
+            placeholder="0"
+            value={values.packaging_cost}
+          />
+        </label>
+        <label>
           <span>Прочее</span>
           <input
             inputMode="decimal"
@@ -71,6 +104,13 @@ export function ProductEconomicsForm({ profile, onSave, saving = false }) {
           />
         </label>
       </div>
+      {landedPreview && (
+        <div className="economics-landed-preview">
+          <span>Итого себестоимость</span>
+          <strong>{formatMoney(landedPreview.landedCost)}</strong>
+          <em>{landedPreview.caption}</em>
+        </div>
+      )}
     </form>
   )
 }
@@ -92,8 +132,54 @@ function EconomicsPriceSource({ source }) {
 function economicsFormValues(economics = {}) {
   return {
     unit_cost: economics.unit_cost ?? '',
+    unit_cost_basis: economics.unit_cost_basis ?? 'tender_unit',
+    pack_quantity: economics.pack_quantity ?? '',
     logistics_cost: economics.logistics_cost ?? '',
     documents_cost: economics.documents_cost ?? '',
+    packaging_cost: economics.packaging_cost ?? '',
     other_costs: economics.other_costs ?? '',
   }
+}
+
+function buildLandedCostPreview(profile, values) {
+  const quantity = positiveNumber(profile?.quantity)
+  const unitCost = finiteNumber(values.unit_cost)
+  const packQuantity = positiveNumber(values.pack_quantity)
+  const logisticsCost = finiteNumber(values.logistics_cost) || 0
+  const documentsCost = finiteNumber(values.documents_cost) || 0
+  const packagingCost = finiteNumber(values.packaging_cost) || 0
+  const otherCosts = finiteNumber(values.other_costs) || 0
+  const extraCosts = logisticsCost + documentsCost + packagingCost + otherCosts
+  const unitCostBasis = values.unit_cost_basis === 'supplier_pack' ? 'supplier_pack' : 'tender_unit'
+
+  let directCost = null
+  let caption = 'товар не посчитан'
+  if (unitCost !== null && quantity !== null) {
+    if (unitCostBasis === 'supplier_pack' && packQuantity) {
+      const procurementQuantity = Math.ceil(quantity / packQuantity)
+      directCost = procurementQuantity * unitCost
+      const normalizedUnitCost = directCost / quantity
+      caption = `${procurementQuantity} уп.; ${formatMoney(normalizedUnitCost)} на ед.`
+    } else {
+      directCost = unitCost * quantity
+      caption = `${formatMoney(unitCost)} на ед.; ${quantity}`
+    }
+  }
+
+  if (directCost === null && extraCosts <= 0) return null
+  return {
+    landedCost: (directCost || 0) + extraCosts,
+    caption: `${caption}; доб. затраты ${formatMoney(extraCosts)}`,
+  }
+}
+
+function finiteNumber(value) {
+  if (value === null || value === undefined || value === '') return null
+  const number = Number(String(value).replace(/\s/g, '').replace(',', '.'))
+  return Number.isFinite(number) && number >= 0 ? number : null
+}
+
+function positiveNumber(value) {
+  const number = finiteNumber(value)
+  return number !== null && number > 0 ? number : null
 }

@@ -236,7 +236,7 @@ export function stageTenderPriceBookFeed(tender, payload) {
   return apiJson(`${tenderPath(tender)}/price-book/feed`, {
     method: 'POST',
     body: payload,
-    errorMessage: 'Не удалось загрузить прайс/feed в экономику',
+    errorMessage: 'Не удалось загрузить прайс в экономику',
   })
 }
 

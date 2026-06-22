@@ -1053,6 +1053,7 @@ def _economics_elements(economics: dict[str, Any]) -> list[DocxElement]:
         _append_money_row(breakdown_rows, "Товар", cost_breakdown.get("direct_cost"))
         _append_money_row(breakdown_rows, "Логистика", cost_breakdown.get("logistics_cost"))
         _append_money_row(breakdown_rows, "Документы", cost_breakdown.get("documents_cost"))
+        _append_money_row(breakdown_rows, "Упаковка", cost_breakdown.get("packaging_cost"))
         _append_money_row(breakdown_rows, "Прочее", cost_breakdown.get("other_costs"))
         _append_money_row(breakdown_rows, "НДС", cost_breakdown.get("vat_cost"))
         _append_money_row(breakdown_rows, "Резерв позиции", cost_breakdown.get("position_risk_reserve"))
