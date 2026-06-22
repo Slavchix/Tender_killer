@@ -221,6 +221,16 @@ def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     assert "CandidatePricePassport" in suppliers_source
     assert "candidate-decision-trace" in suppliers_source
     assert "price-candidate-passport" in suppliers_source
+    assert "CandidatePricePassportFacts" in suppliers_source
+    assert "candidatePassportFacts(passport)" in suppliers_source
+    assert "price-candidate-passport-facts" in suppliers_source
+    assert "source_label" in suppliers_source
+    assert "freshness_label" in suppliers_source
+    assert "match_confidence" in suppliers_source
+    assert "unit_pack_label" in suppliers_source
+    assert "vat_label" in suppliers_source
+    assert "delivery_label" in suppliers_source
+    assert "evidence_url" in suppliers_source
     assert "candidateBestReasonItems" in suppliers_source
     assert "candidatePricingPassport" in suppliers_source
     assert "candidate.pricing_passport" in suppliers_source
@@ -228,6 +238,7 @@ def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     assert ".provider-run-summary" in styles_source
     assert ".candidate-decision-trace" in styles_source
     assert ".price-candidate-passport" in styles_source
+    assert ".price-candidate-passport-facts" in styles_source
     assert ".supplier-discovery-next-action" in styles_source
     assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
     assert find_mojibake(discovery_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []

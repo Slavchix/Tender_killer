@@ -587,9 +587,22 @@ def _pricing_passport(profile: dict[str, Any], candidate: dict[str, Any]) -> dic
     vat_mode = _token(candidate.get("vat_mode") or raw_payload.get("vat_mode"))
     delivery_note = str(candidate.get("delivery_note") or raw_payload.get("delivery_note") or "").strip()
     pack_quantity = _first_number(candidate, raw_payload, PACK_QUANTITY_FIELDS)
+    provider = candidate.get("provider")
+    supplier_name = candidate.get("supplier_name")
+    source_url = candidate.get("source_url") or raw_payload.get("source_url") or candidate.get("url") or raw_payload.get("url")
+    source_kind = candidate.get("source_kind") or raw_payload.get("source_kind")
+    observed_at = (
+        candidate.get("observed_at")
+        or raw_payload.get("observed_at")
+        or raw_payload.get("collected_at")
+        or candidate.get("updated_at")
+        or raw_payload.get("updated_at")
+    )
+    confidence = candidate.get("confidence")
+    match_reasons = _string_list(candidate.get("match_reasons")) or _string_list(raw_payload.get("match_reasons"))
 
     positive_checks: list[str] = []
-    if candidate.get("source_url"):
+    if source_url:
         positive_checks.append("source_url")
     if unit_price is not None and unit_price > 0:
         positive_checks.append("unit_price")
@@ -607,10 +620,21 @@ def _pricing_passport(profile: dict[str, Any], candidate: dict[str, Any]) -> dic
     quality_status = str(candidate.get("quality_status") or "review")
 
     return {
-        "provider": candidate.get("provider"),
-        "supplier_name": candidate.get("supplier_name"),
+        "provider": provider,
+        "supplier_name": supplier_name,
         "product_name": candidate.get("product_name"),
-        "source_url": candidate.get("source_url"),
+        "source_url": source_url,
+        "source_kind": source_kind,
+        "source_label": _pricing_passport_source_label(provider, supplier_name, source_kind),
+        "observed_at": observed_at,
+        "freshness_label": _pricing_passport_freshness_label(observed_at),
+        "match_confidence": confidence or "needs_review",
+        "match_reasons": match_reasons,
+        "unit_pack_label": _pricing_passport_unit_pack_label(quantity, candidate.get("unit") or profile.get("unit"), pack_quantity),
+        "vat_label": _pricing_passport_vat_label(vat_mode),
+        "delivery_label": _pricing_passport_delivery_label(delivery_note, flag_ids),
+        "evidence_url": source_url,
+        "evidence_label": _pricing_passport_evidence_label(source_url),
         "unit_price": _round_money(unit_price) if unit_price is not None else None,
         "total_price": total_price,
         "quantity": _round_money(quantity) if quantity is not None else None,
@@ -625,13 +649,66 @@ def _pricing_passport(profile: dict[str, Any], candidate: dict[str, Any]) -> dic
         "minimum_order_quantity": _first_number(candidate, raw_payload, MIN_ORDER_QUANTITY_FIELDS),
         "quality_status": quality_status,
         "auto_eligible": bool(candidate.get("auto_eligible")),
-        "confidence": candidate.get("confidence"),
+        "confidence": confidence,
         "positive_checks": positive_checks,
         "review_checks": review_checks,
         "block_checks": block_checks,
         "next_action": _pricing_passport_next_action(candidate),
         "summary": _pricing_passport_summary(quality_status, positive_checks, review_checks, block_checks),
     }
+
+
+def _pricing_passport_source_label(provider: Any, supplier_name: Any, source_kind: Any) -> str:
+    source = _passport_text(provider) or _passport_text(supplier_name) or "источник"
+    kind = _passport_text(source_kind)
+    return f"{source} · {kind}" if kind else source
+
+
+def _pricing_passport_freshness_label(observed_at: Any) -> str:
+    return _passport_text(observed_at) or "нет даты"
+
+
+def _pricing_passport_unit_pack_label(quantity: float | None, unit: Any, pack_quantity: float | None) -> str:
+    parts: list[str] = []
+    if quantity is not None:
+        parts.append(f"{_format_number(quantity)} {_passport_text(unit) or 'ед.'}".strip())
+    elif unit:
+        parts.append(_passport_text(unit))
+    if pack_quantity is not None:
+        parts.append(f"упак. {_format_number(pack_quantity)}")
+    return " · ".join(part for part in parts if part) or "единица не ясна"
+
+
+def _pricing_passport_vat_label(vat_mode: str) -> str:
+    if vat_mode in VAT_INCLUDED_VALUES:
+        return "НДС включен"
+    if vat_mode == "no_vat":
+        return "без НДС"
+    if vat_mode in VAT_REVIEW_VALUES:
+        return "НДС сверху"
+    return "НДС уточнить"
+
+
+def _pricing_passport_delivery_label(delivery_note: str, flag_ids: set[str]) -> str:
+    if "delivery_pickup_only" in flag_ids:
+        return "самовывоз"
+    if not delivery_note or any(flag_id.startswith("delivery_") for flag_id in flag_ids):
+        return "доставку уточнить"
+    return "доставка ясна"
+
+
+def _pricing_passport_evidence_label(source_url: Any) -> str:
+    return "карточка товара" if _passport_text(source_url) else "доказательство нужно"
+
+
+def _format_number(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else str(round(float(value), 2)).replace(".", ",")
+
+
+def _passport_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
 
 
 def _pricing_passport_next_action(candidate: dict[str, Any]) -> str:

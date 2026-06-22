@@ -178,6 +178,7 @@ function CandidatePricePassport({ candidate, profile, compact = false }) {
           <em>{candidatePassportNextActionLabel(passport.next_action)}</em>
         </span>
       </div>
+      <CandidatePricePassportFacts passport={passport} compact={compact} />
       {!compact && (
         <small>
           Проверки: {positiveCount} ок
@@ -186,6 +187,44 @@ function CandidatePricePassport({ candidate, profile, compact = false }) {
       )}
     </div>
   )
+}
+
+function CandidatePricePassportFacts({ passport, compact = false }) {
+  const facts = candidatePassportFacts(passport)
+  if (!facts.length) return null
+  const visibleFacts = compact ? facts.slice(0, 4) : facts
+
+  return (
+    <div className="price-candidate-passport-facts" aria-label="Паспорт цены">
+      {visibleFacts.map((fact) => (
+        <span key={fact.id}>
+          <b>{fact.label}</b>
+          {fact.href ? (
+            <a href={fact.href} rel="noreferrer" target="_blank">{fact.value}</a>
+          ) : (
+            <em>{fact.value}</em>
+          )}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function candidatePassportFacts(passport = {}) {
+  return [
+    { id: 'source', label: 'Источник', value: passport.source_label || candidatePassportSourceLabel(passport) },
+    { id: 'freshness', label: 'Свежесть', value: passport.freshness_label || passport.observed_at || 'нет даты' },
+    { id: 'match', label: 'Совпадение', value: candidatePassportMatchLabel(passport) },
+    { id: 'unit_pack', label: 'Ед./упак.', value: passport.unit_pack_label || candidatePassportUnitPackLabel(passport) },
+    { id: 'vat', label: 'НДС', value: passport.vat_label || candidatePassportVatLabel(passport.vat_mode) },
+    { id: 'delivery', label: 'Доставка', value: passport.delivery_label || candidatePassportDeliveryLabel(passport) },
+    {
+      id: 'evidence',
+      label: 'Доказательство',
+      value: passport.evidence_label || (passport.evidence_url || passport.source_url ? 'карточка товара' : 'нужно'),
+      href: passport.evidence_url || passport.source_url || '',
+    },
+  ].filter((fact) => fact.value)
 }
 
 function candidatePricingPassport(candidate = {}, profile = {}) {
@@ -206,6 +245,20 @@ function candidatePricingPassport(candidate = {}, profile = {}) {
     total_price: totalPrice,
     quantity,
     unit: passport.unit ?? candidate.unit ?? profile?.unit,
+    source_kind: passport.source_kind ?? candidate.source_kind ?? candidate.raw_payload?.source_kind,
+    source_label: passport.source_label ?? '',
+    observed_at: passport.observed_at ?? candidate.observed_at ?? candidate.raw_payload?.observed_at,
+    freshness_label: passport.freshness_label ?? '',
+    match_confidence: passport.match_confidence ?? candidate.confidence ?? 'needs_review',
+    match_reasons: Array.isArray(passport.match_reasons) ? passport.match_reasons : Array.isArray(candidate.match_reasons) ? candidate.match_reasons : [],
+    unit_pack_label: passport.unit_pack_label ?? '',
+    vat_label: passport.vat_label ?? '',
+    delivery_label: passport.delivery_label ?? '',
+    evidence_url: passport.evidence_url ?? candidate.source_url ?? candidate.url,
+    evidence_label: passport.evidence_label ?? '',
+    provider: passport.provider ?? candidate.provider,
+    supplier_name: passport.supplier_name ?? candidate.supplier_name,
+    source_url: passport.source_url ?? candidate.source_url ?? candidate.url,
     availability: passport.availability ?? candidate.availability ?? candidate.raw_payload?.availability,
     vat_mode: passport.vat_mode ?? candidate.vat_mode ?? candidate.raw_payload?.vat_mode,
     delivery_note: passport.delivery_note ?? candidate.delivery_note ?? candidate.raw_payload?.delivery_note,
@@ -219,6 +272,38 @@ function candidatePricingPassport(candidate = {}, profile = {}) {
     next_action: passport.next_action ?? 'review_required',
     summary: passport.summary,
   }
+}
+
+function candidatePassportSourceLabel(passport = {}) {
+  const source = passport.provider || passport.supplier_name || 'источник'
+  return passport.source_kind ? `${source} · ${passport.source_kind}` : source
+}
+
+function candidatePassportMatchLabel(passport = {}) {
+  const confidence = supplierConfidenceLabel(passport.match_confidence || passport.confidence || 'needs_review')
+  const reasons = Array.isArray(passport.match_reasons) ? passport.match_reasons : []
+  return reasons.length ? `${confidence} · ${reasons.slice(0, 2).map(priceCandidateReasonLabel).join(', ')}` : confidence
+}
+
+function candidatePassportUnitPackLabel(passport = {}) {
+  const parts = []
+  if (passport.quantity != null || passport.unit) {
+    parts.push(`${passport.quantity != null ? formatQuantity(passport.quantity) : ''} ${passport.unit || 'ед.'}`.trim())
+  }
+  if (passport.pack_quantity != null) parts.push(`упак. ${formatQuantity(passport.pack_quantity)}`)
+  return parts.join(' · ') || 'единица не ясна'
+}
+
+function candidatePassportVatLabel(vatMode) {
+  const vat = String(vatMode || '').toLowerCase()
+  if (vat.includes('included') || vat.includes('nds_included')) return 'НДС включен'
+  if (vat === 'no_vat') return 'без НДС'
+  if (vat) return 'НДС уточнить'
+  return 'НДС не указан'
+}
+
+function candidatePassportDeliveryLabel(passport = {}) {
+  return passport.delivery_note ? 'доставка ясна' : 'доставку уточнить'
 }
 
 function candidatePassportAvailability(passport = {}) {
