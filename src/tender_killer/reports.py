@@ -37,6 +37,7 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
         *_tender_decision_elements(tender.get("decision")),
         *_customer_eis_elements(tender),
         *_analysis_management_brief_elements(analysis, documents),
+        *_analysis_saas_elements(operator_view),
         *_analysis_tz_passport_elements(analysis, documents),
         _p("Паспорт закупки", "heading"),
         _table(
@@ -553,6 +554,88 @@ def _analysis_four_block_elements(analysis: dict[str, Any], documents: list[dict
     if len(rows) <= 1:
         return []
     return [_p("Анализ ТЗ: 4 блока", "heading"), _table(rows, "analysis")]
+
+
+def _analysis_saas_elements(operator_view: dict[str, Any]) -> list[DocxElement]:
+    if not isinstance(operator_view, dict):
+        return []
+    elements: list[DocxElement] = []
+    workflow = operator_view.get("tz_workflow")
+    if isinstance(workflow, dict):
+        elements.extend(
+            [
+                _p("ТЗ workflow", "heading"),
+                _table(
+                    [
+                        ["Статус", _value(workflow.get("status_label") or workflow.get("status"))],
+                        ["Ответственный", _value(workflow.get("responsible"), "")],
+                        ["Дедлайн", _value(workflow.get("deadline"), "")],
+                        ["Комментарий", _value(workflow.get("comment"), "")],
+                    ],
+                    "analysis",
+                ),
+            ]
+        )
+        journal = workflow.get("journal")
+        if isinstance(journal, list) and journal:
+            journal_rows = [
+                [
+                    _value(entry.get("action")),
+                    _value(entry.get("actor"), ""),
+                    _short_text(entry.get("comment"), 180),
+                ]
+                for entry in journal[-5:]
+                if isinstance(entry, dict)
+            ]
+            if journal_rows:
+                elements.append(_table([["Журнал", "Кто", "Комментарий"], *journal_rows], "analysis"))
+
+    questions = operator_view.get("ai_questions")
+    question_items = questions.get("items") if isinstance(questions, dict) else None
+    if isinstance(question_items, list) and question_items:
+        rows: list[list[Any]] = [["Вопрос", "Ответ", "Источник"]]
+        for item in question_items[:6]:
+            if not isinstance(item, dict):
+                continue
+            sources = item.get("sources") if isinstance(item.get("sources"), list) else []
+            source_text = "; ".join(_question_source_text(source) for source in sources[:2] if isinstance(source, dict))
+            rows.append(
+                [
+                    _short_text(item.get("question"), 120),
+                    _short_text(item.get("answer"), 180),
+                    _short_text(source_text, 220),
+                ]
+            )
+        if len(rows) > 1:
+            elements.extend([_p("AI-вопросы по ТЗ", "heading"), _table(rows, "analysis")])
+
+    playbooks = operator_view.get("playbooks")
+    playbook_items = playbooks.get("items") if isinstance(playbooks, dict) else None
+    if isinstance(playbook_items, list) and playbook_items:
+        rows = [["Риск", "Серьезность", "Что сделать", "Когда эскалировать"]]
+        for item in playbook_items[:6]:
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                [
+                    _short_text(item.get("title") or item.get("id"), 100),
+                    _value(item.get("severity"), ""),
+                    _short_text("; ".join(_text_list(item.get("what_to_do"))), 220),
+                    _short_text("; ".join(_text_list(item.get("when_to_use"))), 220),
+                ]
+            )
+        if len(rows) > 1:
+            elements.extend([_p("Tender playbooks", "heading"), _table(rows, "analysis")])
+
+    return elements
+
+
+def _question_source_text(source: dict[str, Any]) -> str:
+    label = _value(source.get("source_label") or source.get("document_name"), "")
+    fragment = _short_text(source.get("fragment"), 150)
+    if label and fragment:
+        return f"{label}: {fragment}"
+    return label or fragment
 
 
 def _report_operator_view(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> dict[str, Any]:

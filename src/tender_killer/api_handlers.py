@@ -7,6 +7,7 @@ from typing import Any
 
 from tender_killer.analysis_feedback_service import update_analysis_feedback
 from tender_killer.analysis_service import analyze_tender_payload
+from tender_killer.analysis_workflow_service import update_analysis_workflow
 from tender_killer.api_routes import parse_database_table_path
 from tender_killer.api_routes import parse_product_profile_auto_economics_accept_path
 from tender_killer.api_routes import parse_product_profile_auto_economics_path
@@ -88,6 +89,7 @@ API_CAPABILITIES: tuple[str, ...] = (
     "price_book_feed",
     "price_discovery_run",
     "price_discovery_jobs",
+    "analysis_workflow",
 )
 
 
@@ -417,6 +419,16 @@ def handle_post_request(
                 return ApiResponse({**payload, "error": payload.get("message") or "Search is already running."}, status=409)
             return ApiResponse(payload)
         return ApiResponse(run_search_payload(settings_factory(), filters_payload=body))
+    if path.startswith("/api/tenders/") and path.endswith("/analysis/workflow"):
+        route = parse_tender_path(path, suffix="analysis/workflow")
+        if route is None:
+            return ApiResponse({"error": "invalid analysis workflow path"}, status=400)
+        try:
+            return ApiResponse(update_analysis_workflow(database_path, route.source, route.external_id, body))
+        except ValueError as exc:
+            return ApiResponse({"error": str(exc)}, status=400)
+        except KeyError as exc:
+            return ApiResponse({"error": str(exc)}, status=404)
     if path.startswith("/api/tenders/") and path.endswith("/workflow"):
         route = parse_tender_path(path, suffix="workflow")
         if route is None:

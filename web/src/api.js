@@ -121,6 +121,14 @@ export function saveAnalysisFeedback(tender, payload) {
   })
 }
 
+export function saveAnalysisWorkflow(tender, payload) {
+  return apiJson(`${tenderPath(tender)}/analysis/workflow`, {
+    method: 'POST',
+    body: payload,
+    errorMessage: 'Не удалось сохранить workflow ТЗ',
+  })
+}
+
 export function refreshTenderDetails(tender) {
   return apiJson(`${tenderPath(tender)}/details/refresh`, {
     method: 'POST',

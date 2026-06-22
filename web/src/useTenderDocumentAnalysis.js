@@ -4,6 +4,7 @@ import {
   extractTenderDocumentText,
   runTenderAnalysis,
   saveAnalysisFeedback,
+  saveAnalysisWorkflow,
 } from './api'
 import { documentRecordsForTender } from './formatters'
 
@@ -21,6 +22,7 @@ export function useTenderDocumentAnalysis(tender) {
   const [analyzing, setAnalyzing] = useState(false)
   const [preparingAnalysis, setPreparingAnalysis] = useState(false)
   const [savingAnalysisFeedbackId, setSavingAnalysisFeedbackId] = useState('')
+  const [savingAnalysisWorkflow, setSavingAnalysisWorkflow] = useState(false)
   const [downloadStatus, setDownloadStatus] = useState('')
   const [extractStatus, setExtractStatus] = useState('')
 
@@ -38,6 +40,7 @@ export function useTenderDocumentAnalysis(tender) {
     setAnalyzing(false)
     setPreparingAnalysis(false)
     setSavingAnalysisFeedbackId('')
+    setSavingAnalysisWorkflow(false)
     setDownloadStatus('')
     setExtractStatus('')
   }, [tender.source, tender.external_id, tender.analysis, tender.document_records, tender.documents])
@@ -159,6 +162,23 @@ export function useTenderDocumentAnalysis(tender) {
       })
   }
 
+  function saveTzWorkflow(payload) {
+    setSavingAnalysisWorkflow(true)
+    return saveAnalysisWorkflow(tender, payload)
+      .then((responsePayload) => {
+        setAnalysis(responsePayload.analysis || null)
+      })
+      .catch((err) => {
+        setAnalysis((currentAnalysis) => ({
+          ...(currentAnalysis || {}),
+          workflow_error: err.message,
+        }))
+      })
+      .finally(() => {
+        setSavingAnalysisWorkflow(false)
+      })
+  }
+
   return {
     documentRecords,
     setDocumentRecords,
@@ -169,6 +189,7 @@ export function useTenderDocumentAnalysis(tender) {
     analyzing,
     preparingAnalysis,
     savingAnalysisFeedbackId,
+    savingAnalysisWorkflow,
     downloadStatus,
     extractStatus,
     downloadDocuments,
@@ -176,6 +197,7 @@ export function useTenderDocumentAnalysis(tender) {
     analyzeTender,
     prepareTenderAnalysis,
     saveFactFeedback,
+    saveTzWorkflow,
   }
 }
 

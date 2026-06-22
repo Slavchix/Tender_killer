@@ -25,6 +25,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     analyzing,
     preparingAnalysis,
     savingAnalysisFeedbackId,
+    savingAnalysisWorkflow,
     downloadStatus,
     extractStatus,
     downloadDocuments,
@@ -32,6 +33,7 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     analyzeTender,
     prepareTenderAnalysis,
     saveFactFeedback,
+    saveTzWorkflow,
   } = useTenderDocumentAnalysis(tender)
   const {
     detailStatus,
@@ -131,7 +133,9 @@ export function TenderDetails({ tender, onTenderRefresh, onWorkflowUpdate }) {
     onAnalyzeTender: analyzeTender,
     onPrepareTenderAnalysis: prepareTenderAnalysis,
     savingAnalysisFeedbackId,
+    savingAnalysisWorkflow,
     onAnalysisFeedback: saveFactFeedback,
+    onAnalysisWorkflow: saveTzWorkflow,
   }
   const economicsState = {
     economics,

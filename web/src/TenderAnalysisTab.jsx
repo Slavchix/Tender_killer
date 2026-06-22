@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { BookOpenCheck, CalendarDays, HelpCircle, Save, UserRound } from 'lucide-react'
 import { AnalysisDecisionBrief } from './TenderAnalysisDecisionBrief'
 import { AnalysisDocumentsPanel } from './TenderAnalysisDocumentsPanel'
 import { AnalysisPassport } from './TenderAnalysisPassport'
@@ -18,7 +19,9 @@ export function TenderAnalysisTab({
   onDownload,
   onExtract,
   onAnalysisFeedback,
+  onAnalysisWorkflow,
   savingAnalysisFeedbackId,
+  savingAnalysisWorkflow,
   reportHref,
   documents = [],
 }) {
@@ -29,7 +32,11 @@ export function TenderAnalysisTab({
   const analysisSectionKey = analysisSections.map((section) => section.id).join('|')
   const analysisActionDisabled = preparingAnalysis || downloading || extracting || analyzing
   const primarySection = analysis?.operator_view?.decision_brief?.primary_section
+  const tzWorkflow = analysis?.operator_view?.tz_workflow || {}
+  const aiQuestions = analysis?.operator_view?.ai_questions || {}
+  const playbooks = analysis?.operator_view?.playbooks || {}
   const analysisHistory = analysis?.analysis_history || []
+  const [workflowDraft, setWorkflowDraft] = useState(workflowDraftFromContract(tzWorkflow))
 
   useEffect(() => {
     const sectionIds = new Set(analysisSections.map((section) => section.id))
@@ -45,9 +52,22 @@ export function TenderAnalysisTab({
     })
   }, [analysisSectionKey, primarySection])
 
+  useEffect(() => {
+    setWorkflowDraft(workflowDraftFromContract(tzWorkflow))
+  }, [tzWorkflow.status, tzWorkflow.responsible, tzWorkflow.deadline, tzWorkflow.comment])
+
   function selectAnalysisSection(sectionId) {
     userSelectedAnalysisSectionRef.current = true
     setSelectedAnalysisSection(sectionId)
+  }
+
+  function updateWorkflowDraft(field, value) {
+    setWorkflowDraft((current) => ({ ...current, [field]: value }))
+  }
+
+  function saveWorkflowDraft(event) {
+    event.preventDefault()
+    onAnalysisWorkflow?.(workflowDraft)
   }
 
   return (
@@ -82,6 +102,20 @@ export function TenderAnalysisTab({
         documents={documents}
         onOpenSection={selectAnalysisSection}
       />
+      {analysis ? (
+        <div className="analysis-saas-grid">
+          <AnalysisWorkflowPanel
+            disabled={!onAnalysisWorkflow || savingAnalysisWorkflow}
+            draft={workflowDraft}
+            onChange={updateWorkflowDraft}
+            onSubmit={saveWorkflowDraft}
+            saving={savingAnalysisWorkflow}
+            workflow={tzWorkflow}
+          />
+          <AnalysisQuestionsPanel questions={aiQuestions} />
+          <AnalysisPlaybooksPanel playbooks={playbooks} />
+        </div>
+      ) : null}
       <AnalysisPassport
         analysis={analysis}
         sections={analysisSections}
@@ -109,6 +143,140 @@ export function TenderAnalysisTab({
       </div>
     </section>
   )
+}
+
+function AnalysisWorkflowPanel({ workflow = {}, draft, disabled = false, saving = false, onChange, onSubmit }) {
+  const statuses = Array.isArray(workflow.statuses) ? workflow.statuses : []
+  const journal = Array.isArray(workflow.journal) ? workflow.journal.slice(-4).reverse() : []
+  return (
+    <form className="analysis-workflow-panel" onSubmit={onSubmit}>
+      <div className="analysis-saas-panel-head">
+        <span><CalendarDays size={15} /> Workflow ТЗ</span>
+        <strong>{workflow.status_label || workflow.status || 'analysis_ready'}</strong>
+      </div>
+      <div className="analysis-workflow-steps">
+        {statuses.map((status) => (
+          <span className={status.current ? 'current' : status.done ? 'done' : ''} key={status.id}>
+            {status.label || status.id}
+          </span>
+        ))}
+      </div>
+      <div className="analysis-workflow-form">
+        <label>
+          <span>Статус</span>
+          <select disabled={disabled} onChange={(event) => onChange?.('status', event.target.value)} value={draft.status}>
+            {statuses.map((status) => (
+              <option key={status.id} value={status.id}>{status.label || status.id}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span><UserRound size={13} /> Ответственный</span>
+          <input disabled={disabled} onChange={(event) => onChange?.('responsible', event.target.value)} value={draft.responsible} />
+        </label>
+        <label>
+          <span>Дедлайн</span>
+          <input disabled={disabled} onChange={(event) => onChange?.('deadline', event.target.value)} type="date" value={draft.deadline} />
+        </label>
+        <label className="wide">
+          <span>Комментарий</span>
+          <textarea disabled={disabled} onChange={(event) => onChange?.('comment', event.target.value)} rows={2} value={draft.comment} />
+        </label>
+      </div>
+      <button className="secondary-button compact" disabled={disabled} type="submit">
+        <Save size={15} /> {saving ? 'Сохраняю...' : 'Сохранить'}
+      </button>
+      {journal.length ? (
+        <div className="analysis-workflow-journal">
+          {journal.map((entry, index) => (
+            <span key={`${entry.changed_at || index}-${entry.action || index}`}>
+              {entry.actor || 'operator'} · {entry.comment || entry.action}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </form>
+  )
+}
+
+function AnalysisQuestionsPanel({ questions = {} }) {
+  const items = Array.isArray(questions.items) ? questions.items : []
+  if (!items.length) return null
+  return (
+    <section className="analysis-questions-panel">
+      <div className="analysis-saas-panel-head">
+        <span><HelpCircle size={15} /> AI-вопросы</span>
+        <strong>{items.length}</strong>
+      </div>
+      <div className="analysis-questions-grid">
+        {items.map((item) => (
+          <article className={`analysis-question-card ${item.answer_status || 'not_found'}`} key={item.id || item.question}>
+            <strong>{item.question}</strong>
+            <p>{item.answer}</p>
+            <QuestionSources sources={item.sources} />
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function QuestionSources({ sources }) {
+  const visibleSources = Array.isArray(sources) ? sources.slice(0, 2) : []
+  if (!visibleSources.length) return <small>Источник не найден</small>
+  return (
+    <ul>
+      {visibleSources.map((source, index) => (
+        <li key={`${source.fact_id || index}-${source.source_label || index}`}>
+          <span>{source.source_label || source.document_name}</span>
+          <em>{source.fragment}</em>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function AnalysisPlaybooksPanel({ playbooks = {} }) {
+  const items = Array.isArray(playbooks.items) ? playbooks.items : []
+  if (!items.length) return null
+  return (
+    <section className="analysis-playbooks-panel">
+      <div className="analysis-saas-panel-head">
+        <span><BookOpenCheck size={15} /> Playbooks</span>
+        <strong>{items.length}</strong>
+      </div>
+      <div className="analysis-playbook-list">
+        {items.map((item) => (
+          <article className={`analysis-playbook-card severity-${item.severity || 'medium'}`} key={item.id || item.title}>
+            <strong>{item.title}</strong>
+            <p>{item.summary}</p>
+            <PlaybookList values={item.what_to_do} />
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function PlaybookList({ values }) {
+  const items = Array.isArray(values) ? values.filter(Boolean).slice(0, 3) : []
+  if (!items.length) return null
+  return (
+    <ul>
+      {items.map((value) => (
+        <li key={value}>{value}</li>
+      ))}
+    </ul>
+  )
+}
+
+function workflowDraftFromContract(workflow = {}) {
+  return {
+    status: workflow.status || 'analysis_ready',
+    responsible: workflow.responsible || '',
+    deadline: workflow.deadline || '',
+    comment: workflow.comment || '',
+  }
 }
 
 function AnalysisHistory({ history = [] }) {

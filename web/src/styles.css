@@ -2712,6 +2712,219 @@ textarea:focus {
   margin-top: 0;
 }
 
+.analysis-saas-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.95fr) minmax(320px, 1.25fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.analysis-workflow-panel,
+.analysis-questions-panel,
+.analysis-playbooks-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+}
+
+.analysis-playbooks-panel {
+  grid-column: 1 / -1;
+}
+
+.analysis-saas-panel-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.analysis-saas-panel-head span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.analysis-saas-panel-head strong {
+  color: var(--color-text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.analysis-workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.analysis-workflow-steps span {
+  min-width: 0;
+  padding: 6px 5px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.analysis-workflow-steps span.done,
+.analysis-workflow-steps span.current {
+  color: var(--color-text);
+  border-color: var(--color-primary);
+}
+
+.analysis-workflow-steps span.current {
+  background: var(--color-primary-soft);
+}
+
+.analysis-workflow-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.analysis-workflow-form label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.analysis-workflow-form label.wide {
+  grid-column: 1 / -1;
+}
+
+.analysis-workflow-form label span {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.analysis-workflow-form input,
+.analysis-workflow-form select,
+.analysis-workflow-form textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 9px;
+  color: var(--color-text);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font: inherit;
+}
+
+.analysis-workflow-panel .secondary-button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-width: 132px;
+  margin-top: 0;
+}
+
+.analysis-workflow-journal {
+  display: grid;
+  gap: 5px;
+}
+
+.analysis-workflow-journal span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.analysis-questions-grid,
+.analysis-playbook-list {
+  display: grid;
+  gap: 8px;
+}
+
+.analysis-questions-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.analysis-question-card,
+.analysis-playbook-card {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px;
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+}
+
+.analysis-question-card.found {
+  border-left: 3px solid var(--color-success);
+}
+
+.analysis-playbook-card.severity-high {
+  border-left: 3px solid var(--color-warning);
+}
+
+.analysis-question-card strong,
+.analysis-playbook-card strong {
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.analysis-question-card p,
+.analysis-playbook-card p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.analysis-question-card ul,
+.analysis-playbook-card ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 16px;
+}
+
+.analysis-question-card li,
+.analysis-playbook-card li {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.analysis-question-card li span {
+  display: block;
+  color: var(--color-text);
+  font-weight: 850;
+}
+
+.analysis-question-card li em,
+.analysis-question-card small {
+  color: var(--color-text-muted);
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
 .analysis-history {
   padding: 8px 10px;
   background: var(--color-surface);
@@ -6266,6 +6479,16 @@ textarea:focus {
 
   .dashboard-secondary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .analysis-saas-grid,
+  .analysis-questions-grid,
+  .analysis-workflow-form {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-playbooks-panel {
+    grid-column: auto;
   }
 }
 

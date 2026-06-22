@@ -4,6 +4,9 @@ import re
 from typing import Any
 
 from tender_killer.analysis_interpretation_service import build_fact_interpretation
+from tender_killer.analysis_playbook_service import build_analysis_playbooks
+from tender_killer.analysis_questions_service import build_analysis_ai_questions
+from tender_killer.analysis_workflow_service import build_analysis_tz_workflow
 
 
 BLOCKER_CATEGORIES = {"legal", "national_regime"}
@@ -173,9 +176,15 @@ def _view(
     decision = _decision_brief(analysis, sections, status)
     action_plan = _action_plan(sections, document_state)
     metrics = _metrics(items, sections, document_state, fact_metrics)
+    tz_workflow = build_analysis_tz_workflow(analysis, document_state, metrics, status=status)
+    ai_questions = build_analysis_ai_questions(items)
+    playbooks = build_analysis_playbooks(items, metrics)
     return {
         "version": 3,
         "document_state": document_state,
+        "tz_workflow": tz_workflow,
+        "ai_questions": ai_questions,
+        "playbooks": playbooks,
         "decision_brief": {
             **decision,
             "blockers": [item["label"] for item in items if item.get("is_blocker")][:5],
@@ -392,16 +401,19 @@ def _metrics(
     fact_metrics: Any,
 ) -> dict[str, Any]:
     source_metrics = fact_metrics if isinstance(fact_metrics, dict) else {}
+    actual_items = [item for item in items if not item.get("expected_missing")]
     return {
         "major_blocks": len(sections),
         "facts": len(items),
         "requirements": sum(1 for item in items if item.get("kind") in {"requirement", "supplier_document"}),
         "risks": len([item for item in items if item.get("kind") in {"risk", "red_flag", "blocker"} or item.get("is_blocker")]),
         "blockers": sum(1 for item in items if item.get("is_blocker")),
+        "actual_blockers": sum(1 for item in actual_items if item.get("is_blocker")),
         "needs_review": sum(1 for item in items if item.get("needs_review")),
         "price_factors": sum(1 for item in items if item.get("is_price_factor")),
         "execution_terms": sum(1 for item in items if item.get("kind") == "execution_term"),
         "conflicts": sum(1 for item in items if item.get("conflict_flags")),
+        "actual_conflicts": sum(1 for item in actual_items if item.get("conflict_flags")),
         "expected_missing": sum(1 for item in items if item.get("expected_missing")),
         "documents_ready": document_state["text_ready"],
         "documents_total": document_state["total"],
