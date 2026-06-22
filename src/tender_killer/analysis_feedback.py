@@ -4,15 +4,29 @@ from typing import Any
 
 
 FEEDBACK_LABELS: dict[str, str] = {
+    "correct": "верно",
+    "incorrect": "неверно",
+    "not_applicable": "не относится к заявке",
+    "needs_manual_review": "требует ручной проверки",
     "confirmed": "подтверждено",
     "important": "важно",
+    "favorite": "важно",
     "not_risk": "не риск",
-    "ignored": "игнорировать",
+    "ignored": "отклонено",
+}
+
+LEGACY_FEEDBACK_ALIASES: dict[str, str] = {
+    "confirmed": "correct",
+    "important": "needs_manual_review",
+    "favorite": "needs_manual_review",
+    "not_risk": "incorrect",
+    "ignored": "not_applicable",
 }
 
 
 def normalize_feedback_state(value: Any) -> str:
     state = str(value or "").strip().casefold()
+    state = LEGACY_FEEDBACK_ALIASES.get(state, state)
     return state if state in FEEDBACK_LABELS else ""
 
 
@@ -49,32 +63,41 @@ def _apply_to_items(items: Any, feedback: dict[str, Any]) -> None:
         feedback_item = feedback.get(item_id)
         if not isinstance(feedback_item, dict):
             continue
-        _apply_feedback_to_item(item, normalize_feedback_state(feedback_item.get("state")))
+        _apply_feedback_to_item(item, feedback_item)
 
 
-def _apply_feedback_to_item(item: dict[str, Any], state: str) -> None:
+def _apply_feedback_to_item(item: dict[str, Any], feedback_item: dict[str, Any]) -> None:
+    state = normalize_feedback_state(feedback_item.get("state"))
     if not state:
         return
     item["feedback_state"] = state
     item["feedback_label"] = FEEDBACK_LABELS[state]
-    if state == "confirmed":
-        item["status"] = "confirmed"
+    comment = str(feedback_item.get("comment") or "").strip()
+    history = feedback_item.get("history")
+    if comment:
+        item["feedback_comment"] = comment
+    if isinstance(history, list):
+        item["feedback_history"] = [entry for entry in history if isinstance(entry, dict)]
+    if state in {"correct", "confirmed"}:
+        item["status"] = "correct"
         return
-    if state == "important":
-        item["status"] = "important"
-        item["priority"] = max(int(item.get("priority") or 0), 100)
-        return
-    if state == "not_risk":
-        item["status"] = "not_risk"
+    if state in {"incorrect", "not_risk"}:
+        item["status"] = "incorrect"
         item["is_blocker"] = False
+        item["is_price_factor"] = False
         if item.get("severity") == "high":
             item["severity"] = "medium"
         return
-    if state == "ignored":
-        item["status"] = "ignored"
+    if state in {"not_applicable", "ignored"}:
+        item["status"] = "not_applicable"
         item["is_blocker"] = False
         item["is_price_factor"] = False
         item["priority"] = 0
+        return
+    if state in {"needs_manual_review", "important", "favorite"}:
+        item["status"] = "needs_manual_review"
+        item["needs_review"] = True
+        item["priority"] = max(int(item.get("priority") or 0), 95)
 
 
 def _refresh_fact_metrics(analysis_facts: dict[str, Any]) -> None:
@@ -86,7 +109,7 @@ def _refresh_fact_metrics(analysis_facts: dict[str, Any]) -> None:
         for item in items
         if isinstance(item, dict)
         and item.get("kind") != "subject"
-        and item.get("feedback_state") != "ignored"
+        and item.get("feedback_state") not in {"incorrect", "not_applicable", "ignored", "not_risk"}
     ]
     analysis_facts["metrics"] = {
         "total": len(items),

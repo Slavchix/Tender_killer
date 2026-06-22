@@ -323,9 +323,25 @@ def _report_item_impact(item: dict[str, Any]) -> str:
 
 def _report_item_action(item: dict[str, Any]) -> str:
     interpretation = item.get("interpretation")
+    feedback = _operator_feedback_text(item)
+    action = ""
     if isinstance(interpretation, dict) and interpretation.get("action"):
-        return _value(interpretation.get("action"), "")
-    return _value(item.get("operator_check") or item.get("operator_action") or item.get("next_step"), "")
+        action = _value(interpretation.get("action"), "")
+    else:
+        action = _value(item.get("operator_check") or item.get("operator_action") or item.get("next_step"), "")
+    if feedback and action:
+        return f"{action} Оператор: {feedback}"
+    if feedback:
+        return f"Оператор: {feedback}"
+    return action
+
+
+def _operator_feedback_text(item: dict[str, Any]) -> str:
+    label = _value(item.get("feedback_label"), "").strip()
+    comment = _value(item.get("feedback_comment"), "").strip()
+    if label and comment:
+        return f"{label}: {comment}"
+    return label or comment
 
 
 def _tender_decision_elements(decision: Any) -> list[DocxElement]:
@@ -455,7 +471,7 @@ def _has_four_block_sections(operator_view: dict[str, Any]) -> bool:
 
 
 def _analysis_four_block_rows(operator_view: dict[str, Any], analysis: dict[str, Any] | None = None) -> list[list[Any]]:
-    rows: list[list[Any]] = [["Блок", "Пункт", "Что найдено", "Что означает", "Влияние", "Что сделать", "Источник"]]
+    rows: list[list[Any]] = [["Блок", "Пункт", "Что найдено", "Что означает", "Влияние", "Что сделать", "Источник", "Оператор"]]
     sections = operator_view.get("major_blocks") or operator_view.get("sections") or []
     section_map = {section.get("id"): section for section in sections if isinstance(section, dict)}
     supplemental_items = _report_supplemental_items(analysis or {})
@@ -467,7 +483,7 @@ def _analysis_four_block_rows(operator_view: dict[str, Any], analysis: dict[str,
             supplemental_items.get(definition["id"], []),
         )
         if not items:
-            rows.append([title, "Не найдено", _value(section.get("empty"), definition["empty"]), "", ""])
+            rows.append([title, "Не найдено", _value(section.get("empty"), definition["empty"]), "", "", "", "", ""])
             continue
         for item in items[:7]:
             rows.append(
@@ -479,10 +495,11 @@ def _analysis_four_block_rows(operator_view: dict[str, Any], analysis: dict[str,
                     _short_text(_report_item_impact(item), 170),
                     _short_text(_report_item_action(item), 170),
                     _short_text(_item_source_text(item), 220),
+                    _short_text(_operator_feedback_text(item), 170),
                 ]
             )
         if len(items) > 7:
-            rows.append([title, f"и еще {len(items) - 7} пункт — см. в интерфейсе", "", "", ""])
+            rows.append([title, f"и еще {len(items) - 7} пункт — см. в интерфейсе", "", "", "", "", "", ""])
     return rows
 
 
@@ -520,6 +537,24 @@ def _analysis_history_detail_text(changes: dict[str, Any]) -> str:
         values = _text_list(changes.get(key))
         if values:
             parts.append(f"{label}: {', '.join(values[:3])}")
+    documents = changes.get("documents")
+    if isinstance(documents, dict):
+        document_parts = []
+        for label, key in (("документы добавлены", "added"), ("документы изменены", "changed"), ("документы удалены", "removed")):
+            values = _text_list(documents.get(key))
+            if values:
+                document_parts.append(f"{label}: {', '.join(values[:3])}")
+        if document_parts:
+            parts.append("; ".join(document_parts))
+    condition_changes = changes.get("condition_changes")
+    if isinstance(condition_changes, list):
+        labels = [
+            _value(item.get("label"), "")
+            for item in condition_changes
+            if isinstance(item, dict) and _value(item.get("label"), "")
+        ]
+        if labels:
+            parts.append(f"условия: {', '.join(labels[:3])}")
     if parts:
         return "; ".join(parts)
     return f"+{_int_value(changes.get('added_count'))} / -{_int_value(changes.get('removed_count'))} / Δ{_int_value(changes.get('changed_count'))}"

@@ -12,6 +12,7 @@ from tender_killer.analysis_document_context import build_document_coverage
 from tender_killer.analysis_document_context import document_roles_summary
 from tender_killer.analysis_evidence_service import build_analysis_evidence_items
 from tender_killer.analysis_facts_service import build_analysis_facts
+from tender_killer.analysis_history_service import build_analysis_documents_snapshot
 from tender_killer.analysis_history_service import record_analysis_history
 from tender_killer.analysis_missing_checks import build_missing_checks
 from tender_killer.analysis_missing_checks import missing_checklist_items
@@ -65,6 +66,7 @@ def analyze_tender_payload(database_path: str | Path, source: str, external_id: 
         ]
         raw_payload["document_coverage"] = document_coverage
         raw_payload["document_roles"] = document_roles
+        raw_payload["documents_snapshot"] = build_analysis_documents_snapshot(documents)
         raw_payload["text_index"] = build_analysis_text_index(documents)
         attach_document_sources(raw_payload, ready_documents)
         raw_payload["analysis_facts"] = build_analysis_facts(raw_payload, documents)

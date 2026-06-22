@@ -433,6 +433,53 @@ def test_build_tender_report_docx_renders_styled_four_block_analysis():
     assert "Очень длинный извлеченный текст" not in document_xml
 
 
+def test_build_tender_report_docx_includes_operator_feedback_mark_and_comment():
+    payload = {
+        "source": "mosreg_market",
+        "external_id": "3668200",
+        "title": "Поставка бумаги",
+        "document_records": [{"name": "ТЗ.docx", "text_status": "ok"}],
+        "analysis": {
+            "summary": "Нужна проверка ТЗ.",
+            "status": "needs_review",
+            "confidence": 0.7,
+            "operator_view": {
+                "version": 3,
+                "major_blocks": [
+                    {
+                        "id": "decision_risks",
+                        "title": "Итог и риски",
+                        "items": [
+                            {
+                                "id": "fact:national",
+                                "label": "национальный режим/страна происхождения",
+                                "operator_summary": "Может повлиять на допуск заявки.",
+                                "operator_check": "Проверить страну происхождения.",
+                                "source_label": "ТЗ.docx · стр. 2",
+                                "fragment": "Участник указывает страну происхождения.",
+                                "feedback_state": "needs_manual_review",
+                                "feedback_label": "требует ручной проверки",
+                                "feedback_comment": "Нужно сверить с последней редакцией извещения.",
+                                "priority": 100,
+                            }
+                        ],
+                    },
+                    {"id": "product_compliance", "title": "Товар и документы", "items": []},
+                    {"id": "fulfillment_terms", "title": "Поставка и исполнение", "items": []},
+                    {"id": "acceptance_payment", "title": "Приемка, документы и оплата", "items": []},
+                ],
+            },
+        },
+    }
+
+    content = build_tender_report_docx(payload)
+    document_xml = _document_xml(content)
+
+    assert "Оператор" in document_xml
+    assert "требует ручной проверки" in document_xml
+    assert "Нужно сверить с последней редакцией извещения." in document_xml
+
+
 def test_build_tender_report_docx_renders_participation_map():
     payload = {
         "source": "mosreg_market",

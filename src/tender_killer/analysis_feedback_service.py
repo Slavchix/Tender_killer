@@ -41,10 +41,29 @@ def update_analysis_feedback(
         feedback = raw_payload.get("analysis_feedback")
         if not isinstance(feedback, dict):
             feedback = {}
+        current_item = feedback.get(fact_id)
+        current_item = current_item if isinstance(current_item, dict) else {}
+        current_state = normalize_feedback_state(current_item.get("state"))
+        current_history = current_item.get("history")
+        history = [entry for entry in current_history if isinstance(entry, dict)] if isinstance(current_history, list) else []
+        updated_at = datetime.now().isoformat(timespec="seconds")
+        comment = str(data.get("comment") or "").strip()
+        actor = str(data.get("actor") or "operator").strip() or "operator"
         if state:
+            history.append(
+                {
+                    "from_state": current_state,
+                    "to_state": state,
+                    "comment": comment,
+                    "changed_at": updated_at,
+                    "actor": actor,
+                }
+            )
             feedback[fact_id] = {
                 "state": state,
-                "updated_at": datetime.now().isoformat(timespec="seconds"),
+                "comment": comment,
+                "updated_at": updated_at,
+                "history": history,
             }
         else:
             feedback.pop(fact_id, None)

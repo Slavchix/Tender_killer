@@ -141,10 +141,10 @@ export function useTenderDocumentAnalysis(tender) {
     }
   }
 
-  function saveFactFeedback(factId, state) {
+  function saveFactFeedback(factId, state, comment = '') {
     if (!factId) return Promise.resolve()
     setSavingAnalysisFeedbackId(factId)
-    return saveAnalysisFeedback(tender, { fact_id: factId, state })
+    return saveAnalysisFeedback(tender, { fact_id: factId, state, comment })
       .then((payload) => {
         setAnalysis(payload.analysis || null)
       })

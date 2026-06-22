@@ -3416,6 +3416,24 @@ textarea:focus {
   min-height: 28px;
 }
 
+.analysis-feedback-panel {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.analysis-feedback-comment {
+  min-width: 0;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
 .analysis-feedback-actions button {
   display: inline-flex;
   align-items: center;
@@ -3439,6 +3457,30 @@ textarea:focus {
 .analysis-feedback-actions button:disabled {
   cursor: default;
   opacity: 0.62;
+}
+
+.analysis-feedback-note {
+  display: grid;
+  gap: 3px;
+}
+
+.analysis-feedback-note span {
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.analysis-feedback-history summary {
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.analysis-feedback-history ul {
+  margin: 5px 0 0;
+  padding-left: 18px;
 }
 
 .analysis-checklist-row p {

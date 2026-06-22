@@ -143,11 +143,19 @@ function AnalysisHistory({ history = [] }) {
 }
 
 function AnalysisHistoryDetails({ changes = {} }) {
+  const documents = changes.documents || {}
+  const conditionChanges = Array.isArray(changes.condition_changes)
+    ? changes.condition_changes.map(formatConditionChange).filter(Boolean)
+    : []
   const groups = [
     ['Добавлено', changes.added],
     ['Изменено', changes.changed],
     ['Удалено', changes.removed],
     ['Метки оператора', changes.feedback],
+    ['Документы добавлены', documents.added],
+    ['Документы изменены', documents.changed],
+    ['Документы удалены', documents.removed],
+    ['Изменившиеся условия', conditionChanges],
   ]
     .map(([label, values]) => [label, Array.isArray(values) ? values.filter(Boolean).slice(0, 5) : []])
     .filter(([, values]) => values.length)
@@ -172,6 +180,16 @@ function AnalysisHistoryDetails({ changes = {} }) {
       </div>
     </details>
   )
+}
+
+function formatConditionChange(item = {}) {
+  const label = item.label || item.family || 'условие'
+  const type = item.change_type === 'added'
+    ? 'добавлено'
+    : item.change_type === 'removed'
+      ? 'удалено'
+      : 'изменено'
+  return `${label}: ${type}`
 }
 
 function formatAnalysisHistoryDate(value) {

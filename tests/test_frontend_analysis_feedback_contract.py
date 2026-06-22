@@ -32,9 +32,16 @@ def test_tender_analysis_renders_fact_feedback_controls():
     assert "onFeedback={onAnalysisFeedback}" in analysis_source
     assert "onFeedback={onFeedback}" in sections_source
     assert "CheckCircle2" in sections_source
-    assert "Star" in sections_source
-    assert "ShieldOff" in sections_source
-    assert "EyeOff" in sections_source
+    assert "XCircle" in sections_source
+    assert "Ban" in sections_source
+    assert "ClipboardCheck" in sections_source
+    assert "верно" in sections_source
+    assert "неверно" in sections_source
+    assert "не относится к заявке" in sections_source
+    assert "требует ручной проверки" in sections_source
+    assert "analysis-feedback-comment" in sections_source
+    assert "feedback_comment" in sections_source
+    assert "feedback_history" in sections_source
     assert "analysis-feedback-actions" in sections_source
     assert "feedback_state" in sections_source
 
@@ -95,3 +102,7 @@ def test_tender_analysis_history_exposes_change_details():
     assert "changes.changed" in analysis_source
     assert "changes.removed" in analysis_source
     assert "changes.feedback" in analysis_source
+    assert "changes.documents" in analysis_source
+    assert "changes.condition_changes" in analysis_source
+    assert "Документы" in analysis_source
+    assert "Изменившиеся условия" in analysis_source
