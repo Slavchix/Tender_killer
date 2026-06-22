@@ -2016,6 +2016,32 @@ def test_economics_tab_is_a_focused_workbench():
     assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
+def test_economics_position_workspace_exposes_unified_position_scenario():
+    profile_workspace_source = TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "const POSITION_SCENARIO_STEPS" in profile_workspace_source
+    assert "function PositionEconomicsScenario" in profile_workspace_source
+    assert "<PositionEconomicsScenario" in profile_workspace_source
+    assert "buildPositionScenarioState(selectedEconomicsProfile" in profile_workspace_source
+    assert "pendingPriceCandidatesForProfile(profile)" in profile_workspace_source
+    assert "selectedSupplierOptionForProfile(profile)" in profile_workspace_source
+    assert "hasPositionEconomicsDraft(profile," in profile_workspace_source
+    assert "Нужна цена" in profile_workspace_source
+    assert "Проверить кандидата" in profile_workspace_source
+    assert "Принять цену" in profile_workspace_source
+    assert "Рассчитать" in profile_workspace_source
+    assert "Решение" in profile_workspace_source
+    assert "position-economics-scenario" in profile_workspace_source
+    assert "position-scenario-steps" in profile_workspace_source
+    assert "position-scenario-cta" in profile_workspace_source
+    assert ".position-economics-scenario" in styles_source
+    assert ".position-scenario-steps" in styles_source
+    assert ".position-scenario-step" in styles_source
+    assert ".position-scenario-cta" in styles_source
+    assert find_mojibake(profile_workspace_source, TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
 def test_product_detail_keeps_passport_and_requirements_only():
     app_source = (
         TENDER_PRODUCTS_TAB_SOURCE.read_text(encoding="utf-8")
