@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 
 SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT = 5
+MANUAL_PRICE_PRIMARY_SOURCES = ("price_book_feed", "supplier_quote", "manual_url", "quick_links")
 
 ACTION_QUICK_LINK = "quick_link"
 ACTION_PUBLIC_SEARCH_FETCH = "public_search_fetch"
@@ -164,6 +165,32 @@ def get_supplier_provider_policy(provider: str | None) -> dict[str, Any]:
 
 def supplier_provider_policies() -> list[dict[str, Any]]:
     return [get_supplier_provider_policy(provider) for provider in PROVIDER_POLICIES]
+
+
+def supplier_auto_price_policy(tender_position_count: int | None) -> dict[str, Any]:
+    position_count = _positive_int(tender_position_count)
+    if position_count is not None and position_count <= SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT:
+        return {
+            "level": "small_review_only_auto_search",
+            "position_limit": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
+            "position_count": position_count,
+            "active_search_allowed": True,
+            "review_only": True,
+            "mass_launch_allowed": True,
+            "primary_sources": ["public_search", "manual_url", "quick_links"],
+            "site_parsing_role": "helper",
+        }
+
+    return {
+        "level": "large_manual_sources" if position_count else "manual_until_positions_known",
+        "position_limit": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
+        "position_count": position_count,
+        "active_search_allowed": False,
+        "review_only": True,
+        "mass_launch_allowed": False,
+        "primary_sources": list(MANUAL_PRICE_PRIMARY_SOURCES),
+        "site_parsing_role": "helper_only",
+    }
 
 
 def supplier_fetch_decision(

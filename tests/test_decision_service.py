@@ -211,3 +211,100 @@ def test_decision_uses_tz_passport_blockers_and_price_factors():
     assert decision["status"] == "needs_review"
     assert "обеспечение исполнения контракта" in decision["blockers"]
     assert "срочная поставка" in decision["reasons"]
+
+
+def test_decision_exposes_economics_decision_v2_for_safe_bid_and_policy():
+    decision = build_tender_decision(
+        {
+            "economics": {
+                "status": "manual_review",
+                "margin_percent": 18.0,
+                "target_margin_percent": 15.0,
+                "minimum_margin_price": 93000.0,
+                "target_bid_price": 105000.0,
+                "participation_decision": {
+                    "status": "guarded_bid",
+                    "label": "with limit",
+                    "limit_price": 93000.0,
+                    "recommendation": "Keep minimum margin.",
+                },
+            },
+            "analysis": {"status": "ok", "risks": ["rush delivery"], "red_flags": [], "requirements": []},
+            "market_state": {"current_offer_price": 100000.0, "nmc_price": 120000.0, "bid_count": 2},
+            "document_records": [{"text_status": "ok"}],
+            "product_profiles": [
+                {"profile_status": "priced"},
+                {"profile_status": "priced"},
+                {"profile_status": "priced"},
+            ],
+        }
+    )
+
+    economics_decision = decision["economics_decision"]
+
+    assert economics_decision["version"] == 2
+    assert economics_decision["can_participate"] is True
+    assert economics_decision["safe_bid"] == {"amount": 93000.0, "source": "minimum_margin_price"}
+    assert economics_decision["minimum_margin_percent"] == 15.0
+    assert economics_decision["current_margin_percent"] == 18.0
+    assert economics_decision["discount_buffer"] == {
+        "amount": 7000.0,
+        "percent": 7.0,
+        "basis": "current_offer_price",
+    }
+    assert economics_decision["auto_price_policy"]["level"] == "small_review_only_auto_search"
+    assert economics_decision["auto_price_policy"]["active_search_allowed"] is True
+    assert economics_decision["auto_price_policy"]["mass_launch_allowed"] is True
+    assert "rush delivery" in economics_decision["risks"]
+
+
+def test_decision_v2_keeps_large_tender_auto_prices_manual_and_benchmarks_history():
+    decision = build_tender_decision(
+        {
+            "economics": {
+                "status": "interesting",
+                "margin_percent": 24.0,
+                "target_margin_percent": 15.0,
+                "participation_decision": {
+                    "status": "can_bid",
+                    "label": "can bid",
+                    "limit_price": 250000.0,
+                    "recommendation": "Healthy economics.",
+                },
+            },
+            "analysis": {"status": "ok", "risks": [], "red_flags": [], "requirements": []},
+            "market_state": {"nmc_price": 420000.0, "bid_count": 0},
+            "customer_risk_profile": {
+                "history": {
+                    "recent": [
+                        {"title": "similar 1", "price": 200000.0, "market_state": {"status": "completed"}},
+                        {"title": "similar 2", "price": 220000.0, "market_state": {"status": "completed"}},
+                        {"title": "similar 3", "price": 240000.0, "market_state": {"status": "no_participants"}},
+                    ]
+                }
+            },
+            "document_records": [{"text_status": "ok"}],
+            "product_profiles": [{"profile_status": "priced"} for _ in range(6)],
+        }
+    )
+
+    economics_decision = decision["economics_decision"]
+
+    assert economics_decision["auto_price_policy"]["level"] == "large_manual_sources"
+    assert economics_decision["auto_price_policy"]["active_search_allowed"] is False
+    assert economics_decision["auto_price_policy"]["mass_launch_allowed"] is False
+    assert economics_decision["auto_price_policy"]["primary_sources"] == [
+        "price_book_feed",
+        "supplier_quote",
+        "manual_url",
+        "quick_links",
+    ]
+    assert economics_decision["historical_benchmark"] == {
+        "status": "warning",
+        "sample_size": 3,
+        "typical_price": 220000.0,
+        "current_price": 420000.0,
+        "delta_percent": 90.91,
+        "no_participant_count": 1,
+        "note": "Historical benchmark is a control signal only; landed cost remains the decision basis.",
+    }

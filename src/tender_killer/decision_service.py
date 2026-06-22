@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from tender_killer.supplier_provider_policy import supplier_auto_price_policy
+
 
 def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
     """Build one operator-facing decision from tender detail payload parts."""
@@ -155,6 +157,7 @@ def _decision(
 ) -> dict[str, Any]:
     compact_reasons = _compact_reasons(reasons)[:5]
     compact_blockers = _compact_reasons(blockers)[:5]
+    context_payload = context or {}
     return {
         "status": status,
         "label": label,
@@ -165,6 +168,14 @@ def _decision(
         "blockers": compact_blockers,
         "limit_price": limit_price,
         "metrics": metrics,
+        "economics_decision": _economics_decision_v2(
+            status=status,
+            reasons=compact_reasons,
+            blockers=compact_blockers,
+            limit_price=limit_price,
+            metrics=metrics,
+            context=context_payload,
+        ),
         "reason_tree": _reason_tree(
             label=label,
             summary=summary,
@@ -173,9 +184,171 @@ def _decision(
             blockers=compact_blockers,
             limit_price=limit_price,
             metrics=metrics,
-            context=context or {},
+            context=context_payload,
         ),
     }
+
+
+def _economics_decision_v2(
+    *,
+    status: str,
+    reasons: list[str],
+    blockers: list[str],
+    limit_price: Any,
+    metrics: dict[str, Any],
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    economics = _dict(context.get("economics"))
+    analysis = _dict(context.get("analysis"))
+    participation = _dict(context.get("participation"))
+    customer_risk = _dict(context.get("customer_risk"))
+    safe_bid = _safe_bid(economics, participation, limit_price)
+    benchmark = _historical_benchmark(customer_risk, metrics)
+    risks = _compact_reasons(
+        [
+            *_text_list(analysis.get("risks")),
+            *_text_list(analysis.get("red_flags")),
+            *blockers,
+        ]
+    )
+    if benchmark.get("status") == "warning":
+        risks.append("Historical benchmark differs from recent customer purchases.")
+
+    return {
+        "version": 2,
+        "can_participate": _can_participate(status),
+        "safe_bid": safe_bid,
+        "minimum_margin_percent": _first_number(
+            economics.get("target_margin_percent"),
+            _scenario_margin_percent(economics, "minimum_margin"),
+        ),
+        "current_margin_percent": _number(economics.get("margin_percent")),
+        "discount_buffer": _discount_buffer(metrics, economics, safe_bid),
+        "risks": _compact_reasons(risks)[:6],
+        "blockers": blockers,
+        "what_blocks_application": blockers,
+        "auto_price_policy": supplier_auto_price_policy(metrics.get("positions_total")),
+        "historical_benchmark": benchmark,
+        "basis": _compact_reasons([participation.get("recommendation"), *reasons])[:5],
+    }
+
+
+def _can_participate(status: str) -> bool | None:
+    if status in {"interesting", "with_limit"}:
+        return True
+    if status == "skip":
+        return False
+    return None
+
+
+def _safe_bid(
+    economics: dict[str, Any],
+    participation: dict[str, Any],
+    limit_price: Any,
+) -> dict[str, Any] | None:
+    amount = _number(limit_price)
+    if amount is None:
+        amount = _first_number(
+            participation.get("limit_price"),
+            economics.get("stop_price"),
+            economics.get("target_bid_price"),
+            economics.get("minimum_margin_price"),
+            economics.get("break_even_price"),
+        )
+    if amount is None:
+        return None
+    return {
+        "amount": _round_money(amount),
+        "source": _safe_bid_source(economics, participation, amount),
+    }
+
+
+def _safe_bid_source(economics: dict[str, Any], participation: dict[str, Any], amount: float) -> str:
+    for source in ("stop_price", "target_bid_price", "minimum_margin_price", "break_even_price"):
+        if _same_money(amount, economics.get(source)):
+            return source
+    if _same_money(amount, participation.get("limit_price")):
+        return "participation_decision.limit_price"
+    return "manual_limit"
+
+
+def _discount_buffer(
+    metrics: dict[str, Any],
+    economics: dict[str, Any],
+    safe_bid: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not safe_bid:
+        return None
+    basis_label, basis_amount = _buffer_basis(metrics, economics)
+    safe_amount = _number(safe_bid.get("amount"))
+    if basis_amount is None or basis_amount <= 0 or safe_amount is None:
+        return None
+    amount = _round_money(basis_amount - safe_amount)
+    return {
+        "amount": amount,
+        "percent": _round_percent((amount / basis_amount) * 100),
+        "basis": basis_label,
+    }
+
+
+def _buffer_basis(metrics: dict[str, Any], economics: dict[str, Any]) -> tuple[str, float | None]:
+    current_offer = _number(metrics.get("current_offer_price"))
+    if current_offer is not None:
+        return "current_offer_price", current_offer
+    revenue = _number(economics.get("revenue"))
+    if revenue is not None:
+        return "revenue", revenue
+    return "nmc_price", _number(metrics.get("nmc_price"))
+
+
+def _historical_benchmark(
+    customer_risk: dict[str, Any],
+    metrics: dict[str, Any],
+) -> dict[str, Any]:
+    history = _dict(customer_risk.get("history"))
+    recent = _list_of_dicts(history.get("recent"))
+    prices = sorted(
+        price
+        for price in (_number(item.get("price")) for item in recent)
+        if price is not None
+    )
+    if not prices:
+        return {
+            "status": "no_history",
+            "sample_size": 0,
+            "note": "Historical benchmark is a control signal only; landed cost remains the decision basis.",
+        }
+
+    typical_price = _median(prices)
+    current_price = _first_number(metrics.get("current_offer_price"), metrics.get("nmc_price"))
+    no_participant_count = sum(
+        1
+        for item in recent
+        if _dict(item.get("market_state")).get("status") == "no_participants"
+    )
+    if current_price is None or typical_price <= 0:
+        delta_percent = None
+        status = "info"
+    else:
+        delta_percent = _round_percent(((current_price - typical_price) / typical_price) * 100)
+        status = "warning" if abs(delta_percent) >= 25 else "ok"
+
+    return {
+        "status": status,
+        "sample_size": len(prices),
+        "typical_price": _round_money(typical_price),
+        "current_price": _round_money(current_price) if current_price is not None else None,
+        "delta_percent": delta_percent,
+        "no_participant_count": no_participant_count,
+        "note": "Historical benchmark is a control signal only; landed cost remains the decision basis.",
+    }
+
+
+def _scenario_margin_percent(economics: dict[str, Any], scenario_id: str) -> float | None:
+    for scenario in _list_of_dicts(economics.get("bid_scenarios")):
+        if scenario.get("id") == scenario_id:
+            return _number(scenario.get("margin_percent"))
+    return None
 
 
 def _reason_tree(
@@ -402,11 +575,44 @@ def _number(value: Any) -> float | None:
         return None
 
 
+def _first_number(*values: Any) -> float | None:
+    for value in values:
+        number = _number(value)
+        if number is not None:
+            return number
+    return None
+
+
 def _int_or_none(value: Any) -> int | None:
     try:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _round_money(value: float) -> float:
+    return round(float(value), 2)
+
+
+def _round_percent(value: float) -> float:
+    return round(float(value), 2)
+
+
+def _same_money(left: Any, right: Any) -> bool:
+    left_number = _number(left)
+    right_number = _number(right)
+    if left_number is None or right_number is None:
+        return False
+    return _round_money(left_number) == _round_money(right_number)
+
+
+def _median(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    middle = len(values) // 2
+    if len(values) % 2:
+        return values[middle]
+    return (values[middle - 1] + values[middle]) / 2
 
 
 def _format_percent(value: float) -> str:

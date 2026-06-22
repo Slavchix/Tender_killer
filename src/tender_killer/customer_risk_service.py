@@ -101,13 +101,17 @@ def _factors(
 
 
 def _history_item(item: dict[str, Any]) -> dict[str, Any]:
-    return {
+    result = {
         "source": _text(item.get("source")),
         "external_id": _text(item.get("external_id")),
         "title": _text(item.get("title")),
         "status_normalized": _text(item.get("status_normalized")),
         "market_state": _dict(item.get("market_state")),
     }
+    price = _number(item.get("price"))
+    if price is not None:
+        result["price"] = price
+    return result
 
 
 def _factor(factor_id: str, severity: str, score: int, evidence: str) -> dict[str, Any]:
@@ -174,3 +178,13 @@ def _int_or_none(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _number(value: Any) -> float | None:
+    if isinstance(value, bool) or value in (None, ""):
+        return None
+    try:
+        number = float(str(value).replace(" ", "").replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None

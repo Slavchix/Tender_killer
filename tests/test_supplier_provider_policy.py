@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tender_killer.supplier_provider_policy as provider_policy
 from tender_killer.supplier_provider_policy import get_supplier_provider_policy
 from tender_killer.supplier_provider_policy import supplier_fetch_decision
 
@@ -141,3 +142,26 @@ def test_supplier_fetch_decision_blocks_private_or_internal_urls() -> None:
         tender_position_count=12,
     )
     assert safe_product["allowed"] is True
+
+
+def test_supplier_auto_price_policy_defines_small_and_large_tender_levels() -> None:
+    small = provider_policy.supplier_auto_price_policy(5)
+    large = provider_policy.supplier_auto_price_policy(6)
+
+    assert small["level"] == "small_review_only_auto_search"
+    assert small["active_search_allowed"] is True
+    assert small["review_only"] is True
+    assert small["mass_launch_allowed"] is True
+    assert small["site_parsing_role"] == "helper"
+
+    assert large["level"] == "large_manual_sources"
+    assert large["active_search_allowed"] is False
+    assert large["review_only"] is True
+    assert large["mass_launch_allowed"] is False
+    assert large["primary_sources"] == [
+        "price_book_feed",
+        "supplier_quote",
+        "manual_url",
+        "quick_links",
+    ]
+    assert large["site_parsing_role"] == "helper_only"

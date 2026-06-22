@@ -31,6 +31,7 @@ export function EconomicsSummary({ economics, tender, profiles = [] }) {
   const analysisCostDrivers = economics.analysis_cost_drivers || []
   const analysisReserveHint = economics.analysis_reserve_hint || {}
   const marketState = economics.market_state || tender?.market_state
+  const economicsDecision = tender?.decision?.economics_decision || null
   const revenueLabel = economics.revenue_kind === 'current_offer' ? 'Цена участника' : 'НМЦК'
 
   return (
@@ -50,6 +51,7 @@ export function EconomicsSummary({ economics, tender, profiles = [] }) {
         <ParticipationDecisionCard decision={participationDecision} />
         <ParticipationCalculationCard calculation={participationCalculation} />
         <BidScenarioStrip scenarios={bidScenarios} />
+        <DecisionEngineV2Panel decision={economicsDecision} />
         <div className="economics-grid">
           <Info label="НМЦК" value={nmcPriceValue(tender, marketState)} />
           <Info label="Ставка участника" value={participantBidValue(marketState)} />
@@ -114,6 +116,66 @@ export function EconomicsSummary({ economics, tender, profiles = [] }) {
       </div>
     </details>
   )
+}
+
+function DecisionEngineV2Panel({ decision }) {
+  if (!decision) return null
+  const safeBid = decision.safe_bid || {}
+  const policy = decision.auto_price_policy || {}
+  const benchmark = decision.historical_benchmark || {}
+  const blockers = Array.isArray(decision.blockers) ? decision.blockers.filter(Boolean) : []
+  const risks = Array.isArray(decision.risks) ? decision.risks.filter(Boolean) : []
+
+  return (
+    <section className="economics-decision-v2" aria-label="Решение экономики">
+      <div className="analysis-status-row">
+        <strong>Decision engine v2</strong>
+        <span>{formatParticipationGate(decision.can_participate)}</span>
+      </div>
+      <div className="economics-grid">
+        <Info label="Безопасная ставка" value={formatMoney(safeBid.amount)} />
+        <Info label="Минимальная маржа" value={formatPercent(decision.minimum_margin_percent)} />
+        <Info label="Текущая маржа" value={formatPercent(decision.current_margin_percent)} />
+        <Info label="Буфер снижения" value={formatDiscountBuffer(decision.discount_buffer)} />
+        <Info label="Автоцены" value={formatAutoPricePolicy(policy)} />
+        <Info label="История" value={formatHistoricalBenchmark(benchmark)} />
+      </div>
+      {(blockers.length > 0 || risks.length > 0 || benchmark.note) && (
+        <div className="economics-decision-notes">
+          {blockers.length > 0 && <p><strong>Блокирует:</strong> {blockers.slice(0, 3).join(', ')}</p>}
+          {risks.length > 0 && <p><strong>Риски:</strong> {risks.slice(0, 3).join(', ')}</p>}
+          {benchmark.note && <p>{benchmark.note}</p>}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function formatParticipationGate(value) {
+  if (value === true) return 'можно участвовать'
+  if (value === false) return 'не участвовать'
+  return 'нужна проверка'
+}
+
+function formatDiscountBuffer(buffer) {
+  if (!buffer) return 'нет данных'
+  const amount = formatMoney(buffer.amount)
+  const percent = formatPercent(buffer.percent)
+  return `${amount} · ${percent}`
+}
+
+function formatAutoPricePolicy(policy) {
+  if (!policy) return 'ручная проверка'
+  if (policy.level === 'small_review_only_auto_search') return `до ${policy.position_limit || 5}: review-only автопоиск`
+  if (policy.level === 'large_manual_sources') return 'feed/КП/manual URL/quick links'
+  return 'сначала уточнить позиции'
+}
+
+function formatHistoricalBenchmark(benchmark) {
+  if (!benchmark || benchmark.status === 'no_history') return 'нет истории'
+  const delta = Number(benchmark.delta_percent)
+  const deltaText = Number.isFinite(delta) ? ` · ${formatPercent(delta)}` : ''
+  return `${formatMoney(benchmark.typical_price)} типично${deltaText}`
 }
 
 function profilesByEconomicsItem(profiles = []) {

@@ -26,6 +26,7 @@ def test_build_customer_risk_profile_uses_local_history_and_eis_context() -> Non
                 "source": "mosreg_market",
                 "external_id": "old-1",
                 "title": "Previous paper",
+                "price": 200000.0,
                 "market_state": {"status": "no_participants", "participant_count": 0},
                 "status_normalized": "completed",
             },
@@ -44,6 +45,7 @@ def test_build_customer_risk_profile_uses_local_history_and_eis_context() -> Non
     assert profile["customer"] == {"name": "School", "inn": "5047152960"}
     assert profile["level"] == "high"
     assert profile["history"]["total"] == 2
+    assert profile["history"]["recent"][0]["price"] == 200000.0
     assert profile["history"]["market_state_counts"]["no_participants"] == 2
     assert {factor["id"] for factor in profile["factors"]} >= {
         "current_no_participants",

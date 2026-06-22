@@ -2982,6 +2982,21 @@ def test_economics_summary_labels_current_offer_revenue():
     assert find_mojibake(summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
 
 
+def test_economics_summary_surfaces_decision_engine_v2():
+    summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "const economicsDecision = tender?.decision?.economics_decision || null" in summary_source
+    assert "<DecisionEngineV2Panel decision={economicsDecision} />" in summary_source
+    assert "decision.auto_price_policy" in summary_source
+    assert "decision.historical_benchmark" in summary_source
+    assert "formatAutoPricePolicy" in summary_source
+    assert "formatHistoricalBenchmark" in summary_source
+    assert ".economics-decision-v2" in styles_source
+    assert find_mojibake(summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_tender_card_surfaces_participant_bid_next_to_nmc():
     summary_source = TENDER_DECISION_SUMMARY_SOURCE.read_text(encoding="utf-8")
     strip_source = TENDER_DECISION_STRIP_SOURCE.read_text(encoding="utf-8")
