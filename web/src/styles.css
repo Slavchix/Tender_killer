@@ -2719,6 +2719,75 @@ textarea:focus {
   align-items: start;
 }
 
+.analysis-secondary-panel-stack {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.analysis-secondary-drawer {
+  min-width: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+}
+
+.analysis-secondary-drawer > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 42px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.analysis-secondary-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.analysis-secondary-drawer > summary span {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.analysis-secondary-drawer > summary strong,
+.analysis-secondary-drawer > summary em {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.analysis-secondary-drawer[open] > summary {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.analysis-secondary-drawer-body,
+.analysis-secondary-drawer > .analysis-questions-panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.analysis-secondary-drawer .analysis-workflow-panel,
+.analysis-secondary-drawer .analysis-playbooks-panel,
+.analysis-secondary-drawer > .analysis-questions-panel {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
 .analysis-workflow-panel,
 .analysis-questions-panel,
 .analysis-playbooks-panel {

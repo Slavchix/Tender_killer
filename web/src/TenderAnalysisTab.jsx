@@ -92,7 +92,7 @@ export function TenderAnalysisTab({
             {preparingAnalysis ? 'Готовлю...' : 'Подготовить анализ'}
           </button>
           <a className="secondary-link-button compact" href={reportHref}>
-            Скачать Word
+            Скачать отчет
           </a>
         </div>
       </div>
@@ -113,25 +113,42 @@ export function TenderAnalysisTab({
         onOpenSection={selectAnalysisSection}
       />
       {analysis ? (
-        <div className="analysis-saas-grid">
-          <AnalysisWorkflowPanel
-            disabled={!onAnalysisWorkflow || savingAnalysisWorkflow}
-            draft={workflowDraft}
-            onChange={updateWorkflowDraft}
-            onSubmit={saveWorkflowDraft}
-            saving={savingAnalysisWorkflow}
-            workflow={tzWorkflow}
-          />
-          <AnalysisQuestionsPanel
-            evidenceIndex={evidenceDrilldowns}
-            onEvidenceSelect={selectEvidenceDrilldown}
-            questions={aiQuestions}
-          />
-          <AnalysisPlaybooksPanel
-            evidenceIndex={evidenceDrilldowns}
-            onEvidenceSelect={selectEvidenceDrilldown}
-            playbooks={playbooks}
-          />
+        <div className="analysis-secondary-panel-stack">
+          <details className="analysis-secondary-drawer">
+            <summary>
+              <span><CalendarDays size={15} /> Проверка ТЗ и подсказки</span>
+              <strong>{tzWorkflow.status_label || workflowStatusLabel(tzWorkflow.status)}</strong>
+              <em>подсказок: {playbookCount(playbooks)}</em>
+            </summary>
+            <div className="analysis-secondary-drawer-body">
+              <AnalysisWorkflowPanel
+                disabled={!onAnalysisWorkflow || savingAnalysisWorkflow}
+                draft={workflowDraft}
+                onChange={updateWorkflowDraft}
+                onSubmit={saveWorkflowDraft}
+                saving={savingAnalysisWorkflow}
+                workflow={tzWorkflow}
+              />
+              <AnalysisPlaybooksPanel
+                evidenceIndex={evidenceDrilldowns}
+                onEvidenceSelect={selectEvidenceDrilldown}
+                playbooks={playbooks}
+              />
+            </div>
+          </details>
+          <details className="analysis-secondary-drawer">
+            <summary>
+              <span><HelpCircle size={15} /> Контрольные вопросы</span>
+              <strong>{questionCount(aiQuestions)}</strong>
+              <em>быстрая сверка по источникам</em>
+            </summary>
+            <AnalysisQuestionsPanel
+              evidenceIndex={evidenceDrilldowns}
+              onEvidenceSelect={selectEvidenceDrilldown}
+              questions={aiQuestions}
+              showHeader={false}
+            />
+          </details>
         </div>
       ) : null}
       <AnalysisPassport
@@ -176,8 +193,8 @@ function AnalysisWorkflowPanel({ workflow = {}, draft, disabled = false, saving 
   return (
     <form className="analysis-workflow-panel" onSubmit={onSubmit}>
       <div className="analysis-saas-panel-head">
-        <span><CalendarDays size={15} /> Workflow ТЗ</span>
-        <strong>{workflow.status_label || workflow.status || 'analysis_ready'}</strong>
+        <span><CalendarDays size={15} /> Рабочий процесс ТЗ</span>
+        <strong>{workflow.status_label || workflowStatusLabel(workflow.status)}</strong>
       </div>
       <div className="analysis-workflow-steps">
         {statuses.map((status) => (
@@ -215,7 +232,7 @@ function AnalysisWorkflowPanel({ workflow = {}, draft, disabled = false, saving 
         <div className="analysis-workflow-journal">
           {journal.map((entry, index) => (
             <span key={`${entry.changed_at || index}-${entry.action || index}`}>
-              {entry.actor || 'operator'} · {entry.comment || entry.action}
+              {entry.actor || 'оператор'} · {entry.comment || entry.action}
             </span>
           ))}
         </div>
@@ -224,15 +241,17 @@ function AnalysisWorkflowPanel({ workflow = {}, draft, disabled = false, saving 
   )
 }
 
-function AnalysisQuestionsPanel({ questions = {}, evidenceIndex = {}, onEvidenceSelect }) {
+function AnalysisQuestionsPanel({ questions = {}, evidenceIndex = {}, onEvidenceSelect, showHeader = true }) {
   const items = Array.isArray(questions.items) ? questions.items : []
   if (!items.length) return null
   return (
     <section className="analysis-questions-panel">
-      <div className="analysis-saas-panel-head">
-        <span><HelpCircle size={15} /> AI-вопросы</span>
-        <strong>{items.length}</strong>
-      </div>
+      {showHeader && (
+        <div className="analysis-saas-panel-head">
+          <span><HelpCircle size={15} /> Контрольные вопросы</span>
+          <strong>{items.length}</strong>
+        </div>
+      )}
       <div className="analysis-questions-grid">
         {items.map((item) => (
           <article className={`analysis-question-card ${item.answer_status || 'not_found'}`} key={item.id || item.question}>
@@ -271,15 +290,17 @@ function QuestionSources({ sources, evidenceIndex = {}, onEvidenceSelect }) {
   )
 }
 
-function AnalysisPlaybooksPanel({ playbooks = {}, evidenceIndex = {}, onEvidenceSelect }) {
+function AnalysisPlaybooksPanel({ playbooks = {}, evidenceIndex = {}, onEvidenceSelect, showHeader = true }) {
   const items = Array.isArray(playbooks.items) ? playbooks.items : []
   if (!items.length) return null
   return (
     <section className="analysis-playbooks-panel">
-      <div className="analysis-saas-panel-head">
-        <span><BookOpenCheck size={15} /> Playbooks</span>
-        <strong>{items.length}</strong>
-      </div>
+      {showHeader && (
+        <div className="analysis-saas-panel-head">
+          <span><BookOpenCheck size={15} /> Подсказки оператора</span>
+          <strong>{items.length}</strong>
+        </div>
+      )}
       <div className="analysis-playbook-list">
         {items.map((item) => (
           <article className={`analysis-playbook-card severity-${item.severity || 'medium'}`} key={item.id || item.title}>
@@ -336,7 +357,7 @@ function AnalysisEvidenceDrilldownPanel({ evidenceIndex = {}, selectedEvidence }
         <div className="analysis-saas-panel-head">
           <span><FileSearch size={15} /> Источник</span>
         </div>
-        <p>Выберите факт, вопрос или playbook, чтобы увидеть фрагмент документа.</p>
+        <p>Выберите факт, вопрос или подсказку, чтобы увидеть фрагмент документа.</p>
       </aside>
     )
   }
@@ -344,6 +365,7 @@ function AnalysisEvidenceDrilldownPanel({ evidenceIndex = {}, selectedEvidence }
   const confidence = evidence.confidence_level && typeof evidence.confidence_level === 'object' ? evidence.confidence_level : {}
   const quality = evidence.evidence_quality && typeof evidence.evidence_quality === 'object' ? evidence.evidence_quality : {}
   const relatedFactIds = Array.isArray(evidence.related_fact_ids) ? evidence.related_fact_ids : []
+  const evidenceNotes = uniqueEvidenceNotes([sourceBinding.detail, quality.detail])
   return (
     <aside className="analysis-evidence-drilldown">
       <div className="analysis-saas-panel-head">
@@ -359,8 +381,9 @@ function AnalysisEvidenceDrilldownPanel({ evidenceIndex = {}, selectedEvidence }
         {confidence.label && <span className={`analysis-confidence-${confidence.level || 'medium'}`}>{confidence.label}</span>}
         {quality.label && <span className={`analysis-evidence-quality-${quality.level || 'context'}`}>{quality.label}</span>}
       </div>
-      {sourceBinding.detail && <p>{sourceBinding.detail}</p>}
-      {quality.detail && <p>{quality.detail}</p>}
+      {evidenceNotes.map((note) => (
+        <p key={note}>{note}</p>
+      ))}
       {evidence.fragment && (
         <blockquote className="analysis-evidence-fragment">
           {evidence.fragment}
@@ -400,6 +423,38 @@ function evidenceById(id, evidenceIndex = {}) {
 
 function evidenceIndexItems(evidenceIndex = {}) {
   return Array.isArray(evidenceIndex.items) ? evidenceIndex.items : []
+}
+
+function workflowStatusLabel(status) {
+  const labels = {
+    documents_not_downloaded: 'документы не скачаны',
+    text_extracted: 'текст извлечен',
+    analysis_ready: 'анализ готов',
+    operator_checked: 'оператор проверил',
+    has_blockers: 'есть блокеры',
+  }
+  return labels[status] || 'анализ готов'
+}
+
+function questionCount(questions = {}) {
+  return Array.isArray(questions.items) ? questions.items.length : 0
+}
+
+function playbookCount(playbooks = {}) {
+  return Array.isArray(playbooks.items) ? playbooks.items.length : 0
+}
+
+function uniqueEvidenceNotes(values) {
+  const seen = new Set()
+  return values
+    .map((value) => String(value || '').trim())
+    .filter((value) => {
+      if (!value) return false
+      const key = value.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
 }
 
 function workflowDraftFromContract(workflow = {}) {

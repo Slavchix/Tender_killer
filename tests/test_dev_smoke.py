@@ -110,6 +110,58 @@ def test_visual_smoke_script_covers_key_frontend_surfaces():
     assert "No tender rows available in the current dev database." in script
 
 
+def test_visual_smoke_script_supports_tz_scope_without_economics_workspace():
+    script = Path("scripts/visual-smoke.mjs").read_text(encoding="utf-8")
+
+    assert "--scope" in script
+    assert "VALID_SCOPES" in script
+    assert "scope: parsed.scope || 'full'" in script
+    assert "SURFACE_SCOPES" in script
+    assert "tz: ['dashboard', 'tender-list', 'analysis-workspace']" in script
+    assert "full: ['dashboard', 'tender-list', 'analysis-workspace', 'economics-workspace']" in script
+
+
+def test_visual_smoke_script_captures_browser_errors_and_strict_surface_selectors():
+    script = Path("scripts/visual-smoke.mjs").read_text(encoding="utf-8")
+
+    assert "const browserEvents = createBrowserEventLog()" in script
+    assert "Runtime.exceptionThrown" in script
+    assert "Log.entryAdded" in script
+    assert "browser_events" in script
+    assert "assertNoNewBrowserErrors" in script
+    assert "resetBrowserEvents" in script
+
+    assert "dashboard-queue-columns" in script
+    assert ".dashboard-queue-column" in script
+    assert ".dashboard-queue-items" in script
+    assert "tender-list-rows" in script
+    assert ".tender-row .row-insights" in script
+    assert "analysis-workspace-core" in script
+    assert ".analysis-decision-brief" in script
+    assert ".analysis-passport" in script
+
+
+def test_visual_smoke_script_waits_for_browser_exit_before_profile_cleanup():
+    script = Path("scripts/visual-smoke.mjs").read_text(encoding="utf-8")
+
+    assert "await stopBrowser(browser)" in script
+    assert "await removeUserDataDir(userDataDir)" in script
+    assert "function stopBrowser" in script
+    assert "function removeUserDataDir" in script
+    assert "EBUSY" in script
+    assert "EPERM" in script
+
+
+def test_visual_smoke_script_handles_empty_tender_list_and_benign_browser_noise():
+    script = Path("scripts/visual-smoke.mjs").read_text(encoding="utf-8")
+
+    assert "minHeight" in script
+    assert "minWidth" in script
+    assert "isIgnoredBrowserLogEntry" in script
+    assert "favicon.ico" in script
+    assert "entry.url" in script
+
+
 def test_check_dev_site_reports_missing_page_size_label():
     app_source = _workspace_tmp("missing-label") / "App.jsx"
     app_source.write_text(

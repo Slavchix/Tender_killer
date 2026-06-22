@@ -2263,7 +2263,7 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     assert "reportHref" in workspaces_source
     assert "documents={documentRecords}" in workspaces_source
     assert "analysis-action-row" in analysis_source
-    assert "Скачать Word" in analysis_source
+    assert "Скачать отчет" in analysis_source
     assert "Проанализировать" not in analysis_source
     assert "onClick={onAnalyze}" not in analysis_source
     assert "onDownload={onDownload}" in analysis_source

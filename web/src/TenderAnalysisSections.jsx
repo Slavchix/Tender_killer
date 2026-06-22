@@ -391,6 +391,7 @@ function AnalysisFactCard({ item, detailed = false, onEvidenceSelect, onFeedback
   const impact = cleanAnalysisText(item.impact)
   const weakReason = cleanAnalysisText(item.weak_reason)
   const compactSentence = compactAnalysisFactSentence(item, interpretation)
+  const sourceNotes = uniqueAnalysisTexts([sourceBinding.detail, confidenceLevel.detail, evidenceQuality.detail])
   const detailParts = [
     cleanAnalysisText(interpretation.found) ? ['Что найдено', cleanAnalysisText(interpretation.found)] : null,
     cleanAnalysisText(interpretation.meaning) || summary ? ['Что означает', cleanAnalysisText(interpretation.meaning) || summary] : null,
@@ -469,9 +470,9 @@ function AnalysisFactCard({ item, detailed = false, onEvidenceSelect, onFeedback
             <span className={`analysis-confidence-${confidenceLevel.level}`}>{confidenceLevel.label}</span>
             <span className={`analysis-evidence-quality-${evidenceQuality.level}`}>{evidenceQuality.label}</span>
           </div>
-          {sourceBinding.detail && <p>{sourceBinding.detail}</p>}
-          {confidenceLevel.detail && <p>{confidenceLevel.detail}</p>}
-          {evidenceQuality.detail && <p>{evidenceQuality.detail}</p>}
+          {sourceNotes.map((note) => (
+            <p key={note}>{note}</p>
+          ))}
           {item.source_context && <p>{item.source_context}</p>}
           {item.fragment && <p>{item.fragment}</p>}
         </details>
@@ -830,6 +831,19 @@ function meaningfulAnalysisTokens(label) {
 function cleanAnalysisText(value) {
   if (value === null || value === undefined) return ''
   return String(value).replace(/\s+/g, ' ').trim()
+}
+
+function uniqueAnalysisTexts(values) {
+  const seen = new Set()
+  return values
+    .map((value) => cleanAnalysisText(value))
+    .filter((value) => {
+      if (!value) return false
+      const key = normalizedAnalysisText(value)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
 }
 
 function normalizedAnalysisText(value) {
