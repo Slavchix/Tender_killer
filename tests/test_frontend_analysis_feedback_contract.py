@@ -13,6 +13,10 @@ TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src"
 TENDER_ANALYSIS_SECTIONS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisSections.jsx"
 )
+TENDER_ANALYSIS_PASSPORT_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisPassport.jsx"
+)
+STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css"
 
 
 def test_tender_analysis_renders_fact_feedback_controls():
@@ -106,3 +110,19 @@ def test_tender_analysis_history_exposes_change_details():
     assert "changes.condition_changes" in analysis_source
     assert "Документы" in analysis_source
     assert "Изменившиеся условия" in analysis_source
+
+
+def test_tender_analysis_passport_renders_v2_compact_block():
+    passport_source = TENDER_ANALYSIS_PASSPORT_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "passport.summary_block" in passport_source
+    assert "analysis-passport-compact" in passport_source
+    assert "analysis-passport-list" in passport_source
+    assert "Документы готовы/не готовы" in passport_source
+    assert "Ключевые условия" in passport_source
+    assert "Красные флаги" in passport_source
+    assert "Противоречия" in passport_source
+    assert "Ожидаемые условия не найдены" in passport_source
+    assert "Итог" in passport_source
+    assert "analysis-passport-compact" in styles_source

@@ -6,6 +6,9 @@ export function AnalysisPassport({ analysis, sections = [], selectedSection, onS
 
   const navSections = Array.isArray(sections) ? sections : []
   const navItems = navSections.map(passportSectionNavItem).filter(Boolean)
+  const summaryBlock = passport.summary_block && typeof passport.summary_block === 'object'
+    ? passport.summary_block
+    : null
 
   return (
     <section className="analysis-passport" aria-label="Паспорт ТЗ">
@@ -16,6 +19,17 @@ export function AnalysisPassport({ analysis, sections = [], selectedSection, onS
         </div>
         <strong>{analysisStatusLabel(passport.status || 'needs_review')}</strong>
       </div>
+      {summaryBlock && (
+        <div className="analysis-passport-compact" aria-label="Паспорт ТЗ v2">
+          <PassportSummaryRow label="Предмет" value={summaryBlock.subject} />
+          <PassportSummaryRow label="Документы готовы/не готовы" value={summaryBlock.documents} />
+          <PassportSummaryRow label="Ключевые условия" value={summaryBlock.key_conditions} />
+          <PassportSummaryRow label="Красные флаги" value={summaryBlock.red_flags} />
+          <PassportSummaryRow label="Противоречия" value={summaryBlock.conflicts} />
+          <PassportSummaryRow label="Ожидаемые условия не найдены" value={summaryBlock.expected_missing} />
+          <PassportSummaryRow label="Итог" value={summaryBlock.verdict} />
+        </div>
+      )}
       {navItems.length > 0 && (
         <div className="analysis-passport-nav">
           {navItems.map((item) => (
@@ -35,6 +49,32 @@ export function AnalysisPassport({ analysis, sections = [], selectedSection, onS
       )}
     </section>
   )
+}
+
+function PassportSummaryRow({ label, value }) {
+  const values = normalizePassportValues(value)
+  return (
+    <div className="analysis-passport-row">
+      <span>{label}</span>
+      {values.length > 1 ? (
+        <ul className="analysis-passport-list">
+          {values.slice(0, 5).map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <strong>{values[0] || 'нет'}</strong>
+      )}
+    </div>
+  )
+}
+
+function normalizePassportValues(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean)
+  }
+  const text = String(value || '').trim()
+  return text ? [text] : []
 }
 
 function passportSectionNavItem(section) {

@@ -36,6 +36,7 @@ def build_tender_report_docx(tender: dict[str, Any]) -> bytes:
         ),
         *_tender_decision_elements(tender.get("decision")),
         *_customer_eis_elements(tender),
+        *_analysis_management_brief_elements(analysis, documents),
         *_analysis_tz_passport_elements(analysis, documents),
         _p("Паспорт закупки", "heading"),
         _table(
@@ -387,6 +388,105 @@ def _analysis_decision_elements(analysis: dict[str, Any], documents: list[dict[s
     return elements
 
 
+def _analysis_management_brief_elements(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[DocxElement]:
+    if not isinstance(analysis, dict) or not analysis:
+        return []
+    passport = _analysis_tz_passport(analysis, documents)
+    if not isinstance(passport, dict):
+        return []
+    verdict = passport.get("verdict") if isinstance(passport.get("verdict"), dict) else {}
+    document_summary = passport.get("documents") if isinstance(passport.get("documents"), dict) else {}
+    rows = [
+        ["Решение по ТЗ", _value(verdict.get("label") or passport.get("title"))],
+        ["Паспорт ТЗ v2", _value(passport.get("subject"))],
+        ["Документы готовы/не готовы", _value(document_summary.get("label"), "не указано")],
+        ["Ключевые условия", _brief_list_value(passport.get("key_conditions"))],
+        ["Красные флаги", _brief_list_value(passport.get("red_flags"))],
+        ["Противоречия", _brief_list_value(passport.get("conflicts"))],
+        ["Ожидаемые условия не найдены", _brief_list_value(passport.get("expected_missing"))],
+    ]
+    elements: list[DocxElement] = [_p("Управленческий brief по ТЗ", "heading"), _table(rows, "analysis")]
+    action_rows = _analysis_brief_action_rows(analysis, documents)
+    if len(action_rows) > 1:
+        elements.extend([_p("Действия оператора", "heading2"), _table(action_rows, "analysis")])
+    source_rows = _analysis_brief_source_rows(analysis, documents)
+    if len(source_rows) > 1:
+        elements.extend([_p("Ссылки на источники", "heading2"), _table(source_rows, "analysis")])
+    change_rows = _analysis_brief_change_rows(analysis)
+    if len(change_rows) > 1:
+        elements.extend([_p("Что изменилось с прошлой версии", "heading2"), _table(change_rows, "analysis")])
+    return elements
+
+
+def _analysis_brief_action_rows(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[list[Any]]:
+    operator_view = _report_operator_view(analysis, documents)
+    rows: list[list[Any]] = [["Блок", "Что сделать", "Статус"]]
+    for step in operator_view.get("action_plan") or []:
+        if not isinstance(step, dict):
+            continue
+        rows.append(
+            [
+                _short_text(step.get("title") or step.get("id"), 90),
+                _short_text(step.get("next_step"), 220),
+                _short_text(step.get("status"), 80),
+            ]
+        )
+    return rows
+
+
+def _analysis_brief_source_rows(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[list[Any]]:
+    rows: list[list[Any]] = [["Источник", "Статус", "Ссылка"]]
+    for document in documents[:8]:
+        if not isinstance(document, dict):
+            continue
+        rows.append(
+            [
+                _short_text(document.get("name") or document.get("url"), 120),
+                _short_text(document.get("text_status") or document.get("document_type"), 90),
+                _short_text(document.get("url"), 220),
+            ]
+        )
+    if len(rows) > 1:
+        return rows
+    for item in _operator_items_by_section(_report_operator_view(analysis, documents), set(MAJOR_SECTION_IDS))[:8]:
+        source = _source_label_for_item(item)
+        if not source:
+            continue
+        rows.append([_short_text(source, 120), _short_text(item.get("label"), 120), _short_text(item.get("fragment"), 220)])
+    return rows
+
+
+def _analysis_brief_change_rows(analysis: dict[str, Any]) -> list[list[Any]]:
+    history = analysis.get("analysis_history") if isinstance(analysis, dict) else None
+    latest = history[0] if isinstance(history, list) and history and isinstance(history[0], dict) else {}
+    changes = latest.get("changes") if isinstance(latest.get("changes"), dict) else {}
+    rows: list[list[Any]] = [["Тип", "Детали"]]
+    if changes.get("summary"):
+        rows.append(["Итог", _short_text(changes.get("summary"), 220)])
+    documents = changes.get("documents") if isinstance(changes.get("documents"), dict) else {}
+    for label, key in (("Новые документы", "added"), ("Измененные документы", "changed"), ("Удаленные документы", "removed")):
+        values = _text_list(documents.get(key))
+        if values:
+            rows.append([label, _brief_list_value(values)])
+    condition_changes = changes.get("condition_changes")
+    if isinstance(condition_changes, list):
+        values = [
+            f"{_value(item.get('label'), '')}: {_value(item.get('change_type'), '')}"
+            for item in condition_changes
+            if isinstance(item, dict) and _value(item.get("label"), "")
+        ]
+        if values:
+            rows.append(["Изменившиеся условия", _brief_list_value(values)])
+    return rows
+
+
+def _brief_list_value(values: Any, *, fallback: str = "нет") -> str:
+    items = _text_list(values)
+    if not items:
+        return fallback
+    return "; ".join(items[:6]) + (f"; и еще {len(items) - 6}" if len(items) > 6 else "")
+
+
 def _customer_eis_elements(tender: dict[str, Any]) -> list[DocxElement]:
     risk_profile = tender.get("customer_risk_profile")
     eis_reference = tender.get("eis_reference")
@@ -673,6 +773,8 @@ def _analysis_tz_passport_elements(analysis: dict[str, Any], documents: list[dic
 
 def _analysis_tz_passport(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> dict[str, Any]:
     passport = analysis.get("tz_passport") if isinstance(analysis, dict) else None
+    if isinstance(passport, dict) and passport.get("version") in {1, 2} and passport.get("summary_block"):
+        return passport
     if isinstance(passport, dict) and passport.get("version") == 1:
         return passport
     return build_analysis_tz_passport(analysis, documents)

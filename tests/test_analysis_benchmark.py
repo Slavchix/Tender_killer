@@ -3,6 +3,9 @@ from __future__ import annotations
 import pytest
 
 from tender_killer.analysis import analyze_tender_texts
+from tender_killer.analysis_benchmark_service import REQUIRED_TZ_BENCHMARK_CATEGORIES
+from tender_killer.analysis_benchmark_service import score_tz_benchmark_case
+from tender_killer.analysis_benchmark_service import summarize_tz_benchmark_scores
 
 
 BENCHMARK_CASES = [
@@ -104,3 +107,70 @@ def test_analysis_benchmark_cases(case):
     assert case["expected_labels"] <= labels
     assert case["expected_terms"] <= terms
     assert labels.isdisjoint(case["absent_labels"])
+
+
+def test_tz_benchmark_scorer_tracks_fact_quality_conflicts_and_coverage():
+    case = {
+        "name": "advance_conflict",
+        "category": "conflicting_documents",
+        "expected_labels": ["Аванс", "условия оплаты"],
+        "expected_terms": ["advance_payment"],
+        "expected_conflicts": ["Аванс"],
+        "expected_missing": ["приемка и закрывающие документы"],
+        "absent_labels": ["лицензия/СРО"],
+    }
+    analysis = {
+        "requirements": ["условия оплаты"],
+        "risks": [],
+        "red_flags": [],
+        "execution_terms": [{"type": "advance_payment", "label": "Аванс"}],
+        "operator_view": {
+            "metrics": {"conflicts": 1, "expected_missing": 1},
+            "sections": [
+                {
+                    "id": "acceptance_payment",
+                    "items": [
+                        {
+                            "id": "advance",
+                            "label": "Аванс",
+                            "kind": "execution_term",
+                            "conflict_flags": ["Разные условия аванса"],
+                        },
+                        {
+                            "id": "expected:closing_documents",
+                            "label": "приемка и закрывающие документы",
+                            "kind": "expected_check",
+                            "expected_missing": True,
+                        },
+                    ],
+                }
+            ],
+        },
+    }
+
+    score = score_tz_benchmark_case(case, analysis)
+    summary = summarize_tz_benchmark_scores([score])
+
+    assert score["category"] == "conflicting_documents"
+    assert score["matched_labels"] == ["Аванс", "условия оплаты"]
+    assert score["missed_labels"] == []
+    assert score["matched_terms"] == ["advance_payment"]
+    assert score["matched_conflicts"] == ["Аванс"]
+    assert score["matched_expected_missing"] == ["приемка и закрывающие документы"]
+    assert score["false_positive_labels"] == []
+    assert score["recall"] == 1.0
+    assert score["precision"] == 1.0
+    assert score["manual_review_required"] is True
+    assert summary["target_case_count"] == {"min": 20, "max": 30}
+    assert "conflicting_documents" in summary["categories"]
+    assert set(REQUIRED_TZ_BENCHMARK_CATEGORIES) >= {
+        "small_supply",
+        "cartridges_paper",
+        "construction_materials",
+        "services",
+        "advance_payment",
+        "no_advance",
+        "conflicting_documents",
+        "poor_ocr",
+        "multiple_revisions",
+    }

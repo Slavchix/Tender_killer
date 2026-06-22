@@ -79,3 +79,81 @@ def test_build_analysis_tz_passport_returns_pending_four_block_contract_without_
         "acceptance_payment",
     ]
     assert passport["sections"][1]["items"][0]["label"] == "Документы для анализа"
+
+
+def test_build_analysis_tz_passport_exposes_compact_management_block():
+    analysis = {
+        "summary": "Поставка офисной бумаги",
+        "status": "needs_review",
+        "confidence": 0.81,
+        "analysis_facts": {
+            "version": 1,
+            "items": [
+                {
+                    "id": "subject:paper",
+                    "kind": "subject",
+                    "label": "Предмет",
+                    "value": "Поставка офисной бумаги",
+                    "category": "subject",
+                    "document_name": "ТЗ.docx",
+                    "fragment": "Поставка офисной бумаги",
+                },
+                {
+                    "id": "advance:no",
+                    "kind": "execution_term",
+                    "label": "Аванс",
+                    "value": "Аванс не предусмотрен.",
+                    "category": "financial",
+                    "document_name": "ТЗ.docx",
+                    "fragment": "Аванс не предусмотрен.",
+                },
+                {
+                    "id": "advance:yes",
+                    "kind": "execution_term",
+                    "label": "Аванс",
+                    "value": "Предусмотрен аванс 30 процентов.",
+                    "category": "financial",
+                    "document_name": "Проект контракта.docx",
+                    "fragment": "Предусмотрен аванс 30 процентов.",
+                },
+                {
+                    "id": "national-regime",
+                    "kind": "red_flag",
+                    "label": "Национальный режим",
+                    "value": "Применяется национальный режим.",
+                    "category": "national_regime",
+                    "severity": "high",
+                    "document_name": "ТЗ.docx",
+                    "fragment": "Применяется национальный режим.",
+                    "is_blocker": True,
+                },
+            ],
+        },
+    }
+    documents = [
+        {"name": "ТЗ.docx", "local_path": "tz.docx", "text_status": "ok"},
+        {"name": "Проект контракта.docx", "local_path": "contract.docx", "text_status": "ok"},
+    ]
+
+    passport = build_analysis_tz_passport(analysis, documents)
+
+    assert passport["version"] == 2
+    assert passport["subject"] == "Поставка офисной бумаги"
+    assert passport["documents"]["status"] == "ready"
+    assert passport["documents"]["label"] == "документы готовы"
+    assert passport["verdict"] == {
+        "code": "high_risk",
+        "label": "высокий риск",
+    }
+    assert any("национальный режим" in item for item in passport["red_flags"])
+    assert "Аванс" in passport["conflicts"]
+    assert "приемка и закрывающие документы" in passport["expected_missing"]
+    assert passport["summary_block"] == {
+        "subject": "Поставка офисной бумаги",
+        "documents": "документы готовы",
+        "key_conditions": passport["key_conditions"],
+        "red_flags": passport["red_flags"],
+        "conflicts": passport["conflicts"],
+        "expected_missing": passport["expected_missing"],
+        "verdict": "высокий риск",
+    }

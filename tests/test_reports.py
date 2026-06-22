@@ -171,7 +171,6 @@ def test_build_tender_report_docx_contains_key_sections():
     assert "Анализ ТЗ: 4 блока" in document_xml
     assert "Выжимка ТЗ" not in document_xml
     assert "Требования" not in document_xml
-    assert "Красные флаги" not in document_xml
     assert "Подтверждения из ТЗ" not in document_xml
 
 
@@ -236,7 +235,6 @@ def test_build_tender_report_docx_renders_analysis_decision_and_evidence():
     assert "Что означает" in document_xml
     assert "Что сделать" in document_xml
     assert "Выжимка ТЗ" not in document_xml
-    assert "Красные флаги" not in document_xml
     assert "Приложение: фрагменты извлеченного текста" not in document_xml
 
 
@@ -820,7 +818,6 @@ def test_build_tender_report_docx_keeps_word_report_compact():
     assert "Приложение: фрагменты извлеченного текста" not in document_xml
     assert "Очень длинный извлеченный текст" not in document_xml
     assert "Выжимка ТЗ" not in document_xml
-    assert "Красные флаги" not in document_xml
 
 
 def test_build_tender_report_docx_surfaces_financial_model_v1():
@@ -927,3 +924,103 @@ def test_build_tender_report_docx_uses_structured_interpretation_in_four_block_t
     assert "Оплата привязана к условиям документа" in document_xml
     assert "кассовый разрыв" in document_xml
     assert "Отдельно сверить УПД" in document_xml
+
+
+def test_build_tender_report_docx_renders_management_tz_brief_v2():
+    payload = {
+        "source": "mosreg_market",
+        "external_id": "brief-v2",
+        "url": "https://example.test/tender/brief-v2",
+        "title": "Поставка офисной бумаги",
+        "document_records": [
+            {"name": "ТЗ.docx", "local_path": "tz.docx", "text_status": "ok"},
+            {"name": "Проект контракта.docx", "local_path": "contract.docx", "text_status": "ok"},
+        ],
+        "analysis": {
+            "summary": "Поставка офисной бумаги",
+            "status": "needs_review",
+            "confidence": 0.82,
+            "analysis_facts": {
+                "version": 1,
+                "items": [
+                    {
+                        "id": "subject:paper",
+                        "kind": "subject",
+                        "label": "Предмет",
+                        "value": "Поставка офисной бумаги",
+                        "category": "subject",
+                        "document_name": "ТЗ.docx",
+                        "fragment": "Поставка офисной бумаги",
+                    },
+                    {
+                        "id": "payment",
+                        "kind": "execution_term",
+                        "label": "Оплата",
+                        "value": "Оплата в течение 15 рабочих дней после поставки товара.",
+                        "category": "payment",
+                        "document_name": "Проект контракта.docx",
+                        "fragment": "Оплата в течение 15 рабочих дней после поставки товара.",
+                    },
+                    {
+                        "id": "advance:no",
+                        "kind": "execution_term",
+                        "label": "Аванс",
+                        "value": "Аванс не предусмотрен.",
+                        "category": "financial",
+                        "document_name": "ТЗ.docx",
+                        "fragment": "Аванс не предусмотрен.",
+                    },
+                    {
+                        "id": "advance:yes",
+                        "kind": "execution_term",
+                        "label": "Аванс",
+                        "value": "Предусмотрен аванс 30 процентов.",
+                        "category": "financial",
+                        "document_name": "Проект контракта.docx",
+                        "fragment": "Предусмотрен аванс 30 процентов.",
+                    },
+                ],
+            },
+            "analysis_history": [
+                {
+                    "id": 2,
+                    "run_number": 2,
+                    "analyzed_at": "2026-06-22T10:10:00",
+                    "changes": {
+                        "summary": "Добавлено 1, удалено 0, изменено 1.",
+                        "documents": {
+                            "added": ["Проект контракта.docx"],
+                            "removed": [],
+                            "changed": ["ТЗ.docx"],
+                        },
+                        "condition_changes": [
+                            {
+                                "family": "payment",
+                                "label": "условия оплаты",
+                                "change_type": "changed",
+                                "before": "Оплата в течение 7 рабочих дней.",
+                                "after": "Оплата в течение 15 рабочих дней.",
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+    }
+
+    content = build_tender_report_docx(payload)
+    document_xml = _document_xml(content)
+
+    assert "Управленческий brief по ТЗ" in document_xml
+    assert "Решение по ТЗ" in document_xml
+    assert "Паспорт ТЗ v2" in document_xml
+    assert "Документы готовы/не готовы" in document_xml
+    assert "Ключевые условия" in document_xml
+    assert "Противоречия" in document_xml
+    assert "Ожидаемые условия не найдены" in document_xml
+    assert "Действия оператора" in document_xml
+    assert "Ссылки на источники" in document_xml
+    assert "Что изменилось с прошлой версии" in document_xml
+    assert "Аванс" in document_xml
+    assert "приемка и закрывающие документы" in document_xml
+    assert "Проект контракта.docx" in document_xml
