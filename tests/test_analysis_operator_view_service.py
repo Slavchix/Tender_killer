@@ -69,7 +69,10 @@ def test_build_analysis_operator_view_returns_only_four_major_blocks_from_legacy
     assert view["metrics"]["documents_total"] == 2
 
     sections = {section["id"]: section for section in view["sections"]}
-    assert {item["label"] for item in sections["decision_risks"]["items"]} == {
+    found_decision_labels = {item["label"] for item in sections["decision_risks"]["items"] if not item.get("expected_missing")}
+    found_fulfillment_labels = [item["label"] for item in sections["fulfillment_terms"]["items"] if not item.get("expected_missing")]
+    found_acceptance_labels = [item["label"] for item in sections["acceptance_payment"]["items"] if not item.get("expected_missing")]
+    assert found_decision_labels == {
         "contract security",
         "short delivery",
     }
@@ -78,8 +81,8 @@ def test_build_analysis_operator_view_returns_only_four_major_blocks_from_legacy
         "certificate",
         "Документы для анализа",
     }
-    assert [item["label"] for item in sections["fulfillment_terms"]["items"]] == ["Срок поставки"]
-    assert [item["label"] for item in sections["acceptance_payment"]["items"]] == ["Оплата"]
+    assert found_fulfillment_labels == ["Срок поставки"]
+    assert found_acceptance_labels == ["Оплата"]
 
 
 def test_build_analysis_operator_view_groups_analysis_facts_into_four_operator_blocks():
@@ -344,14 +347,20 @@ def test_build_analysis_operator_view_dedupes_semantic_risks_and_adds_operator_c
         ],
     )
     sections = {section["id"]: section for section in view["sections"]}
-    risk_labels = [item["label"] for item in sections["decision_risks"]["items"]]
+    risk_items = [item for item in sections["decision_risks"]["items"] if not item.get("expected_missing")]
+    risk_labels = [item["label"] for item in risk_items]
     document_items = [item for item in sections["product_compliance"]["items"] if item["type"] == "document_summary"]
+    product_items = [
+        item
+        for item in sections["product_compliance"]["items"]
+        if item["type"] != "document_summary" and not item.get("expected_missing")
+    ]
 
     assert risk_labels == ["лицензия/СРО", "национальный режим/страна происхождения"]
-    assert sections["decision_risks"]["items"][0]["description"] != sections["decision_risks"]["items"][0]["label"]
-    assert "участ" in sections["decision_risks"]["items"][0]["description"].casefold()
-    assert "СРО" in sections["decision_risks"]["items"][0]["operator_action"]
-    assert sections["product_compliance"]["count"] == 0
+    assert risk_items[0]["description"] != risk_items[0]["label"]
+    assert "участ" in risk_items[0]["description"].casefold()
+    assert "СРО" in risk_items[0]["operator_action"]
+    assert product_items == []
     assert len(document_items) == 1
     assert document_items[0]["label"] == "Документы для анализа"
     assert "2 файла" in document_items[0]["description"]
@@ -552,7 +561,7 @@ def test_build_analysis_operator_view_marks_conflicting_conditions_for_manual_re
     )
 
     sections = {section["id"]: section for section in view["sections"]}
-    items = sections["acceptance_payment"]["items"]
+    items = [item for item in sections["acceptance_payment"]["items"] if item.get("conflict_flags")]
 
     assert len(items) == 2
     assert all(item["conflict_flags"] for item in items)
@@ -592,3 +601,156 @@ def test_build_analysis_operator_view_adds_expected_missing_checks_from_context(
     assert expected_item["display_tier"] == "expected_missing"
     assert expected_item["interpretation"]["confidence"] == "missing"
     assert "точная формулировка" in expected_item["operator_check"].casefold()
+
+
+def test_build_analysis_operator_view_adds_full_expected_missing_matrix_without_hiding_present_families():
+    view = build_analysis_operator_view(
+        {
+            "summary": "Поставка бумаги",
+            "analysis_facts": {
+                "version": 1,
+                "items": [
+                    {
+                        "kind": "execution_term",
+                        "label": "Оплата",
+                        "value": "Оплата производится в течение 7 рабочих дней.",
+                        "category": "payment",
+                        "severity": "medium",
+                        "document_name": "Контракт.docx",
+                        "fragment": "Оплата производится в течение 7 рабочих дней.",
+                    }
+                ],
+            },
+        },
+        [{"name": "Контракт.docx", "local_path": "contract.docx", "text_status": "ok"}],
+    )
+
+    sections = {section["id"]: section for section in view["sections"]}
+    labels_by_section = {
+        section_id: [item["label"] for item in section["items"] if item.get("expected_missing")]
+        for section_id, section in sections.items()
+    }
+
+    assert "условия оплаты" not in labels_by_section["acceptance_payment"]
+    assert "приемка и закрывающие документы" in labels_by_section["acceptance_payment"]
+    assert "аванс" in labels_by_section["acceptance_payment"]
+    assert "срок поставки" in labels_by_section["fulfillment_terms"]
+    assert "место поставки" in labels_by_section["fulfillment_terms"]
+    assert "обеспечение заявки" in labels_by_section["decision_risks"]
+    assert "обеспечение исполнения контракта" in labels_by_section["decision_risks"]
+    assert "гарантия" in labels_by_section["fulfillment_terms"]
+    assert "штрафы и пени" in labels_by_section["decision_risks"]
+    assert "национальный режим/страна происхождения" in labels_by_section["decision_risks"]
+    assert "сертификаты и декларации" in labels_by_section["product_compliance"]
+    assert "лицензии или СРО" in labels_by_section["product_compliance"]
+    assert "упаковка и маркировка" in labels_by_section["product_compliance"]
+    assert view["metrics"]["expected_missing"] >= 12
+
+
+def test_build_analysis_operator_view_marks_numeric_term_conflicts_for_manual_review():
+    view = build_analysis_operator_view(
+        {
+            "summary": "Поставка бумаги",
+            "analysis_facts": {
+                "version": 1,
+                "items": [
+                    {
+                        "kind": "execution_term",
+                        "label": "Срок поставки",
+                        "value": "Поставка товара в течение 5 рабочих дней.",
+                        "category": "delivery",
+                        "severity": "medium",
+                        "document_name": "ТЗ.docx",
+                        "fragment": "Поставка товара в течение 5 рабочих дней.",
+                    },
+                    {
+                        "kind": "execution_term",
+                        "label": "Срок поставки",
+                        "value": "Поставка товара в течение 20 рабочих дней.",
+                        "category": "delivery",
+                        "severity": "medium",
+                        "document_name": "Контракт.docx",
+                        "fragment": "Поставка товара в течение 20 рабочих дней.",
+                    },
+                    {
+                        "kind": "execution_term",
+                        "label": "Обеспечение контракта",
+                        "value": "Обеспечение исполнения контракта 5%.",
+                        "category": "contract",
+                        "severity": "medium",
+                        "document_name": "Извещение.docx",
+                        "fragment": "Обеспечение исполнения контракта 5%.",
+                    },
+                    {
+                        "kind": "execution_term",
+                        "label": "Обеспечение контракта",
+                        "value": "Обеспечение исполнения контракта составляет 30%.",
+                        "category": "contract",
+                        "severity": "medium",
+                        "document_name": "Контракт.docx",
+                        "fragment": "Обеспечение исполнения контракта составляет 30%.",
+                    },
+                ],
+            },
+        },
+        [{"name": "ТЗ.docx", "local_path": "tz.docx", "text_status": "ok"}],
+    )
+
+    sections = {section["id"]: section for section in view["sections"]}
+    conflicted = [
+        item
+        for section in sections.values()
+        for item in section["items"]
+        if item.get("conflict_flags")
+    ]
+
+    assert {item["label"] for item in conflicted} == {"Срок поставки", "обеспечение исполнения контракта"}
+    assert all(item["evidence_quality"]["level"] == "conflict" for item in conflicted)
+    assert view["metrics"]["conflicts"] == 4
+
+
+def test_build_analysis_operator_view_exposes_evidence_quality_for_exact_missing_and_inferred_facts():
+    view = build_analysis_operator_view(
+        {
+            "summary": "Поставка бумаги",
+            "analysis_facts": {
+                "version": 1,
+                "items": [
+                    {
+                        "kind": "requirement",
+                        "label": "сертификат/декларация",
+                        "value": "Поставщик предоставляет декларацию соответствия.",
+                        "category": "documents",
+                        "severity": "medium",
+                        "document_name": "ТЗ.docx",
+                        "fragment": "Поставщик предоставляет декларацию соответствия.",
+                        "source_context": "Поставщик предоставляет декларацию соответствия на товар.",
+                    },
+                        {
+                            "kind": "risk",
+                            "label": "неясная приемка",
+                            "value": "Неясная приемка требует уточнения.",
+                            "category": "acceptance",
+                            "severity": "medium",
+                        },
+                ],
+            },
+        },
+        [{"name": "ТЗ.docx", "local_path": "tz.docx", "text_status": "ok"}],
+    )
+
+    items = [
+        item
+        for section in view["sections"]
+        for item in section["items"]
+        if item.get("label") in {"сертификат/декларация", "неясная приемка", "условия оплаты"}
+    ]
+    by_label = {item["label"]: item for item in items}
+
+    assert by_label["сертификат/декларация"]["evidence_quality"] == {
+        "level": "exact",
+        "label": "точное доказательство",
+        "detail": "Есть документ, фрагмент и контекст источника.",
+    }
+    assert by_label["неясная приемка"]["evidence_quality"]["level"] == "inferred"
+    assert by_label["условия оплаты"]["evidence_quality"]["level"] == "missing"

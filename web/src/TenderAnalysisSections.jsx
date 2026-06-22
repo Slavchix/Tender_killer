@@ -377,6 +377,7 @@ function AnalysisFactCard({ item, detailed = false, onFeedback, savingFeedbackId
   const sourceLabel = item.source_label || item.source
   const sourceBinding = analysisSourceBinding(item)
   const confidenceLevel = analysisConfidenceLevel(item)
+  const evidenceQuality = analysisEvidenceQuality(item)
   const interpretation = item.interpretation && typeof item.interpretation === 'object' ? item.interpretation : {}
   const summary = cleanAnalysisText(item.operator_summary) || cleanAnalysisText(item.description)
   const operatorCheck = cleanAnalysisText(item.operator_check) || cleanAnalysisText(item.operator_action)
@@ -389,7 +390,7 @@ function AnalysisFactCard({ item, detailed = false, onFeedback, savingFeedbackId
     cleanAnalysisText(interpretation.impact) || impact ? ['Влияние', cleanAnalysisText(interpretation.impact) || impact] : null,
     cleanAnalysisText(interpretation.action) || operatorCheck ? ['Что сделать', cleanAnalysisText(interpretation.action) || operatorCheck] : null,
   ].filter(Boolean)
-  const sourceDetail = Boolean(sourceLabel || sourceBinding.detail || confidenceLevel.detail || item.source_context || item.fragment)
+  const sourceDetail = Boolean(sourceLabel || sourceBinding.detail || confidenceLevel.detail || evidenceQuality.detail || item.source_context || item.fragment)
   return (
     <article className={`analysis-checklist-row severity-${item.severity || 'medium'} feedback-${item.feedback_state || 'none'}${weak ? ' weak' : ''}`}>
       <div className="analysis-checklist-main">
@@ -436,9 +437,11 @@ function AnalysisFactCard({ item, detailed = false, onFeedback, savingFeedbackId
           <div className="analysis-source-meta">
             <span className={`analysis-source-binding-${sourceBinding.level}`}>{sourceBinding.label}</span>
             <span className={`analysis-confidence-${confidenceLevel.level}`}>{confidenceLevel.label}</span>
+            <span className={`analysis-evidence-quality-${evidenceQuality.level}`}>{evidenceQuality.label}</span>
           </div>
           {sourceBinding.detail && <p>{sourceBinding.detail}</p>}
           {confidenceLevel.detail && <p>{confidenceLevel.detail}</p>}
+          {evidenceQuality.detail && <p>{evidenceQuality.detail}</p>}
           {item.source_context && <p>{item.source_context}</p>}
           {item.fragment && <p>{item.fragment}</p>}
         </details>
@@ -539,6 +542,34 @@ function confidenceLevelLabel(level) {
   if (level === 'high') return 'уверенность высокая'
   if (level === 'low') return 'уверенность низкая'
   return 'уверенность средняя'
+}
+
+function analysisEvidenceQuality(item) {
+  const quality = item?.evidence_quality && typeof item.evidence_quality === 'object' ? item.evidence_quality : {}
+  const level = cleanAnalysisText(quality.level) || fallbackEvidenceQualityLevel(item)
+  return {
+    level,
+    label: cleanAnalysisText(quality.label) || evidenceQualityLabel(level),
+    detail: cleanAnalysisText(quality.detail),
+  }
+}
+
+function fallbackEvidenceQualityLevel(item) {
+  if (item?.conflict_flags?.length) return 'conflict'
+  if (item?.expected_missing) return 'missing'
+  const sourceBinding = analysisSourceBinding(item)
+  const confidenceLevel = analysisConfidenceLevel(item)
+  if (sourceBinding.level === 'explicit' && confidenceLevel.level === 'high') return 'exact'
+  if (sourceBinding.level === 'explicit' || sourceBinding.level === 'context') return 'context'
+  return 'inferred'
+}
+
+function evidenceQualityLabel(level) {
+  if (level === 'exact') return 'точное доказательство'
+  if (level === 'context') return 'контекст источника'
+  if (level === 'conflict') return 'противоречие'
+  if (level === 'missing') return 'не найдено'
+  return 'вывод без источника'
 }
 
 function DocumentSummaryItem({ item }) {

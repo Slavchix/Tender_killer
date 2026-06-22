@@ -7,10 +7,104 @@ from tender_killer.analysis_interpretation_service import build_fact_interpretat
 
 
 BLOCKER_CATEGORIES = {"legal", "national_regime"}
+DECISION_RISK_CATEGORIES = BLOCKER_CATEGORIES | {"security", "penalty", "restriction"}
 DOCUMENT_CATEGORIES = {"documents", "standards", "qualification", "subject"}
 FULFILLMENT_CATEGORIES = {"contract", "delivery"}
 ACCEPTANCE_PAYMENT_CATEGORIES = {"acceptance", "financial", "payment"}
 PRICE_FACTOR_CATEGORIES = ACCEPTANCE_PAYMENT_CATEGORIES | FULFILLMENT_CATEGORIES | {"standards"}
+
+EXPECTED_TZ_CHECKS: tuple[dict[str, str], ...] = (
+    {
+        "family": "payment",
+        "label": "условия оплаты",
+        "category": "payment",
+        "action": "Проверить срок оплаты, дату начала отсчета и документы для оплаты.",
+    },
+    {
+        "family": "advance",
+        "label": "аванс",
+        "category": "financial",
+        "action": "Проверить, предусмотрен ли аванс, его размер и условия выплаты.",
+    },
+    {
+        "family": "closing_documents",
+        "label": "приемка и закрывающие документы",
+        "category": "acceptance",
+        "action": "Проверить порядок приемки, УПД, акты, накладные и условия запуска оплаты.",
+    },
+    {
+        "family": "delivery_deadline",
+        "label": "срок поставки",
+        "category": "delivery",
+        "action": "Проверить срок поставки и дату начала отсчета срока.",
+    },
+    {
+        "family": "delivery_place",
+        "label": "место поставки",
+        "category": "delivery",
+        "action": "Проверить адрес, регион и условия передачи товара заказчику.",
+    },
+    {
+        "family": "bid_security",
+        "label": "обеспечение заявки",
+        "category": "security",
+        "action": "Проверить размер, форму и срок действия обеспечения заявки.",
+    },
+    {
+        "family": "contract_security",
+        "label": "обеспечение контракта",
+        "category": "security",
+        "action": "Проверить размер, форму и срок действия обеспечения исполнения контракта.",
+    },
+    {
+        "family": "warranty",
+        "label": "гарантия",
+        "category": "contract",
+        "action": "Проверить гарантийный срок, порядок замены брака и документы по гарантии.",
+    },
+    {
+        "family": "penalty",
+        "label": "штрафы и пени",
+        "category": "penalty",
+        "action": "Проверить штрафы, пени и риск санкций за просрочку или ненадлежащее исполнение.",
+    },
+    {
+        "family": "national_regime",
+        "label": "национальный режим",
+        "category": "national_regime",
+        "action": "Проверить ограничения, запреты, преимущества и подтверждение страны происхождения.",
+    },
+    {
+        "family": "certificate_documents",
+        "label": "сертификаты и декларации",
+        "category": "documents",
+        "action": "Проверить сертификаты, декларации, паспорта качества и регистрационные документы.",
+    },
+    {
+        "family": "license_sro",
+        "label": "лицензии или СРО",
+        "category": "qualification",
+        "action": "Проверить, требуется ли лицензия, СРО или иное квалификационное подтверждение.",
+    },
+    {
+        "family": "packaging_marking",
+        "label": "упаковка и маркировка",
+        "category": "standards",
+        "action": "Проверить требования к упаковке, маркировке, ярлыкам и сопроводительным знакам.",
+    },
+    {
+        "family": "termination",
+        "label": "условия расторжения",
+        "category": "contract",
+        "action": "Проверить основания расторжения, односторонний отказ и последствия для поставщика.",
+    },
+    {
+        "family": "participant_restrictions",
+        "label": "ограничения по участникам",
+        "category": "restriction",
+        "action": "Проверить СМП, преимущества, запреты, ограничения допуска и специальные требования к участнику.",
+    },
+)
 
 MAJOR_SECTION_DEFINITIONS: tuple[dict[str, str], ...] = (
     {
@@ -129,7 +223,7 @@ def _major_section_for_item(item: dict[str, Any]) -> str:
     category = str(item.get("category") or "")
     if item.get("is_blocker") or kind in {"blocker", "red_flag", "risk"}:
         return "decision_risks"
-    if category in BLOCKER_CATEGORIES:
+    if category in DECISION_RISK_CATEGORIES:
         return "decision_risks"
     if category in ACCEPTANCE_PAYMENT_CATEGORIES:
         return "acceptance_payment"
@@ -320,36 +414,50 @@ def _fact_items(value: Any) -> list[dict[str, Any]]:
     for index, raw_item in enumerate(value if isinstance(value, list) else []):
         if isinstance(raw_item, dict) and raw_item.get("label"):
             items.append(_operator_item(raw_item, index))
-    return _dedupe_items(items)
+    return items
 
 
 def _annotate_conflicts(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     polarity_by_family: dict[str, set[str]] = {}
+    measure_by_family: dict[str, set[str]] = {}
     for item in items:
         family, polarity = _condition_family_and_polarity(item)
         if family and polarity:
             polarity_by_family.setdefault(family, set()).add(polarity)
+        measure_family, measure = _condition_family_and_measure(item)
+        if measure_family and measure:
+            measure_by_family.setdefault(measure_family, set()).add(measure)
 
-    conflicted = {
+    polarity_conflicts = {
         family
         for family, polarities in polarity_by_family.items()
         if "positive" in polarities and "negative" in polarities
     }
+    measure_conflicts = {family for family, measures in measure_by_family.items() if len(measures) > 1}
+    conflicted = polarity_conflicts | measure_conflicts
     if not conflicted:
         return items
 
     annotated: list[dict[str, Any]] = []
     for item in items:
         family, polarity = _condition_family_and_polarity(item)
-        if family not in conflicted or not polarity:
+        measure_family, measure = _condition_family_and_measure(item)
+        flags: list[str] = []
+        if family in polarity_conflicts and polarity:
+            flags.append(
+                "В документах есть взаимоисключающие формулировки: условие одновременно найдено как применимое и как отсутствующее."
+            )
+        if measure_family in measure_conflicts and measure:
+            flags.append("В документах есть разные числовые значения одного условия; нужно выбрать применимую редакцию.")
+        if not flags:
             annotated.append(item)
             continue
-        flag = "В документах есть взаимоисключающие формулировки: условие одновременно найдено как применимое и как отсутствующее."
         updated = {
             **item,
             "needs_review": True,
-            "conflict_flags": [flag],
-            "operator_check": f"Разобрать противоречие по условию «{item['label']}»: {flag}",
+            "conflict_flags": flags,
+            "evidence_quality": _conflict_evidence_quality(flags),
+            "operator_check": f"Разобрать противоречие по условию «{item['label']}»: {'; '.join(flags)}",
         }
         annotated.append(updated)
     return annotated
@@ -362,20 +470,12 @@ def _add_expected_missing_checks(
 ) -> list[dict[str, Any]]:
     if not documents or _document_state(documents).get("text_ready", 0) == 0:
         return items
-    if any(_major_section_for_item(item) == "acceptance_payment" for item in items):
-        return items
-    present = {_expected_family(item) for item in items}
+    present: set[str] = set()
+    for item in items:
+        present.update(_expected_families(item))
     additions: list[dict[str, Any]] = []
-    expected_specs = (
-        ("payment", "условия оплаты", "payment", "Проверить срок оплаты, дату начала отсчета и документы для оплаты."),
-        (
-            "closing_documents",
-            "приемка и закрывающие документы",
-            "acceptance",
-            "Проверить порядок приемки, УПД, акты, накладные и условия запуска оплаты.",
-        ),
-    )
-    for family, label, category, action in expected_specs:
+    for spec in EXPECTED_TZ_CHECKS:
+        family = spec["family"]
         if family in present:
             continue
         additions.append(
@@ -383,11 +483,11 @@ def _add_expected_missing_checks(
                 {
                     "id": f"expected:{family}",
                     "kind": "expected_check",
-                    "label": label,
-                    "category": category,
+                    "label": spec["label"],
+                    "category": spec["category"],
                     "severity": "medium",
                     "source": "Ожидаемая проверка",
-                    "operator_action": action,
+                    "operator_action": spec["action"],
                     "expected_missing": True,
                     "needs_review": True,
                     "priority": 30,
@@ -413,13 +513,87 @@ def _condition_family_and_polarity(item: dict[str, Any]) -> tuple[str, str]:
     return "", ""
 
 
-def _expected_family(item: dict[str, Any]) -> str:
+def _condition_family_and_measure(item: dict[str, Any]) -> tuple[str, str]:
+    text = _dedupe_text(" ".join(_text(item.get(key)) for key in ("label", "category", "value", "fragment", "source_context")))
+    category = _text(item.get("category"))
+    percent = _first_percent_measure(text)
+    days = _first_day_measure(text)
+    if days and (category == "delivery" or any(marker in text for marker in ("срок постав", "срок исполн", "поставка в течение"))):
+        return "delivery_deadline", f"days:{days}"
+    if days and "оплат" in text:
+        return "payment_deadline", f"days:{days}"
+    if days and any(marker in text for marker in ("приемк", "приёмк", "прием", "приём")):
+        return "acceptance_deadline", f"days:{days}"
+    if percent and "обеспеч" in text and "заяв" in text:
+        return "bid_security", f"percent:{percent}"
+    if percent and "обеспеч" in text and any(marker in text for marker in ("контракт", "исполн")):
+        return "contract_security", f"percent:{percent}"
+    if percent and "аванс" in text:
+        return "advance", f"percent:{percent}"
+    return "", ""
+
+
+def _first_day_measure(text: str) -> str:
+    match = re.search(r"\b(\d+(?:[,.]\d+)?)\s*(?:рабоч\w+\s*)?(?:календар\w+\s*)?(?:дн|день|дня|дней)", text)
+    return _normalized_measure(match.group(1)) if match else ""
+
+
+def _first_percent_measure(text: str) -> str:
+    match = re.search(r"\b(\d+(?:[,.]\d+)?)\s*%", text)
+    return _normalized_measure(match.group(1)) if match else ""
+
+
+def _normalized_measure(value: str) -> str:
+    normalized = value.replace(",", ".")
+    number = float(normalized)
+    if number.is_integer():
+        return str(int(number))
+    return str(number)
+
+
+def _conflict_evidence_quality(flags: list[str]) -> dict[str, str]:
+    return {
+        "level": "conflict",
+        "label": "противоречие",
+        "detail": " ".join(flags),
+    }
+
+
+def _expected_families(item: dict[str, Any]) -> set[str]:
     text = _dedupe_text(" ".join(_text(item.get(key)) for key in ("label", "category", "value", "fragment")))
-    if "оплат" in text or "аванс" in text:
-        return "payment"
+    category = _text(item.get("category"))
+    families: set[str] = set()
+    if "оплат" in text:
+        families.add("payment")
+    if "аванс" in text:
+        families.add("advance")
     if any(marker in text for marker in ("упд", "закрывающ", "накладн", "акт прием", "акт приём", "приемк", "приёмк")):
-        return "closing_documents"
-    return ""
+        families.add("closing_documents")
+    if category == "delivery" or any(marker in text for marker in ("срок постав", "срок исполн", "поставка в течение")):
+        families.add("delivery_deadline")
+    if any(marker in text for marker in ("место постав", "адрес постав", "пункт постав", "регион постав")):
+        families.add("delivery_place")
+    if "обеспеч" in text and "заяв" in text:
+        families.add("bid_security")
+    if "обеспеч" in text and any(marker in text for marker in ("контракт", "исполн")):
+        families.add("contract_security")
+    if any(marker in text for marker in ("гарант", "замена брака", "ремонт")):
+        families.add("warranty")
+    if any(marker in text for marker in ("штраф", "пен", "неустой")):
+        families.add("penalty")
+    if category == "national_regime" or any(marker in text for marker in ("национальн", "страна происхожд", "страны происхожд", "1875")):
+        families.add("national_regime")
+    if any(marker in text for marker in ("сертифик", "деклараци", "паспорт качества", "регистрацион", "сгр")):
+        families.add("certificate_documents")
+    if any(marker in text for marker in ("лиценз", "сро", "саморегулируем")):
+        families.add("license_sro")
+    if any(marker in text for marker in ("упаков", "маркиров", "ярлык", "этикет")):
+        families.add("packaging_marking")
+    if any(marker in text for marker in ("расторж", "односторонн", "отказ от исполн")):
+        families.add("termination")
+    if any(marker in text for marker in ("смп", "сонко", "ограничен", "преимуществ", "участник")):
+        families.add("participant_restrictions")
+    return families
 
 
 def _legacy_fact_items(analysis: dict[str, Any]) -> list[dict[str, Any]]:
@@ -546,6 +720,12 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         fragment=fragment,
         source_context=source_context,
     )
+    evidence_quality = _operator_evidence_quality(
+        source_binding=source_binding,
+        confidence_level=confidence_level,
+        conflict_flags=conflict_flags,
+        expected_missing=expected_missing,
+    )
     operator_action = _operator_action(
         kind,
         category,
@@ -637,6 +817,7 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         "fragment": fragment,
         "source_binding": source_binding,
         "confidence_level": confidence_level,
+        "evidence_quality": evidence_quality,
         "impact": impact,
         "document_role": _text(raw_item.get("document_role")),
         "document_stage": _text(raw_item.get("document_stage")),
@@ -744,6 +925,42 @@ def _operator_confidence_level(
         "level": "low",
         "label": "уверенность низкая",
         "detail": "Вывод сделан без точного источника.",
+    }
+
+
+def _operator_evidence_quality(
+    *,
+    source_binding: dict[str, str],
+    confidence_level: dict[str, str],
+    conflict_flags: list[str],
+    expected_missing: bool,
+) -> dict[str, str]:
+    if conflict_flags:
+        return _conflict_evidence_quality(conflict_flags)
+    if expected_missing:
+        return {
+            "level": "missing",
+            "label": "не найдено",
+            "detail": "Точная формулировка не найдена в извлеченном тексте документов.",
+        }
+    binding_level = source_binding.get("level")
+    confidence = confidence_level.get("level")
+    if binding_level == "explicit" and confidence == "high":
+        return {
+            "level": "exact",
+            "label": "точное доказательство",
+            "detail": "Есть документ, фрагмент и контекст источника.",
+        }
+    if binding_level in {"explicit", "context"}:
+        return {
+            "level": "context",
+            "label": "контекст источника",
+            "detail": source_binding.get("detail") or "Факт связан с документом или контекстом и требует быстрой сверки.",
+        }
+    return {
+        "level": "inferred",
+        "label": "вывод без точного источника",
+        "detail": source_binding.get("detail") or "Факт получен без точной документальной привязки.",
     }
 
 
@@ -1200,12 +1417,16 @@ def _dedupe_key(item: dict[str, Any]) -> tuple[str, str, str]:
     kind = _text(item.get("kind") or item.get("type"))
     if kind in {"document", "document_summary", "subject"}:
         return (kind, _dedupe_text(item.get("id") or item.get("label")), "")
-    family = _semantic_family(_text(item.get("label")), _text(item.get("category")))
+    label = _text(item.get("label"))
+    category = _text(item.get("category"))
+    family = _semantic_family(label, category)
+    if item.get("conflict_flags"):
+        return ("conflict", family or _dedupe_text(label), _dedupe_text(item.get("fragment") or item.get("value") or item.get("source_context")))
     if family:
         return ("semantic", family, "")
     return (
         kind,
-        _dedupe_text(item.get("label")),
+        _dedupe_text(label),
         "" if _operator_item_quality(item) <= 0 else _dedupe_text(item.get("fragment") or item.get("value")),
     )
 
@@ -1380,7 +1601,10 @@ def _semantic_family(label: str, category: str) -> str:
         return "national_regime"
     if category == "legal" and any(marker in text for marker in ("сро", "лиценз", "саморегулируем")):
         return "license_sro"
-    if category == "financial" and any(marker in text for marker in ("обеспечение исполнения", "независим", "гарант")):
+    if category in {"financial", "contract", "security"} and (
+        any(marker in text for marker in ("обеспечение контракт", "обеспечение исполнения"))
+        or ("независим" in text and "гарант" in text)
+    ):
         return "contract_security"
     if any(marker in text for marker in ("монтаж", "пусконалад", "ввод в эксплуатац", "обучение", "инструктаж")):
         return "montage_launch"

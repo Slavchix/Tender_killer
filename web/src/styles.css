@@ -3518,14 +3518,16 @@ textarea:focus {
 }
 
 .analysis-source-binding-explicit,
-.analysis-confidence-high {
+.analysis-confidence-high,
+.analysis-evidence-quality-exact {
   color: var(--color-success) !important;
   background: var(--color-success-soft);
   border-color: var(--color-success) !important;
 }
 
 .analysis-source-binding-context,
-.analysis-confidence-medium {
+.analysis-confidence-medium,
+.analysis-evidence-quality-context {
   color: var(--color-warning) !important;
   background: var(--color-warning-soft);
   border-color: var(--color-warning) !important;
@@ -3533,7 +3535,10 @@ textarea:focus {
 
 .analysis-source-binding-unbound,
 .analysis-source-binding-inferred,
-.analysis-confidence-low {
+.analysis-confidence-low,
+.analysis-evidence-quality-inferred,
+.analysis-evidence-quality-conflict,
+.analysis-evidence-quality-missing {
   color: var(--color-danger) !important;
   background: var(--color-danger-soft);
   border-color: var(--color-danger) !important;

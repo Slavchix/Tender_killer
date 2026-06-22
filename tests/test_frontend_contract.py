@@ -2334,8 +2334,11 @@ def test_analysis_documents_render_structured_evidence_model():
     assert "analysis-source-meta" in sections_source
     assert "analysisSourceBinding(item)" in sections_source
     assert "analysisConfidenceLevel(item)" in sections_source
+    assert "analysisEvidenceQuality(item)" in sections_source
     assert "source_binding" in sections_source
     assert "confidence_level" in sections_source
+    assert "evidence_quality" in sections_source
+    assert "analysis-evidence-quality-" in sections_source
     assert "analysis-evidence-item" in evidence_source
     assert "item.fragment" in sections_source
     assert "item.typeLabel" in evidence_source
@@ -2356,6 +2359,8 @@ def test_analysis_documents_render_structured_evidence_model():
     assert ".analysis-evidence-impact" in styles_source
     assert ".analysis-source-meta" in styles_source
     assert ".analysis-confidence-low" in styles_source
+    assert ".analysis-evidence-quality-conflict" in styles_source
+    assert ".analysis-evidence-quality-missing" in styles_source
     assert find_mojibake(sections_source, TENDER_ANALYSIS_SECTIONS_SOURCE) == []
     assert find_mojibake(evidence_source, TENDER_ANALYSIS_EVIDENCE_SOURCE) == []
     assert find_mojibake(model_source, TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE) == []
