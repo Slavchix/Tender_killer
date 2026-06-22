@@ -233,8 +233,8 @@ def test_build_tender_report_docx_renders_analysis_decision_and_evidence():
     assert "Проверить наличие товара, реалистичность срока и заложить срочную логистику до расчета цены." in document_xml
     assert "Анализ ТЗ: 4 блока" in document_xml
     assert "Блок" in document_xml
-    assert "Что значит" in document_xml
-    assert "Действие" in document_xml
+    assert "Что означает" in document_xml
+    assert "Что сделать" in document_xml
     assert "Выжимка ТЗ" not in document_xml
     assert "Красные флаги" not in document_xml
     assert "Приложение: фрагменты извлеченного текста" not in document_xml
@@ -844,3 +844,39 @@ def _document_xml(content: bytes) -> str:
 def _styles_xml(content: bytes) -> str:
     with ZipFile(BytesIO(content)) as archive:
         return archive.read("word/styles.xml").decode("utf-8")
+def test_build_tender_report_docx_uses_structured_interpretation_in_four_block_table():
+    payload = {
+        "source": "mosreg_market",
+        "external_id": "structured-interpretation",
+        "title": "Поставка бумаги",
+        "document_records": [{"name": "Контракт.docx", "local_path": "contract.docx", "text_status": "ok"}],
+        "analysis": {
+            "summary": "Поставка бумаги",
+            "analysis_facts": {
+                "version": 1,
+                "items": [
+                    {
+                        "kind": "execution_term",
+                        "label": "Оплата",
+                        "value": "Оплата производится в течение 7 рабочих дней с даты подписания УПД.",
+                        "category": "payment",
+                        "severity": "medium",
+                        "document_name": "Контракт.docx",
+                        "fragment": "Оплата производится в течение 7 рабочих дней с даты подписания УПД.",
+                    }
+                ],
+            },
+        },
+    }
+
+    content = build_tender_report_docx(payload)
+    document_xml = _document_xml(content)
+
+    assert "Что найдено" in document_xml
+    assert "Что означает" in document_xml
+    assert "Влияние" in document_xml
+    assert "Что сделать" in document_xml
+    assert "Оплата производится в течение 7 рабочих дней с даты подписания УПД." in document_xml
+    assert "Оплата привязана к условиям документа" in document_xml
+    assert "кассовый разрыв" in document_xml
+    assert "Отдельно сверить УПД" in document_xml

@@ -294,6 +294,9 @@ def _source_confidence_text(item: dict[str, Any]) -> str:
 
 
 def _report_item_meaning(item: dict[str, Any]) -> str:
+    interpretation = item.get("interpretation")
+    if isinstance(interpretation, dict) and interpretation.get("meaning"):
+        return _value(interpretation.get("meaning"), "")
     return _value(
         item.get("operator_summary")
         or item.get("description")
@@ -304,7 +307,24 @@ def _report_item_meaning(item: dict[str, Any]) -> str:
     )
 
 
+def _report_item_found(item: dict[str, Any]) -> str:
+    interpretation = item.get("interpretation")
+    if isinstance(interpretation, dict) and interpretation.get("found"):
+        return _value(interpretation.get("found"), "")
+    return _value(item.get("value") or item.get("fragment") or item.get("source_context"), "")
+
+
+def _report_item_impact(item: dict[str, Any]) -> str:
+    interpretation = item.get("interpretation")
+    if isinstance(interpretation, dict) and interpretation.get("impact"):
+        return _value(interpretation.get("impact"), "")
+    return _value(item.get("impact") or item.get("operator_summary") or item.get("description"), "")
+
+
 def _report_item_action(item: dict[str, Any]) -> str:
+    interpretation = item.get("interpretation")
+    if isinstance(interpretation, dict) and interpretation.get("action"):
+        return _value(interpretation.get("action"), "")
     return _value(item.get("operator_check") or item.get("operator_action") or item.get("next_step"), "")
 
 
@@ -435,7 +455,7 @@ def _has_four_block_sections(operator_view: dict[str, Any]) -> bool:
 
 
 def _analysis_four_block_rows(operator_view: dict[str, Any], analysis: dict[str, Any] | None = None) -> list[list[Any]]:
-    rows: list[list[Any]] = [["Блок", "Пункт", "Что значит", "Действие", "Источник"]]
+    rows: list[list[Any]] = [["Блок", "Пункт", "Что найдено", "Что означает", "Влияние", "Что сделать", "Источник"]]
     sections = operator_view.get("major_blocks") or operator_view.get("sections") or []
     section_map = {section.get("id"): section for section in sections if isinstance(section, dict)}
     supplemental_items = _report_supplemental_items(analysis or {})
@@ -454,7 +474,9 @@ def _analysis_four_block_rows(operator_view: dict[str, Any], analysis: dict[str,
                 [
                     title,
                     _short_text(item.get("label"), 90),
-                    _short_text(_report_item_meaning(item), 220),
+                    _short_text(_report_item_found(item), 180),
+                    _short_text(_report_item_meaning(item), 180),
+                    _short_text(_report_item_impact(item), 170),
                     _short_text(_report_item_action(item), 170),
                     _short_text(_item_source_text(item), 220),
                 ]

@@ -56,6 +56,7 @@ def build_analysis_operator_view(
 
     facts_contract = _analysis_facts(analysis.get("analysis_facts"))
     facts = _fact_items(facts_contract.get("items")) if facts_contract else _legacy_fact_items(analysis)
+    facts = _add_expected_missing_checks(_annotate_conflicts(facts), analysis, document_rows)
     sections = _major_sections(facts, document_rows)
     return _view(
         analysis=analysis,
@@ -306,6 +307,8 @@ def _metrics(
         "needs_review": sum(1 for item in items if item.get("needs_review")),
         "price_factors": sum(1 for item in items if item.get("is_price_factor")),
         "execution_terms": sum(1 for item in items if item.get("kind") == "execution_term"),
+        "conflicts": sum(1 for item in items if item.get("conflict_flags")),
+        "expected_missing": sum(1 for item in items if item.get("expected_missing")),
         "documents_ready": document_state["text_ready"],
         "documents_total": document_state["total"],
         "unbound_facts": _int_metric(source_metrics.get("unbound"), sum(1 for item in items if item.get("needs_review"))),
@@ -318,6 +321,105 @@ def _fact_items(value: Any) -> list[dict[str, Any]]:
         if isinstance(raw_item, dict) and raw_item.get("label"):
             items.append(_operator_item(raw_item, index))
     return _dedupe_items(items)
+
+
+def _annotate_conflicts(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    polarity_by_family: dict[str, set[str]] = {}
+    for item in items:
+        family, polarity = _condition_family_and_polarity(item)
+        if family and polarity:
+            polarity_by_family.setdefault(family, set()).add(polarity)
+
+    conflicted = {
+        family
+        for family, polarities in polarity_by_family.items()
+        if "positive" in polarities and "negative" in polarities
+    }
+    if not conflicted:
+        return items
+
+    annotated: list[dict[str, Any]] = []
+    for item in items:
+        family, polarity = _condition_family_and_polarity(item)
+        if family not in conflicted or not polarity:
+            annotated.append(item)
+            continue
+        flag = "В документах есть взаимоисключающие формулировки: условие одновременно найдено как применимое и как отсутствующее."
+        updated = {
+            **item,
+            "needs_review": True,
+            "conflict_flags": [flag],
+            "operator_check": f"Разобрать противоречие по условию «{item['label']}»: {flag}",
+        }
+        annotated.append(updated)
+    return annotated
+
+
+def _add_expected_missing_checks(
+    items: list[dict[str, Any]],
+    analysis: dict[str, Any],
+    documents: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not documents or _document_state(documents).get("text_ready", 0) == 0:
+        return items
+    if any(_major_section_for_item(item) == "acceptance_payment" for item in items):
+        return items
+    present = {_expected_family(item) for item in items}
+    additions: list[dict[str, Any]] = []
+    expected_specs = (
+        ("payment", "условия оплаты", "payment", "Проверить срок оплаты, дату начала отсчета и документы для оплаты."),
+        (
+            "closing_documents",
+            "приемка и закрывающие документы",
+            "acceptance",
+            "Проверить порядок приемки, УПД, акты, накладные и условия запуска оплаты.",
+        ),
+    )
+    for family, label, category, action in expected_specs:
+        if family in present:
+            continue
+        additions.append(
+            _operator_item(
+                {
+                    "id": f"expected:{family}",
+                    "kind": "expected_check",
+                    "label": label,
+                    "category": category,
+                    "severity": "medium",
+                    "source": "Ожидаемая проверка",
+                    "operator_action": action,
+                    "expected_missing": True,
+                    "needs_review": True,
+                    "priority": 30,
+                },
+                len(items) + len(additions),
+            )
+        )
+    return [*items, *additions]
+
+
+def _condition_family_and_polarity(item: dict[str, Any]) -> tuple[str, str]:
+    text = _dedupe_text(" ".join(_text(item.get(key)) for key in ("label", "value", "fragment", "source_context")))
+    if "аванс" in text:
+        if "не предусмотр" in text or "без аванс" in text:
+            return "advance", "negative"
+        if "предусмотр" in text or re.search(r"\b\d+(?:[,.]\d+)?\s*%", text):
+            return "advance", "positive"
+    if "ндс" in text:
+        if "без ндс" in text or "ндс не" in text:
+            return "vat", "negative"
+        if "включ" in text or re.search(r"\b\d+(?:[,.]\d+)?\s*%", text):
+            return "vat", "positive"
+    return "", ""
+
+
+def _expected_family(item: dict[str, Any]) -> str:
+    text = _dedupe_text(" ".join(_text(item.get(key)) for key in ("label", "category", "value", "fragment")))
+    if "оплат" in text or "аванс" in text:
+        return "payment"
+    if any(marker in text for marker in ("упд", "закрывающ", "накладн", "акт прием", "акт приём", "приемк", "приёмк")):
+        return "closing_documents"
+    return ""
 
 
 def _legacy_fact_items(analysis: dict[str, Any]) -> list[dict[str, Any]]:
@@ -395,7 +497,9 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
     category = _text(raw_item.get("category")) or "general"
     severity = _text(raw_item.get("severity")) or "medium"
     source = _text(raw_item.get("document_name") or raw_item.get("source"))
-    needs_review = bool(raw_item.get("needs_review")) or source == "Документ не привязан"
+    conflict_flags = _text_list(raw_item.get("conflict_flags"))
+    expected_missing = bool(raw_item.get("expected_missing"))
+    needs_review = bool(raw_item.get("needs_review")) or source == "Документ не привязан" or bool(conflict_flags) or expected_missing
     is_blocker = (
         bool(raw_item.get("is_blocker"))
         or kind in {"blocker", "red_flag"}
@@ -451,7 +555,7 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
         raw_action=_text(raw_item.get("operator_action")),
     )
     price_impact = _text(raw_item.get("price_impact")) or _price_impact(category, label=label)
-    display_tier = _operator_display_tier(
+    display_tier = "expected_missing" if expected_missing else _operator_display_tier(
         source_binding=source_binding,
         confidence_level=confidence_level,
         is_blocker=is_blocker,
@@ -480,6 +584,14 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
             "source_label": source_label,
         }
     )
+    if expected_missing:
+        interpretation = {
+            "found": "",
+            "meaning": "Точная формулировка в извлеченном тексте не найдена.",
+            "impact": "Условие нужно подтвердить перед расчетом и решением об участии.",
+            "action": f"Точная формулировка по условию «{label}» не найдена: найти ее в документах или подтвердить, что ее нет.",
+            "confidence": "missing",
+        }
 
     return {
         "id": _text(raw_item.get("id")) or f"{kind}:{_slug(label)}",
@@ -497,8 +609,16 @@ def _operator_item(raw_item: dict[str, Any], index: int) -> dict[str, Any]:
             source_binding=source_binding,
             confidence_level=confidence_level,
         ),
-        "operator_check": _operator_check(label=label, action=operator_action, needs_review=needs_review),
+        "operator_check": _operator_check(
+            label=label,
+            action=operator_action,
+            needs_review=needs_review,
+            conflict_flags=conflict_flags,
+            expected_missing=expected_missing,
+        ),
         "interpretation": interpretation,
+        "conflict_flags": conflict_flags,
+        "expected_missing": expected_missing,
         "display_tier": display_tier,
         "weak_reason": _operator_weak_reason(
             display_tier=display_tier,
@@ -958,7 +1078,18 @@ def _operator_summary(
     return description
 
 
-def _operator_check(*, label: str, action: str, needs_review: bool) -> str:
+def _operator_check(
+    *,
+    label: str,
+    action: str,
+    needs_review: bool,
+    conflict_flags: list[str] | None = None,
+    expected_missing: bool = False,
+) -> str:
+    if conflict_flags:
+        return f"Разобрать противоречие по условию «{label}»: {'; '.join(conflict_flags)}."
+    if expected_missing:
+        return f"Точная формулировка по условию «{label}» не найдена: найти ее в документах или подтвердить, что ее нет."
     if needs_review:
         return f"Найти точное место в документе по условию «{label}» и подтвердить, что оно относится к заявке."
     return action

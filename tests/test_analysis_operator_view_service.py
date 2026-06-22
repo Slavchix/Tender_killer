@@ -520,3 +520,75 @@ def test_build_analysis_operator_view_prioritizes_actions_and_source_context():
     assert decision_step["items"][0] == "национальный режим/страна происхождения · ТЗ.docx · стр. 4"
     assert product_step["next_step"] == certificate["operator_action"]
     assert product_step["items"][0] == "сертификат/декларация · ТЗ.docx · стр. 6"
+def test_build_analysis_operator_view_marks_conflicting_conditions_for_manual_review():
+    view = build_analysis_operator_view(
+        {
+            "summary": "Поставка бумаги",
+            "analysis_facts": {
+                "version": 1,
+                "items": [
+                    {
+                        "kind": "execution_term",
+                        "label": "Аванс",
+                        "value": "Авансирование не предусмотрено.",
+                        "category": "financial",
+                        "severity": "medium",
+                        "document_name": "Контракт.docx",
+                        "fragment": "Авансирование не предусмотрено.",
+                    },
+                    {
+                        "kind": "execution_term",
+                        "label": "Аванс",
+                        "value": "Предусмотрен аванс 30% от цены контракта.",
+                        "category": "financial",
+                        "severity": "medium",
+                        "document_name": "Проект контракта.docx",
+                        "fragment": "Предусмотрен аванс 30% от цены контракта.",
+                    },
+                ],
+            },
+        },
+        [{"name": "Контракт.docx", "local_path": "contract.docx", "text_status": "ok"}],
+    )
+
+    sections = {section["id"]: section for section in view["sections"]}
+    items = sections["acceptance_payment"]["items"]
+
+    assert len(items) == 2
+    assert all(item["conflict_flags"] for item in items)
+    assert all(item["needs_review"] for item in items)
+    assert "противореч" in items[0]["operator_check"].casefold()
+    assert view["metrics"]["conflicts"] == 2
+
+
+def test_build_analysis_operator_view_adds_expected_missing_checks_from_context():
+    view = build_analysis_operator_view(
+        {
+            "summary": "Поставка бумаги",
+            "analysis_facts": {
+                "version": 1,
+                "items": [
+                    {
+                        "kind": "subject",
+                        "label": "Предмет",
+                        "value": "Поставка бумаги",
+                        "category": "subject",
+                        "severity": "medium",
+                        "document_name": "ТЗ.docx",
+                        "fragment": "Поставка бумаги",
+                    }
+                ],
+            },
+        },
+        [{"name": "ТЗ.docx", "local_path": "tz.docx", "text_status": "ok"}],
+    )
+
+    sections = {section["id"]: section for section in view["sections"]}
+    labels = [item["label"] for item in sections["acceptance_payment"]["items"]]
+
+    assert "условия оплаты" in labels
+    assert "приемка и закрывающие документы" in labels
+    expected_item = next(item for item in sections["acceptance_payment"]["items"] if item["label"] == "условия оплаты")
+    assert expected_item["display_tier"] == "expected_missing"
+    assert expected_item["interpretation"]["confidence"] == "missing"
+    assert "точная формулировка" in expected_item["operator_check"].casefold()
