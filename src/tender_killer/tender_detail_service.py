@@ -331,7 +331,7 @@ def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) 
     prompt_context = payload["raw_payload"].get("agent_prompt_context")
     payload["agent_prompt_context"] = (
         prompt_context
-        if isinstance(prompt_context, dict) and prompt_context.get("version") == 1
+        if _agent_prompt_context_is_current(prompt_context)
         else build_analysis_prompt_context(payload, documents)
     )
     payload["operator_view"] = build_analysis_operator_view(payload, documents)
@@ -374,6 +374,14 @@ def _items_have_source_context(value: Any) -> bool:
         isinstance(item, dict)
         and bool(item.get("source_context") or item.get("source_label") or item.get("source_page"))
         for item in value
+    )
+
+
+def _agent_prompt_context_is_current(value: Any) -> bool:
+    return (
+        isinstance(value, dict)
+        and value.get("version") == 1
+        and isinstance(value.get("agent_contract"), dict)
     )
 
 

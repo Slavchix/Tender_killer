@@ -18,6 +18,7 @@ from tender_killer.analysis_missing_checks import build_missing_checks
 from tender_killer.analysis_missing_checks import missing_checklist_items
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 from tender_killer.analysis_passport_service import build_analysis_tz_passport
+from tender_killer.analysis_prompt_context_service import build_analysis_prompt_context
 from tender_killer.analysis_source_service import attach_document_sources
 from tender_killer.analysis_text_index_service import build_analysis_text_index
 from tender_killer.schema import ensure_analysis_table
@@ -73,6 +74,7 @@ def analyze_tender_payload(database_path: str | Path, source: str, external_id: 
         raw_payload["tz_passport"] = build_analysis_tz_passport(raw_payload, documents)
         raw_payload["evidence_items"] = build_analysis_evidence_items(raw_payload, documents)
         raw_payload["operator_view"] = build_analysis_operator_view(raw_payload, documents)
+        raw_payload["agent_prompt_context"] = build_analysis_prompt_context(raw_payload, documents)
         analyzed_at = datetime.now().isoformat(timespec="seconds")
         connection.execute(
             """

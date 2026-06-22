@@ -4,6 +4,7 @@ from typing import Any
 
 from tender_killer.analysis_evidence_service import build_analysis_evidence_items
 from tender_killer.analysis_facts_service import build_analysis_facts
+from tender_killer.analysis_questions_service import build_analysis_ai_questions
 from tender_killer.analysis_text_index_service import build_analysis_text_index
 
 
@@ -24,6 +25,7 @@ def build_analysis_prompt_context(
     analysis_facts = _analysis_facts(analysis_payload, document_rows)
     fact_items = [_prompt_fact(item) for item in _dict_items(analysis_facts.get("items"))[:MAX_PROMPT_FACT_ITEMS]]
     prompt_documents = _prompt_documents(text_index)
+    agent_contract = _agent_contract(analysis_payload, analysis_facts)
     return {
         "version": 1,
         "mode": "document_aware_agent_prompt",
@@ -45,6 +47,7 @@ def build_analysis_prompt_context(
                 "Preserve existing fact ids where the meaning has not changed.",
             ],
         },
+        "agent_contract": agent_contract,
         "tender": {
             "summary": _text(analysis_payload.get("summary")),
             "status": _text(analysis_payload.get("status") or analysis_payload.get("recommended_status")),
@@ -62,6 +65,7 @@ def build_analysis_prompt_context(
             "document_chunks": sum(len(document.get("chunks") or []) for document in prompt_documents),
             "evidence_items": min(len(evidence_items), MAX_PROMPT_EVIDENCE_ITEMS),
             "facts": len(fact_items),
+            "agent_questions": len(agent_contract.get("questions") or []),
         },
     }
 
@@ -145,11 +149,135 @@ def _prompt_fact(item: dict[str, Any]) -> dict[str, Any]:
         "severity": _text(item.get("severity")),
         "is_blocker": bool(item.get("is_blocker")),
         "is_price_factor": bool(item.get("is_price_factor")),
+        "needs_review": bool(item.get("needs_review")),
+        "conflict_flags": _text_list(item.get("conflict_flags")),
+        "expected_missing": bool(item.get("expected_missing")),
         "impact": _text(item.get("impact")),
         "source_binding": binding,
         "evidence_sources": [_source_binding(source) for source in _dict_items(item.get("evidence_sources"))[:8]],
         "metadata": item.get("metadata") if isinstance(item.get("metadata"), dict) else {},
     }
+
+
+def _agent_contract(analysis: dict[str, Any], analysis_facts: dict[str, Any]) -> dict[str, Any]:
+    fact_items = _dict_items(analysis_facts.get("items"))
+    questions = _agent_questions(analysis, fact_items)
+    return {
+        "version": 1,
+        "guardrails": {
+            "answer_only_from_sources": True,
+            "unknown_when_no_source": True,
+            "preserve_fact_ids": True,
+            "no_bid_submission_or_legal_action": True,
+        },
+        "output_schema": {
+            "type": "object",
+            "fields": [
+                "decision",
+                "answers",
+                "facts_patch",
+                "conflicts",
+                "expected_missing",
+                "manual_review",
+            ],
+            "citation_fields": ["document_name", "source_page", "source_label", "source_context", "fragment"],
+        },
+        "fact_patch_policy": {
+            "allowed_operations": ["keep", "revise", "mark_not_supported", "mark_manual_review"],
+            "requires_source_for_revise": True,
+            "mark_manual_review_when_source_missing": True,
+        },
+        "questions": questions,
+        "manual_review_triggers": _manual_review_triggers(fact_items, questions),
+    }
+
+
+def _agent_questions(analysis: dict[str, Any], fact_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    operator_view = analysis.get("operator_view")
+    if isinstance(operator_view, dict):
+        ai_questions = operator_view.get("ai_questions")
+        if isinstance(ai_questions, dict) and isinstance(ai_questions.get("items"), list):
+            return [_agent_question(item) for item in _dict_items(ai_questions.get("items"))]
+    return [_agent_question(item) for item in _dict_items(build_analysis_ai_questions(fact_items).get("items"))]
+
+
+def _agent_question(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": _text(item.get("id")),
+        "question": _text(item.get("question")),
+        "answer": _text(item.get("answer")),
+        "answer_status": _text(item.get("answer_status")) or "unknown",
+        "sources": [_agent_question_source(source) for source in _dict_items(item.get("sources"))[:3]],
+    }
+
+
+def _agent_question_source(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "fact_id": _text(item.get("fact_id")),
+        "label": _text(item.get("label")),
+        "document_name": _text(item.get("document_name")),
+        "source_page": item.get("source_page"),
+        "source_label": _text(item.get("source_label")),
+        "source_context": _text(item.get("source_context")),
+        "fragment": _text(item.get("fragment")),
+    }
+
+
+def _manual_review_triggers(fact_items: list[dict[str, Any]], questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    triggers: list[dict[str, Any]] = []
+    for item in fact_items:
+        fact_id = _text(item.get("id"))
+        label = _text(item.get("label"))
+        if item.get("conflict_flags"):
+            triggers.append(
+                {
+                    "type": "conflict",
+                    "fact_id": fact_id,
+                    "label": label,
+                    "reason": "; ".join(_text_list(item.get("conflict_flags"))),
+                }
+            )
+        if item.get("needs_review"):
+            triggers.append(
+                {
+                    "type": "needs_review",
+                    "fact_id": fact_id,
+                    "label": label,
+                    "reason": "Fact is marked for manual operator review.",
+                }
+            )
+        if not _source_binding_has_citation(_source_binding(item)) and _text(item.get("kind")) != "subject":
+            triggers.append(
+                {
+                    "type": "missing_source",
+                    "fact_id": fact_id,
+                    "label": label,
+                    "reason": "Fact has no document/page/context binding.",
+                }
+            )
+    for question in questions:
+        if question.get("answer_status") == "not_found":
+            triggers.append(
+                {
+                    "type": "unanswered_question",
+                    "question_id": _text(question.get("id")),
+                    "label": _text(question.get("question")),
+                    "reason": "Agent must answer unknown unless it finds a cited source in supplied context.",
+                }
+            )
+    return _dedupe_triggers(triggers)
+
+
+def _source_binding_has_citation(binding: dict[str, Any]) -> bool:
+    return bool(
+        _text(binding.get("document_name"))
+        and (
+            binding.get("source_page") not in (None, "")
+            or _text(binding.get("source_label"))
+            or _text(binding.get("source_context"))
+            or _text(binding.get("fragment"))
+        )
+    )
 
 
 def _source_binding(item: dict[str, Any]) -> dict[str, Any]:
@@ -180,6 +308,26 @@ def _dict_items(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
     return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def _text_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, (list, tuple, set)):
+        return []
+    return [_text(item) for item in value if _text(item)]
+
+
+def _dedupe_triggers(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for item in items:
+        key = (_text(item.get("type")), _text(item.get("fact_id") or item.get("question_id")), _text(item.get("reason")))
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(item)
+    return result
 
 
 def _text(value: Any) -> str:
