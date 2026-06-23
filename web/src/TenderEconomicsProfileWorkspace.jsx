@@ -156,7 +156,7 @@ function PositionEconomicsScenario({
         })}
       </div>
       {scenario.action === 'manual_anchor' ? (
-        <a className="position-scenario-cta" href={scenario.href || '#manual-product-url-input'}>
+        <a className="position-scenario-cta" href={scenario.href || '#supplier-manual-price-panel'}>
           {scenario.cta}
         </a>
       ) : (
@@ -223,7 +223,7 @@ function buildPositionScenarioState(selectedEconomicsProfile = {}, selectedEcono
       busy_cta: '',
       cta: 'Проверить ниже',
       description: 'Кандидат есть, но перед принятием нужно проверить совпадение, НДС, наличие, упаковку и доставку.',
-      href: '#manual-product-url-input',
+      href: '#supplier-manual-price-panel',
       primary_candidate: primaryCandidate,
       title: 'Нужна проверка цены',
     }
@@ -234,8 +234,8 @@ function buildPositionScenarioState(selectedEconomicsProfile = {}, selectedEcono
     action: 'manual_anchor',
     busy_cta: '',
     cta: 'Добавить цену',
-    description: 'Добавь ссылку, КП, прайс или быстрые ссылки. Цена попадет в кандидаты и не изменит расчет без подтверждения.',
-    href: '#manual-product-url-input',
+    description: 'Подготовь быструю ссылку или внеси цену из КП/прайса. Цена попадет в кандидаты и не изменит расчет без подтверждения.',
+    href: '#supplier-manual-price-panel',
     primary_candidate: null,
     title: 'Нужна цена поставщика',
   }
@@ -305,12 +305,9 @@ function ManualSupplierPricePanel({
   discoveringSupplier = false,
   onSupplierDiscoveryImport,
   onSupplierSearchPrepare,
-  onSupplierUrlDiscoveryRun,
   onSupplierManualPriceStage,
 }) {
-  const [manualProductUrl, setManualProductUrl] = useState('')
-  const [manualPriceMode, setManualPriceMode] = useState('url')
-  const [manualUrlResult, setManualUrlResult] = useState(null)
+  const [manualPriceMode, setManualPriceMode] = useState('links')
   const [manualSourceKind, setManualSourceKind] = useState('quote')
   const [manualSupplierName, setManualSupplierName] = useState('')
   const [manualUnitPrice, setManualUnitPrice] = useState('')
@@ -324,37 +321,7 @@ function ManualSupplierPricePanel({
     || selectedEconomicsProfile?.product_name
     || `позиция ${selectedEconomicsProfile?.position_index || ''}`
   ).trim()
-  const canSubmitManualUrl = Boolean(manualProductUrl.trim()) && Boolean(onSupplierUrlDiscoveryRun) && !discoveringSupplier
   const canSubmitManualPrice = Number(manualUnitPrice) > 0 && Boolean(onSupplierManualPriceStage) && !discoveringSupplier
-
-  function handleManualUrlSubmit(event) {
-    event.preventDefault()
-    const url = manualProductUrl.trim()
-    if (!url || !onSupplierUrlDiscoveryRun) return
-    setManualUrlResult({ tone: 'progress', text: 'Проверяю ссылку...' })
-    const result = onSupplierUrlDiscoveryRun?.(selectedEconomicsProfile, {
-      url,
-      source_query: sourceQuery,
-      label: 'Ссылка на товар',
-    })
-    if (result?.then) {
-      result
-        .then((nextTender) => {
-          const nextResult = manualUrlResultFromTender(nextTender, selectedEconomicsProfile?.position_index, url)
-          setManualUrlResult(nextResult)
-          if (nextResult.tone === 'success') setManualProductUrl('')
-        })
-        .catch((error) => {
-          const payloadResult = error?.payload
-            ? manualUrlResultFromTender(error?.payload, selectedEconomicsProfile?.position_index, url)
-            : null
-          setManualUrlResult(payloadResult || {
-            tone: 'error',
-            text: error?.message || 'Не удалось проверить ссылку. Открой ее вручную или внеси цену из КП/прайса.',
-          })
-        })
-    }
-  }
 
   function handleManualPriceSubmit(event) {
     event.preventDefault()
@@ -393,20 +360,20 @@ function ManualSupplierPricePanel({
   }
 
   return (
-    <section className="supplier-manual-price-panel">
+    <section className="supplier-manual-price-panel" id="supplier-manual-price-panel">
       <div className="supplier-manual-price-heading">
         <div>
           <span>Добавить цену</span>
-          <p>Ссылка, КП/прайс или быстрые ссылки. Цена попадет в кандидаты и не изменит расчет без подтверждения.</p>
+          <p>Быстрые ссылки или КП/прайс. Цена попадет в кандидаты и не изменит расчет без подтверждения.</p>
         </div>
       </div>
       <div className="supplier-manual-mode-tabs" role="tablist" aria-label="Способ добавления цены">
         <button
-          className={manualPriceMode === 'url' ? 'active' : ''}
-          onClick={() => setManualPriceMode('url')}
+          className={manualPriceMode === 'links' ? 'active' : ''}
+          onClick={() => setManualPriceMode('links')}
           type="button"
         >
-          Ссылка
+          Быстрые ссылки
         </button>
         <button
           className={manualPriceMode === 'quote' ? 'active' : ''}
@@ -415,38 +382,7 @@ function ManualSupplierPricePanel({
         >
           КП или прайс
         </button>
-        <button
-          className={manualPriceMode === 'links' ? 'active' : ''}
-          onClick={() => setManualPriceMode('links')}
-          type="button"
-        >
-          Быстрые ссылки
-        </button>
       </div>
-
-      {manualPriceMode === 'url' && (
-        <form className="supplier-manual-url-form" onSubmit={handleManualUrlSubmit}>
-          <label htmlFor="manual-product-url-input">Публичная карточка товара</label>
-          <div>
-            <input
-              id="manual-product-url-input"
-              name="manual-product-url-input"
-              onChange={(event) => setManualProductUrl(event.target.value)}
-              placeholder="https://supplier.example/catalog/product"
-              type="url"
-              value={manualProductUrl}
-            />
-            <button className="secondary-button compact" disabled={!canSubmitManualUrl} type="submit">
-              {discoveringSupplier ? 'Проверяю...' : 'Проверить'}
-            </button>
-          </div>
-          {manualUrlResult && (
-            <p className={`supplier-manual-result manual-url-result ${manualUrlResult.tone}`}>
-              {manualUrlResult.text}
-            </p>
-          )}
-        </form>
-      )}
 
       {manualPriceMode === 'quote' && (
         <form className="supplier-manual-candidate-form" onSubmit={handleManualPriceSubmit}>
@@ -527,68 +463,6 @@ function ManualSupplierPricePanel({
 function ignoreManualPriceActionError(result) {
   if (result?.catch) {
     result.catch(() => {})
-  }
-}
-
-function manualUrlResultFromTender(nextTender, positionIndex, checkedUrl = '') {
-  const profiles = Array.isArray(nextTender?.product_profiles) ? nextTender.product_profiles : []
-  const profile = profiles.find((item) => Number(item?.position_index) === Number(positionIndex))
-  const discovery = profile?.raw_payload?.supplier_discovery || {}
-  const candidates = Array.isArray(discovery.candidates) ? discovery.candidates : []
-  const checkedUrlKey = String(checkedUrl || '').trim().toLowerCase()
-  const matchingCandidates = checkedUrlKey
-    ? candidates.filter((candidate) => String(candidate?.url || candidate?.source_url || '').trim().toLowerCase() === checkedUrlKey)
-    : candidates
-  const manualPriceCandidates = matchingCandidates.filter((candidate) => (
-    candidate?.manual_price_required
-    || candidate?.raw_payload?.manual_price_required
-    || candidate?.unit_price === null
-    || candidate?.unit_price === undefined
-  ))
-  if (manualPriceCandidates.length > 0) {
-    return {
-      tone: 'warning',
-      text: 'Ссылка сохранена, но цена не прочиталась автоматически. Открой карточку вручную или внеси цену из КП/прайса.',
-    }
-  }
-  if (matchingCandidates.length > 0) {
-    return {
-      tone: 'success',
-      text: 'Кандидат добавлен. Проверь его выше и нажми “Принять цену”, если все совпадает.',
-    }
-  }
-
-  const diagnostics = Array.isArray(discovery.collector_diagnostics) ? discovery.collector_diagnostics : []
-  const errors = diagnostics.flatMap((item) => (Array.isArray(item?.errors) ? item.errors : []))
-  const diagnosticText = errors.join(' ').toLowerCase()
-  if (diagnosticText.includes('spawn eperm') || diagnosticText.includes('node.exe')) {
-    return {
-      tone: 'error',
-      text: 'Локальный browser-fetch не запустился. Перезапусти API/dev stack вне sandbox и повтори проверку ссылки.',
-    }
-  }
-  if (
-    diagnosticText.includes('access_blocked')
-    || diagnosticText.includes('browser_fetch_error')
-    || diagnosticText.includes('captcha')
-    || diagnosticText.includes('403')
-    || diagnosticText.includes('429')
-    || diagnosticText.includes('503')
-  ) {
-    return {
-      tone: 'warning',
-      text: 'Сайт не дал прочитать цену автоматически. Открой ссылку вручную или внеси цену из КП/прайса.',
-    }
-  }
-  if (discovery.status === 'no_candidates') {
-    return {
-      tone: 'warning',
-      text: 'Цена на странице не найдена. Внеси цену из карточки вручную или приложи КП/прайс.',
-    }
-  }
-  return {
-    tone: 'info',
-    text: 'Проверка выполнена. Если кандидата нет, внеси цену вручную из карточки, КП или прайса.',
   }
 }
 

@@ -21,96 +21,105 @@ export function ProductEconomicsForm({ profile, onSave, saving = false }) {
   }
 
   const landedPreview = buildLandedCostPreview(profile, values)
+  const summary = economicsCostSummary(priceSource, landedPreview)
 
   return (
-    <form className="economics-input-form" onSubmit={submitEconomics}>
-      <div className="profile-block-heading">
-        <h5>Себестоимость</h5>
-        <button className="secondary-button compact" disabled={saving || !onSave} type="submit">
-          {saving ? 'Сохраняю...' : 'Сохранить'}
-        </button>
-      </div>
-      <EconomicsPriceSource source={priceSource} />
-      <div className="economics-input-grid">
-        <label>
-          <span>Режим цены</span>
-          <select
-            name="unit_cost_basis"
-            onChange={(event) => updateField('unit_cost_basis', event.target.value)}
-            value={values.unit_cost_basis}
-          >
-            <option value="tender_unit">За единицу</option>
-            <option value="supplier_pack">За упаковку</option>
-          </select>
-        </label>
-        <label>
-          <span>За единицу</span>
-          <input
-            inputMode="decimal"
-            name="unit_cost"
-            onChange={(event) => updateField('unit_cost', event.target.value)}
-            placeholder="0"
-            value={values.unit_cost}
-          />
-        </label>
-        <label>
-          <span>В упаковке</span>
-          <input
-            inputMode="decimal"
-            name="pack_quantity"
-            onChange={(event) => updateField('pack_quantity', event.target.value)}
-            placeholder="1"
-            value={values.pack_quantity}
-          />
-        </label>
-        <label>
-          <span>Логистика</span>
-          <input
-            inputMode="decimal"
-            name="logistics_cost"
-            onChange={(event) => updateField('logistics_cost', event.target.value)}
-            placeholder="0"
-            value={values.logistics_cost}
-          />
-        </label>
-        <label>
-          <span>Документы</span>
-          <input
-            inputMode="decimal"
-            name="documents_cost"
-            onChange={(event) => updateField('documents_cost', event.target.value)}
-            placeholder="0"
-            value={values.documents_cost}
-          />
-        </label>
-        <label>
-          <span>Упаковка</span>
-          <input
-            inputMode="decimal"
-            name="packaging_cost"
-            onChange={(event) => updateField('packaging_cost', event.target.value)}
-            placeholder="0"
-            value={values.packaging_cost}
-          />
-        </label>
-        <label>
-          <span>Прочее</span>
-          <input
-            inputMode="decimal"
-            name="other_costs"
-            onChange={(event) => updateField('other_costs', event.target.value)}
-            placeholder="0"
-            value={values.other_costs}
-          />
-        </label>
-      </div>
-      {landedPreview && (
-        <div className="economics-landed-preview">
-          <span>Итого себестоимость</span>
-          <strong>{formatMoney(landedPreview.landedCost)}</strong>
-          <em>{landedPreview.caption}</em>
+    <form className="economics-input-form economics-collapsible-section" onSubmit={submitEconomics}>
+      <details>
+        <summary className="economics-collapsible-summary">
+          <span>Себестоимость</span>
+          <strong>{summary}</strong>
+        </summary>
+        <div className="economics-collapsible-body">
+          <div className="profile-block-heading">
+            <p>Ручные затраты раскрывай, когда нужно уточнить полную себестоимость после цены из быстрых ссылок, КП или прайса.</p>
+            <button className="secondary-button compact" disabled={saving || !onSave} type="submit">
+              {saving ? 'Сохраняю...' : 'Сохранить'}
+            </button>
+          </div>
+          <EconomicsPriceSource source={priceSource} />
+          <div className="economics-input-grid">
+            <label>
+              <span>Режим цены</span>
+              <select
+                name="unit_cost_basis"
+                onChange={(event) => updateField('unit_cost_basis', event.target.value)}
+                value={values.unit_cost_basis}
+              >
+                <option value="tender_unit">За единицу</option>
+                <option value="supplier_pack">За упаковку</option>
+              </select>
+            </label>
+            <label>
+              <span>За единицу</span>
+              <input
+                inputMode="decimal"
+                name="unit_cost"
+                onChange={(event) => updateField('unit_cost', event.target.value)}
+                placeholder="0"
+                value={values.unit_cost}
+              />
+            </label>
+            <label>
+              <span>В упаковке</span>
+              <input
+                inputMode="decimal"
+                name="pack_quantity"
+                onChange={(event) => updateField('pack_quantity', event.target.value)}
+                placeholder="1"
+                value={values.pack_quantity}
+              />
+            </label>
+            <label>
+              <span>Логистика</span>
+              <input
+                inputMode="decimal"
+                name="logistics_cost"
+                onChange={(event) => updateField('logistics_cost', event.target.value)}
+                placeholder="0"
+                value={values.logistics_cost}
+              />
+            </label>
+            <label>
+              <span>Документы</span>
+              <input
+                inputMode="decimal"
+                name="documents_cost"
+                onChange={(event) => updateField('documents_cost', event.target.value)}
+                placeholder="0"
+                value={values.documents_cost}
+              />
+            </label>
+            <label>
+              <span>Упаковка</span>
+              <input
+                inputMode="decimal"
+                name="packaging_cost"
+                onChange={(event) => updateField('packaging_cost', event.target.value)}
+                placeholder="0"
+                value={values.packaging_cost}
+              />
+            </label>
+            <label>
+              <span>Прочее</span>
+              <input
+                inputMode="decimal"
+                name="other_costs"
+                onChange={(event) => updateField('other_costs', event.target.value)}
+                placeholder="0"
+                value={values.other_costs}
+              />
+            </label>
+          </div>
+          {landedPreview && (
+            <div className="economics-landed-preview">
+              <span>Итого себестоимость</span>
+              <strong>{formatMoney(landedPreview.landedCost)}</strong>
+              <em>{landedPreview.caption}</em>
+            </div>
+          )}
         </div>
-      )}
+      </details>
     </form>
   )
 }
@@ -139,6 +148,12 @@ function economicsFormValues(economics = {}) {
     packaging_cost: economics.packaging_cost ?? '',
     other_costs: economics.other_costs ?? '',
   }
+}
+
+function economicsCostSummary(priceSource, landedPreview) {
+  if (landedPreview?.landedCost != null) return formatMoney(landedPreview.landedCost)
+  if (priceSource?.unit_price != null) return `цена ${formatMoney(priceSource.unit_price)}`
+  return 'раскрыть при необходимости'
 }
 
 function buildLandedCostPreview(profile, values) {

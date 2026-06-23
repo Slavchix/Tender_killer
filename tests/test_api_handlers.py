@@ -446,8 +446,9 @@ def test_handle_post_request_routes_product_profile_supplier_option_create(tmp_p
     ]
 
 
-def test_handle_post_request_routes_product_profile_supplier_search_prepare(tmp_path) -> None:
+def test_handle_post_request_routes_product_profile_supplier_search_prepare(tmp_path, monkeypatch) -> None:
     store = _store_with_tender(tmp_path)
+    fetch_calls: list[str] = []
 
     def office_links(query: str) -> list[dict[str, str]]:
         encoded = query.replace(" ", "+")
@@ -469,6 +470,18 @@ def test_handle_post_request_routes_product_profile_supplier_search_prepare(tmp_
                 "preset_id": "komus_office_supplies",
             },
         ]
+
+    def fake_fetch(url: str) -> str:
+        fetch_calls.append(url)
+        return """
+        <html>
+          <body>
+            <a href="/catalog/goods/123456/">Office paper A4 80 g/m2 500 sheets</a>
+          </body>
+        </html>
+        """
+
+    monkeypatch.setattr("tender_killer.supplier_search_service._fetch_catalog_search_text", fake_fetch)
 
     store.upsert_product_profiles(
         "mosreg_market",
@@ -497,29 +510,49 @@ def test_handle_post_request_routes_product_profile_supplier_search_prepare(tmp_
     profile = response.payload["product_profiles"][0]
     assert response.status == 200
     assert profile["profile_status"] == "searching"
-    assert profile["raw_payload"]["supplier_search"] == {
-        "status": "ready",
-        "queries": [
-            {
-                "query": "office paper a4",
-                "kind": "normalized_name",
-                "priority": 1,
-                "quick_links": office_links("office paper a4"),
-            },
-            {
-                "query": "office paper",
-                "kind": "search_phrase",
-                "priority": 2,
-                "quick_links": office_links("office paper"),
-            },
-            {
-                "query": "17.12.14.110 office paper a4",
-                "kind": "classifier",
-                "priority": 3,
-                "quick_links": office_links("17.12.14.110 office paper a4"),
-            },
-        ],
+    supplier_search = profile["raw_payload"]["supplier_search"]
+    assert supplier_search["status"] == "ready"
+    assert supplier_search["catalog_providers"] == ["officemag", "komus"]
+    assert supplier_search["search_intent"]["best_query"] == "office paper a4"
+    assert supplier_search["best_product_link"] == {
+        "status": "product_link",
+        "provider": "officemag",
+        "label": "OfficeMag",
+        "title": "Office paper A4 80 g/m2 500 sheets",
+        "url": "https://www.officemag.ru/catalog/goods/123456/",
+        "search_url": "https://www.officemag.ru/search/?q=office+paper+a4",
+        "source_query": "office paper a4",
+        "match_score": 20,
     }
+    assert [
+        {
+            "query": query["query"],
+            "kind": query["kind"],
+            "priority": query["priority"],
+            "quick_links": query["quick_links"],
+        }
+        for query in supplier_search["queries"]
+    ] == [
+        {
+            "query": "office paper a4",
+            "kind": "normalized_name",
+            "priority": 1,
+            "quick_links": office_links("office paper a4"),
+        },
+        {
+            "query": "office paper",
+            "kind": "search_phrase",
+            "priority": 2,
+            "quick_links": office_links("office paper"),
+        },
+        {
+            "query": "17.12.14.110 office paper a4",
+            "kind": "classifier",
+            "priority": 3,
+            "quick_links": office_links("17.12.14.110 office paper a4"),
+        },
+    ]
+    assert fetch_calls == ["https://www.officemag.ru/search/?q=office+paper+a4"]
 
 
 def test_handle_post_request_materializes_missing_product_profiles_for_supplier_search_prepare(tmp_path) -> None:

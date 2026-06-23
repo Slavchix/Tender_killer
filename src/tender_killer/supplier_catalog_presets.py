@@ -76,6 +76,8 @@ DIY_PLUMBING_KEYWORDS: tuple[str, ...] = (
     "\u0443\u043d\u0438\u0442\u0430\u0437",
     "\u0434\u0443\u0448",
     "\u0441\u043c\u0435\u0441\u0438\u0442\u0435\u043b",
+    "\u043f\u043e\u0434\u0432\u043e\u0434",
+    "\u0433\u0438\u0431\u043a",
 )
 
 DIY_PIPE_FITTING_KEYWORDS: tuple[str, ...] = (
@@ -126,6 +128,24 @@ DIY_FASTENER_KEYWORDS: tuple[str, ...] = (
     "\u0441\u0430\u043c\u043e\u0440\u0435\u0437",
 )
 
+OFFICE_HYGIENE_KEYWORDS: tuple[str, ...] = (
+    "dispenser",
+    "soap",
+    "towel",
+    "toilet paper",
+    "hygiene",
+    "дозатор",
+    "диспенсер",
+    "мыло",
+    "мыл",
+    "туалетн",
+    "сануз",
+    "гигиен",
+    "полотенц",
+    "tork",
+    "laima",
+)
+
 
 SUPPLIER_CATALOG_PRESETS: tuple[dict[str, Any], ...] = (
     {
@@ -151,7 +171,8 @@ SUPPLIER_CATALOG_PRESETS: tuple[dict[str, Any], ...] = (
             "оргтехник",
             "расходн",
             "чернил",
-        ),
+        )
+        + OFFICE_HYGIENE_KEYWORDS,
         "exclude_keywords": OFFICE_CATALOG_EXCLUDE_KEYWORDS,
         "match_okpd2_prefixes": ("17.12", "28.23"),
     },
@@ -178,7 +199,8 @@ SUPPLIER_CATALOG_PRESETS: tuple[dict[str, Any], ...] = (
             "оргтехник",
             "расходн",
             "чернил",
-        ),
+        )
+        + OFFICE_HYGIENE_KEYWORDS,
         "exclude_keywords": OFFICE_CATALOG_EXCLUDE_KEYWORDS,
         "match_okpd2_prefixes": ("17.12", "28.23"),
     },

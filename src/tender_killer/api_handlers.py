@@ -211,7 +211,13 @@ def prepare_product_profile_supplier_search(
     external_id: str,
     position_index: int,
 ) -> dict[str, Any]:
-    prepare_profile_supplier_search(database_path, source, external_id, position_index)
+    prepare_profile_supplier_search(
+        database_path,
+        source,
+        external_id,
+        position_index,
+        resolve_best_product_link=True,
+    )
     return get_tender_payload(database_path, source, external_id)
 
 

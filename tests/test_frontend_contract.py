@@ -181,8 +181,8 @@ def test_economics_workspace_exposes_compact_operator_flow():
     assert "candidateNeedsManualPrice" in suppliers_source
     assert "product_family_mismatch" in suppliers_source
     assert "manual_price_required" in profile_workspace_source
-    assert "Локальный browser-fetch не запустился" in profile_workspace_source
-    assert "spawn eperm" in profile_workspace_source.lower()
+    assert "Локальный browser-fetch не запустился" not in profile_workspace_source
+    assert "spawn eperm" not in profile_workspace_source.lower()
     assert ".economics-stepper" in styles_source
     assert ".best-price-candidate" in styles_source
     assert ".candidate-queue-tabs" in styles_source
@@ -1623,23 +1623,23 @@ def test_product_profile_renders_supplier_option_form():
     assert "ManualSupplierPricePanel" in profile_workspace_source
     assert "manualPriceMode" in profile_workspace_source
     assert "supplier-manual-mode-tabs" in profile_workspace_source
-    assert "manual-url-result" in profile_workspace_source
-    assert "manualUrlResultFromTender" in profile_workspace_source
-    assert "manualUrlResultFromTender(error?.payload" in profile_workspace_source
+    assert "useState('links')" in profile_workspace_source
+    assert "manualPriceMode === 'url'" not in profile_workspace_source
+    assert "manual-product-url-input" not in profile_workspace_source
+    assert "manual-url-result" not in profile_workspace_source
+    assert "manualUrlResultFromTender" not in profile_workspace_source
     assert "SupplierSearchPreview" in profile_workspace_source
     assert "SupplierDiscoveryPreview" in profile_workspace_source
     assert "compact={manualPriceMode === 'links'}" in profile_workspace_source
     assert "diagnosticsOpen={false}" in profile_workspace_source
-    assert "manual-product-url-input" in profile_workspace_source
     assert "manual-price-source-select" in profile_workspace_source
     assert "manual-price-unit-input" in profile_workspace_source
-    assert "onSupplierUrlDiscoveryRun?.(selectedEconomicsProfile, {" in profile_workspace_source
     assert "onSupplierManualPriceStage?.(selectedEconomicsProfile, candidate)" in profile_workspace_source
     assert "onSupplierDiscoveryImport?.(selectedEconomicsProfile, candidateIndex)" in profile_workspace_source
-    assert "Ссылка, КП/прайс или быстрые ссылки" in profile_workspace_source
+    assert "Быстрые ссылки или КП/прайс" in profile_workspace_source
     assert "supplier-manual-price-panel" in styles_source
     assert "supplier-manual-mode-tabs" in styles_source
-    assert "supplier-manual-result" in styles_source
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in _css_rule(styles_source, ".supplier-manual-mode-tabs")
     assert "price_candidates" in source
     assert "PriceCandidateQueue" in source
     assert "tenderReferenceUnitPrice(profile)" in source
@@ -1710,10 +1710,14 @@ def test_product_profile_renders_supplier_option_form():
     assert "candidate.provider" in discovery_source
     assert "confidence_reasons" in discovery_source
     assert "quick_links" in discovery_source
-    assert "supplier-search-links" in discovery_source
+    assert "best_product_link" in discovery_source
+    assert "BestSupplierProductLink" in discovery_source
+    assert "supplier-best-product-link" in discovery_source
+    assert "allSupplierSearchLinks" in discovery_source
+    assert "const primaryLinks = catalogSearchLinks.length ? catalogSearchLinks : allLinks" in discovery_source
     assert "uniqueCatalogSearchLinks(queries)" in discovery_source
-    assert "Ручная проверка по каталогам" in discovery_source
-    assert "catalogSearchLinks.map" in discovery_source
+    assert "Ручная проверка по каталогам" not in discovery_source
+    assert "secondaryCatalogLinks.map" not in discovery_source
     assert "href={link.url}" in discovery_source
     assert "review_status" in discovery_source
     assert "economics_price_source" in cost_form_source
@@ -1726,6 +1730,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "supplier-options-list" in options_source
     assert "supplier-option-row" in options_source
     assert "supplier-select-button" in options_source
+    assert ".supplier-best-product-link" in styles_source
     assert "formatMoney(option.unit_price)" in options_source
     assert "supplierAvailabilityLabel(option.availability)" in options_source
     assert "supplierStatusLabel(option.status)" in options_source
@@ -1888,6 +1893,50 @@ def test_economics_tab_renders_assumptions_form():
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(source, TENDER_ECONOMICS_FORMS_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_economics_position_forms_are_collapsible_secondary_panels():
+    cost_source = TENDER_ECONOMICS_COST_FORM_SOURCE.read_text(encoding="utf-8")
+    assumptions_source = TENDER_ECONOMICS_FORMS_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "economics-collapsible-section" in cost_source
+    assert "economics-collapsible-section" in assumptions_source
+    assert "<details>" in cost_source
+    assert "<details>" in assumptions_source
+    assert "<summary className=\"economics-collapsible-summary\">" in cost_source
+    assert "<summary className=\"economics-collapsible-summary\">" in assumptions_source
+    assert "Себестоимость" in cost_source
+    assert "Допущения" in assumptions_source
+    assert ".economics-collapsible-section" in styles_source
+    assert ".economics-collapsible-summary" in styles_source
+    assert ".economics-collapsible-body" in styles_source
+    assert find_mojibake(cost_source, TENDER_ECONOMICS_COST_FORM_SOURCE) == []
+    assert find_mojibake(assumptions_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_supplier_search_preview_always_surfaces_one_primary_quick_link():
+    source = TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "allSupplierSearchLinks" in source
+    assert "const primaryLinks = catalogSearchLinks.length ? catalogSearchLinks : allLinks" in source
+    assert "Поисковые формулировки" in source
+    assert "supplier-best-product-link" in source
+    assert ".supplier-best-product-link" in styles_source
+    assert find_mojibake(source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
+def test_supplier_search_preview_uses_best_scored_fallback_link():
+    source = TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.read_text(encoding="utf-8")
+
+    assert "bestFallbackCatalogSearchLink" in source
+    assert "Number(item.query_score || 0)" in source
+    assert "source_query: fallback.source_query || queries[0]?.query || ''" in source
+    assert find_mojibake(source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []
+
 
 def test_economics_tab_renders_bid_scenarios():
     source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")

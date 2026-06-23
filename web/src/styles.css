@@ -5488,6 +5488,57 @@ textarea:focus {
   border-radius: 7px;
 }
 
+.economics-collapsible-section {
+  padding: 0;
+}
+
+.economics-collapsible-section details {
+  display: grid;
+}
+
+.economics-collapsible-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.economics-collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.economics-collapsible-summary span {
+  min-width: 0;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.economics-collapsible-summary strong {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.economics-collapsible-body {
+  display: grid;
+  gap: 9px;
+  padding: 0 10px 10px;
+}
+
+.profile-block-heading p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .auto-economics-panel {
   display: grid;
   gap: 10px;
@@ -6237,7 +6288,7 @@ textarea:focus {
 
 .supplier-manual-mode-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
   padding: 3px;
   background: var(--color-surface);
@@ -6409,6 +6460,65 @@ textarea:focus {
   background: var(--color-surface-soft);
   border: 1px solid var(--color-border);
   border-radius: 5px;
+}
+
+.supplier-best-product-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+}
+
+.supplier-best-product-link.product_link {
+  border-color: var(--color-success);
+}
+
+.supplier-best-product-link.fallback_search {
+  border-color: var(--color-warning);
+}
+
+.supplier-best-product-link div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.supplier-best-product-link strong {
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.supplier-best-product-link span,
+.supplier-best-product-link em {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.supplier-best-product-link p {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.supplier-best-product-link a {
+  padding: 7px 10px;
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+  white-space: nowrap;
+  background: var(--color-primary-tint);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
 }
 
 .supplier-search-catalog-links strong {

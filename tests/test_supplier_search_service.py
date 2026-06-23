@@ -7,6 +7,8 @@ import pytest
 from tender_killer.models import ProductProfile
 from tender_killer.models import Tender
 from tender_killer.storage import TenderStore
+from tender_killer.supplier_search_service import build_best_supplier_product_link
+from tender_killer.supplier_search_service import build_supplier_search_intent
 from tender_killer.supplier_search_service import build_supplier_search_links
 from tender_killer.supplier_search_service import build_supplier_search_queries
 from tender_killer.supplier_search_service import prepare_profile_supplier_search
@@ -35,6 +37,19 @@ def expected_office_links(query: str) -> list[dict[str, str]]:
     ]
 
 
+def query_contract(query: dict[str, object]) -> dict[str, object]:
+    return {
+        "query": query["query"],
+        "kind": query["kind"],
+        "priority": query["priority"],
+        "quick_links": query["quick_links"],
+    }
+
+
+def query_contracts(queries: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [query_contract(query) for query in queries]
+
+
 def test_build_supplier_search_queries_prioritizes_profile_terms() -> None:
     queries = build_supplier_search_queries(
         {
@@ -46,7 +61,7 @@ def test_build_supplier_search_queries_prioritizes_profile_terms() -> None:
         }
     )
 
-    assert queries == [
+    assert query_contracts(queries) == [
         {
             "query": "office paper a4",
             "kind": "normalized_name",
@@ -72,6 +87,8 @@ def test_build_supplier_search_queries_prioritizes_profile_terms() -> None:
             "quick_links": expected_office_links("17.12.14.110 office paper a4"),
         },
     ]
+    assert all(isinstance(query["query_score"], int) for query in queries)
+    assert all(query["query_quality"] in {"good", "review", "weak"} for query in queries)
 
 
 def test_build_supplier_search_links_encodes_query_for_manual_search() -> None:
@@ -139,6 +156,206 @@ def test_build_supplier_search_queries_includes_matching_catalog_presets() -> No
     )
 
     assert queries[0]["quick_links"] == expected_office_links("office paper a4")
+
+
+def test_build_supplier_search_queries_routes_hygiene_goods_to_office_catalogs() -> None:
+    queries = build_supplier_search_queries(
+        {
+            "product_name": "Дозатор для жидкого мыла LAIMA BASIC, 0,5 л, зеркальный",
+            "normalized_name": "дозатор жидкого мыла laima basic нержавеющая сталь зеркальный",
+            "category": "Инвентарь для санузлов",
+        }
+    )
+
+    provider_links = [
+        link.get("provider")
+        for link in queries[0]["quick_links"]
+        if link.get("link_kind") == "catalog_search"
+    ]
+    assert provider_links == ["officemag", "komus"]
+
+
+def test_build_supplier_search_queries_prefers_flexible_water_connector_terms() -> None:
+    queries = build_supplier_search_queries(
+        {
+            "product_name": "Гибкая подводка 60 см",
+            "normalized_name": "Гибкая подводка 60 см",
+            "category": "Краны, клапаны для раковин, моек, биде, унитазов, ванн и аналогичная арматура",
+        }
+    )
+
+    assert [query["query"] for query in queries] == [
+        "подводка гибкая для воды 60 см",
+        "Гибкая подводка 60 см",
+        "подводка гибкая для смесителя 60 см",
+    ]
+    assert not any("Краны, клапаны" in query["query"] for query in queries)
+    first_provider_links = [
+        link
+        for link in queries[0]["quick_links"]
+        if link.get("link_kind") == "catalog_search"
+    ]
+    assert [link["provider"] for link in first_provider_links] == ["vseinstrumenti", "lemanapro"]
+    assert first_provider_links[0]["url"] == (
+        "https://www.vseinstrumenti.ru/search/?what="
+        "%D0%BF%D0%BE%D0%B4%D0%B2%D0%BE%D0%B4%D0%BA%D0%B0+%D0%B3%D0%B8%D0%B1%D0%BA%D0%B0%D1%8F+"
+        "%D0%B4%D0%BB%D1%8F+%D0%B2%D0%BE%D0%B4%D1%8B+60+%D1%81%D0%BC"
+    )
+    assert queries[0]["query_score"] > queries[1]["query_score"]
+    assert queries[0]["query_quality"] == "good"
+
+
+def test_build_supplier_search_intent_keeps_category_out_of_product_query() -> None:
+    intent = build_supplier_search_intent(
+        {
+            "product_name": "Гибкая подводка 60 см",
+            "normalized_name": "Гибкая подводка 60 см",
+            "category": "Краны, клапаны для раковин, моек, биде, унитазов, ванн и аналогичная арматура",
+        }
+    )
+
+    assert intent["family"] == "flexible_water_connector"
+    assert intent["best_query"] == "подводка гибкая для воды 60 см"
+    assert "Краны" not in intent["product_text"]
+    assert "Краны" in intent["routing_text"]
+    assert intent["attributes"]["length"] == "60 см"
+    assert intent["required_terms"] == ["подводка", "гибкая"]
+
+
+def test_build_supplier_search_intent_ranks_query_candidates_and_marks_routing_noise() -> None:
+    intent = build_supplier_search_intent(
+        {
+            "product_name": "Гибкая подводка 60 см",
+            "normalized_name": "Гибкая подводка 60 см",
+            "category": "Краны, клапаны для раковин, моек, биде, унитазов, ванн и аналогичная арматура",
+        }
+    )
+
+    candidates = intent["query_candidates"]
+
+    assert candidates[0]["query"] == "подводка гибкая для воды 60 см"
+    assert candidates[0]["query_score"] >= candidates[1]["query_score"]
+    assert candidates[0]["query_quality"] == "good"
+    assert "клапаны" in intent["noise_terms"]
+    assert "раковин" in intent["noise_terms"]
+    assert not any("Краны" in candidate["query"] for candidate in candidates)
+
+
+def test_build_supplier_search_queries_do_not_use_category_as_query_text() -> None:
+    queries = build_supplier_search_queries(
+        {
+            "product_name": "Болт стальной шестигранный M16x80 ГОСТ 7798-70",
+            "normalized_name": "Болт стальной шестигранный M16x80 ГОСТ 7798-70",
+            "category": "Крепежные изделия и аналогичные товары",
+        }
+    )
+
+    assert not any("Крепежные изделия" in query["query"] for query in queries)
+    assert queries[0]["query"] == "Болт стальной шестигранный M16x80 ГОСТ 7798-70"
+    assert queries[0]["query_score"] >= 60
+    assert queries[0]["query_quality"] == "good"
+
+
+def test_build_best_supplier_product_link_prefers_highest_scored_catalog_query() -> None:
+    supplier_search = {
+        "status": "ready",
+        "queries": [
+            {
+                "query": "крепление для унитаза набор риф",
+                "query_score": 20,
+                "quick_links": [
+                    {
+                        "label": "ВсеИнструменты",
+                        "provider": "vseinstrumenti",
+                        "url": "https://www.vseinstrumenti.ru/search/?what=wrong",
+                        "link_kind": "catalog_search",
+                    }
+                ],
+            },
+            {
+                "query": "гибкая подводка 60 см",
+                "query_score": 90,
+                "quick_links": [
+                    {
+                        "label": "ВсеИнструменты",
+                        "provider": "vseinstrumenti",
+                        "url": "https://www.vseinstrumenti.ru/search/?what=right",
+                        "link_kind": "catalog_search",
+                    }
+                ],
+            },
+        ],
+    }
+
+    link = build_best_supplier_product_link(supplier_search, fetch_text=None)
+
+    assert link is not None
+    assert link["source_query"] == "гибкая подводка 60 см"
+    assert link["search_url"] == "https://www.vseinstrumenti.ru/search/?what=right"
+
+
+def test_build_best_supplier_product_link_fetches_one_catalog_and_picks_best_product() -> None:
+    queries = build_supplier_search_queries(
+        {
+            "product_name": "Office paper A4 80 g/m2",
+            "normalized_name": "office paper a4",
+            "okpd2": "17.12.14.110",
+        }
+    )
+    calls: list[str] = []
+
+    def fake_fetch(url: str) -> str:
+        calls.append(url)
+        return """
+        <html>
+          <body>
+            <a href="/catalog/goods/000001/">Random envelopes C5</a>
+            <a href="/catalog/goods/123456/">Office paper A4 80 g/m2 500 sheets</a>
+          </body>
+        </html>
+        """
+
+    link = build_best_supplier_product_link({"status": "ready", "queries": queries}, fetch_text=fake_fetch)
+
+    assert calls == ["https://www.officemag.ru/search/?q=office+paper+a4"]
+    assert link is not None
+    assert link["status"] == "product_link"
+    assert link["provider"] == "officemag"
+    assert link["label"] == "OfficeMag"
+    assert link["title"] == "Office paper A4 80 g/m2 500 sheets"
+    assert link["url"] == "https://www.officemag.ru/catalog/goods/123456/"
+    assert link["search_url"] == "https://www.officemag.ru/search/?q=office+paper+a4"
+    assert link["source_query"] == "office paper a4"
+    assert link["match_score"] > 0
+
+
+def test_build_best_supplier_product_link_falls_back_to_search_when_catalog_blocks() -> None:
+    queries = build_supplier_search_queries(
+        {
+            "product_name": "Office paper A4 80 g/m2",
+            "normalized_name": "office paper a4",
+            "okpd2": "17.12.14.110",
+        }
+    )
+    calls: list[str] = []
+
+    def fake_fetch(url: str) -> str:
+        calls.append(url)
+        raise RuntimeError("HTTP 403 access blocked")
+
+    link = build_best_supplier_product_link({"status": "ready", "queries": queries}, fetch_text=fake_fetch)
+
+    assert calls == ["https://www.officemag.ru/search/?q=office+paper+a4"]
+    assert link == {
+        "status": "fallback_search",
+        "provider": "officemag",
+        "label": "OfficeMag",
+        "title": "Открыть поиск в OfficeMag",
+        "url": "https://www.officemag.ru/search/?q=office+paper+a4",
+        "search_url": "https://www.officemag.ru/search/?q=office+paper+a4",
+        "source_query": "office paper a4",
+        "message": "Сайт не дал выбрать карточку автоматически. Открой поиск вручную.",
+    }
 
 
 def test_build_supplier_search_queries_routes_building_materials_to_building_catalogs() -> None:
@@ -296,33 +513,31 @@ def test_prepare_profile_supplier_search_persists_queries_and_preserves_options(
         1,
     )
 
-    assert payload == {
-        "ok": True,
-        "position_index": 1,
-        "supplier_search": {
-            "status": "ready",
-            "queries": [
-                {
-                    "query": "office paper a4",
-                    "kind": "normalized_name",
-                    "priority": 1,
-                    "quick_links": expected_office_links("office paper a4"),
-                },
-                {
-                    "query": "office paper",
-                    "kind": "search_phrase",
-                    "priority": 2,
-                    "quick_links": expected_office_links("office paper"),
-                },
-                {
-                    "query": "17.12.14.110 office paper a4",
-                    "kind": "classifier",
-                    "priority": 3,
-                    "quick_links": expected_office_links("17.12.14.110 office paper a4"),
-                },
-            ],
+    assert payload["ok"] is True
+    assert payload["position_index"] == 1
+    assert payload["supplier_search"]["status"] == "ready"
+    assert payload["supplier_search"]["catalog_providers"] == ["officemag", "komus"]
+    assert payload["supplier_search"]["search_intent"]["best_query"] == "office paper a4"
+    assert query_contracts(payload["supplier_search"]["queries"]) == [
+        {
+            "query": "office paper a4",
+            "kind": "normalized_name",
+            "priority": 1,
+            "quick_links": expected_office_links("office paper a4"),
         },
-    }
+        {
+            "query": "office paper",
+            "kind": "search_phrase",
+            "priority": 2,
+            "quick_links": expected_office_links("office paper"),
+        },
+        {
+            "query": "17.12.14.110 office paper a4",
+            "kind": "classifier",
+            "priority": 3,
+            "quick_links": expected_office_links("17.12.14.110 office paper a4"),
+        },
+    ]
     detail = get_tender_payload(store.database_path, "mosreg_market", "supplier-search")
     profile = detail["product_profiles"][0]
     assert profile["profile_status"] == "searching"
