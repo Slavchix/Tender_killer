@@ -5,6 +5,7 @@ from tender_killer.price_candidate_service import normalize_price_candidate
 from tender_killer.price_candidate_service import rank_profile_price_candidates
 from tender_killer.price_candidate_service import review_profile_price_candidate
 from tender_killer.price_candidate_service import stage_tender_price_candidates
+from tender_killer.price_memory_service import stage_price_memory_candidates
 from tender_killer.storage import TenderStore
 from tender_killer.tender_detail_service import get_tender_payload
 
@@ -590,6 +591,81 @@ def test_confirm_profile_price_candidate_applies_price_to_economics_and_marks_re
         "quality_flags": [],
     }
     assert detail["economics"]["supplier_cost"] == 8800.0
+
+
+def test_confirmed_price_becomes_review_only_memory_candidate_for_next_tender(tmp_path) -> None:
+    store = _store_with_profile(tmp_path)
+    saved = store.upsert_price_candidates(
+        "mosreg_market",
+        "price-review",
+        1,
+        [
+            {
+                "provider": "komus",
+                "name": "Paper A4 500 sheets",
+                "url": "https://supplier.example/paper-a4",
+                "unit_price": 880.0,
+                "currency": "RUB",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "confidence": "high",
+                "delivery_note": "Delivery included",
+                "unit": "pack",
+                "pack_quantity": 1,
+                "source_query": "paper a4",
+                "source_kind": "normalized_name",
+            }
+        ],
+        origin="supplier_discovery",
+    )
+    review_profile_price_candidate(
+        store.database_path,
+        "mosreg_market",
+        "price-review",
+        1,
+        int(saved[0]["id"]),
+        review_status="confirmed",
+    )
+
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="price-memory-next",
+            url="https://market.mosreg.ru/Trade/ViewTrade/price-memory-next",
+            title="Next paper tender",
+            price=120000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "price-memory-next",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-memory-next",
+                position_index=1,
+                product_name="Paper A4 офисная",
+                normalized_name="paper a4 офисная",
+                quantity=5,
+                unit="pack",
+            )
+        ],
+    )
+
+    result = stage_price_memory_candidates(store.database_path, "mosreg_market", "price-memory-next")
+
+    candidates = store.list_price_candidates("mosreg_market", "price-memory-next", 1)
+    detail = get_tender_payload(store.database_path, "mosreg_market", "price-memory-next")
+    profile = detail["product_profiles"][0]
+    assert result["ok"] is True
+    assert result["staged_count"] == 1
+    assert result["positions"] == [{"position_index": 1, "staged_count": 1}]
+    assert candidates[0]["origin"] == "price_memory"
+    assert candidates[0]["source_kind"] == "price_memory"
+    assert candidates[0]["review_status"] == "pending"
+    assert candidates[0]["unit_price"] == 880.0
+    assert candidates[0]["raw_payload"]["price_memory"]["source_tender_external_id"] == "price-review"
+    assert (profile.get("raw_payload") or {}).get("economics", {}) == {}
 
 
 def test_confirm_profile_price_candidate_rejects_blocked_product_mismatch(tmp_path) -> None:

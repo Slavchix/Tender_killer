@@ -268,10 +268,13 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     return stageTenderPriceCandidatesRequest(tender)
       .then((nextTender) => {
         const stage = nextTender.price_candidate_stage || {}
+        const memoryStage = nextTender.price_memory_stage || {}
         const staged = Number(stage.staged_count || 0)
         const ready = Number(stage.ready_count || 0)
         const review = Number(stage.review_count || 0)
-        return updateFromNextTender(nextTender, `Кандидаты цен подготовлены: ${staged}, готово: ${ready}, проверить: ${review}`)
+        const memory = Number(memoryStage.staged_count || 0)
+        const memoryNote = memory > 0 ? `, из памяти: ${memory}` : ''
+        return updateFromNextTender(nextTender, `Кандидаты цен подготовлены: ${staged}${memoryNote}, готово: ${ready}, проверить: ${review}`)
       })
       .catch((err) => {
         setDetailStatus(err.message)

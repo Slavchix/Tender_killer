@@ -43,6 +43,7 @@ from tender_killer.price_candidate_service import stage_tender_price_candidates
 from tender_killer.price_book_feed_service import stage_tender_price_book_feed
 from tender_killer.price_discovery_job_service import get_tender_price_discovery_job
 from tender_killer.price_discovery_job_service import start_tender_price_discovery_job
+from tender_killer.price_memory_service import stage_price_memory_candidates
 from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
 from tender_killer.search_service import run_search_payload
@@ -85,6 +86,7 @@ API_CAPABILITIES: tuple[str, ...] = (
     "price_candidate_review",
     "price_candidate_bulk_review",
     "price_candidate_auto_stage",
+    "price_memory_stage",
     "price_auto_apply",
     "price_book_feed",
     "price_discovery_run",
@@ -306,8 +308,10 @@ def confirm_ready_tender_price_candidates(database_path: str | Path, source: str
 
 
 def stage_tender_price_candidate_sources(database_path: str | Path, source: str, external_id: str) -> dict[str, Any]:
+    memory_stage = stage_price_memory_candidates(database_path, source, external_id)
     stage = stage_tender_price_candidates(database_path, source, external_id)
     payload = get_tender_payload(database_path, source, external_id)
+    payload["price_memory_stage"] = memory_stage
     payload["price_candidate_stage"] = stage
     return payload
 

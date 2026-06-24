@@ -14,6 +14,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
     ensure_analysis_history_table(connection)
     ensure_product_profiles_table(connection)
     ensure_price_candidates_table(connection)
+    ensure_price_book_entries_table(connection)
     ensure_price_discovery_jobs_table(connection)
     ensure_source_runs_table(connection)
     ensure_app_state_table(connection)
@@ -307,6 +308,54 @@ def ensure_price_candidates_table(connection: sqlite3.Connection) -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_price_candidates_profile
         ON price_candidates(tender_source, tender_external_id, position_index, review_status, confidence)
+        """
+    )
+
+
+def ensure_price_book_entries_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS price_book_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fingerprint TEXT NOT NULL UNIQUE,
+            provider TEXT,
+            product_name TEXT NOT NULL,
+            supplier_name TEXT,
+            normalized_name TEXT,
+            tokens_json TEXT NOT NULL DEFAULT '[]',
+            unit TEXT,
+            unit_price REAL NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'RUB',
+            vat_mode TEXT,
+            availability TEXT,
+            delivery_note TEXT,
+            source_url TEXT,
+            source_kind TEXT,
+            source_query TEXT,
+            source_tender_source TEXT,
+            source_tender_external_id TEXT,
+            source_position_index INTEGER,
+            source_candidate_id INTEGER,
+            quality_status TEXT,
+            confidence TEXT,
+            pricing_passport_json TEXT NOT NULL DEFAULT '{}',
+            raw_payload_json TEXT NOT NULL DEFAULT '{}',
+            observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            confirmed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_price_book_entries_lookup
+        ON price_book_entries(normalized_name, unit, updated_at DESC)
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_price_book_entries_source
+        ON price_book_entries(source_tender_source, source_tender_external_id, source_position_index)
         """
     )
 

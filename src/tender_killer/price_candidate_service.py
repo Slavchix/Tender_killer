@@ -394,6 +394,15 @@ def review_profile_price_candidate(
         supplier_option_index = _apply_confirmed_candidate(target, candidate)
         propagated = _propagate_confirmed_candidate_to_matching_profiles(profiles, target, candidate)
         store.upsert_product_profiles(source, external_id, profiles)
+        from tender_killer.price_memory_service import remember_confirmed_price_candidate
+
+        remember_confirmed_price_candidate(
+            store.database_path,
+            source,
+            external_id,
+            target,
+            {**candidate, "review_status": "confirmed"},
+        )
 
     store.update_price_candidate_review(
         source,
@@ -463,6 +472,16 @@ def confirm_ready_price_candidates(
                 candidate,
                 review_status="confirmed",
                 supplier_option_index=supplier_option_index,
+            )
+            profile = _find_profile(profiles, position_index)
+            from tender_killer.price_memory_service import remember_confirmed_price_candidate
+
+            remember_confirmed_price_candidate(
+                store.database_path,
+                source,
+                external_id,
+                profile,
+                {**candidate, "review_status": "confirmed"},
             )
 
     skipped_count = skipped_existing_cost_count + skipped_no_ready_candidate_count

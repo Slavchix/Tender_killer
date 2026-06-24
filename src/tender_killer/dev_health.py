@@ -21,6 +21,7 @@ REQUIRED_API_CAPABILITIES: tuple[str, ...] = (
     "market_state_import",
     "dashboard_queues",
     "price_candidate_auto_stage",
+    "price_memory_stage",
     "price_auto_apply",
     "price_discovery_run",
     "price_discovery_jobs",

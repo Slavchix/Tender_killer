@@ -474,6 +474,94 @@ class TenderStore:
                 ),
             )
 
+    def upsert_price_book_entry(self, entry: dict[str, Any]) -> dict[str, Any]:
+        row = _serialize_price_book_entry(entry)
+        if not row:
+            return {}
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO price_book_entries (
+                    fingerprint, provider, product_name, supplier_name, normalized_name, tokens_json,
+                    unit, unit_price, currency, vat_mode, availability, delivery_note, source_url,
+                    source_kind, source_query, source_tender_source, source_tender_external_id,
+                    source_position_index, source_candidate_id, quality_status, confidence,
+                    pricing_passport_json, raw_payload_json, observed_at, confirmed_at
+                )
+                VALUES (
+                    :fingerprint, :provider, :product_name, :supplier_name, :normalized_name, :tokens_json,
+                    :unit, :unit_price, :currency, :vat_mode, :availability, :delivery_note, :source_url,
+                    :source_kind, :source_query, :source_tender_source, :source_tender_external_id,
+                    :source_position_index, :source_candidate_id, :quality_status, :confidence,
+                    :pricing_passport_json, :raw_payload_json,
+                    COALESCE(:observed_at, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP
+                )
+                ON CONFLICT(fingerprint) DO UPDATE SET
+                    provider = excluded.provider,
+                    product_name = excluded.product_name,
+                    supplier_name = excluded.supplier_name,
+                    normalized_name = excluded.normalized_name,
+                    tokens_json = excluded.tokens_json,
+                    unit = excluded.unit,
+                    unit_price = excluded.unit_price,
+                    currency = excluded.currency,
+                    vat_mode = excluded.vat_mode,
+                    availability = excluded.availability,
+                    delivery_note = excluded.delivery_note,
+                    source_url = excluded.source_url,
+                    source_kind = excluded.source_kind,
+                    source_query = excluded.source_query,
+                    source_tender_source = excluded.source_tender_source,
+                    source_tender_external_id = excluded.source_tender_external_id,
+                    source_position_index = excluded.source_position_index,
+                    source_candidate_id = excluded.source_candidate_id,
+                    quality_status = excluded.quality_status,
+                    confidence = excluded.confidence,
+                    pricing_passport_json = excluded.pricing_passport_json,
+                    raw_payload_json = excluded.raw_payload_json,
+                    observed_at = excluded.observed_at,
+                    confirmed_at = excluded.confirmed_at,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                row,
+            )
+            saved = connection.execute(
+                """
+                SELECT
+                    id, fingerprint, provider, product_name, supplier_name, normalized_name, tokens_json,
+                    unit, unit_price, currency, vat_mode, availability, delivery_note, source_url,
+                    source_kind, source_query, source_tender_source, source_tender_external_id,
+                    source_position_index, source_candidate_id, quality_status, confidence,
+                    pricing_passport_json, raw_payload_json, observed_at, confirmed_at, updated_at
+                FROM price_book_entries
+                WHERE fingerprint = ?
+                """,
+                (row["fingerprint"],),
+            ).fetchone()
+        return _deserialize_price_book_entry(saved) if saved else {}
+
+    def list_price_book_entries(self, limit: int | None = None) -> list[dict[str, Any]]:
+        params: list[Any] = []
+        limit_clause = ""
+        if limit is not None:
+            limit_clause = " LIMIT ?"
+            params.append(max(0, int(limit)))
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT
+                    id, fingerprint, provider, product_name, supplier_name, normalized_name, tokens_json,
+                    unit, unit_price, currency, vat_mode, availability, delivery_note, source_url,
+                    source_kind, source_query, source_tender_source, source_tender_external_id,
+                    source_position_index, source_candidate_id, quality_status, confidence,
+                    pricing_passport_json, raw_payload_json, observed_at, confirmed_at, updated_at
+                FROM price_book_entries
+                ORDER BY updated_at DESC, id DESC{limit_clause}
+                """,
+                params,
+            ).fetchall()
+        return [_deserialize_price_book_entry(row) for row in rows]
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.database_path)
         connection.row_factory = sqlite3.Row
@@ -820,6 +908,90 @@ def _deserialize_price_candidate(row: sqlite3.Row) -> dict[str, Any]:
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
+
+
+def _serialize_price_book_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    product_name = _text(entry.get("product_name")) or _text(entry.get("name"))
+    unit_price = _number(entry.get("unit_price"))
+    if not product_name or unit_price is None:
+        return {}
+    tokens = _json_list(entry.get("tokens"))
+    pricing_passport = entry.get("pricing_passport")
+    raw_payload = entry.get("raw_payload")
+    row = {
+        "provider": _token(entry.get("provider")),
+        "product_name": product_name,
+        "supplier_name": _text(entry.get("supplier_name")),
+        "normalized_name": _text(entry.get("normalized_name")) or product_name.casefold(),
+        "tokens_json": json.dumps(tokens, ensure_ascii=False),
+        "unit": _token(entry.get("unit")),
+        "unit_price": unit_price,
+        "currency": _currency(entry.get("currency")),
+        "vat_mode": _token(entry.get("vat_mode")),
+        "availability": _token(entry.get("availability")),
+        "delivery_note": _text(entry.get("delivery_note")),
+        "source_url": _text(entry.get("source_url")) or _text(entry.get("url")),
+        "source_kind": _text(entry.get("source_kind")),
+        "source_query": _text(entry.get("source_query")),
+        "source_tender_source": _text(entry.get("source_tender_source")),
+        "source_tender_external_id": _text(entry.get("source_tender_external_id")),
+        "source_position_index": _integer(entry.get("source_position_index")),
+        "source_candidate_id": _integer(entry.get("source_candidate_id")),
+        "quality_status": _token(entry.get("quality_status")),
+        "confidence": _token(entry.get("confidence")),
+        "pricing_passport_json": json.dumps(pricing_passport if isinstance(pricing_passport, dict) else {}, ensure_ascii=False),
+        "raw_payload_json": json.dumps(raw_payload if isinstance(raw_payload, dict) else dict(entry), ensure_ascii=False),
+        "observed_at": _text(entry.get("observed_at")),
+    }
+    row["fingerprint"] = _text(entry.get("fingerprint")) or _price_book_entry_fingerprint(row)
+    return row
+
+
+def _deserialize_price_book_entry(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": int(row["id"]),
+        "fingerprint": row["fingerprint"],
+        "provider": row["provider"],
+        "product_name": row["product_name"],
+        "supplier_name": row["supplier_name"],
+        "normalized_name": row["normalized_name"],
+        "tokens": _json_list(row["tokens_json"]),
+        "unit": row["unit"],
+        "unit_price": row["unit_price"],
+        "currency": row["currency"],
+        "vat_mode": row["vat_mode"],
+        "availability": row["availability"],
+        "delivery_note": row["delivery_note"],
+        "source_url": row["source_url"],
+        "source_kind": row["source_kind"],
+        "source_query": row["source_query"],
+        "source_tender_source": row["source_tender_source"],
+        "source_tender_external_id": row["source_tender_external_id"],
+        "source_position_index": row["source_position_index"],
+        "source_candidate_id": row["source_candidate_id"],
+        "quality_status": row["quality_status"],
+        "confidence": row["confidence"],
+        "pricing_passport": _json_object(row["pricing_passport_json"]),
+        "raw_payload": _json_object(row["raw_payload_json"]),
+        "observed_at": row["observed_at"],
+        "confirmed_at": row["confirmed_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def _price_book_entry_fingerprint(row: dict[str, Any]) -> str:
+    provider = str(row.get("provider") or "").casefold()
+    source_url = str(row.get("source_url") or "").strip().casefold()
+    if source_url:
+        basis = ["price_book_url", provider, source_url]
+    else:
+        basis = [
+            "price_book_text",
+            provider,
+            str(row.get("normalized_name") or row.get("product_name") or "").casefold(),
+            str(row.get("unit") or "").casefold(),
+        ]
+    return hashlib.sha256("\x1f".join(basis).encode("utf-8")).hexdigest()
 
 
 def _normalized_price_candidate_payload(candidate: dict[str, Any]) -> dict[str, Any]:

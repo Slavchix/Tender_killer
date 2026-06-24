@@ -54,6 +54,30 @@ def test_schema_creates_tender_price_snapshots_table(tmp_path):
     }.issubset(columns)
 
 
+def test_schema_creates_price_book_entries_table(tmp_path):
+    database_path = tmp_path / "db.sqlite"
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        initialize_schema(connection)
+        columns = _columns(connection, "price_book_entries")
+
+    assert {
+        "id",
+        "fingerprint",
+        "provider",
+        "product_name",
+        "tokens_json",
+        "unit",
+        "unit_price",
+        "source_tender_source",
+        "source_tender_external_id",
+        "source_position_index",
+        "source_candidate_id",
+        "quality_status",
+        "pricing_passport_json",
+    }.issubset(columns)
+
+
 def test_initialize_schema_migrates_legacy_minimal_tables():
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row

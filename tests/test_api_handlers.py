@@ -99,6 +99,7 @@ def test_handle_get_request_returns_health_payload(tmp_path) -> None:
     assert "price_candidate_review" in response.payload["capabilities"]
     assert "price_candidate_bulk_review" in response.payload["capabilities"]
     assert "price_candidate_auto_stage" in response.payload["capabilities"]
+    assert "price_memory_stage" in response.payload["capabilities"]
     assert "price_auto_apply" in response.payload["capabilities"]
     assert "price_discovery_run" in response.payload["capabilities"]
     assert "price_discovery_jobs" in response.payload["capabilities"]
@@ -1102,6 +1103,85 @@ def test_handle_post_request_routes_price_candidate_auto_stage(tmp_path) -> None
     assert response.payload["price_candidate_stage"]["ready_count"] == 1
     assert profile["price_candidates"][0]["provider"] == "komus"
     assert profile["price_candidates"][0]["quality_status"] == "ready"
+    assert "economics" not in profile["raw_payload"]
+
+
+def test_handle_post_request_price_candidate_stage_includes_price_memory(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+    saved = store.upsert_price_candidates(
+        "mosreg_market",
+        "3668200",
+        1,
+        [
+            {
+                "provider": "komus",
+                "name": "Office paper A4",
+                "url": "https://example.com/paper-memory",
+                "unit_price": 900.0,
+                "currency": "RUB",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "confidence": "high",
+                "delivery_note": "Delivery included",
+                "unit": "pack",
+                "pack_quantity": 1,
+            }
+        ],
+        origin="supplier_discovery",
+    )
+    handle_post_request(
+        store.database_path,
+        f"/api/tenders/mosreg_market/3668200/product-profiles/1/price-candidates/{saved[0]['id']}/confirm",
+        {},
+    )
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="3668201",
+            url="https://market.mosreg.ru/Trade/ViewTrade/3668201",
+            title="Next tender",
+            price=120000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668201",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668201",
+                position_index=1,
+                product_name="Office paper A4 white",
+                quantity=5,
+                unit="pack",
+            )
+        ],
+    )
+
+    response = handle_post_request(store.database_path, "/api/tenders/mosreg_market/3668201/price-candidates/stage", {})
+
+    profile = response.payload["product_profiles"][0]
+    assert response.status == 200
+    assert response.payload["price_memory_stage"]["staged_count"] == 1
+    assert response.payload["price_candidate_stage"]["staged_count"] == 0
+    assert profile["price_candidates"][0]["origin"] == "price_memory"
+    assert profile["price_candidates"][0]["source_kind"] == "price_memory"
+    assert profile["price_candidates"][0]["review_status"] == "pending"
+    assert profile["price_candidates"][0]["raw_payload"]["price_memory"]["source_tender_external_id"] == "3668200"
     assert "economics" not in profile["raw_payload"]
 
 
