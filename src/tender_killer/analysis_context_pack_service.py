@@ -41,7 +41,7 @@ ROLE_PRIORITY: dict[str, list[str]] = {
     "signing_sheet": ["signature_metadata"],
     "archive_duplicate": ["duplicate"],
     "unsupported_primary": ["text_quality"],
-    "source_card": ["source_card"],
+    "source_card": ["source_card", "bid_security", "participant_restrictions"],
     "other": [],
 }
 
@@ -57,11 +57,14 @@ TOPIC_ORDER = (
     "payment_terms",
     "advance",
     "retentions",
+    "bid_security",
     "contract_security",
     "warranty",
     "participant_requirements",
+    "participant_restrictions",
     "certificates_closing_docs",
     "penalties",
+    "termination",
     "edi_pik",
     "text_quality",
 )
@@ -291,12 +294,16 @@ def _topic_markers(topic: str, paragraph: str) -> list[str]:
         return ["advance"]
     if topic == "retentions" and any(marker in text for marker in ("удерж", "неустоек из суммы", "из суммы, подлежащей оплате")):
         return ["retentions"]
+    if topic == "bid_security" and any(marker in text for marker in ("обеспечение заявки", "обеспечение участия", "задаток заявки")):
+        return ["bid_security"]
     if topic == "contract_security" and any(marker in text for marker in ("обеспечение исполнения", "независимая гарантия")):
         return ["contract_security"]
     if topic == "warranty" and any(marker in text for marker in ("гарантия качества", "гарантийн", "гарантия")):
         return ["warranty"]
     if topic == "participant_requirements" and any(marker in text for marker in ("статья 31", "единые требования", "участник закупки")):
         return ["participant_requirements"]
+    if topic == "participant_restrictions" and any(marker in text for marker in ("смп", "сонко", "преимуществ", "ограничение участников", "только среди")):
+        return ["participant_restrictions"]
     if topic == "certificates_closing_docs" and any(
         marker in text
         for marker in (
@@ -312,6 +319,8 @@ def _topic_markers(topic: str, paragraph: str) -> list[str]:
         return ["certificates_closing_docs"]
     if topic == "penalties" and any(marker in text for marker in ("штраф", "пени", "пеня", "неустойк", "просрочк")):
         return ["penalties"]
+    if topic == "termination" and any(marker in text for marker in ("расторжен", "односторонний отказ", "отказ от исполнения", "прекращение контракта")):
+        return ["termination"]
     if topic == "edi_pik" and any(marker in text for marker in ("пик", "эдо", "документ о приемке", "документ о приёмке")):
         return ["edi_pik"]
     return []

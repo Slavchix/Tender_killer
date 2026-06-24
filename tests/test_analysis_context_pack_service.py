@@ -144,6 +144,40 @@ def test_build_analysis_context_pack_detects_service_payment_acceptance_penalty_
     assert {"acceptance_documents", "payment_terms", "penalties", "warranty"} <= topics
 
 
+def test_build_analysis_context_pack_expands_security_termination_and_participant_topics() -> None:
+    context_pack = build_analysis_context_pack(
+        [
+            {
+                "name": "Извещение.docx",
+                "document_type": "Извещение о закупке",
+                "text_status": "ok",
+                "text_content": (
+                    "Обеспечение заявки устанавливается в размере 1%. "
+                    "Закупка проводится только среди СМП и СОНКО. "
+                    "Преимущества участникам закупки применяются."
+                ),
+            },
+            {
+                "name": "Проект контракта.docx",
+                "document_type": "Проект контракта",
+                "text_status": "ok",
+                "text_content": (
+                    "Проект контракта. Заказчик удерживает неустойку из суммы оплаты. "
+                    "Односторонний отказ и расторжение контракта допускаются в случаях, предусмотренных законом."
+                ),
+            },
+        ]
+    )
+
+    by_name = {document["name"]: document for document in context_pack["documents"]}
+    notice = by_name["Извещение.docx"]
+    contract = by_name["Проект контракта.docx"]
+
+    assert {"bid_security", "participant_restrictions"} <= set(notice["source_priority"])
+    assert {"retentions", "termination"} <= set(contract["source_priority"])
+    assert {"bid_security", "participant_restrictions", "retentions", "termination"} <= set(context_pack["topic_coverage"])
+
+
 def _topics(document: dict[str, object]) -> set[str]:
     return {
         str(item.get("topic"))

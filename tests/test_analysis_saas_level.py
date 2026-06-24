@@ -8,6 +8,7 @@ from zipfile import ZipFile
 
 from tender_killer.api_handlers import handle_post_request
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
+from tender_killer.analysis_playbook_service import build_analysis_playbooks
 from tender_killer.models import Tender
 from tender_killer.models import TenderDocument
 from tender_killer.reports import build_tender_report_docx
@@ -135,6 +136,34 @@ def test_operator_view_exposes_tz_workflow_questions_and_playbooks():
     assert drilldowns["fact:advance-positive"]["evidence_quality"]["level"] == "conflict"
     assert drilldowns["fact:national-regime"]["related_fact_ids"] == ["fact:national-regime"]
     assert view["evidence_drilldowns"]["by_fact_id"]["fact:payment-documents"] == "fact:payment-documents"
+
+
+def test_playbooks_use_readable_russian_operator_text():
+    playbooks = build_analysis_playbooks(
+        [
+            {
+                "id": "fact:advance-positive",
+                "label": "Аванс",
+                "severity": "medium",
+                "conflict_flags": ["Есть взаимоисключающие условия по авансу."],
+                "needs_review": True,
+            },
+            {
+                "id": "fact:docs-missing",
+                "label": "приемка и закрывающие документы",
+                "expected_missing": True,
+            },
+        ],
+        {"unbound_facts": 1},
+    )
+
+    titles = [item["title"] for item in playbooks["items"]]
+    assert "Противоречия в документах" in titles
+    assert "Когда писать запрос разъяснений" in titles
+    assert all("Рџ" not in title for title in titles)
+    clarification = next(item for item in playbooks["items"] if item["id"] == "clarification_request")
+    assert "Сформулировать вопрос коротко" in clarification["what_to_do"][0]
+    assert "РЎ" not in " ".join(clarification["what_to_do"])
 
 
 def test_analysis_workflow_endpoint_persists_owner_deadline_comment_and_journal(tmp_path):
@@ -331,6 +360,10 @@ def test_word_report_renders_tz_workflow_questions_and_playbooks():
     assert "Advance payment 30%." in document_xml
     assert "Clarification before bid" in document_xml
     assert "Send request before price approval." in document_xml
+    assert "Контрольные вопросы ТЗ" in document_xml
+    assert "Плейбуки оператора" in document_xml
+    assert "AI-вопросы" not in document_xml
+    assert "Tender playbooks" not in document_xml
 
 
 def _document_xml(content: bytes) -> str:

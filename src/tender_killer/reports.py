@@ -630,7 +630,7 @@ def _analysis_saas_elements(operator_view: dict[str, Any]) -> list[DocxElement]:
     if isinstance(workflow, dict):
         elements.extend(
             [
-                _p("ТЗ workflow", "heading"),
+                _p("Рабочий статус ТЗ", "heading"),
                 _table(
                     [
                         ["Статус", _value(workflow.get("status_label") or workflow.get("status"))],
@@ -691,7 +691,7 @@ def _analysis_saas_elements(operator_view: dict[str, Any]) -> list[DocxElement]:
                 ]
             )
         if len(rows) > 1:
-            elements.extend([_p("AI-вопросы по ТЗ", "heading"), _table(rows, "analysis")])
+            elements.extend([_p("Контрольные вопросы ТЗ", "heading"), _table(rows, "analysis")])
 
     playbooks = operator_view.get("playbooks")
     playbook_items = playbooks.get("items") if isinstance(playbooks, dict) else None
@@ -709,7 +709,7 @@ def _analysis_saas_elements(operator_view: dict[str, Any]) -> list[DocxElement]:
                 ]
             )
         if len(rows) > 1:
-            elements.extend([_p("Tender playbooks", "heading"), _table(rows, "analysis")])
+            elements.extend([_p("Плейбуки оператора", "heading"), _table(rows, "analysis")])
 
     return elements
 

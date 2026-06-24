@@ -432,3 +432,101 @@ def test_analysis_history_detects_document_and_key_condition_changes():
     payment = next(item for item in changes["condition_changes"] if item["family"] == "payment")
     assert payment["before"] == "Оплата в течение 7 рабочих дней."
     assert payment["after"] == "Оплата в течение 15 рабочих дней."
+
+
+def test_analysis_history_builds_condition_diff_v2_from_condition_groups():
+    previous = {
+        "documents_snapshot": [
+            {"key": "contract", "name": "Проект контракта.docx", "text_hash": "old-contract"},
+        ],
+        "operator_view": {
+            "condition_groups": {
+                "version": 1,
+                "items": [
+                    {
+                        "family": "payment",
+                        "label": "условия оплаты",
+                        "status": "confirmed",
+                        "source_status": "explicit_source",
+                        "summary": "Оплата в течение 7 рабочих дней.",
+                        "sources": ["Проект контракта.docx · стр. 8"],
+                        "operator_action": "Сверить оплату с проектом контракта.",
+                    },
+                    {
+                        "family": "contract_security",
+                        "label": "обеспечение контракта",
+                        "status": "confirmed",
+                        "source_status": "explicit_source",
+                        "summary": "Обеспечение исполнения контракта 5%.",
+                        "sources": ["Проект контракта.docx · стр. 12"],
+                        "operator_action": "Учесть обеспечение в оборотке.",
+                    },
+                ],
+            },
+            "action_plan": [
+                {"id": "acceptance_payment", "next_step": "Сверить оплату с проектом контракта."},
+            ],
+        },
+    }
+    current = {
+        "documents_snapshot": [
+            {"key": "contract", "name": "Проект контракта.docx", "text_hash": "new-contract"},
+        ],
+        "operator_view": {
+            "condition_groups": {
+                "version": 1,
+                "items": [
+                    {
+                        "family": "payment",
+                        "label": "условия оплаты",
+                        "status": "manual_review",
+                        "source_status": "primary_source",
+                        "summary": "Оплата в течение 15 рабочих дней после подписания УПД.",
+                        "sources": ["ПИК.zip · стр. 4"],
+                        "operator_action": "Проверить оплату по ПИК.",
+                    },
+                    {
+                        "family": "contract_security",
+                        "label": "обеспечение контракта",
+                        "status": "confirmed",
+                        "source_status": "primary_source",
+                        "summary": "Обеспечение исполнения контракта 10%.",
+                        "sources": ["Проект контракта.docx · стр. 12"],
+                        "operator_action": "Учесть обеспечение в оборотке.",
+                    },
+                    {
+                        "family": "closing_documents",
+                        "label": "приемка и закрывающие документы",
+                        "status": "confirmed",
+                        "source_status": "primary_source",
+                        "summary": "Закрывающий документ: УПД.",
+                        "sources": ["ПИК.zip · стр. 5"],
+                        "operator_action": "Подготовить УПД к приемке.",
+                    },
+                ],
+            },
+            "action_plan": [
+                {"id": "acceptance_payment", "next_step": "Проверить оплату по ПИК."},
+            ],
+        },
+    }
+
+    changes = build_analysis_change_summary(previous, current, previous_run_id=9)
+    payment = next(item for item in changes["condition_changes"] if item["family"] == "payment")
+    diff = changes["condition_diff"]
+
+    assert diff["version"] == 2
+    assert diff["metrics"] == {"added": 1, "removed": 0, "changed": 2}
+    assert diff["action_plan_changed"] is True
+    assert diff["documents"] == {"added": [], "removed": [], "changed": ["Проект контракта.docx"]}
+    assert payment["change_type"] == "changed"
+    assert payment["before"] == "Оплата в течение 7 рабочих дней."
+    assert payment["after"] == "Оплата в течение 15 рабочих дней после подписания УПД."
+    assert payment["status_before"] == "confirmed"
+    assert payment["status_after"] == "manual_review"
+    assert payment["sources_before"] == ["Проект контракта.docx · стр. 8"]
+    assert payment["sources_after"] == ["ПИК.zip · стр. 4"]
+    assert set(payment["changed_fields"]) >= {"summary", "status", "source_status", "sources", "operator_action"}
+    assert diff["highlights"]["payment"]["change_type"] == "changed"
+    assert diff["highlights"]["closing_documents"]["change_type"] == "added"
+    assert diff["highlights"]["contract_security"]["change_type"] == "changed"

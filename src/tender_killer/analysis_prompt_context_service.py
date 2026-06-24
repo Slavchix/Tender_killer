@@ -25,6 +25,8 @@ def build_analysis_prompt_context(
     context_pack = _context_pack(analysis_payload, document_rows)
     evidence_items = _evidence_items(analysis_payload, document_rows)
     analysis_facts = _analysis_facts(analysis_payload, document_rows)
+    condition_groups = _condition_groups(analysis_payload)
+    condition_diff = _condition_diff(analysis_payload)
     fact_items = [_prompt_fact(item) for item in _dict_items(analysis_facts.get("items"))[:MAX_PROMPT_FACT_ITEMS]]
     prompt_documents = _prompt_documents(text_index)
     agent_contract = _agent_contract(analysis_payload, analysis_facts)
@@ -38,6 +40,8 @@ def build_analysis_prompt_context(
             "facts_schema": "analysis.analysis_facts.version=1",
             "evidence_schema": "analysis.evidence_items",
             "context_schema": "analysis.context_pack.version=1",
+            "condition_schema": "analysis.operator_view.condition_groups.version=1",
+            "condition_diff_schema": "analysis.analysis_history.changes.condition_diff.version=2",
         },
         "task": {
             "goal": (
@@ -58,6 +62,8 @@ def build_analysis_prompt_context(
         },
         "documents": prompt_documents,
         "context_pack": _prompt_context_pack(context_pack),
+        "condition_groups": condition_groups,
+        "condition_diff": condition_diff,
         "evidence_items": [_prompt_evidence(item) for item in evidence_items[:MAX_PROMPT_EVIDENCE_ITEMS]],
         "analysis_facts": {
             "version": 1,
@@ -71,6 +77,8 @@ def build_analysis_prompt_context(
             "evidence_items": min(len(evidence_items), MAX_PROMPT_EVIDENCE_ITEMS),
             "facts": len(fact_items),
             "agent_questions": len(agent_contract.get("questions") or []),
+            "condition_groups": len(condition_groups.get("items") or []),
+            "condition_diff_items": len(condition_diff.get("items") or []),
         },
     }
 
@@ -124,6 +132,90 @@ def _prompt_context_pack(context_pack: dict[str, Any]) -> dict[str, Any]:
         "topic_coverage": context_pack.get("topic_coverage") if isinstance(context_pack.get("topic_coverage"), dict) else {},
         "documents": documents,
     }
+
+
+def _condition_groups(analysis: dict[str, Any]) -> dict[str, Any]:
+    operator_view = analysis.get("operator_view")
+    if isinstance(operator_view, dict):
+        condition_groups = operator_view.get("condition_groups")
+        if isinstance(condition_groups, dict):
+            return _prompt_condition_groups(condition_groups)
+    tz_passport = analysis.get("tz_passport")
+    if isinstance(tz_passport, dict):
+        condition_groups = tz_passport.get("condition_groups")
+        if isinstance(condition_groups, dict):
+            return _prompt_condition_groups(condition_groups)
+    return {"version": 1, "items": [], "metrics": {}}
+
+
+def _prompt_condition_groups(condition_groups: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "version": 1,
+        "metrics": condition_groups.get("metrics") if isinstance(condition_groups.get("metrics"), dict) else {},
+        "items": [_prompt_condition_group(item) for item in _dict_items(condition_groups.get("items"))],
+    }
+
+
+def _prompt_condition_group(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "family": _text(item.get("family")),
+        "label": _text(item.get("label")),
+        "status": _text(item.get("status")),
+        "source_status": _text(item.get("source_status")),
+        "value": _text(item.get("value") or item.get("summary")),
+        "sources": _text_list(item.get("sources")),
+        "primary_fact_id": _text(item.get("primary_fact_id")),
+        "related_fact_ids": _text_list(item.get("related_fact_ids")),
+        "operator_action": _text(item.get("operator_action") or item.get("resolution")),
+        "manual_review_reason": _text(item.get("manual_review_reason")),
+    }
+
+
+def _condition_diff(analysis: dict[str, Any]) -> dict[str, Any]:
+    direct = analysis.get("condition_diff")
+    if isinstance(direct, dict):
+        return _prompt_condition_diff(direct)
+    for history_row in _dict_items(analysis.get("analysis_history")):
+        changes = history_row.get("changes")
+        if not isinstance(changes, dict):
+            continue
+        condition_diff = changes.get("condition_diff")
+        if isinstance(condition_diff, dict):
+            return _prompt_condition_diff(condition_diff)
+    return {"version": 2, "metrics": {"added": 0, "removed": 0, "changed": 0}, "items": [], "highlights": []}
+
+
+def _prompt_condition_diff(condition_diff: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "version": 2,
+        "metrics": condition_diff.get("metrics") if isinstance(condition_diff.get("metrics"), dict) else {},
+        "items": [_prompt_condition_change(item) for item in _dict_items(condition_diff.get("items"))],
+        "highlights": _prompt_condition_diff_highlights(condition_diff.get("highlights")),
+        "action_plan_changed": bool(condition_diff.get("action_plan_changed")),
+    }
+
+
+def _prompt_condition_change(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "family": _text(item.get("family")),
+        "label": _text(item.get("label")),
+        "change_type": _text(item.get("change_type")),
+        "status_before": _text(item.get("status_before")),
+        "status_after": _text(item.get("status_after")),
+        "value_before": _text(item.get("before") or item.get("value_before")),
+        "value_after": _text(item.get("after") or item.get("value_after")),
+        "sources_before": _text_list(item.get("sources_before")),
+        "sources_after": _text_list(item.get("sources_after")),
+        "changed_fields": _text_list(item.get("changed_fields")),
+    }
+
+
+def _prompt_condition_diff_highlights(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, dict):
+        items = [item for item in value.values() if isinstance(item, dict)]
+    else:
+        items = _dict_items(value)
+    return [_prompt_condition_change(item) for item in items]
 
 
 def _prompt_section_taxonomy(value: Any) -> list[dict[str, Any]]:
@@ -249,6 +341,12 @@ def _agent_contract(analysis: dict[str, Any], analysis_facts: dict[str, Any]) ->
             "allowed_operations": ["keep", "revise", "mark_not_supported", "mark_manual_review"],
             "requires_source_for_revise": True,
             "mark_manual_review_when_source_missing": True,
+        },
+        "condition_patch_policy": {
+            "allowed_operations": ["keep", "revise", "mark_conflict", "mark_expected_missing", "mark_manual_review"],
+            "requires_condition_source": True,
+            "preserve_condition_family": True,
+            "use_condition_diff_for_document_updates": True,
         },
         "questions": questions,
         "manual_review_triggers": _manual_review_triggers(fact_items, questions),

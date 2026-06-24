@@ -450,10 +450,18 @@ def _context_topic_keys(*, label: str, category: str, term_type: str) -> set[str
         keys.add("certificates_closing_docs")
     if category in {"financial", "security"} or "обеспеч" in combined or "security" in combined:
         keys.add("contract_security")
+    if "обеспеч" in combined and "заяв" in combined:
+        keys.add("bid_security")
+    if "удерж" in combined or "retention" in combined:
+        keys.add("retentions")
     if category == "contract" or "гарант" in combined or "warranty" in combined:
         keys.add("warranty")
+    if "расторж" in combined or "односторон" in combined or "termination" in combined:
+        keys.add("termination")
     if category == "qualification" or any(marker in combined for marker in ("лиценз", "сро", "участник")):
         keys.add("participant_requirements")
+    if any(marker in combined for marker in ("смп", "сонко", "преимуществ", "ограничен")):
+        keys.add("participant_restrictions")
     if category == "penalty" or any(marker in combined for marker in ("штраф", "пени", "пеня")):
         keys.add("penalties")
     return keys

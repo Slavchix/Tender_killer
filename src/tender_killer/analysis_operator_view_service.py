@@ -30,6 +30,12 @@ EXPECTED_TZ_CHECKS: tuple[dict[str, str], ...] = (
         "action": "Проверить, предусмотрен ли аванс, его размер и условия выплаты.",
     },
     {
+        "family": "retentions",
+        "label": "удержания из оплаты",
+        "category": "financial",
+        "action": "Проверить удержания, неустойки из суммы оплаты и их влияние на денежный цикл.",
+    },
+    {
         "family": "closing_documents",
         "label": "приемка и закрывающие документы",
         "category": "acceptance",
@@ -227,7 +233,7 @@ def _condition_groups(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _condition_group(family: str, items: list[dict[str, Any]]) -> dict[str, Any]:
-    primary = _primary_condition_item(items)
+    primary = _primary_condition_item(family, items)
     status = _condition_group_status(items)
     source_status = _condition_source_status(status, primary)
     related_fact_ids = _condition_related_fact_ids(primary, items)
@@ -290,11 +296,11 @@ def _condition_family_label(family: str) -> str:
     return family.replace("_", " ")
 
 
-def _primary_condition_item(items: list[dict[str, Any]]) -> dict[str, Any]:
-    return max(items, key=_condition_item_score)
+def _primary_condition_item(family: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+    return max(items, key=lambda item: _condition_item_score(item, family))
 
 
-def _condition_item_score(item: dict[str, Any]) -> int:
+def _condition_item_score(item: dict[str, Any], family: str = "") -> int:
     authority_score = {
         "primary_for_topic": 500,
         "primary_document": 420,
@@ -311,7 +317,71 @@ def _condition_item_score(item: dict[str, Any]) -> int:
         binding_score -= 500
     if item.get("conflict_flags"):
         binding_score -= 20
-    return authority_score + binding_score + _int_metric(item.get("priority"), 0)
+    return authority_score + binding_score + _condition_source_hierarchy_score(item, family) + _int_metric(item.get("priority"), 0)
+
+
+def _condition_source_hierarchy_score(item: dict[str, Any], family: str) -> int:
+    role = _condition_source_role(item)
+    if not role:
+        return 0
+    hierarchy = _condition_source_role_hierarchy(family)
+    try:
+        index = hierarchy.index(role)
+    except ValueError:
+        return 0
+    return max(0, 120 - index * 15)
+
+
+def _condition_source_role(item: dict[str, Any]) -> str:
+    role = _text(item.get("context_document_role") or item.get("document_role"))
+    return {
+        "technical_specification": "technical_spec",
+        "contract": "contract_project",
+    }.get(role, role)
+
+
+def _condition_source_role_hierarchy(family: str) -> tuple[str, ...]:
+    if family in {"payment", "advance", "closing_documents"}:
+        return (
+            "pik_obligations_payment",
+            "contract_project",
+            "technical_spec",
+            "technical_spec_appendix",
+            "source_card",
+            "participant_requirements",
+        )
+    if family in {"delivery_deadline", "delivery_place", "packaging_marking", "certificate_documents"}:
+        return (
+            "technical_spec",
+            "technical_spec_appendix",
+            "pik_obligations_payment",
+            "contract_project",
+            "source_card",
+        )
+    if family in {"contract_security", "penalty", "termination", "warranty", "retentions"}:
+        return (
+            "contract_project",
+            "pik_obligations_payment",
+            "technical_spec",
+            "technical_spec_appendix",
+            "source_card",
+        )
+    if family in {"bid_security", "participant_restrictions", "license_sro", "national_regime"}:
+        return (
+            "participant_requirements",
+            "source_card",
+            "technical_spec",
+            "technical_spec_appendix",
+            "contract_project",
+        )
+    return (
+        "technical_spec",
+        "technical_spec_appendix",
+        "contract_project",
+        "pik_obligations_payment",
+        "participant_requirements",
+        "source_card",
+    )
 
 
 def _condition_group_status(items: list[dict[str, Any]]) -> str:
@@ -1025,7 +1095,10 @@ def _expected_families(item: dict[str, Any]) -> set[str]:
     text = _dedupe_text(" ".join(_text(item.get(key)) for key in ("label", "category", "value", "fragment")))
     category = _text(item.get("category"))
     families: set[str] = set()
-    if "оплат" in text:
+    has_retention = any(marker in text for marker in ("удерж", "неустоек из суммы", "неустойку из суммы", "из суммы оплаты"))
+    if has_retention:
+        families.add("retentions")
+    if "оплат" in text and not has_retention:
         families.add("payment")
     if "аванс" in text:
         families.add("advance")
@@ -1914,6 +1987,7 @@ def _is_operator_visible_item(item: dict[str, Any]) -> bool:
 
 def _operator_item_quality(item: dict[str, Any]) -> int:
     label = _text(item.get("label"))
+    category = _text(item.get("category"))
     score = 0
     source_context = _text(item.get("source_context"))
     fragment = _text(item.get("fragment"))
@@ -1930,6 +2004,9 @@ def _operator_item_quality(item: dict[str, Any]) -> int:
         score += 5
     if not score and label:
         return 0
+    family = _semantic_family(label, category)
+    if family:
+        score += _condition_source_hierarchy_score(item, _normalized_condition_family(family))
     return score + min(_int_metric(item.get("priority"), 0), 100)
 
 

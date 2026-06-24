@@ -14,12 +14,32 @@ CONDITION_LABELS: dict[str, str] = {
     "payment": "условия оплаты",
     "advance": "аванс",
     "delivery_deadline": "срок поставки",
+    "delivery_place": "место поставки",
     "closing_documents": "приемка и закрывающие документы",
     "bid_security": "обеспечение заявки",
     "contract_security": "обеспечение контракта",
+    "warranty": "гарантия",
     "penalty": "штрафы и пени",
     "national_regime": "национальный режим",
     "certificate_documents": "сертификаты и декларации",
+    "license_sro": "лицензии или СРО",
+    "packaging_marking": "упаковка и маркировка",
+    "termination": "условия расторжения",
+    "participant_restrictions": "ограничения по участникам",
+    "retentions": "удержания",
+}
+
+CONDITION_DIFF_HIGHLIGHT_FAMILIES = {
+    "payment",
+    "advance",
+    "delivery_deadline",
+    "delivery_place",
+    "closing_documents",
+    "bid_security",
+    "contract_security",
+    "retentions",
+    "penalty",
+    "termination",
 }
 
 
@@ -130,7 +150,8 @@ def build_analysis_change_summary(
     feedback = current.get("analysis_feedback")
     feedback_count = len(feedback) if isinstance(feedback, dict) else 0
     documents = _document_changes(previous.get("documents_snapshot"), current.get("documents_snapshot"))
-    condition_changes = _condition_changes(previous_facts, current_facts)
+    condition_diff = _condition_diff(previous, current, documents)
+    condition_changes = condition_diff["items"]
     return {
         "previous_run_id": previous_run_id,
         "added_count": len(added),
@@ -143,6 +164,10 @@ def build_analysis_change_summary(
         "feedback": _feedback_labels(feedback, current_facts)[:10],
         "documents": documents,
         "condition_changes": condition_changes[:10],
+        "condition_diff": {
+            **condition_diff,
+            "items": condition_changes[:10],
+        },
         "summary": _change_summary_text(
             previous_run_id=previous_run_id,
             added_count=len(added),
@@ -277,39 +302,150 @@ def _document_signature(item: dict[str, Any]) -> tuple[str, str, str, str]:
     )
 
 
-def _condition_changes(
-    previous_facts: dict[str, dict[str, Any]],
-    current_facts: dict[str, dict[str, Any]],
-) -> list[dict[str, str]]:
-    previous_by_family = _conditions_by_family(previous_facts.values())
-    current_by_family = _conditions_by_family(current_facts.values())
+def _condition_diff(
+    previous: dict[str, Any],
+    current: dict[str, Any],
+    documents: dict[str, list[str]],
+) -> dict[str, Any]:
+    previous_by_family = _condition_groups_by_family(previous)
+    current_by_family = _condition_groups_by_family(current)
+    if not previous_by_family and not current_by_family:
+        previous_by_family = _fact_conditions_by_family(_facts_by_id(previous).values())
+        current_by_family = _fact_conditions_by_family(_facts_by_id(current).values())
     families = sorted(set(previous_by_family) | set(current_by_family))
-    changes: list[dict[str, str]] = []
+    changes: list[dict[str, Any]] = []
     for family in families:
-        previous_text = previous_by_family.get(family, "")
-        current_text = current_by_family.get(family, "")
-        if previous_text == current_text:
+        previous_group = previous_by_family.get(family)
+        current_group = current_by_family.get(family)
+        if _condition_group_signature(previous_group) == _condition_group_signature(current_group):
             continue
-        if previous_text and current_text:
+        if previous_group and current_group:
             change_type = "changed"
-        elif current_text:
+        elif current_group:
             change_type = "added"
         else:
             change_type = "removed"
+        before = previous_group.get("summary", "") if previous_group else ""
+        after = current_group.get("summary", "") if current_group else ""
         changes.append(
             {
                 "family": family,
-                "label": CONDITION_LABELS.get(family, family),
+                "label": (current_group or previous_group or {}).get("label") or CONDITION_LABELS.get(family, family),
                 "change_type": change_type,
-                "before": previous_text,
-                "after": current_text,
+                "before": before,
+                "after": after,
+                "status_before": previous_group.get("status", "") if previous_group else "",
+                "status_after": current_group.get("status", "") if current_group else "",
+                "source_status_before": previous_group.get("source_status", "") if previous_group else "",
+                "source_status_after": current_group.get("source_status", "") if current_group else "",
+                "sources_before": previous_group.get("sources", []) if previous_group else [],
+                "sources_after": current_group.get("sources", []) if current_group else [],
+                "operator_action_before": previous_group.get("operator_action", "") if previous_group else "",
+                "operator_action_after": current_group.get("operator_action", "") if current_group else "",
+                "changed_fields": _condition_changed_fields(previous_group, current_group),
             }
         )
-    return changes
+    metrics = {
+        "added": sum(1 for item in changes if item["change_type"] == "added"),
+        "removed": sum(1 for item in changes if item["change_type"] == "removed"),
+        "changed": sum(1 for item in changes if item["change_type"] == "changed"),
+    }
+    highlights = {
+        item["family"]: item
+        for item in changes
+        if item.get("family") in CONDITION_DIFF_HIGHLIGHT_FAMILIES
+    }
+    return {
+        "version": 2,
+        "items": changes,
+        "metrics": metrics,
+        "highlights": highlights,
+        "documents": documents,
+        "action_plan_changed": _action_plan_signature(previous) != _action_plan_signature(current),
+    }
 
 
-def _conditions_by_family(items: Any) -> dict[str, str]:
-    result: dict[str, str] = {}
+def _condition_groups_by_family(analysis: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    operator_view = analysis.get("operator_view") if isinstance(analysis, dict) else None
+    condition_groups = operator_view.get("condition_groups") if isinstance(operator_view, dict) else None
+    items = condition_groups.get("items") if isinstance(condition_groups, dict) else None
+    if not isinstance(items, list):
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        family = str(item.get("family") or "").strip()
+        if not family:
+            continue
+        result[family] = {
+            "family": family,
+            "label": str(item.get("label") or CONDITION_LABELS.get(family, family)),
+            "status": str(item.get("status") or ""),
+            "source_status": str(item.get("source_status") or ""),
+            "summary": str(item.get("summary") or ""),
+            "sources": _string_list(item.get("sources")),
+            "operator_action": str(item.get("operator_action") or item.get("resolution") or ""),
+            "primary_fact_id": str(item.get("primary_fact_id") or ""),
+            "related_fact_ids": _string_list(item.get("related_fact_ids")),
+        }
+    return result
+
+
+def _condition_group_signature(group: dict[str, Any] | None) -> tuple[Any, ...]:
+    if not group:
+        return ()
+    return (
+        group.get("summary", ""),
+        group.get("status", ""),
+        group.get("source_status", ""),
+        tuple(group.get("sources") or []),
+        group.get("operator_action", ""),
+        group.get("primary_fact_id", ""),
+        tuple(group.get("related_fact_ids") or []),
+    )
+
+
+def _condition_changed_fields(previous: dict[str, Any] | None, current: dict[str, Any] | None) -> list[str]:
+    fields = (
+        ("summary", "summary"),
+        ("status", "status"),
+        ("source_status", "source_status"),
+        ("sources", "sources"),
+        ("operator_action", "operator_action"),
+        ("primary_fact_id", "primary_fact_id"),
+        ("related_fact_ids", "related_fact_ids"),
+    )
+    changed: list[str] = []
+    previous = previous or {}
+    current = current or {}
+    for field_name, payload_key in fields:
+        if previous.get(payload_key) != current.get(payload_key):
+            changed.append(field_name)
+    return changed
+
+
+def _action_plan_signature(analysis: dict[str, Any]) -> tuple[tuple[str, str, str], ...]:
+    operator_view = analysis.get("operator_view") if isinstance(analysis, dict) else None
+    action_plan = operator_view.get("action_plan") if isinstance(operator_view, dict) else None
+    if not isinstance(action_plan, list):
+        return ()
+    rows: list[tuple[str, str, str]] = []
+    for item in action_plan:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            (
+                str(item.get("id") or ""),
+                str(item.get("status") or ""),
+                str(item.get("next_step") or ""),
+            )
+        )
+    return tuple(rows)
+
+
+def _fact_conditions_by_family(items: Any) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
     for item in items:
         if not isinstance(item, dict):
             continue
@@ -318,7 +454,17 @@ def _conditions_by_family(items: Any) -> dict[str, str]:
             continue
         text = _condition_text(item)
         if text:
-            result[family] = text
+            result[family] = {
+                "family": family,
+                "label": CONDITION_LABELS.get(family, family),
+                "status": str(item.get("status") or ""),
+                "source_status": "",
+                "summary": text,
+                "sources": _string_list(item.get("source_label") or item.get("document_name") or item.get("source")),
+                "operator_action": str(item.get("operator_action") or ""),
+                "primary_fact_id": str(item.get("id") or ""),
+                "related_fact_ids": _string_list(item.get("id")),
+            }
     return result
 
 
@@ -330,6 +476,8 @@ def _condition_family(item: dict[str, Any]) -> str:
             for key in ("id", "label", "category", "value", "description", "fragment", "source_context", "operator_summary")
         )
     )
+    if any(marker in text for marker in ("удерж", "неустоек из суммы", "неустойку из суммы", "из суммы оплаты")):
+        return "retentions"
     if "оплат" in text:
         return "payment"
     if "аванс" in text:
@@ -363,6 +511,25 @@ def _condition_text(item: dict[str, Any]) -> str:
 
 def _normalized_text(value: Any) -> str:
     return " ".join(str(value or "").split()).casefold()
+
+
+def _string_list(values: Any) -> list[str]:
+    if isinstance(values, list):
+        source = values
+    elif values in (None, ""):
+        source = []
+    else:
+        source = [values]
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in source:
+        text = str(value or "").strip()
+        key = _normalized_text(text)
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        result.append(text)
+    return result
 
 
 def _change_summary_text(

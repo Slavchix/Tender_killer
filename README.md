@@ -2,11 +2,90 @@
 
 ## Current Handoff Snapshot
 
+Date: 2026-06-24.
+
+Current branch/worktree: `codex/moscow-mo-parser` in `C:\Users\zinin.v.a\Documents\tender_killer`.
+
+Authoritative next-session starter prompt:
+
+```text
+Продолжаем Tender Killer в `C:\Users\zinin.v.a\Documents\tender_killer`, ветка `codex/moscow-mo-parser`.
+
+Сначала прочитай:
+- `README.md`
+- `memory/project-context.md`
+- `src/tender_killer/analysis_context_pack_service.py`
+- `src/tender_killer/analysis_facts_service.py`
+- `src/tender_killer/analysis_history_service.py`
+- `src/tender_killer/analysis_operator_view_service.py`
+- `src/tender_killer/analysis_prompt_context_service.py`
+- `src/tender_killer/reports.py`
+
+Правило сессий:
+- Эта рабочая папка сейчас содержит параллельные незакоммиченные изменения ТЗ и экономики.
+- В ТЗ-сессии не трогай экономику/price discovery без явного запроса.
+- В экономической сессии не трогай анализ ТЗ без явного запроса.
+- При коммите staging делать только по явному списку файлов.
+
+Текущая ТЗ-пачка, еще не закоммичена:
+- `src/tender_killer/analysis_context_pack_service.py`
+- `src/tender_killer/analysis_facts_service.py`
+- `src/tender_killer/analysis_history_service.py`
+- `src/tender_killer/analysis_operator_view_service.py`
+- `src/tender_killer/analysis_prompt_context_service.py`
+- `src/tender_killer/reports.py`
+- `tests/test_analysis_456_features.py`
+- `tests/test_analysis_context_pack_service.py`
+- `tests/test_analysis_operator_view_service.py`
+- `tests/test_analysis_prompt_context_service.py`
+- `tests/test_analysis_saas_level.py`
+
+Что в ТЗ-пачке сделано:
+- `analysis_history_service` строит `condition_diff` v2 из `operator_view.condition_groups`: added/removed/changed, highlights, документы и признак изменения action plan.
+- `analysis_operator_view_service` расширил семейства условий и источниковую иерархию: оплата/аванс/закрывающие документы, поставка, обеспечение, удержания, расторжение, ограничения участников и обеспечение заявки выбирают более авторитетный источник по теме.
+- `analysis_context_pack_service` и `analysis_facts_service` лучше распознают `bid_security`, `participant_restrictions`, `termination`, `retentions`.
+- `analysis_prompt_context_service` теперь передает будущему агенту не только факты, evidence и context pack, но и `condition_groups` плюс `condition_diff` v2; agent contract требует сохранять family/source binding при правке условий.
+- Word SaaS-блоки больше не используют `AI-вопросы` / `Tender playbooks`: заголовки стали `Контрольные вопросы ТЗ`, `Плейбуки оператора`, `Рабочий статус ТЗ`.
+
+Проверки ТЗ в этой сессии:
+- red: новые тесты падали на отсутствующем `condition_schema` и старом Word-заголовке.
+- green: `3 passed` для новых targeted tests.
+- related: `27 passed` для `tests/test_analysis_prompt_context_service.py tests/test_analysis_saas_level.py tests/test_reports.py`.
+- related: `48 passed` для `tests/test_analysis_456_features.py tests/test_analysis_context_pack_service.py tests/test_analysis_facts_service.py tests/test_analysis_operator_view_service.py tests/test_analysis_passport_service.py tests/test_analysis_service.py`.
+
+Параллельная экономика в этой же рабочей папке, не трогать из ТЗ-сессии:
+- `src/tender_killer/price_candidate_service.py`
+- `src/tender_killer/price_memory_service.py`
+- `src/tender_killer/schema.py`
+- `src/tender_killer/storage.py`
+- `tests/test_api_handlers.py`
+- `tests/test_frontend_contract.py`
+- `tests/test_price_candidate_service.py`
+- `web/src/TenderEconomicsSuppliers.jsx`
+- `web/src/styles.css`
+
+Что видно по параллельной экономике:
+- price passport получил воронку качества `funnel_steps`.
+- trusted supplier rule добавляет правило поставщика: НДС считаем включенным, доставка +3%, но оператор все равно проверяет карточку/КП.
+- price memory получил list/archive API и поля `entry_status`, `archived_at`, `archive_reason`.
+- UI показывает шаги паспорта цены, `Память цен`, `Правило`, `НДС по правилу`, `доставка по правилу`.
+
+Локальный preview:
+- Обычно API `http://127.0.0.1:8000`, web `http://127.0.0.1:5175`.
+- `git push` сам по себе не обновляет Cloudflare tunnel; tunnel показывает текущий локальный target.
+
+Безопасный следующий шаг:
+1. Если нужно коммитить ТЗ: stage только файлы ТЗ-пачки и README/memory, отдельно от экономики.
+2. Если нужно коммитить экономику: делать это в отдельной сессии/отдельным staging, не включая ТЗ-файлы.
+```
+
+## Historical Handoff Snapshot 2026-06-16 (stale)
+
 Date: 2026-06-16.
 
 Current branch: `codex/moscow-mo-parser`.
 
-Authoritative next-session starter prompt:
+Historical stale starter prompt, kept only as old context:
 
 ```text
 Продолжаем Tender Killer в `C:\Users\zinin.v.a\Documents\tender_killer`, ветка `codex/moscow-mo-parser`.

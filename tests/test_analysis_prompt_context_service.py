@@ -237,6 +237,97 @@ def test_build_analysis_prompt_context_includes_source_bound_agent_contract() ->
     assert context["metrics"]["agent_questions"] == 4
 
 
+def test_build_analysis_prompt_context_includes_condition_groups_and_diff() -> None:
+    analysis = {
+        "summary": "Поставка бумаги.",
+        "operator_view": {
+            "condition_groups": {
+                "version": 1,
+                "items": [
+                    {
+                        "family": "payment",
+                        "label": "условия оплаты",
+                        "status": "confirmed",
+                        "source_status": "primary_source",
+                        "value": "Оплата в течение 15 рабочих дней после УПД.",
+                        "sources": ["ПИК.docx · стр. 4", "Контракт.docx · стр. 7"],
+                        "primary_fact_id": "fact:payment",
+                        "related_fact_ids": ["fact:payment", "fact:closing-docs"],
+                        "operator_action": "Проверить УПД и срок оплаты.",
+                    },
+                    {
+                        "family": "advance",
+                        "label": "аванс",
+                        "status": "expected_missing",
+                        "source_status": "missing",
+                        "value": "",
+                        "sources": [],
+                        "operator_action": "Проверить, предусмотрен ли аванс.",
+                    },
+                ],
+            }
+        },
+        "analysis_history": [
+            {
+                "changes": {
+                    "condition_diff": {
+                        "version": 2,
+                        "metrics": {"added": 1, "removed": 0, "changed": 1},
+                        "items": [
+                            {
+                                "family": "payment",
+                                "label": "условия оплаты",
+                                "change_type": "changed",
+                                "status_before": "manual_review",
+                                "status_after": "confirmed",
+                                "sources_before": ["Контракт.docx · стр. 7"],
+                                "sources_after": ["ПИК.docx · стр. 4", "Контракт.docx · стр. 7"],
+                                "changed_fields": ["status", "sources"],
+                            }
+                        ],
+                        "highlights": {
+                            "payment": {
+                                "family": "payment",
+                                "label": "условия оплаты",
+                                "change_type": "changed",
+                            }
+                        },
+                        "action_plan_changed": True,
+                    }
+                }
+            }
+        ],
+        "analysis_facts": {
+            "version": 1,
+            "items": [
+                {
+                    "id": "fact:payment",
+                    "kind": "execution_term",
+                    "label": "Оплата",
+                    "value": "Оплата в течение 15 рабочих дней после УПД.",
+                    "category": "payment",
+                    "document_name": "ПИК.docx",
+                    "source_label": "ПИК.docx · стр. 4",
+                    "fragment": "Оплата в течение 15 рабочих дней после УПД.",
+                }
+            ],
+        },
+    }
+
+    context = build_analysis_prompt_context(analysis, [])
+
+    assert context["source_contract"]["condition_schema"] == "analysis.operator_view.condition_groups.version=1"
+    assert context["condition_groups"]["version"] == 1
+    assert context["condition_groups"]["items"][0]["family"] == "payment"
+    assert context["condition_groups"]["items"][0]["sources"] == ["ПИК.docx · стр. 4", "Контракт.docx · стр. 7"]
+    assert context["condition_diff"]["version"] == 2
+    assert context["condition_diff"]["metrics"] == {"added": 1, "removed": 0, "changed": 1}
+    assert context["condition_diff"]["highlights"][0]["family"] == "payment"
+    assert context["agent_contract"]["condition_patch_policy"]["requires_condition_source"] is True
+    assert context["metrics"]["condition_groups"] == 2
+    assert context["metrics"]["condition_diff_items"] == 1
+
+
 def test_analyze_tender_payload_exposes_agent_prompt_context_with_bindings(tmp_path) -> None:
     store = TenderStore(tmp_path / "tenders.sqlite")
     store.initialize()

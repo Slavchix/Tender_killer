@@ -218,6 +218,88 @@ def test_build_analysis_operator_view_action_plan_uses_condition_groups_not_dupl
     assert acceptance_step["source"] == "condition_groups"
 
 
+def test_build_analysis_operator_view_condition_groups_use_topic_source_hierarchy():
+    view = build_analysis_operator_view(
+        {
+            "analysis_facts": {
+                "version": 1,
+                "items": [
+                    {
+                        "id": "payment:contract",
+                        "kind": "execution_term",
+                        "label": "Оплата",
+                        "value": "Оплата в течение 30 дней.",
+                        "category": "payment",
+                        "document_name": "Проект контракта.docx",
+                        "source_label": "Проект контракта.docx · стр. 8",
+                        "context_document_role": "contract_project",
+                        "context_source_authority": "primary_for_topic",
+                        "context_source_priority": ["payment_terms"],
+                    },
+                    {
+                        "id": "payment:pik",
+                        "kind": "execution_term",
+                        "label": "Оплата",
+                        "value": "Оплата в течение 5 рабочих дней после подписания УПД.",
+                        "category": "payment",
+                        "document_name": "ПИК.zip",
+                        "source_label": "ПИК.zip · стр. 4",
+                        "context_document_role": "pik_obligations_payment",
+                        "context_source_authority": "primary_for_topic",
+                        "context_source_priority": ["payment_terms", "acceptance_documents"],
+                    },
+                    {
+                        "id": "delivery:contract",
+                        "kind": "execution_term",
+                        "label": "Срок поставки",
+                        "value": "Поставка по заявке заказчика.",
+                        "category": "delivery",
+                        "document_name": "Проект контракта.docx",
+                        "source_label": "Проект контракта.docx · стр. 3",
+                        "context_document_role": "contract_project",
+                        "context_source_authority": "primary_for_topic",
+                        "context_source_priority": ["delivery_schedule"],
+                    },
+                    {
+                        "id": "delivery:tz",
+                        "kind": "execution_term",
+                        "label": "Срок поставки",
+                        "value": "Поставка в течение 3 рабочих дней.",
+                        "category": "delivery",
+                        "document_name": "ТЗ.docx",
+                        "source_label": "ТЗ.docx · стр. 2",
+                        "context_document_role": "technical_spec",
+                        "context_source_authority": "primary_for_topic",
+                        "context_source_priority": ["delivery_schedule"],
+                    },
+                    {
+                        "id": "retention:contract",
+                        "kind": "execution_term",
+                        "label": "Удержания",
+                        "value": "Заказчик удерживает неустойку из суммы оплаты.",
+                        "category": "financial",
+                        "document_name": "Проект контракта.docx",
+                        "source_label": "Проект контракта.docx · стр. 14",
+                        "context_document_role": "contract_project",
+                        "context_source_authority": "primary_for_topic",
+                        "context_source_priority": ["retentions"],
+                    },
+                ],
+            }
+        },
+        [{"name": "ПИК.zip", "text_status": "ok"}, {"name": "ТЗ.docx", "text_status": "ok"}],
+    )
+
+    groups = {item["family"]: item for item in view["condition_groups"]["items"]}
+
+    assert groups["payment"]["primary_fact_id"] == "payment:pik"
+    assert groups["payment"]["summary"].startswith("Оплата в течение 5 рабочих дней")
+    assert groups["delivery_deadline"]["primary_fact_id"] == "delivery:tz"
+    assert groups["delivery_deadline"]["summary"] == "Поставка в течение 3 рабочих дней."
+    assert groups["retentions"]["primary_fact_id"] == "retention:contract"
+    assert groups["retentions"]["source_status"] == "primary_source"
+
+
 def test_build_analysis_operator_view_returns_only_four_major_blocks_from_legacy_analysis():
     analysis = {
         "summary": "Supply office paper.",

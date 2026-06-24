@@ -6,6 +6,7 @@
 
 - верхний блок `README.md` в корне проекта;
 - раздел `Safe supplier connector policy checkpoint` в `memory/project-context.md`.
+- разделы `TZ context strengthening checkpoint` и `Parallel economics checkpoint visible from shared worktree` в `memory/project-context.md` фиксируют состояние на 2026-06-24 и границу между ТЗ-сессией и параллельной экономикой.
 
 Что сюда записываем по команде:
 

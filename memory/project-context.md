@@ -1326,3 +1326,62 @@ Date: 2026-06-16.
   - These files are dirty and not included in the economics commits. Review and test them as a separate ТЗ/report change before staging.
   - The dirty slice adds about `269 insertions` across the four files.
   - Run at least `tests/test_analysis_operator_view_service.py tests/test_reports.py` before committing this slice; broader report/analysis tests may be appropriate because report layout and operator-view metrics are shared surfaces.
+
+## TZ context strengthening checkpoint
+
+Date: 2026-06-24.
+
+- Worktree/branch: `C:\Users\zinin.v.a\Documents\tender_killer`, branch `codex/moscow-mo-parser`.
+- This is a ТЗ/analysis-only slice. Do not stage or modify parallel economics files from this session unless the user explicitly switches to economics.
+- Current uncommitted ТЗ files:
+  - `src/tender_killer/analysis_context_pack_service.py`
+  - `src/tender_killer/analysis_facts_service.py`
+  - `src/tender_killer/analysis_history_service.py`
+  - `src/tender_killer/analysis_operator_view_service.py`
+  - `src/tender_killer/analysis_prompt_context_service.py`
+  - `src/tender_killer/reports.py`
+  - `tests/test_analysis_456_features.py`
+  - `tests/test_analysis_context_pack_service.py`
+  - `tests/test_analysis_operator_view_service.py`
+  - `tests/test_analysis_prompt_context_service.py`
+  - `tests/test_analysis_saas_level.py`
+- Implemented points 3-4 of the latest ТЗ context plan:
+  - `analysis_history_service.build_analysis_change_summary(...)` now emits `condition_diff` v2 from `operator_view.condition_groups`, not only flat facts.
+  - The diff v2 carries `items`, `metrics`, `highlights`, changed documents, and `action_plan_changed`; legacy `condition_changes` remains as `condition_diff.items`.
+  - Expanded condition labels/families include `delivery_place`, `warranty`, `license_sro`, `packaging_marking`, `termination`, `participant_restrictions`, and `retentions`.
+  - Source hierarchy now depends on condition family: payment/advance/closing docs prefer ПИК obligations/payment, delivery prefers ТЗ, contract-security/penalty/termination/warranty/retentions prefer contract project, participant restrictions and bid security prefer source card / participant requirements.
+  - `analysis_context_pack_service` and `analysis_facts_service` now detect `bid_security`, `participant_restrictions`, `termination`, and `retentions`.
+- Implemented points 5-6 of the same plan:
+  - `analysis_prompt_context_service.build_analysis_prompt_context(...)` now includes `condition_groups` and `condition_diff` v2, so a future document-aware agent sees the interpreted condition layer and document-change summary instead of only raw facts.
+  - The prompt `source_contract` declares `condition_schema` and `condition_diff_schema`.
+  - `agent_contract.condition_patch_policy` requires source-bound condition edits, preserving condition family and using condition diff when documents change.
+  - Word SaaS headings are Russian/operator-facing: `Рабочий статус ТЗ`, `Контрольные вопросы ТЗ`, `Плейбуки оператора`; old headings `AI-вопросы по ТЗ` and `Tender playbooks` should not reappear.
+- TDD evidence:
+  - Red tests failed as intended on missing `condition_schema` and the old Word heading.
+  - Green targeted checks: `3 passed` for the new prompt/playbook/Word tests.
+  - Related checks: `27 passed` for prompt context, SaaS-level, and reports.
+  - Related backend analysis checks: `48 passed` for analysis history/context/facts/operator/passport/service.
+- Suggested commit scope for this slice: the 11 ТЗ files above plus README/memory updates only.
+
+## Parallel economics checkpoint visible from shared worktree
+
+Date: 2026-06-24.
+
+- These files are dirty in the same working tree but belong to the parallel economics/price-memory session:
+  - `src/tender_killer/price_candidate_service.py`
+  - `src/tender_killer/price_memory_service.py`
+  - `src/tender_killer/schema.py`
+  - `src/tender_killer/storage.py`
+  - `tests/test_api_handlers.py`
+  - `tests/test_frontend_contract.py`
+  - `tests/test_price_candidate_service.py`
+  - `web/src/TenderEconomicsSuppliers.jsx`
+  - `web/src/styles.css`
+- Observed behavior from the current diff:
+  - Price candidate passport adds `funnel_steps` for source/match/price/terms/decision, with statuses `ok`, `review`, or `block`.
+  - Trusted supplier defaults add a visible rule: НДС считается включенным по правилу, доставка добавляется 3%, but the operator note still says to verify VAT by product card or quote.
+  - Price memory now has list/archive payload helpers, and `price_book_entries` grows `entry_status`, `archived_at`, and `archive_reason`.
+  - Storage filters active price-memory entries by default and can archive entries before future reuse.
+  - API test coverage indicates `GET /api/price-memory` and `POST /api/price-memory/{id}/archive` routes are expected.
+  - Economics UI shows price-passport step chips plus labels `Память цен`, `Правило`, `НДС по правилу`, and `доставка по правилу`.
+- Keep this economics work separate from ТЗ commits. If the next turn asks for a ТЗ commit, do not stage these economics files.
