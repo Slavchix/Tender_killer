@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from tender_killer.analysis import analyze_tender_texts
+from tender_killer.analysis_context_pack_service import build_analysis_context_pack
 from tender_killer.analysis_facts_service import build_analysis_facts
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 from tender_killer.analysis_source_service import attach_document_sources
@@ -59,12 +60,20 @@ def score_tz_benchmark_case(case: dict[str, Any], analysis: Any) -> dict[str, An
     expected_terms = _text_set(case.get("expected_terms"))
     expected_conflicts = _text_set(case.get("expected_conflicts"))
     expected_missing = _text_set(case.get("expected_missing"))
+    expected_document_roles = _text_set(case.get("expected_document_roles"))
+    expected_context_topics = _text_set(case.get("expected_context_topics"))
+    expected_context_missing_reasons = _text_set(case.get("expected_context_missing_reasons"))
+    expected_mismatch_flags = _text_set(case.get("expected_mismatch_flags"))
     absent_labels = _text_set(case.get("absent_labels"))
 
     found_labels = _found_labels(payload)
     found_terms = _found_terms(payload)
     found_conflicts = _found_conflicts(payload)
     found_expected_missing = _found_expected_missing(payload)
+    found_document_roles = _found_document_roles(payload)
+    found_context_topics = _found_context_topics(payload)
+    found_context_missing_reasons = _found_context_missing_reasons(payload)
+    found_mismatch_flags = _found_mismatch_flags(payload)
 
     matched_labels = _matched_text_values(expected_labels, found_labels)
     missed_labels = _missed_text_values(expected_labels, found_labels)
@@ -80,9 +89,35 @@ def score_tz_benchmark_case(case: dict[str, Any], analysis: Any) -> dict[str, An
     missed_conflicts = _sorted(expected_conflicts - found_conflicts)
     matched_expected_missing = _sorted(expected_missing & found_expected_missing)
     missed_expected_missing = _sorted(expected_missing - found_expected_missing)
+    matched_document_roles = _sorted(expected_document_roles & found_document_roles)
+    missed_document_roles = _sorted(expected_document_roles - found_document_roles)
+    matched_context_topics = _sorted(expected_context_topics & found_context_topics)
+    missed_context_topics = _sorted(expected_context_topics - found_context_topics)
+    matched_context_missing_reasons = _sorted(expected_context_missing_reasons & found_context_missing_reasons)
+    missed_context_missing_reasons = _sorted(expected_context_missing_reasons - found_context_missing_reasons)
+    matched_mismatch_flags = _sorted(expected_mismatch_flags & found_mismatch_flags)
+    missed_mismatch_flags = _sorted(expected_mismatch_flags - found_mismatch_flags)
 
-    expected_total = len(expected_labels) + len(expected_terms) + len(expected_conflicts) + len(expected_missing)
-    matched_total = len(matched_labels) + len(matched_terms) + len(matched_conflicts) + len(matched_expected_missing)
+    expected_total = (
+        len(expected_labels)
+        + len(expected_terms)
+        + len(expected_conflicts)
+        + len(expected_missing)
+        + len(expected_document_roles)
+        + len(expected_context_topics)
+        + len(expected_context_missing_reasons)
+        + len(expected_mismatch_flags)
+    )
+    matched_total = (
+        len(matched_labels)
+        + len(matched_terms)
+        + len(matched_conflicts)
+        + len(matched_expected_missing)
+        + len(matched_document_roles)
+        + len(matched_context_topics)
+        + len(matched_context_missing_reasons)
+        + len(matched_mismatch_flags)
+    )
     precision_denominator = len(matched_labels) + len(false_positive_labels)
 
     return {
@@ -97,6 +132,14 @@ def score_tz_benchmark_case(case: dict[str, Any], analysis: Any) -> dict[str, An
         "missed_conflicts": missed_conflicts,
         "matched_expected_missing": matched_expected_missing,
         "missed_expected_missing": missed_expected_missing,
+        "matched_document_roles": matched_document_roles,
+        "missed_document_roles": missed_document_roles,
+        "matched_context_topics": matched_context_topics,
+        "missed_context_topics": missed_context_topics,
+        "matched_context_missing_reasons": matched_context_missing_reasons,
+        "missed_context_missing_reasons": missed_context_missing_reasons,
+        "matched_mismatch_flags": matched_mismatch_flags,
+        "missed_mismatch_flags": missed_mismatch_flags,
         "recall": _ratio(matched_total, expected_total),
         "precision": _ratio(len(matched_labels), precision_denominator),
         "manual_review_required": bool(
@@ -104,6 +147,12 @@ def score_tz_benchmark_case(case: dict[str, Any], analysis: Any) -> dict[str, An
             or missed_conflicts
             or matched_expected_missing
             or missed_expected_missing
+            or matched_context_missing_reasons
+            or missed_context_missing_reasons
+            or matched_mismatch_flags
+            or missed_mismatch_flags
+            or missed_document_roles
+            or missed_context_topics
             or missed_labels
             or missed_terms
         ),
@@ -120,23 +169,22 @@ def summarize_tz_benchmark_scores(scores: list[dict[str, Any]]) -> dict[str, Any
         "average_recall": _average(score.get("recall") for score in scores),
         "average_precision": _average(score.get("precision") for score in scores),
         "manual_review_cases": sum(1 for score in scores if score.get("manual_review_required")),
+        "context_quality": _context_quality(scores),
     }
 
 
 def _analysis_payload_for_case(case: dict[str, Any]) -> dict[str, Any]:
-    documents = [
-        {
-            "name": f"{case['name']}-{index + 1}.txt",
-            "document_type": "tz",
-            "text_status": "ok",
-            "text_content": text,
-        }
-        for index, text in enumerate(case["texts"])
+    documents = _documents_for_case(case)
+    readable_texts = [
+        _text(document.get("text_content"))
+        for document in documents
+        if _text(document.get("text_content")) and _text(document.get("text_status")).casefold() in {"", "ok", "ready"}
     ]
-    combined = analyze_tender_texts([document["text_content"] for document in documents]).to_dict()
+    combined = analyze_tender_texts(readable_texts).to_dict()
     per_document = [
         analyze_tender_texts([document["text_content"]]).to_dict()
         for document in documents
+        if _text(document.get("text_content")) and _text(document.get("text_status")).casefold() in {"", "ok", "ready"}
     ]
     payload = {
         **combined,
@@ -159,6 +207,11 @@ def _analysis_payload_for_case(case: dict[str, Any]) -> dict[str, Any]:
             keys=("type", "value", "evidence"),
         ),
     }
+    payload["context_pack"] = build_analysis_context_pack(
+        documents,
+        tender=case.get("tender") if isinstance(case.get("tender"), dict) else {},
+        items=case.get("items") if isinstance(case.get("items"), list) else [],
+    )
     attach_document_sources(payload, documents)
     payload["analysis_facts"] = build_analysis_facts(payload, documents)
     payload["operator_view"] = build_analysis_operator_view(payload, documents)
@@ -243,6 +296,43 @@ def _fact_quality(scores: list[dict[str, Any]]) -> dict[str, Any]:
         "missed_terms": _unique_score_values(scores, "missed_terms"),
         "hallucinated_labels": _unique_score_values(scores, "false_positive_labels"),
     }
+
+
+def _context_quality(scores: list[dict[str, Any]]) -> dict[str, Any]:
+    found = sum(_matched_context_count(score) for score in scores)
+    missed = sum(_missed_context_count(score) for score in scores)
+    return {
+        "found": found,
+        "missed": missed,
+        "missed_document_roles": _unique_score_values(scores, "missed_document_roles"),
+        "missed_context_topics": _unique_score_values(scores, "missed_context_topics"),
+        "missed_context_missing_reasons": _unique_score_values(scores, "missed_context_missing_reasons"),
+        "missed_mismatch_flags": _unique_score_values(scores, "missed_mismatch_flags"),
+    }
+
+
+def _matched_context_count(score: dict[str, Any]) -> int:
+    return sum(
+        len(score.get(key) or [])
+        for key in (
+            "matched_document_roles",
+            "matched_context_topics",
+            "matched_context_missing_reasons",
+            "matched_mismatch_flags",
+        )
+    )
+
+
+def _missed_context_count(score: dict[str, Any]) -> int:
+    return sum(
+        len(score.get(key) or [])
+        for key in (
+            "missed_document_roles",
+            "missed_context_topics",
+            "missed_context_missing_reasons",
+            "missed_mismatch_flags",
+        )
+    )
 
 
 def _matched_count(score: dict[str, Any]) -> int:
@@ -347,6 +437,55 @@ def _found_expected_missing(analysis: dict[str, Any]) -> set[str]:
     }
 
 
+def _found_document_roles(analysis: dict[str, Any]) -> set[str]:
+    context_pack = _context_pack(analysis)
+    return {
+        role
+        for document in context_pack.get("documents") or []
+        if isinstance(document, dict) and (role := _text(document.get("document_role")))
+    }
+
+
+def _found_context_topics(analysis: dict[str, Any]) -> set[str]:
+    context_pack = _context_pack(analysis)
+    topics = {
+        topic
+        for topic in (context_pack.get("topic_coverage") or {}).keys()
+        if _text(topic)
+    }
+    topics.update(
+        _text(section.get("topic"))
+        for document in context_pack.get("documents") or []
+        if isinstance(document, dict)
+        for section in document.get("section_taxonomy") or []
+        if isinstance(section, dict) and _text(section.get("topic"))
+    )
+    return topics
+
+
+def _found_context_missing_reasons(analysis: dict[str, Any]) -> set[str]:
+    context_pack = _context_pack(analysis)
+    return _text_set(context_pack.get("expected_missing_reasons"))
+
+
+def _found_mismatch_flags(analysis: dict[str, Any]) -> set[str]:
+    context_pack = _context_pack(analysis)
+    flags = _text_set(context_pack.get("mismatch_flags"))
+    flags.update(
+        _text(flag)
+        for document in context_pack.get("documents") or []
+        if isinstance(document, dict)
+        for flag in document.get("mismatch_flags") or []
+        if _text(flag)
+    )
+    return flags
+
+
+def _context_pack(analysis: dict[str, Any]) -> dict[str, Any]:
+    value = analysis.get("context_pack")
+    return value if isinstance(value, dict) else {}
+
+
 def _analysis_facts(analysis: dict[str, Any]) -> list[dict[str, Any]]:
     facts = analysis.get("analysis_facts")
     items = facts.get("items") if isinstance(facts, dict) else []
@@ -381,19 +520,62 @@ def _normalize_case(case: Any, index: int) -> dict[str, Any]:
     category = _text(case.get("category"))
     if category not in REQUIRED_TZ_BENCHMARK_CATEGORIES:
         raise ValueError(f"TZ benchmark case {name!r} has unsupported category {category!r}.")
+    documents = _document_list(case.get("documents"))
     texts = _text_list(case.get("texts"))
+    if not texts:
+        texts = [_text(document.get("text_content")) for document in documents if _text(document.get("text_content"))]
     if not texts:
         raise ValueError(f"TZ benchmark case {name!r} must have non-empty texts.")
     return {
         "name": name,
         "category": category,
         "texts": texts,
+        "documents": documents,
+        "tender": case.get("tender") if isinstance(case.get("tender"), dict) else {},
+        "items": case.get("items") if isinstance(case.get("items"), list) else [],
         "expected_labels": _text_list(case.get("expected_labels")),
         "expected_terms": _text_list(case.get("expected_terms")),
         "expected_conflicts": _text_list(case.get("expected_conflicts")),
         "expected_missing": _text_list(case.get("expected_missing")),
+        "expected_document_roles": _text_list(case.get("expected_document_roles")),
+        "expected_context_topics": _text_list(case.get("expected_context_topics")),
+        "expected_context_missing_reasons": _text_list(case.get("expected_context_missing_reasons")),
+        "expected_mismatch_flags": _text_list(case.get("expected_mismatch_flags")),
         "absent_labels": _text_list(case.get("absent_labels")),
     }
+
+
+def _documents_for_case(case: dict[str, Any]) -> list[dict[str, Any]]:
+    documents = case.get("documents") if isinstance(case.get("documents"), list) else []
+    if documents:
+        return [dict(document) for document in documents if isinstance(document, dict)]
+    return [
+        {
+            "name": f"{case['name']}-{index + 1}.txt",
+            "document_type": "tz",
+            "text_status": "ok",
+            "text_content": text,
+        }
+        for index, text in enumerate(case["texts"])
+    ]
+
+
+def _document_list(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    documents: list[dict[str, Any]] = []
+    for index, document in enumerate(value, start=1):
+        if not isinstance(document, dict):
+            continue
+        item = dict(document)
+        if not _text(item.get("name")):
+            item["name"] = f"benchmark-document-{index}.txt"
+        if not _text(item.get("text_status")):
+            item["text_status"] = "ok"
+        if "text_content" not in item:
+            item["text_content"] = ""
+        documents.append(item)
+    return documents
 
 
 def _text_list(value: Any) -> list[str]:

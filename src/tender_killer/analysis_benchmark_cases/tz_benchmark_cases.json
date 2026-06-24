@@ -248,6 +248,187 @@
       "expected_conflicts": [],
       "expected_missing": ["условия оплаты"],
       "absent_labels": ["лицензия/СРО"]
+    },
+    {
+      "name": "real_mosreg_3687976_system_blocks_context",
+      "category": "small_supply",
+      "tender": {
+        "source": "mosreg_market",
+        "external_id": "3687976",
+        "title": "Поставка системных блоков",
+        "customer": "ГКУ МО"
+      },
+      "documents": [
+        {
+          "name": "ПИК обязательств и оплаты.zip",
+          "document_type": "ПИК",
+          "text_status": "ok",
+          "text_content": "Сведения об обязательствах сторон и порядке оплаты. Оплата 100% по фактическому объему в течение 5 рабочих дней после подписания УПД. Выплата аванса не предусмотрена. Документ о приемке формируется в ПИК."
+        },
+        {
+          "name": "Приложение 5 ООЗ.docx",
+          "document_type": "Описание объекта закупки",
+          "text_status": "ok",
+          "text_content": "Описание объекта закупки. Наименование объекта закупки: Поставка велотренажеров спортивных. Код КТРУ: Системный блок. Требования к функциональным, техническим и качественным характеристикам."
+        },
+        {
+          "name": "ООЗ.rar",
+          "document_type": "Описание объекта закупки",
+          "text_status": "error",
+          "text_error": "unsupported archive",
+          "text_content": ""
+        }
+      ],
+      "expected_labels": ["Аванс", "УПД/накладная/счет-фактура"],
+      "expected_terms": ["advance_payment", "payment_terms"],
+      "expected_conflicts": [],
+      "expected_missing": [],
+      "expected_document_roles": ["pik_obligations_payment", "technical_spec", "unsupported_primary"],
+      "expected_context_topics": ["payment_terms", "advance", "acceptance_documents", "subject", "technical_characteristics"],
+      "expected_context_missing_reasons": ["missing_because_primary_doc_unread", "missing_because_no_section:delivery_schedule"],
+      "expected_mismatch_flags": ["subject_mismatch"],
+      "absent_labels": ["лицензия/СРО"]
+    },
+    {
+      "name": "real_mosreg_3675299_medical_cabinets_context",
+      "category": "small_supply",
+      "tender": {
+        "source": "mosreg_market",
+        "external_id": "3675299",
+        "title": "Поставка медицинских кабинетов"
+      },
+      "documents": [
+        {
+          "name": "Описание объекта закупки.docx",
+          "document_type": "Описание объекта закупки",
+          "text_status": "ok",
+          "text_content": "Описание объекта закупки. Наименование объекта закупки: Поставка медицинских кабинетов. Требуется регистрационное удостоверение, декларация о соответствии и паспорт качества."
+        },
+        {
+          "name": "Проект контракта.docx",
+          "document_type": "Проект контракта",
+          "text_status": "ok",
+          "text_content": "Предмет контракта: Поставка медицинских кабинетов. Оплата производится в течение 7 рабочих дней после подписания документа о приемке. Срок поставки 10 рабочих дней."
+        }
+      ],
+      "expected_labels": ["регистрационное удостоверение", "сертификат/декларация", "паспорт качества", "срок поставки"],
+      "expected_terms": ["payment_terms", "delivery_deadline"],
+      "expected_conflicts": [],
+      "expected_missing": [],
+      "expected_document_roles": ["technical_spec", "contract_project"],
+      "expected_context_topics": ["subject", "certificates_closing_docs", "payment_terms", "acceptance_documents", "delivery_schedule"],
+      "expected_context_missing_reasons": [],
+      "expected_mismatch_flags": [],
+      "absent_labels": ["лицензия/СРО"]
+    },
+    {
+      "name": "real_mosreg_3680817_ventilation_service_context",
+      "category": "services",
+      "tender": {
+        "source": "mosreg_market",
+        "external_id": "3680817",
+        "title": "Услуги по дезинфекции вентиляции"
+      },
+      "documents": [
+        {
+          "name": "Техническое задание.docx",
+          "document_type": "Техническое задание",
+          "text_status": "ok",
+          "text_content": "Техническое задание: оказание услуг по дезинфекции вентиляции. Исполнитель должен иметь действующую лицензию и квалифицированный персонал. Работы закрываются актом выполненных работ. Гарантия 12 месяцев."
+        },
+        {
+          "name": "Проект контракта.docx",
+          "document_type": "Проект контракта",
+          "text_status": "ok",
+          "text_content": "Проект контракта. За нарушение сроков оказания услуг начисляется пеня. Оплата производится после подписания акта."
+        },
+        {
+          "name": "Единые требования.docx",
+          "document_type": "Единые требования в соответствии с ч.1 ст. 31 44-ФЗ",
+          "text_status": "ok",
+          "text_content": "Статья 31. Требования к участникам закупки. Участник закупки декларирует соответствие единым требованиям."
+        }
+      ],
+      "expected_labels": ["лицензия/СРО", "квалифицированный персонал", "акт выполненных работ", "гарантия", "штрафы/пени"],
+      "expected_terms": ["payment_terms", "penalties", "warranty_period"],
+      "expected_conflicts": [],
+      "expected_missing": [],
+      "expected_document_roles": ["technical_spec", "contract_project", "participant_requirements"],
+      "expected_context_topics": ["participant_requirements", "acceptance_documents", "payment_terms", "penalties", "warranty"],
+      "expected_context_missing_reasons": ["missing_because_no_section:delivery_schedule"],
+      "expected_mismatch_flags": [],
+      "absent_labels": ["короткий срок поставки"]
+    },
+    {
+      "name": "real_mosreg_3673016_fuel_pik_context",
+      "category": "no_advance",
+      "tender": {
+        "source": "mosreg_market",
+        "external_id": "3673016",
+        "title": "Поставка бензина"
+      },
+      "documents": [
+        {
+          "name": "ПИК обязательств и оплаты.zip",
+          "document_type": "ПИК",
+          "text_status": "ok",
+          "text_content": "Сведения об обязательствах сторон и порядке оплаты. Авансирование не предусмотрено. Оплата 100% после подписания УПД. Место доставки товара: АЗС заказчика."
+        },
+        {
+          "name": "ООЗ бензин.docx",
+          "document_type": "Описание объекта закупки",
+          "text_status": "ok",
+          "text_content": "Описание объекта закупки. Наименование объекта закупки: Поставка бензина. Товар должен соответствовать ГОСТ."
+        }
+      ],
+      "expected_labels": ["Аванс", "УПД/накладная/счет-фактура", "ГОСТ/ТУ"],
+      "expected_terms": ["advance_payment", "payment_terms"],
+      "expected_conflicts": [],
+      "expected_missing": [],
+      "expected_document_roles": ["pik_obligations_payment", "technical_spec"],
+      "expected_context_topics": ["payment_terms", "advance", "acceptance_documents", "delivery_place", "subject"],
+      "expected_context_missing_reasons": ["missing_because_no_section:delivery_schedule"],
+      "expected_mismatch_flags": [],
+      "absent_labels": ["лицензия/СРО"]
+    },
+    {
+      "name": "real_moscow_auction10221887_construction_archive_context",
+      "category": "multiple_revisions",
+      "tender": {
+        "source": "moscow_supplier_portal",
+        "external_id": "Auction10221887",
+        "title": "Поставка строительных и сантехнических материалов"
+      },
+      "documents": [
+        {
+          "name": "Приложение к ООЗ редакция 1.docx",
+          "document_type": "Приложение к Описанию объекта закупки",
+          "text_status": "ok",
+          "text_content": "Приложение к Описанию объекта закупки. Строительные материалы должны соответствовать ГОСТ. Поставщик предоставляет паспорт качества."
+        },
+        {
+          "name": "Проект договора редакция 2.docx",
+          "document_type": "Проект договора",
+          "text_status": "ok",
+          "text_content": "Предмет договора: Поставка строительных и сантехнических материалов. Обеспечение исполнения контракта составляет 5 процентов. Оплата после подписания УПД."
+        },
+        {
+          "name": "archive_original_docs.rar",
+          "document_type": "Описание объекта закупки",
+          "text_status": "error",
+          "text_error": "unsupported archive",
+          "text_content": ""
+        }
+      ],
+      "expected_labels": ["ГОСТ/ТУ", "паспорт качества", "обеспечение исполнения контракта", "УПД/накладная/счет-фактура"],
+      "expected_terms": ["contract_security", "payment_terms"],
+      "expected_conflicts": [],
+      "expected_missing": [],
+      "expected_document_roles": ["technical_spec_appendix", "contract_project", "unsupported_primary"],
+      "expected_context_topics": ["technical_characteristics", "certificates_closing_docs", "subject", "contract_security", "payment_terms", "acceptance_documents"],
+      "expected_context_missing_reasons": ["missing_because_primary_doc_unread", "missing_because_no_section:delivery_schedule"],
+      "expected_mismatch_flags": [],
+      "absent_labels": ["лицензия/СРО"]
     }
   ]
 }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from tender_killer.analysis_context_pack_service import build_analysis_context_pack
 from tender_killer.analysis_evidence_service import build_analysis_evidence_items
 from tender_killer.analysis_facts_service import build_analysis_facts
 from tender_killer.analysis_questions_service import build_analysis_ai_questions
@@ -21,6 +22,7 @@ def build_analysis_prompt_context(
     analysis_payload = analysis if isinstance(analysis, dict) else {}
     document_rows = documents or []
     text_index = _text_index(analysis_payload, document_rows)
+    context_pack = _context_pack(analysis_payload, document_rows)
     evidence_items = _evidence_items(analysis_payload, document_rows)
     analysis_facts = _analysis_facts(analysis_payload, document_rows)
     fact_items = [_prompt_fact(item) for item in _dict_items(analysis_facts.get("items"))[:MAX_PROMPT_FACT_ITEMS]]
@@ -35,6 +37,7 @@ def build_analysis_prompt_context(
             "required_binding_fields": ["document_name", "source_page", "source_label", "source_context"],
             "facts_schema": "analysis.analysis_facts.version=1",
             "evidence_schema": "analysis.evidence_items",
+            "context_schema": "analysis.context_pack.version=1",
         },
         "task": {
             "goal": (
@@ -54,6 +57,7 @@ def build_analysis_prompt_context(
             "confidence": analysis_payload.get("confidence"),
         },
         "documents": prompt_documents,
+        "context_pack": _prompt_context_pack(context_pack),
         "evidence_items": [_prompt_evidence(item) for item in evidence_items[:MAX_PROMPT_EVIDENCE_ITEMS]],
         "analysis_facts": {
             "version": 1,
@@ -63,6 +67,7 @@ def build_analysis_prompt_context(
         "metrics": {
             "documents": len(prompt_documents),
             "document_chunks": sum(len(document.get("chunks") or []) for document in prompt_documents),
+            "context_documents": len(_dict_items(context_pack.get("documents"))),
             "evidence_items": min(len(evidence_items), MAX_PROMPT_EVIDENCE_ITEMS),
             "facts": len(fact_items),
             "agent_questions": len(agent_contract.get("questions") or []),
@@ -75,6 +80,64 @@ def _text_index(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> di
     if isinstance(value, dict) and value.get("version") == 1:
         return value
     return build_analysis_text_index(documents)
+
+
+def _context_pack(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> dict[str, Any]:
+    value = analysis.get("context_pack") or analysis.get("analysis_context_pack")
+    if isinstance(value, dict) and value.get("version") == 1:
+        return value
+    return build_analysis_context_pack(
+        documents,
+        tender=analysis if isinstance(analysis, dict) else {},
+        items=_dict_items(analysis.get("items")),
+    )
+
+
+def _prompt_context_pack(context_pack: dict[str, Any]) -> dict[str, Any]:
+    documents: list[dict[str, Any]] = []
+    for document in _dict_items(context_pack.get("documents")):
+        documents.append(
+            {
+                "id": _text(document.get("id")),
+                "name": _text(document.get("name")),
+                "document_role": _text(document.get("document_role")),
+                "document_role_confidence": _text(document.get("document_role_confidence")),
+                "source_priority": _text_list(document.get("source_priority")),
+                "text_quality": document.get("text_quality") if isinstance(document.get("text_quality"), dict) else {},
+                "duplicate_group_id": _text(document.get("duplicate_group_id")),
+                "revision_group_id": _text(document.get("revision_group_id")),
+                "mismatch_flags": _text_list(document.get("mismatch_flags")),
+                "tender_identity_match": (
+                    document.get("tender_identity_match")
+                    if isinstance(document.get("tender_identity_match"), dict)
+                    else {}
+                ),
+                "section_taxonomy": _prompt_section_taxonomy(document.get("section_taxonomy")),
+            }
+        )
+    return {
+        "version": 1,
+        "mode": _text(context_pack.get("mode")) or "deterministic_document_context",
+        "metrics": context_pack.get("metrics") if isinstance(context_pack.get("metrics"), dict) else {},
+        "mismatch_flags": _text_list(context_pack.get("mismatch_flags")),
+        "expected_missing_reasons": _text_list(context_pack.get("expected_missing_reasons")),
+        "topic_coverage": context_pack.get("topic_coverage") if isinstance(context_pack.get("topic_coverage"), dict) else {},
+        "documents": documents,
+    }
+
+
+def _prompt_section_taxonomy(value: Any) -> list[dict[str, Any]]:
+    sections: list[dict[str, Any]] = []
+    for section in _dict_items(value):
+        sections.append(
+            {
+                "topic": _text(section.get("topic")),
+                "confidence": _text(section.get("confidence")),
+                "evidence": _text(section.get("evidence")),
+                "markers": _text_list(section.get("markers")),
+            }
+        )
+    return sections
 
 
 def _evidence_items(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> list[dict[str, Any]]:

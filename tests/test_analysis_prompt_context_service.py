@@ -84,6 +84,39 @@ def test_build_analysis_prompt_context_preserves_document_bound_evidence_and_fac
     assert context["evidence_items"][0]["source_page"] == 2
     assert context["analysis_facts"]["items"][0]["source_binding"]["document_name"] == "terms.pdf"
     assert context["analysis_facts"]["items"][0]["source_binding"]["source_page"] == 2
+    assert context["context_pack"]["version"] == 1
+    assert context["context_pack"]["documents"][0]["document_role"] == "technical_spec"
+    assert "certificates_closing_docs" in {
+        section["topic"] for section in context["context_pack"]["documents"][0]["section_taxonomy"]
+    }
+
+
+def test_build_analysis_prompt_context_reuses_current_context_pack() -> None:
+    analysis = {
+        "summary": "Supply of office paper.",
+        "context_pack": {
+            "version": 1,
+            "mode": "deterministic_document_context",
+            "documents": [
+                {
+                    "id": "document:1",
+                    "name": "pik.zip",
+                    "document_role": "pik_obligations_payment",
+                    "source_priority": ["payment_terms", "acceptance_documents"],
+                    "section_taxonomy": [{"topic": "payment_terms", "evidence": "Оплата 100%."}],
+                }
+            ],
+            "metrics": {"documents": 1},
+        },
+    }
+
+    context = build_analysis_prompt_context(analysis, [])
+
+    assert context["context_pack"]["documents"][0]["name"] == "pik.zip"
+    assert context["context_pack"]["documents"][0]["source_priority"] == [
+        "payment_terms",
+        "acceptance_documents",
+    ]
 
 
 def test_build_analysis_prompt_context_derives_missing_evidence_from_documents() -> None:
@@ -244,6 +277,9 @@ def test_analyze_tender_payload_exposes_agent_prompt_context_with_bindings(tmp_p
 
     assert context["mode"] == "document_aware_agent_prompt"
     assert context["documents"][0]["name"] == "terms.pdf"
+    assert payload["analysis"]["context_pack"]["version"] == 1
+    assert context["context_pack"]["version"] == 1
+    assert context["context_pack"]["documents"][0]["document_role"] == "technical_spec"
     assert context["evidence_items"]
     assert context["analysis_facts"]["items"]
     assert all(

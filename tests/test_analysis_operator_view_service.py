@@ -210,6 +210,55 @@ def test_build_analysis_operator_view_groups_analysis_facts_into_four_operator_b
     assert sections["product_compliance"]["items"][0]["confidence_level"]["label"] == "уверенность высокая"
 
 
+def test_build_analysis_operator_view_surfaces_context_pack_manual_checks():
+    analysis = {
+        "summary": "Поставка системных блоков.",
+        "context_pack": {
+            "version": 1,
+            "mismatch_flags": ["subject_mismatch"],
+            "expected_missing_reasons": ["missing_because_primary_doc_unread"],
+            "documents": [
+                {
+                    "id": "document:1",
+                    "name": "Приложение 5 ООЗ.docx",
+                    "document_role": "technical_spec",
+                    "mismatch_flags": ["subject_mismatch"],
+                    "tender_identity_match": {
+                        "subject": {
+                            "status": "mismatch",
+                            "tender_title": "Поставка системных блоков",
+                            "document_subject": "Поставка велотренажеров спортивных",
+                        }
+                    },
+                },
+                {
+                    "id": "document:2",
+                    "name": "ООЗ.rar",
+                    "document_role": "unsupported_primary",
+                    "text_quality": {"status": "extraction_error", "text_error": "unsupported archive"},
+                },
+            ],
+        },
+    }
+
+    view = build_analysis_operator_view(analysis, [])
+    sections = {section["id"]: section for section in view["sections"]}
+    decision_labels = {item["label"] for item in sections["decision_risks"]["items"]}
+    product_labels = {item["label"] for item in sections["product_compliance"]["items"]}
+    mismatch_item = next(
+        item
+        for item in sections["decision_risks"]["items"]
+        if item["label"] == "Документ не совпадает с карточкой закупки"
+    )
+
+    assert "Документ не совпадает с карточкой закупки" in decision_labels
+    assert "Главный документ ТЗ не прочитан" in product_labels
+    assert mismatch_item["needs_review"] is True
+    assert mismatch_item["source_label"] == "Приложение 5 ООЗ.docx"
+    assert "велотренажеров" in mismatch_item["fragment"]
+    assert view["decision_brief"]["status"] == "manual_review"
+
+
 def test_build_analysis_operator_view_returns_pending_four_block_contract_without_analysis():
     view = build_analysis_operator_view(None, [{"name": "Spec.docx", "text_status": "pending"}])
 

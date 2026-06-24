@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from tender_killer.analysis import analyze_tender_texts
+from tender_killer.analysis_context_pack_service import build_analysis_context_pack
 from tender_killer.analysis_document_context import annotate_document_roles
 from tender_killer.analysis_document_context import build_document_coverage
 from tender_killer.analysis_document_context import document_roles_summary
@@ -24,23 +25,42 @@ from tender_killer.analysis_text_index_service import build_analysis_text_index
 from tender_killer.schema import ensure_analysis_table
 from tender_killer.schema import ensure_analysis_history_table
 from tender_killer.schema import ensure_documents_table
+from tender_killer.schema import ensure_items_table
 from tender_killer.tender_detail_service import get_tender_payload
 
 
 def analyze_tender_payload(database_path: str | Path, source: str, external_id: str) -> dict[str, Any]:
     with _connect(database_path) as connection:
         ensure_documents_table(connection)
+        ensure_items_table(connection)
         ensure_analysis_table(connection)
         ensure_analysis_history_table(connection)
-        exists = connection.execute(
-            "SELECT 1 FROM tenders WHERE source = ? AND external_id = ?",
+        tender_row = connection.execute(
+            """
+            SELECT source, external_id, title, customer, region, price, currency, status,
+                   law, deadline_at, delivery_place, category, okpd2
+            FROM tenders
+            WHERE source = ? AND external_id = ?
+            """,
             (source, external_id),
         ).fetchone()
-        if exists is None:
+        if tender_row is None:
             raise KeyError(f"Tender {source}/{external_id} not found.")
+        tender_context = dict(tender_row)
+        item_rows = connection.execute(
+            """
+            SELECT position_index, name, details, quantity, unit, unit_price, total_price,
+                   okpd2, classifier_code, classifier_type
+            FROM tender_items
+            WHERE source = ? AND external_id = ?
+            ORDER BY position_index
+            """,
+            (source, external_id),
+        ).fetchall()
+        items = [dict(row) for row in item_rows]
         rows = connection.execute(
             """
-            SELECT name, url, document_type, text_status, text_content, text_error
+            SELECT document_index, name, url, document_type, text_status, text_content, text_error
             FROM tender_documents
             WHERE source = ? AND external_id = ?
             ORDER BY document_index
@@ -69,6 +89,7 @@ def analyze_tender_payload(database_path: str | Path, source: str, external_id: 
         raw_payload["document_roles"] = document_roles
         raw_payload["documents_snapshot"] = build_analysis_documents_snapshot(documents)
         raw_payload["text_index"] = build_analysis_text_index(documents)
+        raw_payload["context_pack"] = build_analysis_context_pack(documents, tender=tender_context, items=items)
         attach_document_sources(raw_payload, ready_documents)
         raw_payload["analysis_facts"] = build_analysis_facts(raw_payload, documents)
         raw_payload["tz_passport"] = build_analysis_tz_passport(raw_payload, documents)

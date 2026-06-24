@@ -9,6 +9,7 @@ from tender_killer.analysis_document_context import build_document_coverage
 from tender_killer.analysis_document_context import document_roles_summary
 from tender_killer.adapters import MoscowSupplierPortalAdapter
 from tender_killer.adapters import MosregMarketAdapter
+from tender_killer.analysis_context_pack_service import build_analysis_context_pack
 from tender_killer.analysis_evidence_service import build_analysis_evidence_items
 from tender_killer.analysis_feedback import apply_analysis_feedback
 from tender_killer.analysis_history_service import list_analysis_history
@@ -147,7 +148,11 @@ def get_tender_payload(
     payload["documents"] = _json_list(payload.pop("documents_json"))
     payload["items"] = [_item_row_to_payload(item_row) for item_row in item_rows]
     payload["document_records"] = [document_row_to_payload(document_row) for document_row in document_rows]
-    payload["analysis"] = _analysis_row_to_payload(analysis_row, payload["document_records"]) if analysis_row else None
+    payload["analysis"] = (
+        _analysis_row_to_payload(analysis_row, payload["document_records"], tender=payload, items=payload["items"])
+        if analysis_row
+        else None
+    )
     if payload["analysis"] is not None:
         payload["analysis"]["analysis_history"] = analysis_history
     if include_product_profiles:
@@ -278,7 +283,13 @@ def _item_row_to_payload(row: sqlite3.Row) -> dict[str, Any]:
     return payload
 
 
-def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) -> dict[str, Any]:
+def _analysis_row_to_payload(
+    row: sqlite3.Row,
+    documents: list[dict[str, Any]],
+    *,
+    tender: dict[str, Any] | None = None,
+    items: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     payload = dict(row)
     payload["requirements"] = _json_list(payload.pop("requirements_json"))
     payload["risks"] = _json_list(payload.pop("risks_json"))
@@ -300,6 +311,12 @@ def _analysis_row_to_payload(row: sqlite3.Row, documents: list[dict[str, Any]]) 
         text_index
         if isinstance(text_index, dict) and text_index.get("version") == 1
         else build_analysis_text_index(documents)
+    )
+    context_pack = payload["raw_payload"].get("context_pack")
+    payload["context_pack"] = (
+        context_pack
+        if _context_pack_is_current(context_pack)
+        else build_analysis_context_pack(documents, tender=tender or payload, items=items or [])
     )
     missing_checks = payload["raw_payload"].get("missing_checks")
     payload["missing_checks"] = missing_checks if isinstance(missing_checks, list) else build_missing_checks(payload)
@@ -382,7 +399,13 @@ def _agent_prompt_context_is_current(value: Any) -> bool:
         isinstance(value, dict)
         and value.get("version") == 1
         and isinstance(value.get("agent_contract"), dict)
+        and isinstance(value.get("context_pack"), dict)
+        and value["context_pack"].get("version") == 1
     )
+
+
+def _context_pack_is_current(value: Any) -> bool:
+    return isinstance(value, dict) and value.get("version") == 1 and isinstance(value.get("documents"), list)
 
 
 def _operator_view_has_source_context(value: dict[str, Any]) -> bool:
