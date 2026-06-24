@@ -3111,11 +3111,22 @@ def test_economics_tab_exposes_price_book_feed_import_ui():
     assert "parsePriceBookFeedText" in feed_source
     assert "normalizeFeedHeader" in feed_source
     assert "splitDelimitedLine" in feed_source
+    assert "buildPriceBookFeedQuality" in feed_source
+    assert "feedQualitySummary" in feed_source
+    assert "matchProfileByName" in feed_source
+    assert "quality.rows" in feed_source
+    assert "price-book-feed-quality" in feed_source
+    assert "price-book-feed-quality-row" in feed_source
+    assert "Точно по позиции" in feed_source
+    assert "По названию" in feed_source
+    assert "Нужна проверка" in feed_source
     assert "feedPreviewRows" in feed_source
     assert "rows: parsed.rows" in feed_source
     assert "price-book-feed-panel" in feed_source
     assert ".price-book-feed-panel" in styles_source
     assert ".price-book-feed-preview" in styles_source
+    assert ".price-book-feed-quality" in styles_source
+    assert ".price-book-feed-quality-row" in styles_source
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(feed_source, TENDER_ECONOMICS_PRICE_BOOK_FEED_SOURCE) == []

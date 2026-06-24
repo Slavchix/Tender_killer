@@ -4470,6 +4470,32 @@ textarea:focus {
   font-style: normal;
 }
 
+.price-book-feed-quality {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.price-book-feed-quality strong,
+.price-book-feed-quality span {
+  padding: 4px 7px;
+  font-size: 11px;
+  font-weight: 900;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+}
+
+.price-book-feed-quality strong {
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.price-book-feed-quality span {
+  color: var(--color-text-secondary);
+  background: var(--color-surface-soft);
+}
+
 .price-book-feed-preview {
   display: grid;
   gap: 6px;
@@ -4477,7 +4503,7 @@ textarea:focus {
 
 .price-book-feed-row {
   display: grid;
-  grid-template-columns: 72px minmax(110px, 0.6fr) minmax(0, 1fr) minmax(96px, auto);
+  grid-template-columns: 58px 88px minmax(108px, 0.6fr) minmax(0, 1fr) minmax(96px, auto);
   gap: 8px;
   align-items: center;
   min-width: 0;
@@ -4489,6 +4515,7 @@ textarea:focus {
 
 .price-book-feed-row strong,
 .price-book-feed-row span,
+.price-book-feed-row mark,
 .price-book-feed-row em {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -4503,6 +4530,28 @@ textarea:focus {
   color: var(--color-text-secondary);
   font-style: normal;
   font-weight: 900;
+}
+
+.price-book-feed-row mark {
+  color: var(--color-primary);
+  background: transparent;
+  font-weight: 900;
+}
+
+.price-book-feed-quality-row.exact_position {
+  border-color: var(--color-success);
+}
+
+.price-book-feed-quality-row.name_match {
+  border-color: var(--color-primary);
+}
+
+.price-book-feed-quality-row.review {
+  border-color: var(--color-warning);
+}
+
+.price-book-feed-quality-row.error {
+  border-color: var(--color-danger);
 }
 
 .price-memory-panel {

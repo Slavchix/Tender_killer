@@ -72,7 +72,8 @@ export function TenderEconomicsPriceBookFeed({
   const [feedName, setFeedName] = useState(DEFAULT_FEED_NAME)
   const [feedText, setFeedText] = useState('')
   const parsed = useMemo(() => parsePriceBookFeedText(feedText), [feedText])
-  const feedPreviewRows = parsed.rows.slice(0, 5)
+  const quality = useMemo(() => buildPriceBookFeedQuality(parsed.rows, profiles), [parsed.rows, profiles])
+  const feedPreviewRows = quality.rows.slice(0, 5)
   const canSubmit = parsed.rows.length > 0 && !parsed.error && !stagingPriceBookFeed && onPriceBookFeedStage
 
   function submitFeed(event) {
@@ -88,7 +89,7 @@ export function TenderEconomicsPriceBookFeed({
     <details className="economics-card price-book-feed-panel">
       <summary>
         <span>Прайс / КП</span>
-        <em>{parsed.rows.length ? `${parsed.rows.length} строк · ${parsed.mapped_columns} колонок` : `${profiles.length} позиций`}</em>
+        <em>{parsed.rows.length ? feedQualitySummary(quality) : `${profiles.length} позиций`}</em>
       </summary>
       <form className="price-book-feed-form" onSubmit={submitFeed}>
         <div className="price-book-feed-controls">
@@ -115,14 +116,29 @@ export function TenderEconomicsPriceBookFeed({
           <span>{parsed.error || `Готово к загрузке: ${parsed.rows.length}`}</span>
           {parsed.skipped_rows > 0 && <em>Пропущено строк: {parsed.skipped_rows}</em>}
         </div>
+        {quality.rows.length > 0 && (
+          <div className="price-book-feed-quality">
+            <strong>Качество сопоставления</strong>
+            <span>Точно по позиции: {quality.exact_position}</span>
+            <span>По названию: {quality.name_match}</span>
+            <span>Нужна проверка: {quality.review}</span>
+          </div>
+        )}
         {feedPreviewRows.length > 0 && (
           <div className="price-book-feed-preview" aria-label="Предпросмотр прайса">
-            {feedPreviewRows.map((row, index) => (
-              <div className="price-book-feed-row" key={`${row.position_index || row.product_name || index}-${index}`}>
-                <strong>{row.position_index ? `#${row.position_index}` : row.product_name || row.sku || 'строка'}</strong>
-                <span>{row.supplier_name || row.provider || 'поставщик не указан'}</span>
-                <span>{row.product_name || row.description || 'товар не указан'}</span>
-                <em>{row.unit_price ? `${row.unit_price} ₽${row.unit ? ` / ${row.unit}` : ''}` : 'нет цены'}</em>
+            {feedPreviewRows.map((item, index) => (
+              <div
+                className={`price-book-feed-row price-book-feed-quality-row ${item.status}`}
+                key={`${item.row.position_index || item.row.product_name || index}-${index}`}
+              >
+                {item.profile && <mark>{item.profile.position_index ? `#${item.profile.position_index}` : 'позиция'}</mark>}
+                <strong>
+                  {item.row.position_index ? `#${item.row.position_index}` : item.row.product_name || item.row.sku || 'строка'}
+                </strong>
+                <span>{item.status_label}</span>
+                <span>{item.row.supplier_name || item.row.provider || 'поставщик не указан'}</span>
+                <span>{item.row.product_name || item.row.description || 'товар не указан'}</span>
+                <em>{item.row.unit_price ? `${item.row.unit_price} ₽${item.row.unit ? ` / ${item.row.unit}` : ''}` : 'нет цены'}</em>
               </div>
             ))}
           </div>
@@ -130,6 +146,94 @@ export function TenderEconomicsPriceBookFeed({
       </form>
     </details>
   )
+}
+
+export function buildPriceBookFeedQuality(rows = [], profiles = []) {
+  const profilesByPosition = new Map(
+    profiles
+      .filter((profile) => profile?.position_index)
+      .map((profile) => [Number(profile.position_index), profile])
+  )
+  const summary = {
+    exact_position: 0,
+    name_match: 0,
+    review: 0,
+    error: 0,
+    rows: [],
+  }
+
+  rows.forEach((row) => {
+    let status = 'review'
+    let statusLabel = 'Нужна проверка'
+    let profile = null
+    if (!row?.unit_price) {
+      status = 'error'
+      statusLabel = 'Нет цены'
+      summary.error += 1
+    } else if (row.position_index && profilesByPosition.has(Number(row.position_index))) {
+      status = 'exact_position'
+      statusLabel = 'Точно по позиции'
+      profile = profilesByPosition.get(Number(row.position_index))
+      summary.exact_position += 1
+    } else {
+      profile = matchProfileByName(row, profiles)
+      if (profile) {
+        status = 'name_match'
+        statusLabel = 'По названию'
+        summary.name_match += 1
+      } else {
+        summary.review += 1
+      }
+    }
+    summary.rows.push({
+      row,
+      profile,
+      status,
+      status_label: statusLabel,
+    })
+  })
+
+  return summary
+}
+
+export function feedQualitySummary(quality) {
+  if (!quality?.rows?.length) return 'нет строк'
+  const parts = [
+    `${quality.rows.length} строк`,
+    `${quality.exact_position} точно`,
+    `${quality.name_match} по названию`,
+  ]
+  if (quality.review) parts.push(`${quality.review} проверить`)
+  if (quality.error) parts.push(`${quality.error} ошибок`)
+  return parts.join(' · ')
+}
+
+export function matchProfileByName(row, profiles = []) {
+  const rowTokens = normalizedTokens([row?.product_name, row?.description, row?.sku].filter(Boolean).join(' '))
+  if (rowTokens.length === 0) return null
+  let bestProfile = null
+  let bestScore = 0
+  profiles.forEach((profile) => {
+    const profileTokens = normalizedTokens(profile?.product_name)
+    if (profileTokens.length === 0) return
+    const matches = profileTokens.filter((token) => rowTokens.includes(token)).length
+    const score = matches / Math.max(1, profileTokens.length)
+    if (score > bestScore) {
+      bestScore = score
+      bestProfile = profile
+    }
+  })
+  return bestScore >= 0.55 ? bestProfile : null
+}
+
+function normalizedTokens(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[^a-zа-я0-9]+/g, ' ')
+    .split(' ')
+    .map((token) => token.trim())
+    .filter((token) => token.length > 2)
 }
 
 export function parsePriceBookFeedText(value) {
