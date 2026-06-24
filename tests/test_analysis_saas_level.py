@@ -244,9 +244,14 @@ def test_frontend_exposes_tz_saas_workflow_questions_and_playbooks():
     assert "onEvidenceSelect" in analysis_source
     assert "operator_view?.evidence_drilldowns" in analysis_source
     assert "operator_view?.tz_workflow" in analysis_source
+    assert "operator_view?.condition_groups" in analysis_source
+    assert "AnalysisConditionGroupsPanel" in analysis_source
+    assert "conditionGroupStatusLabel" in analysis_source
     assert "operator_view?.ai_questions" in analysis_source
     assert "operator_view?.playbooks" in analysis_source
     assert "analysis-workflow-panel" in styles_source
+    assert "analysis-condition-groups" in styles_source
+    assert "analysis-condition-card" in styles_source
     assert "analysis-questions-grid" in styles_source
     assert "analysis-playbook-list" in styles_source
     assert "analysis-evidence-drilldown" in styles_source

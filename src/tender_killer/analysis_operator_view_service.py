@@ -174,6 +174,7 @@ def _view(
     fact_metrics: Any = None,
 ) -> dict[str, Any]:
     items = [item for section in sections for item in section["items"] if _is_analysis_item(item)]
+    condition_groups = _condition_groups(items)
     decision = _decision_brief(analysis, sections, status)
     action_plan = _action_plan(sections, document_state)
     metrics = _metrics(items, sections, document_state, fact_metrics)
@@ -188,6 +189,7 @@ def _view(
         "ai_questions": ai_questions,
         "playbooks": playbooks,
         "evidence_drilldowns": evidence_drilldowns,
+        "condition_groups": condition_groups,
         "decision_brief": {
             **decision,
             "blockers": [item["label"] for item in items if item.get("is_blocker")][:5],
@@ -198,6 +200,199 @@ def _view(
         "major_blocks": sections,
         "sections": sections,
     }
+
+
+def _condition_groups(items: list[dict[str, Any]]) -> dict[str, Any]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        families = _condition_families(item)
+        if not families:
+            continue
+        item["condition_families"] = families
+        item["condition_family"] = families[0]
+        for family in families:
+            grouped.setdefault(family, []).append(item)
+    group_items = [_condition_group(family, grouped[family]) for family in _ordered_condition_families(grouped)]
+    return {
+        "version": 1,
+        "items": group_items,
+        "metrics": {
+            "total": len(group_items),
+            "confirmed": sum(1 for group in group_items if group.get("status") == "confirmed"),
+            "conflicts": sum(1 for group in group_items if group.get("status") == "conflict"),
+            "expected_missing": sum(1 for group in group_items if group.get("status") == "expected_missing"),
+            "manual_review": sum(1 for group in group_items if group.get("status") == "manual_review"),
+        },
+    }
+
+
+def _condition_group(family: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+    primary = _primary_condition_item(items)
+    status = _condition_group_status(items)
+    source_status = _condition_source_status(status, primary)
+    related_fact_ids = _condition_related_fact_ids(primary, items)
+    return {
+        "family": family,
+        "label": _condition_family_label(family),
+        "status": status,
+        "source_status": source_status,
+        "primary_fact_id": _text(primary.get("id")),
+        "related_fact_ids": related_fact_ids,
+        "sources": _unique_condition_texts(_condition_item_source(item) for item in items),
+        "summary": _condition_group_summary(primary),
+        "resolution": _condition_group_resolution(family, status, source_status),
+        "operator_action": _condition_group_action(family, status, primary),
+    }
+
+
+def _condition_related_fact_ids(primary: dict[str, Any], items: list[dict[str, Any]]) -> list[str]:
+    primary_id = _text(primary.get("id"))
+    return _unique_condition_texts(
+        [
+            primary_id,
+            *[_text(item.get("id")) for item in items if _text(item.get("id")) != primary_id],
+        ]
+    )
+
+
+def _condition_families(item: dict[str, Any]) -> list[str]:
+    families: list[str] = []
+    polarity_family, polarity = _condition_family_and_polarity(item)
+    if polarity_family and polarity:
+        families.append(_normalized_condition_family(polarity_family))
+    measure_family, measure = _condition_family_and_measure(item)
+    if measure_family and measure:
+        families.append(_normalized_condition_family(measure_family))
+    families.extend(_normalized_condition_family(family) for family in _expected_families(item))
+    semantic_family = _semantic_family(_text(item.get("label")), _text(item.get("category")))
+    if semantic_family:
+        families.append(_normalized_condition_family(semantic_family))
+    return _unique_condition_texts(family for family in families if family)
+
+
+def _normalized_condition_family(family: str) -> str:
+    return {
+        "payment_deadline": "payment",
+        "acceptance_deadline": "closing_documents",
+        "short_delivery": "delivery_deadline",
+    }.get(family, family)
+
+
+def _ordered_condition_families(grouped: dict[str, list[dict[str, Any]]]) -> list[str]:
+    order = {spec["family"]: index for index, spec in enumerate(EXPECTED_TZ_CHECKS)}
+    return sorted(grouped, key=lambda family: (order.get(family, 10_000), family))
+
+
+def _condition_family_label(family: str) -> str:
+    for spec in EXPECTED_TZ_CHECKS:
+        if spec["family"] == family:
+            return spec["label"]
+    return family.replace("_", " ")
+
+
+def _primary_condition_item(items: list[dict[str, Any]]) -> dict[str, Any]:
+    return max(items, key=_condition_item_score)
+
+
+def _condition_item_score(item: dict[str, Any]) -> int:
+    authority_score = {
+        "primary_for_topic": 500,
+        "primary_document": 420,
+        "supporting_document": 260,
+    }.get(_text(item.get("context_source_authority")), 0)
+    binding = item.get("source_binding") if isinstance(item.get("source_binding"), dict) else {}
+    binding_score = {
+        "explicit": 180,
+        "context": 100,
+        "inferred": 20,
+        "unbound": -100,
+    }.get(_text(binding.get("level")), 0)
+    if item.get("expected_missing"):
+        binding_score -= 500
+    if item.get("conflict_flags"):
+        binding_score -= 20
+    return authority_score + binding_score + _int_metric(item.get("priority"), 0)
+
+
+def _condition_group_status(items: list[dict[str, Any]]) -> str:
+    if any(item.get("conflict_flags") for item in items):
+        return "conflict"
+    if all(item.get("expected_missing") for item in items):
+        return "expected_missing"
+    if any(item.get("needs_review") for item in items):
+        return "manual_review"
+    return "confirmed"
+
+
+def _condition_source_status(status: str, primary: dict[str, Any]) -> str:
+    if status == "conflict":
+        return "conflicting_sources"
+    if status == "expected_missing":
+        return "missing"
+    authority = _text(primary.get("context_source_authority"))
+    if authority in {"primary_for_topic", "primary_document"}:
+        return "primary_source"
+    binding = primary.get("source_binding") if isinstance(primary.get("source_binding"), dict) else {}
+    if _text(binding.get("level")) == "explicit":
+        return "explicit_source"
+    if _text(binding.get("level")) in {"context", "unbound"}:
+        return "needs_source_review"
+    return "inferred"
+
+
+def _condition_group_summary(primary: dict[str, Any]) -> str:
+    interpretation = primary.get("interpretation") if isinstance(primary.get("interpretation"), dict) else {}
+    return _text(
+        interpretation.get("found")
+        or primary.get("value")
+        or primary.get("fragment")
+        or primary.get("source_context")
+        or primary.get("operator_summary")
+    )
+
+
+def _condition_group_resolution(family: str, status: str, source_status: str) -> str:
+    label = _condition_family_label(family)
+    if status == "conflict":
+        return f"Разобрать противоречие по условию «{label}» и выбрать применимую редакцию документа."
+    if status == "expected_missing":
+        return f"Найти точную формулировку по условию «{label}» или подтвердить, что ее нет в документах."
+    if status == "manual_review":
+        return f"Проверить формулировку по условию «{label}» вручную перед решением."
+    if source_status == "primary_source":
+        return f"Считать рабочей формулировку по главному источнику для условия «{label}»."
+    if source_status == "explicit_source":
+        return f"Есть точная привязка к источнику по условию «{label}»."
+    return f"Сверить источник по условию «{label}» перед использованием в решении."
+
+
+def _condition_group_action(family: str, status: str, primary: dict[str, Any]) -> str:
+    if status in {"conflict", "expected_missing", "manual_review"}:
+        return _condition_group_resolution(family, status, _condition_source_status(status, primary))
+    return _text(primary.get("operator_action")) or _condition_group_resolution(
+        family,
+        status,
+        _condition_source_status(status, primary),
+    )
+
+
+def _condition_item_source(item: dict[str, Any]) -> str:
+    return _text(item.get("source_label") or item.get("document_name") or item.get("source"))
+
+
+def _unique_condition_texts(values: Any) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = _text(value)
+        if not text:
+            continue
+        key = _dedupe_text(text)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(text)
+    return result
 
 
 def _evidence_drilldowns(items: list[dict[str, Any]]) -> dict[str, Any]:

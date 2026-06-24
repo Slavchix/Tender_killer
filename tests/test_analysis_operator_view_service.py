@@ -50,6 +50,117 @@ def test_build_analysis_operator_view_preserves_context_pack_fact_metadata():
     assert item["context_source_reason"] == "pik_obligations_payment covers payment_terms"
 
 
+def test_build_analysis_operator_view_builds_condition_groups_for_conflicting_related_facts():
+    view = build_analysis_operator_view(
+        {
+            "analysis_facts": {
+                "version": 1,
+                "items": [
+                    {
+                        "id": "fact:advance-negative",
+                        "kind": "execution_term",
+                        "label": "Аванс",
+                        "value": "Авансирование не предусмотрено.",
+                        "category": "financial",
+                        "severity": "medium",
+                        "document_name": "Проект контракта.docx",
+                        "source_label": "Проект контракта.docx · стр. 4",
+                        "fragment": "Авансирование не предусмотрено.",
+                        "source_context": "Авансирование не предусмотрено.",
+                        "context_source_authority": "primary_for_topic",
+                        "context_source_priority": ["advance", "payment_terms"],
+                    },
+                    {
+                        "id": "fact:advance-positive",
+                        "kind": "execution_term",
+                        "label": "Аванс",
+                        "value": "Предусмотрен аванс 30% от цены контракта.",
+                        "category": "financial",
+                        "severity": "medium",
+                        "document_name": "ПИК.zip",
+                        "source_label": "ПИК.zip · стр. 2",
+                        "fragment": "Предусмотрен аванс 30% от цены контракта.",
+                        "source_context": "Предусмотрен аванс 30% от цены контракта.",
+                        "context_source_authority": "primary_for_topic",
+                        "context_source_priority": ["advance"],
+                    },
+                ],
+            }
+        },
+        [{"name": "Проект контракта.docx", "text_status": "ok"}],
+    )
+
+    condition_groups = {item["family"]: item for item in view["condition_groups"]["items"]}
+    advance = condition_groups["advance"]
+    advance_items = [
+        item
+        for section in view["major_blocks"]
+        for item in section["items"]
+        if item.get("condition_family") == "advance"
+    ]
+
+    assert advance["status"] == "conflict"
+    assert advance["source_status"] == "conflicting_sources"
+    assert advance["related_fact_ids"] == ["fact:advance-negative", "fact:advance-positive"]
+    assert advance["primary_fact_id"] in {"fact:advance-negative", "fact:advance-positive"}
+    assert "противореч" in advance["resolution"].casefold()
+    assert "Проект контракта.docx · стр. 4" in advance["sources"]
+    assert "ПИК.zip · стр. 2" in advance["sources"]
+    assert len(advance_items) == 2
+    assert all(item["condition_families"] == ["advance"] for item in advance_items)
+    assert view["condition_groups"]["metrics"]["conflicts"] == 1
+
+
+def test_build_analysis_operator_view_condition_groups_choose_primary_topic_source():
+    view = build_analysis_operator_view(
+        {
+            "analysis_facts": {
+                "version": 1,
+                "items": [
+                    {
+                        "id": "fact:payment-contract",
+                        "kind": "execution_term",
+                        "label": "условия оплаты",
+                        "value": "Оплата в течение 7 рабочих дней после подписания УПД.",
+                        "category": "payment",
+                        "severity": "medium",
+                        "document_name": "Контракт.docx",
+                        "source_label": "Контракт.docx · стр. 8",
+                        "fragment": "Оплата в течение 7 рабочих дней после подписания УПД.",
+                        "source_context": "Оплата в течение 7 рабочих дней после подписания УПД.",
+                        "context_source_authority": "primary_for_topic",
+                        "context_source_priority": ["payment_terms", "acceptance_documents"],
+                    },
+                    {
+                        "id": "fact:payment-notice",
+                        "kind": "execution_term",
+                        "label": "оплата",
+                        "value": "Оплата после приемки товара.",
+                        "category": "payment",
+                        "severity": "medium",
+                        "document_name": "Извещение.docx",
+                        "source_label": "Извещение.docx · стр. 1",
+                        "fragment": "Оплата после приемки товара.",
+                        "source_context": "Оплата после приемки товара.",
+                        "context_source_authority": "supporting_document",
+                    },
+                ],
+            }
+        },
+        [{"name": "Контракт.docx", "text_status": "ok"}],
+    )
+
+    payment = {item["family"]: item for item in view["condition_groups"]["items"]}["payment"]
+
+    assert payment["status"] == "confirmed"
+    assert payment["source_status"] == "primary_source"
+    assert payment["primary_fact_id"] == "fact:payment-contract"
+    assert payment["related_fact_ids"] == ["fact:payment-contract", "fact:payment-notice"]
+    assert payment["summary"].startswith("Оплата в течение 7 рабочих дней")
+    assert "главному источнику" in payment["resolution"].casefold()
+    assert view["condition_groups"]["metrics"]["confirmed"] >= 1
+
+
 def test_build_analysis_operator_view_returns_only_four_major_blocks_from_legacy_analysis():
     analysis = {
         "summary": "Supply office paper.",

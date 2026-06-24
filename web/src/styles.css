@@ -2773,6 +2773,7 @@ textarea:focus {
 }
 
 .analysis-secondary-drawer-body,
+.analysis-secondary-drawer > .analysis-condition-groups,
 .analysis-secondary-drawer > .analysis-questions-panel {
   display: grid;
   gap: 12px;
@@ -2782,6 +2783,7 @@ textarea:focus {
 
 .analysis-secondary-drawer .analysis-workflow-panel,
 .analysis-secondary-drawer .analysis-playbooks-panel,
+.analysis-secondary-drawer > .analysis-condition-groups,
 .analysis-secondary-drawer > .analysis-questions-panel {
   padding: 0;
   background: transparent;
@@ -2789,6 +2791,7 @@ textarea:focus {
 }
 
 .analysis-workflow-panel,
+.analysis-condition-groups,
 .analysis-questions-panel,
 .analysis-playbooks-panel {
   display: grid;
@@ -2918,6 +2921,90 @@ textarea:focus {
   color: var(--color-text-muted);
   font-size: 12px;
   overflow-wrap: anywhere;
+}
+
+.analysis-condition-list {
+  display: grid;
+  gap: 8px;
+}
+
+.analysis-condition-card {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px;
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-success);
+  border-radius: 7px;
+}
+
+.analysis-condition-card.status-conflict {
+  border-left-color: var(--color-danger);
+}
+
+.analysis-condition-card.status-expected_missing,
+.analysis-condition-card.status-manual_review {
+  border-left-color: var(--color-warning);
+}
+
+.analysis-condition-card > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.analysis-condition-card strong {
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.analysis-condition-card span,
+.analysis-condition-card small {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.analysis-condition-card p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.analysis-condition-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.analysis-condition-sources button,
+.analysis-condition-sources span {
+  min-height: 24px;
+  padding: 4px 8px;
+  color: var(--color-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
+.analysis-condition-sources button {
+  cursor: pointer;
+}
+
+.analysis-condition-sources button:disabled {
+  color: var(--color-text-muted);
+  cursor: default;
 }
 
 .analysis-questions-grid,
