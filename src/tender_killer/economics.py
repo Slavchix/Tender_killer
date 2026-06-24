@@ -527,6 +527,13 @@ def _price_quality_summary(profiles: list[dict[str, Any]], items: list[dict[str,
             if not isinstance(candidate, dict):
                 continue
             candidates_total += 1
+            review_status = str(candidate.get("review_status") or "").strip().casefold()
+            if review_status == "confirmed":
+                candidates_confirmed += 1
+                candidates_ready += 1
+                if candidate.get("auto_eligible") is True:
+                    candidates_auto_eligible += 1
+                continue
             status = str(candidate.get("quality_status") or "").strip().casefold()
             if status == "ready":
                 candidates_ready += 1
@@ -536,8 +543,6 @@ def _price_quality_summary(profiles: list[dict[str, Any]], items: list[dict[str,
                 candidates_blocked += 1
             else:
                 candidates_unknown += 1
-            if str(candidate.get("review_status") or "").strip().casefold() == "confirmed":
-                candidates_confirmed += 1
             if candidate.get("auto_eligible") is True:
                 candidates_auto_eligible += 1
             for flag in candidate.get("quality_flags") or []:

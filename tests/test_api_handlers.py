@@ -1577,6 +1577,95 @@ def test_handle_post_request_routes_tender_auto_prices_and_refreshes_economics(t
     assert response.payload["economics"]["missing_cost_inputs"] == ["Folders"]
 
 
+def test_economics_e2e_reuses_memory_price_and_builds_final_decision_card(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+    saved = store.upsert_price_candidates(
+        "mosreg_market",
+        "3668200",
+        1,
+        [
+            {
+                "provider": "komus",
+                "name": "Office paper A4",
+                "url": "https://www.komus.ru/product/office-paper-a4/",
+                "unit_price": 910.0,
+                "currency": "RUB",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "confidence": "high",
+                "delivery_note": "Delivery included",
+                "unit": "pack",
+                "pack_quantity": 1,
+            }
+        ],
+        origin="supplier_discovery",
+    )
+    handle_post_request(
+        store.database_path,
+        f"/api/tenders/mosreg_market/3668200/product-profiles/1/price-candidates/{saved[0]['id']}/confirm",
+        {},
+    )
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="3668202",
+            url="https://market.mosreg.ru/Trade/ViewTrade/3668202",
+            title="Next paper tender",
+            price=120000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668202",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668202",
+                position_index=1,
+                product_name="Office paper A4 white",
+                quantity=5,
+                unit="pack",
+            )
+        ],
+    )
+
+    staged = handle_post_request(store.database_path, "/api/tenders/mosreg_market/3668202/price-candidates/stage", {})
+    memory_candidate = staged.payload["product_profiles"][0]["price_candidates"][0]
+    accepted = handle_post_request(
+        store.database_path,
+        f"/api/tenders/mosreg_market/3668202/product-profiles/1/price-candidates/{memory_candidate['id']}/confirm",
+        {},
+    )
+
+    profile = accepted.payload["product_profiles"][0]
+    price_source = profile["raw_payload"]["economics_price_source"]
+    final_card = accepted.payload["decision"]["economics_decision"]["final_decision_card"]
+    assert staged.payload["price_memory_stage"]["staged_count"] == 1
+    assert memory_candidate["raw_payload"]["price_memory"]["reuse"]["source_tender_external_id"] == "3668200"
+    assert accepted.status == 200
+    assert profile["raw_payload"]["economics"]["unit_cost"] == 910.0
+    assert price_source["selection"] == "manual_confirmed"
+    assert price_source["price_memory"]["source_tender_external_id"] == "3668200"
+    assert accepted.payload["economics"]["supplier_cost"] == 4550.0
+    assert final_card["status"] in {"can_bid", "can_bid_with_limit"}
+    assert final_card["safe_bid"]["amount"] is not None
+    assert final_card["next_action"]
+
+
 def test_handle_post_request_starts_tender_price_discovery_job(tmp_path, monkeypatch) -> None:
     store = _store_with_tender(tmp_path)
     store.upsert_product_profiles(

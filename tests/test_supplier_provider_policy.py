@@ -48,6 +48,22 @@ def test_provider_policy_documents_required_supplier_modes() -> None:
     assert komus["recommended_flow"] == "limited_search_feed_quote"
 
 
+def test_provider_policy_exposes_pricing_defaults_for_economics() -> None:
+    for provider in ("officemag", "komus", "lemanapro", "vseinstrumenti", "petrovich"):
+        policy = get_supplier_provider_policy(provider)
+        defaults = policy["pricing_defaults"]
+
+        assert defaults["vat_mode"] == "included_by_default"
+        assert defaults["vat_rate_percent"] == 22
+        assert defaults["delivery_rate_percent"] == 3.0
+        assert defaults["minimum_order_policy"] == "check_supplier_card"
+        assert defaults["packaging_policy"] == "check_supplier_card"
+        assert "Проверь НДС" in defaults["operator_note"]
+        assert "minimum_order" in defaults["manual_checks"]
+        assert "packaging" in defaults["manual_checks"]
+        assert "availability" in defaults["manual_checks"]
+
+
 def test_supplier_fetch_decision_separates_quick_links_from_collectors() -> None:
     quick_link = supplier_fetch_decision(
         "https://www.officemag.ru/search/?q=paper",

@@ -3245,6 +3245,24 @@ def test_economics_summary_surfaces_decision_engine_v2():
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
+def test_economics_ui_surfaces_memory_reuse_and_final_decision_card():
+    summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
+    suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "decision.final_decision_card" in summary_source
+    assert "FinalDecisionCard" in summary_source
+    assert "economics-final-decision-card" in summary_source
+    assert "card.primary_reasons" in summary_source
+    assert "passport.reuse" in suppliers_source
+    assert "candidatePassportReuseLabel" in suppliers_source
+    assert "reuse.source_tender_external_id" in suppliers_source
+    assert ".economics-final-decision-card" in styles_source
+    assert find_mojibake(summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
+    assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_tender_card_surfaces_participant_bid_next_to_nmc():
     summary_source = TENDER_DECISION_SUMMARY_SOURCE.read_text(encoding="utf-8")
     strip_source = TENDER_DECISION_STRIP_SOURCE.read_text(encoding="utf-8")

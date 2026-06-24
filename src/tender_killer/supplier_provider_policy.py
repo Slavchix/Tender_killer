@@ -9,6 +9,16 @@ from urllib.parse import urlparse
 SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT = 5
 MANUAL_PRICE_PRIMARY_SOURCES = ("price_book_feed", "supplier_quote", "manual_url", "quick_links")
 
+SUPPLIER_PRICING_DEFAULTS: dict[str, Any] = {
+    "vat_mode": "included_by_default",
+    "vat_rate_percent": 22,
+    "delivery_rate_percent": 3.0,
+    "minimum_order_policy": "check_supplier_card",
+    "packaging_policy": "check_supplier_card",
+    "manual_checks": ["vat", "delivery", "minimum_order", "packaging", "availability"],
+    "operator_note": "Проверь НДС в карточке/КП; по умолчанию считаем цену с НДС и добавляем доставку 3%.",
+}
+
 ACTION_QUICK_LINK = "quick_link"
 ACTION_PUBLIC_SEARCH_FETCH = "public_search_fetch"
 ACTION_PRODUCT_PAGE_FETCH = "product_page_fetch"
@@ -72,6 +82,7 @@ PROVIDER_POLICIES: dict[str, dict[str, Any]] = {
         "browser_fetch_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
         "recommended_flow": "limited_search_manual_url",
         "risk_level": "review_only",
+        "pricing_defaults": SUPPLIER_PRICING_DEFAULTS,
         "operator_note": "Limited public search and browser fallback are allowed only for small tenders; candidates stay review-only.",
     },
     "officemag": {
@@ -87,6 +98,7 @@ PROVIDER_POLICIES: dict[str, dict[str, Any]] = {
         "browser_fetch_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
         "recommended_flow": "limited_search_manual_url",
         "risk_level": "review_only",
+        "pricing_defaults": SUPPLIER_PRICING_DEFAULTS,
         "operator_note": "Limited public search and browser fallback are allowed only for small tenders; candidates stay review-only.",
     },
     "komus": {
@@ -102,6 +114,7 @@ PROVIDER_POLICIES: dict[str, dict[str, Any]] = {
         "browser_fetch_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
         "recommended_flow": "limited_search_feed_quote",
         "risk_level": "review_only",
+        "pricing_defaults": SUPPLIER_PRICING_DEFAULTS,
         "operator_note": "Limited public search and browser fallback are allowed only for small tenders; use feed or quote if access is blocked.",
     },
     "vseinstrumenti": {
@@ -117,6 +130,7 @@ PROVIDER_POLICIES: dict[str, dict[str, Any]] = {
         "browser_fetch_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
         "recommended_flow": "limited_search_manual_url",
         "risk_level": "limited",
+        "pricing_defaults": SUPPLIER_PRICING_DEFAULTS,
         "operator_note": "Limited public search and browser fallback are allowed only for small tenders; switch to manual URL/feed if access is still blocked.",
     },
     "petrovich": {
@@ -132,6 +146,7 @@ PROVIDER_POLICIES: dict[str, dict[str, Any]] = {
         "browser_fetch_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
         "recommended_flow": "manual_url_quote_feed",
         "risk_level": "limited",
+        "pricing_defaults": SUPPLIER_PRICING_DEFAULTS,
         "operator_note": "No confirmed public price API; limited public search/browser fallback is small-tender only.",
     },
 }
@@ -148,6 +163,7 @@ UNKNOWN_PROVIDER_POLICY = {
     "public_search_max_positions": SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT,
     "recommended_flow": "manual_url_review",
     "risk_level": "limited",
+    "pricing_defaults": SUPPLIER_PRICING_DEFAULTS,
     "operator_note": "Unknown public suppliers are review-only and limited to small-tender search or manual product URLs.",
 }
 

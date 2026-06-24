@@ -230,6 +230,7 @@ function CandidatePricePassportFacts({ passport, compact = false }) {
 function candidatePassportFacts(passport = {}) {
   return [
     { id: 'source', label: 'Источник', value: formatSourceKindLabel(passport.source_label) || candidatePassportSourceLabel(passport) },
+    { id: 'reuse', label: 'Повтор', value: candidatePassportReuseLabel(passport.reuse) },
     { id: 'freshness', label: 'Свежесть', value: passport.freshness_label || passport.observed_at || 'нет даты' },
     { id: 'match', label: 'Совпадение', value: candidatePassportMatchLabel(passport) },
     { id: 'rule', label: 'Правило', value: candidatePassportRuleLabel(passport) },
@@ -243,6 +244,14 @@ function candidatePassportFacts(passport = {}) {
       href: passport.evidence_url || passport.source_url || '',
     },
   ].filter((fact) => fact.value)
+}
+
+function candidatePassportReuseLabel(reuse = {}) {
+  if (!reuse || typeof reuse !== 'object') return ''
+  const source = reuse.source_tender_external_id ? `закупка ${reuse.source_tender_external_id}` : 'прошлая закупка'
+  const unit = reuse.unit_match === true ? 'единица совпадает' : 'единицу проверить'
+  const pack = reuse.pack_quantity != null ? `упак. ${formatQuantity(reuse.pack_quantity)}` : 'упаковку проверить'
+  return `Повтор цены: ${source} · ${unit} · ${pack}`
 }
 
 function candidatePricingPassport(candidate = {}, profile = {}) {
@@ -292,6 +301,7 @@ function candidatePricingPassport(candidate = {}, profile = {}) {
       ? passport.trusted_supplier_rule
       : null,
     rule_label: passport.rule_label ?? '',
+    reuse: passport.reuse ?? candidate.price_memory?.reuse ?? candidate.raw_payload?.price_memory?.reuse ?? null,
     next_action: passport.next_action ?? 'review_required',
     summary: passport.summary,
   }

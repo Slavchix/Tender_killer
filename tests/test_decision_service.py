@@ -263,6 +263,40 @@ def test_decision_exposes_economics_decision_v2_for_safe_bid_and_policy():
     assert "rush delivery" in economics_decision["risks"]
 
 
+def test_decision_v2_exposes_final_decision_card_for_operator():
+    decision = build_tender_decision(
+        {
+            "economics": {
+                "status": "manual_review",
+                "margin_percent": 18.0,
+                "target_margin_percent": 15.0,
+                "minimum_margin_price": 93000.0,
+                "participation_decision": {
+                    "status": "guarded_bid",
+                    "label": "with limit",
+                    "limit_price": 93000.0,
+                    "recommendation": "Keep minimum margin.",
+                },
+            },
+            "analysis": {"status": "ok", "risks": ["rush delivery"], "red_flags": [], "requirements": []},
+            "market_state": {"current_offer_price": 100000.0, "nmc_price": 120000.0, "bid_count": 2},
+            "document_records": [{"text_status": "ok"}],
+            "product_profiles": [{"profile_status": "priced"} for _ in range(3)],
+        }
+    )
+
+    card = decision["economics_decision"]["final_decision_card"]
+
+    assert card["status"] == "can_bid_with_limit"
+    assert card["headline"].startswith("Можно участвовать до")
+    assert card["safe_bid"] == {"amount": 93000.0, "source": "minimum_margin_price"}
+    assert card["margin_text"] == "маржа 18%, минимум 15%"
+    assert card["buffer_text"] == "запас снижения 7%"
+    assert card["primary_reasons"][:2] == ["Keep minimum margin.", "rush delivery"]
+    assert len(card["primary_reasons"]) <= 3
+    assert card["next_action"] == "Проверить лимит и условия перед заявкой"
+
+
 def test_decision_v2_keeps_large_tender_auto_prices_manual_and_benchmarks_history():
     decision = build_tender_decision(
         {

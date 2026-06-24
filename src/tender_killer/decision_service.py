@@ -236,6 +236,16 @@ def _economics_decision_v2(
     if benchmark.get("status") == "warning":
         risks.append("Historical benchmark differs from recent customer purchases.")
     compact_risks = _compact_reasons(risks)[:6]
+    one_line_explanation = _economics_decision_one_line(
+        status=status,
+        safe_bid=safe_bid,
+        current_margin_percent=current_margin_percent,
+        minimum_margin_percent=minimum_margin_percent,
+        discount_buffer=discount_buffer,
+        blockers=blockers,
+        risks=compact_risks,
+        reasons=reasons,
+    )
 
     return {
         "version": 2,
@@ -247,7 +257,8 @@ def _economics_decision_v2(
         "risks": compact_risks,
         "blockers": blockers,
         "what_blocks_application": blockers,
-        "one_line_explanation": _economics_decision_one_line(
+        "one_line_explanation": one_line_explanation,
+        "final_decision_card": _final_decision_card(
             status=status,
             safe_bid=safe_bid,
             current_margin_percent=current_margin_percent,
@@ -256,11 +267,95 @@ def _economics_decision_v2(
             blockers=blockers,
             risks=compact_risks,
             reasons=reasons,
+            one_line_explanation=one_line_explanation,
         ),
         "auto_price_policy": supplier_auto_price_policy(metrics.get("positions_total")),
         "historical_benchmark": benchmark,
         "basis": _compact_reasons([participation.get("recommendation"), *reasons])[:5],
     }
+
+
+def _final_decision_card(
+    *,
+    status: str,
+    safe_bid: dict[str, Any] | None,
+    current_margin_percent: float | None,
+    minimum_margin_percent: float | None,
+    discount_buffer: dict[str, Any] | None,
+    blockers: list[str],
+    risks: list[str],
+    reasons: list[str],
+    one_line_explanation: str,
+) -> dict[str, Any]:
+    card_status = _final_decision_status(status)
+    return {
+        "status": card_status,
+        "tone": _final_decision_tone(card_status),
+        "headline": _final_decision_headline(card_status, safe_bid, one_line_explanation),
+        "safe_bid": safe_bid,
+        "margin_text": _margin_text(current_margin_percent, minimum_margin_percent),
+        "buffer_text": _buffer_text(discount_buffer),
+        "primary_reasons": _compact_reasons([*reasons, *risks, *blockers])[:3],
+        "blockers": _compact_reasons(blockers)[:3],
+        "next_action": _final_decision_next_action(card_status),
+    }
+
+
+def _final_decision_status(status: str) -> str:
+    if status == "interesting":
+        return "can_bid"
+    if status == "with_limit":
+        return "can_bid_with_limit"
+    if status == "skip":
+        return "do_not_bid"
+    return "needs_review"
+
+
+def _final_decision_tone(status: str) -> str:
+    if status == "can_bid":
+        return "success"
+    if status == "can_bid_with_limit":
+        return "warning"
+    if status == "do_not_bid":
+        return "danger"
+    return "review"
+
+
+def _final_decision_headline(status: str, safe_bid: dict[str, Any] | None, fallback: str) -> str:
+    amount = _money(safe_bid.get("amount")) if safe_bid else ""
+    if status == "can_bid":
+        return f"Можно участвовать до {amount}" if amount else "Можно участвовать"
+    if status == "can_bid_with_limit":
+        return f"Можно участвовать до {amount}" if amount else "Можно участвовать с лимитом"
+    if status == "do_not_bid":
+        return "Не участвовать"
+    return fallback or "Нужна проверка"
+
+
+def _margin_text(current_margin_percent: float | None, minimum_margin_percent: float | None) -> str:
+    parts = []
+    if current_margin_percent is not None:
+        parts.append(f"маржа {_format_percent(current_margin_percent)}")
+    if minimum_margin_percent is not None:
+        parts.append(f"минимум {_format_percent(minimum_margin_percent)}")
+    return ", ".join(parts)
+
+
+def _buffer_text(discount_buffer: dict[str, Any] | None) -> str:
+    percent = _number(_dict(discount_buffer).get("percent"))
+    if percent is None:
+        return ""
+    return f"запас снижения {_format_percent(percent)}"
+
+
+def _final_decision_next_action(status: str) -> str:
+    if status == "can_bid":
+        return "Готовить заявку"
+    if status == "can_bid_with_limit":
+        return "Проверить лимит и условия перед заявкой"
+    if status == "do_not_bid":
+        return "Не готовить заявку"
+    return "Проверить цены, условия и риски"
 
 
 def _economics_decision_one_line(

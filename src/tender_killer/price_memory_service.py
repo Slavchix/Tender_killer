@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC
+from datetime import datetime
 import re
 from pathlib import Path
 from typing import Any
@@ -65,7 +67,11 @@ def stage_price_memory_candidates(
             origin="price_memory",
         )
         staged_count += len(saved)
-        positions.append({"position_index": position_index, "staged_count": len(saved)})
+        position_result: dict[str, Any] = {"position_index": position_index, "staged_count": len(saved)}
+        reuse_summary = _candidate_reuse_context(candidates[0]) if candidates else {}
+        if reuse_summary:
+            position_result["reuse_summary"] = reuse_summary
+        positions.append(position_result)
 
     return {
         "ok": True,
@@ -125,8 +131,16 @@ def _entry_from_confirmed_candidate(
         return {}
     profile_name = str(profile.get("normalized_name") or profile.get("product_name") or "")
     tokens = _tokens(profile_name, product_name, candidate.get("source_query"))
-    raw_payload = candidate.get("raw_payload") if isinstance(candidate.get("raw_payload"), dict) else {}
     position_index = int(profile.get("position_index") or candidate.get("position_index") or 0)
+    raw_payload = candidate.get("raw_payload") if isinstance(candidate.get("raw_payload"), dict) else {}
+    pricing_passport = {
+        "quality_status": quality.get("quality_status"),
+        "quality_flags": quality.get("quality_flags") or [],
+        "auto_eligible": quality.get("auto_eligible") is True,
+        "pack_quantity": _first_positive_number(candidate, raw_payload, ("pack_quantity", "quantity_per_pack", "package_quantity")),
+        "delivery_rate_percent": _first_positive_number(candidate, raw_payload, ("delivery_rate_percent",)),
+        "delivery_cost_per_unit": _first_positive_number(candidate, raw_payload, ("delivery_cost_per_unit",)),
+    }
     return {
         "provider": candidate.get("provider"),
         "product_name": product_name,
@@ -148,11 +162,7 @@ def _entry_from_confirmed_candidate(
         "source_candidate_id": candidate.get("id"),
         "quality_status": quality.get("quality_status"),
         "confidence": candidate.get("confidence"),
-        "pricing_passport": {
-            "quality_status": quality.get("quality_status"),
-            "quality_flags": quality.get("quality_flags") or [],
-            "auto_eligible": quality.get("auto_eligible") is True,
-        },
+        "pricing_passport": {key: value for key, value in pricing_passport.items() if value not in (None, "")},
         "raw_payload": {
             "profile_product_name": profile.get("product_name"),
             "candidate": candidate,
@@ -193,6 +203,7 @@ def _rank_memory_entries(
 
 
 def _candidate_from_entry(profile: dict[str, Any], entry: dict[str, Any], *, score: float) -> dict[str, Any]:
+    reuse = _price_memory_reuse_context(profile, entry, score=score)
     price_memory = {
         "entry_id": entry.get("id"),
         "confirmed_at": entry.get("confirmed_at"),
@@ -202,6 +213,7 @@ def _candidate_from_entry(profile: dict[str, Any], entry: dict[str, Any], *, sco
         "source_position_index": entry.get("source_position_index"),
         "source_candidate_id": entry.get("source_candidate_id"),
         "quality_status": entry.get("quality_status"),
+        "reuse": reuse,
     }
     return {
         "provider": entry.get("provider") or "price_memory",
@@ -221,10 +233,48 @@ def _candidate_from_entry(profile: dict[str, Any], entry: dict[str, Any], *, sco
         "match_reasons": ["price_memory", "token_match", "operator_confirmed_before"],
         "review_status": "pending",
         "price_memory": price_memory,
+        "pricing_passport": {"reuse": reuse},
         "raw_payload": {
             "price_memory": price_memory
         },
     }
+
+
+def _price_memory_reuse_context(profile: dict[str, Any], entry: dict[str, Any], *, score: float) -> dict[str, Any]:
+    raw_payload = entry.get("raw_payload") if isinstance(entry.get("raw_payload"), dict) else {}
+    candidate = raw_payload.get("candidate") if isinstance(raw_payload.get("candidate"), dict) else {}
+    pricing_passport = entry.get("pricing_passport") if isinstance(entry.get("pricing_passport"), dict) else {}
+    profile_unit = _unit_token(profile.get("unit"))
+    entry_unit = _unit_token(entry.get("unit"))
+    pack_quantity = _first_positive_number(entry, pricing_passport, candidate, raw_payload, ("pack_quantity", "quantity_per_pack", "package_quantity"))
+    confirmed_at = entry.get("confirmed_at") or entry.get("updated_at") or entry.get("observed_at")
+    age_days = _age_days(confirmed_at)
+    return {
+        "entry_id": entry.get("id"),
+        "source_tender_source": entry.get("source_tender_source"),
+        "source_tender_external_id": entry.get("source_tender_external_id"),
+        "source_position_index": entry.get("source_position_index"),
+        "source_candidate_id": entry.get("source_candidate_id"),
+        "provider": entry.get("provider"),
+        "supplier_name": entry.get("supplier_name") or entry.get("provider"),
+        "unit": entry.get("unit"),
+        "target_unit": profile.get("unit"),
+        "unit_match": bool(not profile_unit or not entry_unit or profile_unit == entry_unit),
+        "pack_quantity": pack_quantity,
+        "freshness_status": _freshness_status(age_days),
+        "age_days": age_days,
+        "score": round(float(score), 2),
+        "operator_note": "Повтор цены из прошлой закупки: проверь единицу, упаковку, наличие, доставку и НДС перед расчетом.",
+    }
+
+
+def _candidate_reuse_context(candidate: dict[str, Any]) -> dict[str, Any]:
+    raw_payload = candidate.get("raw_payload") if isinstance(candidate.get("raw_payload"), dict) else {}
+    price_memory = candidate.get("price_memory") if isinstance(candidate.get("price_memory"), dict) else raw_payload.get("price_memory")
+    if not isinstance(price_memory, dict):
+        return {}
+    reuse = price_memory.get("reuse")
+    return reuse if isinstance(reuse, dict) else {}
 
 
 def _tokens(*parts: Any) -> list[str]:
@@ -277,6 +327,49 @@ def _positive_number(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if number > 0 else None
+
+
+def _first_positive_number(*sources_and_fields: Any) -> float | None:
+    if not sources_and_fields:
+        return None
+    fields = sources_and_fields[-1]
+    sources = sources_and_fields[:-1]
+    if not isinstance(fields, tuple):
+        return None
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        for field in fields:
+            number = _positive_number(source.get(field))
+            if number is not None:
+                return number
+    return None
+
+
+def _age_days(value: Any) -> int | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    normalized = text.replace("Z", "+00:00")
+    if " " in normalized and "T" not in normalized:
+        normalized = normalized.replace(" ", "T", 1)
+    try:
+        moment = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return max(0, (datetime.now(UTC) - moment.astimezone(UTC)).days)
+
+
+def _freshness_status(age_days: int | None) -> str:
+    if age_days is None:
+        return "unknown"
+    if age_days <= 30:
+        return "fresh"
+    if age_days <= 180:
+        return "recent"
+    return "stale"
 
 
 def _unit_token(value: Any) -> str:

@@ -120,6 +120,7 @@ export function EconomicsSummary({ economics, tender, profiles = [] }) {
 
 function DecisionEngineV2Panel({ decision }) {
   if (!decision) return null
+  const finalCard = decision.final_decision_card || null
   const safeBid = decision.safe_bid || {}
   const policy = decision.auto_price_policy || {}
   const benchmark = decision.historical_benchmark || {}
@@ -132,6 +133,7 @@ function DecisionEngineV2Panel({ decision }) {
         <strong>Решение экономики</strong>
         <span>{formatParticipationGate(decision.can_participate)}</span>
       </div>
+      <FinalDecisionCard card={finalCard} />
       {decision.one_line_explanation && <p className="economics-decision-one-line">{decision.one_line_explanation}</p>}
       <div className="economics-grid">
         <Info label="Безопасная ставка" value={formatMoney(safeBid.amount)} />
@@ -149,6 +151,23 @@ function DecisionEngineV2Panel({ decision }) {
         </div>
       )}
     </section>
+  )
+}
+
+function FinalDecisionCard({ card }) {
+  if (!card) return null
+  const reasons = Array.isArray(card.primary_reasons) ? card.primary_reasons.filter(Boolean).slice(0, 3) : []
+  const blockers = Array.isArray(card.blockers) ? card.blockers.filter(Boolean).slice(0, 3) : []
+  return (
+    <div className={`economics-final-decision-card ${card.tone || 'review'}`} aria-label="Короткое решение экономики">
+      <div>
+        <strong>{card.headline || 'Нужна проверка'}</strong>
+        <span>{[card.margin_text, card.buffer_text].filter(Boolean).join(' · ')}</span>
+      </div>
+      {reasons.length > 0 && <p>{reasons.join(' · ')}</p>}
+      {blockers.length > 0 && <p><b>Блокирует:</b> {blockers.join(' · ')}</p>}
+      {card.next_action && <em>{card.next_action}</em>}
+    </div>
   )
 }
 

@@ -688,6 +688,8 @@ def _pricing_passport(profile: dict[str, Any], candidate: dict[str, Any]) -> dic
     confidence = candidate.get("confidence")
     match_reasons = _string_list(candidate.get("match_reasons")) or _string_list(raw_payload.get("match_reasons"))
     trusted_supplier_rule = _pricing_passport_trusted_supplier_rule(candidate, raw_payload)
+    price_memory = candidate.get("price_memory") if isinstance(candidate.get("price_memory"), dict) else raw_payload.get("price_memory")
+    reuse_context = price_memory.get("reuse") if isinstance(price_memory, dict) and isinstance(price_memory.get("reuse"), dict) else None
 
     positive_checks: list[str] = []
     if source_url:
@@ -733,6 +735,7 @@ def _pricing_passport(profile: dict[str, Any], candidate: dict[str, Any]) -> dic
         **({"vat_note": candidate.get("vat_note") or raw_payload.get("vat_note")} if candidate.get("vat_note") or raw_payload.get("vat_note") else {}),
         **({"trusted_supplier_rule": trusted_supplier_rule} if trusted_supplier_rule else {}),
         **({"rule_label": _pricing_passport_rule_label(trusted_supplier_rule)} if trusted_supplier_rule else {}),
+        **({"reuse": reuse_context} if reuse_context else {}),
         "delivery_note": delivery_note or None,
         "stock_quantity": _first_number(candidate, raw_payload, SUPPLIER_STOCK_FIELDS),
         "preorder_quantity": _first_number(candidate, raw_payload, SUPPLIER_PREORDER_FIELDS),
@@ -1059,6 +1062,9 @@ def _economics_price_source(
         number = _first_number(candidate, raw_payload, fields)
         if number is not None:
             source[field] = number
+    price_memory = candidate.get("price_memory") if isinstance(candidate.get("price_memory"), dict) else raw_payload.get("price_memory")
+    if isinstance(price_memory, dict):
+        source["price_memory"] = price_memory
     _copy_price_break_fields(source, candidate, raw_payload)
     return source
 

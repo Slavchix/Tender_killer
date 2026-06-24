@@ -675,13 +675,111 @@ def test_confirmed_price_becomes_review_only_memory_candidate_for_next_tender(tm
     profile = detail["product_profiles"][0]
     assert result["ok"] is True
     assert result["staged_count"] == 1
-    assert result["positions"] == [{"position_index": 1, "staged_count": 1}]
+    assert result["positions"][0]["position_index"] == 1
+    assert result["positions"][0]["staged_count"] == 1
     assert candidates[0]["origin"] == "price_memory"
     assert candidates[0]["source_kind"] == "price_memory"
     assert candidates[0]["review_status"] == "pending"
     assert candidates[0]["unit_price"] == 880.0
     assert candidates[0]["raw_payload"]["price_memory"]["source_tender_external_id"] == "price-review"
     assert (profile.get("raw_payload") or {}).get("economics", {}) == {}
+
+
+def test_stage_price_memory_candidates_explains_reuse_context(tmp_path) -> None:
+    store = TenderStore(tmp_path / "tenders.sqlite")
+    store.initialize()
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="price-memory-rules-source",
+            url="https://market.mosreg.ru/Trade/ViewTrade/price-memory-rules-source",
+            title="Known paper tender",
+            price=90000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "price-memory-rules-source",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-memory-rules-source",
+                position_index=1,
+                product_name="Office paper A4",
+                normalized_name="office paper a4",
+                quantity=20,
+                unit="pack",
+            )
+        ],
+    )
+    saved = store.upsert_price_candidates(
+        "mosreg_market",
+        "price-memory-rules-source",
+        1,
+        [
+            {
+                "provider": "komus",
+                "name": "Office paper A4",
+                "url": "https://www.komus.ru/product/123/",
+                "unit_price": 910.0,
+                "currency": "RUB",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "confidence": "high",
+                "delivery_note": "Delivery included",
+                "unit": "pack",
+                "pack_quantity": 1,
+            }
+        ],
+        origin="supplier_discovery",
+    )
+    review_profile_price_candidate(
+        store.database_path,
+        "mosreg_market",
+        "price-memory-rules-source",
+        1,
+        int(saved[0]["id"]),
+        review_status="confirmed",
+    )
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="price-memory-rules-next",
+            url="https://market.mosreg.ru/Trade/ViewTrade/price-memory-rules-next",
+            title="Next paper tender",
+            price=120000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "price-memory-rules-next",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-memory-rules-next",
+                position_index=1,
+                product_name="Office paper A4 white",
+                normalized_name="office paper a4 white",
+                quantity=5,
+                unit="pack",
+            )
+        ],
+    )
+
+    stage = stage_price_memory_candidates(store.database_path, "mosreg_market", "price-memory-rules-next")
+
+    candidate = store.list_price_candidates("mosreg_market", "price-memory-rules-next", 1)[0]
+    profile = get_tender_payload(store.database_path, "mosreg_market", "price-memory-rules-next")["product_profiles"][0]
+    passport = rank_profile_price_candidates(profile)[0]["pricing_passport"]
+    reuse = candidate["raw_payload"]["price_memory"]["reuse"]
+    assert stage["positions"][0]["reuse_summary"]["source_tender_external_id"] == "price-memory-rules-source"
+    assert reuse["unit_match"] is True
+    assert reuse["supplier_name"] == "komus"
+    assert reuse["pack_quantity"] == 1
+    assert reuse["freshness_status"] in {"fresh", "recent"}
+    assert reuse["operator_note"].startswith("Повтор цены")
+    assert passport["reuse"]["source_tender_external_id"] == "price-memory-rules-source"
+    assert passport["reuse"]["unit_match"] is True
 
 
 def test_confirm_profile_price_candidate_rejects_blocked_product_mismatch(tmp_path) -> None:
