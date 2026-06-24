@@ -734,6 +734,83 @@ def test_confirm_profile_price_candidate_applies_price_break_total_by_quantity(t
     assert detail["economics"]["supplier_cost"] == 21540.0
 
 
+def test_confirm_profile_price_candidate_reuses_price_for_duplicate_positions(tmp_path) -> None:
+    store = _store_with_profile(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "price-review",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-review",
+                position_index=1,
+                product_name="Зажим для бумаг",
+                normalized_name="зажим для бумаг",
+                quantity=18,
+                unit="упаковка",
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-review",
+                position_index=2,
+                product_name="Зажим для бумаг",
+                normalized_name="зажим для бумаг",
+                quantity=5,
+                unit="упаковка",
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-review",
+                position_index=3,
+                product_name="Зажим для бумаг",
+                normalized_name="зажим для бумаг",
+                quantity=100,
+                unit="шт",
+            ),
+        ],
+    )
+    saved = store.upsert_price_candidates(
+        "mosreg_market",
+        "price-review",
+        1,
+        [
+            {
+                "provider": "officemag",
+                "name": "Зажим для бумаг",
+                "unit_price": 34.0,
+                "currency": "RUB",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "delivery_note": "Delivery included",
+                "pack_quantity": 1,
+                "unit": "упаковка",
+                "confidence": "high",
+            }
+        ],
+        origin="supplier_discovery",
+    )
+
+    result = review_profile_price_candidate(
+        store.database_path,
+        "mosreg_market",
+        "price-review",
+        1,
+        int(saved[0]["id"]),
+        review_status="confirmed",
+    )
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "price-review")
+    profiles = {profile["position_index"]: profile for profile in detail["product_profiles"]}
+    assert result["propagated_count"] == 1
+    assert result["propagated"] == [{"position_index": 2, "supplier_option_index": 0}]
+    assert profiles[1]["raw_payload"]["economics"]["unit_cost"] == 34.0
+    assert profiles[2]["raw_payload"]["economics"]["unit_cost"] == 34.0
+    assert profiles[2]["raw_payload"]["economics_price_source"]["selection"] == "reused_from_position"
+    assert profiles[2]["raw_payload"]["economics_price_source"]["reused_from_position_index"] == 1
+    assert profiles[2]["raw_payload"]["supplier_options"][0]["unit_price"] == 34.0
+    assert "economics" not in profiles[3]["raw_payload"]
+
+
 def test_stage_tender_price_candidates_from_saved_sources_normalizes_quality(tmp_path) -> None:
     store = _store_with_profile(tmp_path)
     store.upsert_product_profiles(
@@ -891,6 +968,67 @@ def test_confirm_ready_price_candidates_applies_only_auto_eligible_missing_price
     assert profiles[2]["price_candidates"][0]["review_status"] == "pending"
     assert "economics" not in profiles[3]["raw_payload"]
     assert profiles[3]["price_candidates"][0]["quality_status"] == "review"
+
+
+def test_confirm_ready_price_candidates_reuses_auto_price_for_duplicate_positions(tmp_path) -> None:
+    store = _store_with_profile(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "price-review",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-review",
+                position_index=1,
+                product_name="Зажим для бумаг",
+                normalized_name="зажим для бумаг",
+                quantity=18,
+                unit="упаковка",
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="price-review",
+                position_index=2,
+                product_name="Зажим для бумаг",
+                normalized_name="зажим для бумаг",
+                quantity=5,
+                unit="упаковка",
+            ),
+        ],
+    )
+    store.upsert_price_candidates(
+        "mosreg_market",
+        "price-review",
+        1,
+        [
+            {
+                "provider": "officemag",
+                "name": "Зажим для бумаг",
+                "unit_price": 34.0,
+                "currency": "RUB",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "delivery_note": "Delivery included",
+                "pack_quantity": 1,
+                "unit": "упаковка",
+                "confidence": "high",
+            }
+        ],
+        origin="supplier_discovery",
+    )
+
+    result = confirm_ready_price_candidates(store.database_path, "mosreg_market", "price-review")
+
+    detail = get_tender_payload(store.database_path, "mosreg_market", "price-review")
+    profiles = {profile["position_index"]: profile for profile in detail["product_profiles"]}
+    assert result["confirmed_count"] == 1
+    assert result["propagated_count"] == 1
+    assert result["propagated"] == [{"position_index": 2, "supplier_option_index": 0}]
+    assert profiles[1]["raw_payload"]["economics"]["unit_cost"] == 34.0
+    assert profiles[1]["raw_payload"]["economics_price_source"]["selection"] == "bulk_auto_eligible"
+    assert profiles[2]["raw_payload"]["economics"]["unit_cost"] == 34.0
+    assert profiles[2]["raw_payload"]["economics_price_source"]["selection"] == "reused_from_position"
+    assert profiles[2]["raw_payload"]["economics_price_source"]["reused_from_position_index"] == 1
 
 
 def test_apply_tender_auto_prices_stages_ready_candidates_and_updates_economics(tmp_path) -> None:

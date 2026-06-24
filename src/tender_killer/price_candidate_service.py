@@ -388,9 +388,11 @@ def review_profile_price_candidate(
     candidate = _find_candidate(store, source, external_id, position_index, candidate_id)
 
     supplier_option_index: int | None = None
+    propagated: list[dict[str, int | None]] = []
     if status == "confirmed":
         _ensure_candidate_confirmable(target, candidate)
         supplier_option_index = _apply_confirmed_candidate(target, candidate)
+        propagated = _propagate_confirmed_candidate_to_matching_profiles(profiles, target, candidate)
         store.upsert_product_profiles(source, external_id, profiles)
 
     store.update_price_candidate_review(
@@ -401,13 +403,17 @@ def review_profile_price_candidate(
         review_status=status,
         supplier_option_index=supplier_option_index,
     )
-    return {
+    result = {
         "ok": True,
         "position_index": int(position_index),
         "candidate_id": int(candidate_id),
         "review_status": status,
         "supplier_option_index": supplier_option_index,
     }
+    if propagated:
+        result["propagated_count"] = len(propagated)
+        result["propagated"] = propagated
+    return result
 
 
 def confirm_ready_price_candidates(
@@ -420,6 +426,7 @@ def confirm_ready_price_candidates(
     profiles = _ensure_profiles_with_item_fallback(database_path, source, external_id)
 
     confirmed: list[dict[str, int | None]] = []
+    propagated: list[dict[str, int | None]] = []
     review_updates: list[tuple[int, dict[str, Any], int | None]] = []
     skipped_existing_cost_count = 0
     skipped_no_ready_candidate_count = 0
@@ -444,6 +451,7 @@ def confirm_ready_price_candidates(
             }
         )
         review_updates.append((position_index, candidate, supplier_option_index))
+        propagated.extend(_propagate_confirmed_candidate_to_matching_profiles(profiles, profile, candidate))
 
     if confirmed:
         store.upsert_product_profiles(source, external_id, profiles)
@@ -458,7 +466,7 @@ def confirm_ready_price_candidates(
             )
 
     skipped_count = skipped_existing_cost_count + skipped_no_ready_candidate_count
-    return {
+    result = {
         "ok": True,
         "total_profiles": len(profiles),
         "confirmed_count": len(confirmed),
@@ -467,6 +475,10 @@ def confirm_ready_price_candidates(
         "skipped_no_ready_candidate_count": skipped_no_ready_candidate_count,
         "confirmed": confirmed,
     }
+    if propagated:
+        result["propagated_count"] = len(propagated)
+        result["propagated"] = propagated
+    return result
 
 
 def apply_tender_auto_prices(
@@ -827,6 +839,43 @@ def _apply_confirmed_candidate(
     profile["raw_payload"] = raw_payload
     profile["profile_status"] = "priced"
     return option_index
+
+
+def _propagate_confirmed_candidate_to_matching_profiles(
+    profiles: list[dict[str, Any]],
+    source_profile: dict[str, Any],
+    candidate: dict[str, Any],
+) -> list[dict[str, int | None]]:
+    source_index = int(source_profile.get("position_index") or 0)
+    source_key = _profile_price_reuse_key(source_profile)
+    source_unit = _token(source_profile.get("unit"))
+    if not source_key or not source_unit:
+        return []
+
+    propagated: list[dict[str, int | None]] = []
+    for profile in profiles:
+        position_index = int(profile.get("position_index") or 0)
+        if position_index == source_index or _profile_has_positive_cost(profile):
+            continue
+        if _profile_price_reuse_key(profile) != source_key:
+            continue
+        target_unit = _token(profile.get("unit"))
+        if not target_unit or not _units_compatible(source_unit, target_unit):
+            continue
+        option_index = _apply_confirmed_candidate(profile, candidate, selection="reused_from_position")
+        raw_payload = dict(profile.get("raw_payload") or {})
+        price_source = dict(raw_payload.get("economics_price_source") or {})
+        price_source["reused_from_position_index"] = source_index
+        raw_payload["economics_price_source"] = price_source
+        profile["raw_payload"] = raw_payload
+        propagated.append({"position_index": position_index, "supplier_option_index": option_index})
+    return propagated
+
+
+def _profile_price_reuse_key(profile: dict[str, Any]) -> str:
+    name = str(profile.get("normalized_name") or profile.get("product_name") or "").casefold()
+    tokens = [token for token in PRICE_MATCH_TOKEN_RE.findall(name) if token and token not in PRICE_MATCH_STOP_WORDS]
+    return " ".join(tokens)
 
 
 def _economics_price_source(
