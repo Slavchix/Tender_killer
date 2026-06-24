@@ -180,6 +180,13 @@ def test_rank_profile_price_candidates_adds_operator_pricing_passport() -> None:
         "positive_checks": ["source_url", "unit_price", "availability", "vat", "delivery", "pack_quantity"],
         "review_checks": [],
         "block_checks": [],
+        "funnel_steps": [
+            {"id": "source", "label": "найдена", "status": "ok"},
+            {"id": "match", "label": "товар подходит", "status": "ok"},
+            {"id": "price", "label": "цена понятна", "status": "ok"},
+            {"id": "terms", "label": "условия понятны", "status": "ok"},
+            {"id": "decision", "label": "можно принять", "status": "ok"},
+        ],
         "next_action": "ready_to_confirm",
         "summary": "Цена готова к подтверждению: есть ссылка, цена, наличие, НДС и доставка.",
     }
@@ -335,6 +342,15 @@ def test_rank_profile_price_candidates_applies_trusted_supplier_delivery_default
     assert candidate["pricing_passport"]["unit_price"] == 103.0
     assert candidate["pricing_passport"]["total_price"] == 206.0
     assert candidate["pricing_passport"]["vat_note"] == "НДС проверить: по умолчанию считаем цену поставщика с НДС."
+    assert candidate["pricing_passport"]["trusted_supplier_rule"] == {
+        "enabled": True,
+        "provider": "officemag",
+        "vat_mode": "vat_included_by_rule",
+        "delivery_rate_percent": 3.0,
+        "delivery_cost_per_unit": 3.0,
+        "operator_note": "Правило поставщика: НДС считаем включенным, доставку добавляем 3%. НДС все равно проверь по карточке/КП.",
+    }
+    assert candidate["pricing_passport"]["rule_label"] == "правило поставщика: НДС включен, доставка +3%"
     assert candidate["pricing_passport"]["positive_checks"] == [
         "source_url",
         "unit_price",

@@ -160,6 +160,7 @@ function CandidatePricePassport({ candidate, profile, compact = false }) {
   return (
     <div className={`price-candidate-passport ${qualityStatus} ${compact ? 'compact' : ''}`}>
       <strong>{passport.summary || candidatePassportNextActionLabel(passport.next_action)}</strong>
+      <CandidatePricePassportSteps passport={passport} compact={compact} />
       <div className="price-candidate-passport-grid">
         <span>
           <b>Итого</b>
@@ -185,6 +186,22 @@ function CandidatePricePassport({ candidate, profile, compact = false }) {
           {issueCount > 0 ? ` · ${issueCount} уточнить` : ' · без замечаний'}
         </small>
       )}
+    </div>
+  )
+}
+
+function CandidatePricePassportSteps({ passport, compact = false }) {
+  const steps = Array.isArray(passport.funnel_steps) ? passport.funnel_steps : []
+  if (!steps.length) return null
+  const visibleSteps = compact ? steps.slice(0, 5) : steps
+
+  return (
+    <div className="price-candidate-passport-steps" aria-label="Воронка качества цены">
+      {visibleSteps.map((step) => (
+        <span className={step.status || 'review'} key={step.id || step.label}>
+          {step.label}
+        </span>
+      ))}
     </div>
   )
 }
@@ -215,6 +232,7 @@ function candidatePassportFacts(passport = {}) {
     { id: 'source', label: 'Источник', value: formatSourceKindLabel(passport.source_label) || candidatePassportSourceLabel(passport) },
     { id: 'freshness', label: 'Свежесть', value: passport.freshness_label || passport.observed_at || 'нет даты' },
     { id: 'match', label: 'Совпадение', value: candidatePassportMatchLabel(passport) },
+    { id: 'rule', label: 'Правило', value: candidatePassportRuleLabel(passport) },
     { id: 'unit_pack', label: 'Ед./упак.', value: passport.unit_pack_label || candidatePassportUnitPackLabel(passport) },
     { id: 'vat', label: 'НДС', value: passport.vat_label || candidatePassportVatLabel(passport.vat_mode) },
     { id: 'delivery', label: 'Доставка', value: passport.delivery_label || candidatePassportDeliveryLabel(passport) },
@@ -269,6 +287,11 @@ function candidatePricingPassport(candidate = {}, profile = {}) {
     positive_checks: Array.isArray(passport.positive_checks) ? passport.positive_checks : [],
     review_checks: Array.isArray(passport.review_checks) ? passport.review_checks : [],
     block_checks: Array.isArray(passport.block_checks) ? passport.block_checks : [],
+    funnel_steps: Array.isArray(passport.funnel_steps) ? passport.funnel_steps : [],
+    trusted_supplier_rule: passport.trusted_supplier_rule && typeof passport.trusted_supplier_rule === 'object'
+      ? passport.trusted_supplier_rule
+      : null,
+    rule_label: passport.rule_label ?? '',
     next_action: passport.next_action ?? 'review_required',
     summary: passport.summary,
   }
@@ -299,7 +322,9 @@ function formatSourceKindLabel(value) {
     manual_price: 'Ручная проверка',
     manual_product_url: 'Ссылка на товар',
     manual_quote: 'КП',
+    price_memory: 'Память цен',
     price_book: 'Прайс',
+    price_book_feed: 'Прайс',
     quote: 'КП',
     [`supplier_${['discovery'].join('_')}`]: 'Поиск поставщика',
   }
@@ -323,6 +348,16 @@ function candidatePassportMatchLabel(passport = {}) {
   const confidence = supplierConfidenceLabel(passport.match_confidence || passport.confidence || 'needs_review')
   const reasons = Array.isArray(passport.match_reasons) ? passport.match_reasons : []
   return reasons.length ? `${confidence} · ${reasons.slice(0, 2).map(priceCandidateReasonLabel).join(', ')}` : confidence
+}
+
+function candidatePassportRuleLabel(passport = {}) {
+  if (passport.rule_label) return passport.rule_label
+  const rule = passport.trusted_supplier_rule
+  if (!rule || typeof rule !== 'object') return ''
+  const parts = []
+  if (rule.vat_mode === 'vat_included_by_rule') parts.push('НДС включен')
+  if (rule.delivery_rate_percent != null) parts.push(`доставка +${formatQuantity(rule.delivery_rate_percent)}%`)
+  return parts.length ? `правило поставщика: ${parts.join(', ')}` : ''
 }
 
 function candidatePassportUnitPackLabel(passport = {}) {
@@ -697,11 +732,14 @@ function priceCandidateReasonLabel(reason) {
     piece_pack_count_match: '\u0444\u0430\u0441\u043e\u0432\u043a\u0430 \u0441\u043e\u0432\u043f\u0430\u043b\u0430',
     piece_pack_count_mismatch: '\u0444\u0430\u0441\u043e\u0432\u043a\u0430 \u043d\u0435 \u0441\u043e\u0432\u043f\u0430\u043b\u0430',
     price_break_selected: '\u0441\u0442\u0443\u043f\u0435\u043d\u044c \u0446\u0435\u043d\u044b \u0432\u044b\u0431\u0440\u0430\u043d\u0430',
+    price_memory: 'Память цен',
     product_family_match: '\u0442\u0438\u043f \u0442\u043e\u0432\u0430\u0440\u0430 \u0441\u043e\u0432\u043f\u0430\u043b',
     product_family_mismatch: '\u0442\u0438\u043f \u0442\u043e\u0432\u0430\u0440\u0430 \u043d\u0435 \u0441\u043e\u0432\u043f\u0430\u043b',
     product_name_mismatch: '\u0442\u043e\u0432\u0430\u0440 \u043d\u0435 \u0441\u043e\u0432\u043f\u0430\u043b',
     profile_intent_match: '\u043f\u043e\u0437\u0438\u0446\u0438\u044f \u0441\u043e\u0432\u043f\u0430\u043b\u0430',
     strict_source_query: '\u0442\u043e\u0447\u043d\u044b\u0439 \u0437\u0430\u043f\u0440\u043e\u0441',
+    supplier_default_delivery: 'доставка по правилу',
+    supplier_default_vat_included: 'НДС по правилу',
     token_overlap: '\u0442\u0435\u0440\u043c\u0438\u043d\u044b \u0441\u043e\u0432\u043f\u0430\u043b\u0438',
     supplier_identity: 'поставщик указан',
     unit_price: 'цена за единицу',

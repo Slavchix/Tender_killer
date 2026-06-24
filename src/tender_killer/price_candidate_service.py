@@ -19,6 +19,10 @@ VAT_REVIEW_VALUES = {"vat_excluded", "excluded", "without_vat", "no_vat", "nds_e
 PICKUP_ONLY_MARKERS = ("pickup", "self pickup", "self-pickup", "самовывоз")
 DELIVERY_INCLUDED_MARKERS = ("delivery included", "доставка включена", "с доставкой")
 TRUSTED_SUPPLIER_VAT_NOTE = "НДС проверить: по умолчанию считаем цену поставщика с НДС."
+TRUSTED_SUPPLIER_RULE_NOTE = (
+    "Правило поставщика: НДС считаем включенным, доставку добавляем 3%. "
+    "НДС все равно проверь по карточке/КП."
+)
 TRUSTED_SUPPLIER_DELIVERY_RATE_PERCENT = 3.0
 TRUSTED_SUPPLIER_MARKERS = (
     "officemag",
@@ -683,6 +687,7 @@ def _pricing_passport(profile: dict[str, Any], candidate: dict[str, Any]) -> dic
     )
     confidence = candidate.get("confidence")
     match_reasons = _string_list(candidate.get("match_reasons")) or _string_list(raw_payload.get("match_reasons"))
+    trusted_supplier_rule = _pricing_passport_trusted_supplier_rule(candidate, raw_payload)
 
     positive_checks: list[str] = []
     if source_url:
@@ -726,6 +731,8 @@ def _pricing_passport(profile: dict[str, Any], candidate: dict[str, Any]) -> dic
         "availability": candidate.get("availability") or raw_payload.get("availability"),
         "vat_mode": candidate.get("vat_mode") or raw_payload.get("vat_mode"),
         **({"vat_note": candidate.get("vat_note") or raw_payload.get("vat_note")} if candidate.get("vat_note") or raw_payload.get("vat_note") else {}),
+        **({"trusted_supplier_rule": trusted_supplier_rule} if trusted_supplier_rule else {}),
+        **({"rule_label": _pricing_passport_rule_label(trusted_supplier_rule)} if trusted_supplier_rule else {}),
         "delivery_note": delivery_note or None,
         "stock_quantity": _first_number(candidate, raw_payload, SUPPLIER_STOCK_FIELDS),
         "preorder_quantity": _first_number(candidate, raw_payload, SUPPLIER_PREORDER_FIELDS),
@@ -737,6 +744,7 @@ def _pricing_passport(profile: dict[str, Any], candidate: dict[str, Any]) -> dic
         "positive_checks": positive_checks,
         "review_checks": review_checks,
         "block_checks": block_checks,
+        "funnel_steps": _pricing_passport_funnel_steps(quality_status, positive_checks, review_checks, block_checks),
         "next_action": _pricing_passport_next_action(candidate),
         "summary": _pricing_passport_summary(quality_status, positive_checks, review_checks, block_checks),
     }
@@ -783,6 +791,126 @@ def _pricing_passport_delivery_label(delivery_note: str, flag_ids: set[str]) -> 
 
 def _pricing_passport_evidence_label(source_url: Any) -> str:
     return "карточка товара" if _passport_text(source_url) else "доказательство нужно"
+
+
+def _pricing_passport_trusted_supplier_rule(
+    candidate: dict[str, Any],
+    raw_payload: dict[str, Any],
+) -> dict[str, Any]:
+    marker = _trusted_supplier_marker(candidate, raw_payload)
+    if not marker:
+        return {}
+    match_reasons = set(_string_list(candidate.get("match_reasons")) + _string_list(raw_payload.get("match_reasons")))
+    has_vat_rule = "supplier_default_vat_included" in match_reasons
+    has_delivery_rule = "supplier_default_delivery" in match_reasons
+    if not has_vat_rule and not has_delivery_rule:
+        return {}
+    delivery_rate = _number(candidate.get("delivery_rate_percent") or raw_payload.get("delivery_rate_percent"))
+    delivery_cost = _number(candidate.get("delivery_cost_per_unit") or raw_payload.get("delivery_cost_per_unit"))
+    return {
+        "enabled": True,
+        "provider": marker,
+        "vat_mode": "vat_included_by_rule" if has_vat_rule else _token(candidate.get("vat_mode") or raw_payload.get("vat_mode")),
+        "delivery_rate_percent": delivery_rate,
+        "delivery_cost_per_unit": delivery_cost,
+        "operator_note": TRUSTED_SUPPLIER_RULE_NOTE,
+    }
+
+
+def _pricing_passport_rule_label(rule: dict[str, Any]) -> str:
+    if not rule:
+        return ""
+    parts: list[str] = []
+    if rule.get("vat_mode") == "vat_included_by_rule":
+        parts.append("НДС включен")
+    delivery_rate = _number(rule.get("delivery_rate_percent"))
+    if delivery_rate is not None:
+        parts.append(f"доставка +{_format_number(delivery_rate)}%")
+    return f"правило поставщика: {', '.join(parts)}" if parts else "правило поставщика"
+
+
+def _pricing_passport_funnel_steps(
+    quality_status: str,
+    positive_checks: list[str],
+    review_checks: list[str],
+    block_checks: list[str],
+) -> list[dict[str, str]]:
+    positive = set(positive_checks)
+    review = set(review_checks)
+    block = set(block_checks)
+    match_blockers = {
+        "brand_mismatch",
+        "color_mismatch",
+        "dimension_mismatch",
+        "family_modifier_mismatch",
+        "material_mismatch",
+        "paper_format_mismatch",
+        "paper_sheet_count_mismatch",
+        "piece_pack_count_mismatch",
+        "product_family_mismatch",
+        "product_name_mismatch",
+        "volume_mismatch",
+        "weight_mismatch",
+    }
+    terms_review = {
+        "availability_unknown",
+        "currency_non_rub",
+        "delivery_needs_review",
+        "delivery_pickup_only",
+        "delivery_unknown",
+        "minimum_order_amount",
+        "minimum_order_quantity",
+        "pack_quantity_invalid",
+        "pack_quantity_unknown",
+        "unit_mismatch",
+        "vat_not_included",
+        "vat_unknown",
+    }
+    return [
+        {
+            "id": "source",
+            "label": "найдена",
+            "status": "ok" if "source_url" in positive else "review",
+        },
+        {
+            "id": "match",
+            "label": "товар подходит" if not (block & match_blockers) else "товар проверить",
+            "status": "block" if block & match_blockers else "ok",
+        },
+        {
+            "id": "price",
+            "label": "цена понятна" if "price_missing" not in block else "нет цены",
+            "status": "block" if "price_missing" in block else "ok" if "unit_price" in positive else "review",
+        },
+        {
+            "id": "terms",
+            "label": "условия понятны" if not (review & terms_review) else "условия проверить",
+            "status": "review" if review & terms_review else "ok",
+        },
+        {
+            "id": "decision",
+            "label": _pricing_passport_funnel_decision_label(quality_status),
+            "status": _pricing_passport_funnel_decision_status(quality_status),
+        },
+    ]
+
+
+def _pricing_passport_funnel_decision_label(quality_status: str) -> str:
+    status = str(quality_status or "").casefold()
+    if status == "ready":
+        return "можно принять"
+    if status == "blocked":
+        return "нельзя брать"
+    return "нужна проверка"
+
+
+def _pricing_passport_funnel_decision_status(quality_status: str) -> str:
+    status = str(quality_status or "").casefold()
+    if status == "ready":
+        return "ok"
+    if status == "blocked":
+        return "block"
+    return "review"
 
 
 def _format_number(value: float) -> str:

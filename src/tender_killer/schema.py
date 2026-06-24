@@ -342,14 +342,25 @@ def ensure_price_book_entries_table(connection: sqlite3.Connection) -> None:
             raw_payload_json TEXT NOT NULL DEFAULT '{}',
             observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             confirmed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            entry_status TEXT NOT NULL DEFAULT 'active',
+            archived_at TEXT,
+            archive_reason TEXT,
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
+    columns = _columns(connection, "price_book_entries")
+    for column, definition in {
+        "entry_status": "TEXT NOT NULL DEFAULT 'active'",
+        "archived_at": "TEXT",
+        "archive_reason": "TEXT",
+    }.items():
+        if column not in columns:
+            connection.execute(f"ALTER TABLE price_book_entries ADD COLUMN {column} {definition}")
     connection.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_price_book_entries_lookup
-        ON price_book_entries(normalized_name, unit, updated_at DESC)
+        ON price_book_entries(entry_status, normalized_name, unit, updated_at DESC)
         """
     )
     connection.execute(

@@ -4505,6 +4505,119 @@ textarea:focus {
   font-weight: 900;
 }
 
+.price-memory-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.price-memory-panel > summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.price-memory-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.price-memory-panel > summary span {
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.price-memory-panel > summary em {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  text-align: right;
+}
+
+.price-memory-body {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.price-memory-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.price-memory-toolbar p,
+.price-memory-error {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.price-memory-error {
+  color: var(--color-danger);
+}
+
+.price-memory-list {
+  display: grid;
+  gap: 6px;
+}
+
+.price-memory-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 9px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-success);
+  border-radius: 6px;
+}
+
+.price-memory-row.archived {
+  opacity: 0.72;
+  border-left-color: var(--color-text-muted);
+}
+
+.price-memory-main,
+.price-memory-meta {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.price-memory-main strong,
+.price-memory-meta strong {
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.price-memory-main span,
+.price-memory-main em,
+.price-memory-meta span,
+.price-memory-meta em {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.price-memory-meta {
+  min-width: 126px;
+  text-align: right;
+}
+
 .economics-command-center {
   display: grid;
   gap: 10px;
@@ -4921,6 +5034,20 @@ textarea:focus {
 
 .economics-decision-v2 .economics-grid {
   grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+}
+
+.economics-decision-one-line {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--color-text);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border-strong);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .economics-decision-notes {
@@ -6091,6 +6218,40 @@ textarea:focus {
   font-size: 11px;
   line-height: 1.3;
   overflow-wrap: anywhere;
+}
+
+.price-candidate-passport-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.price-candidate-passport-steps span {
+  min-width: 0;
+  padding: 3px 6px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.price-candidate-passport-steps span.ok {
+  color: var(--color-success);
+  border-color: rgba(34, 197, 94, 0.55);
+}
+
+.price-candidate-passport-steps span.review {
+  color: var(--color-warning);
+  border-color: rgba(245, 158, 11, 0.65);
+}
+
+.price-candidate-passport-steps span.block {
+  color: var(--color-danger);
+  border-color: rgba(248, 113, 113, 0.7);
 }
 
 .price-candidate-passport-grid {

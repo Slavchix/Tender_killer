@@ -14,12 +14,38 @@ export function ProductEconomicsForm({ profile, onSave, saving = false }) {
     setValues((current) => ({ ...current, [name]: value }))
   }
 
+  function updateCostModel(value) {
+    setValues((current) => {
+      if (value === 'service') {
+        return {
+          ...current,
+          cost_model: 'service',
+          unit_cost: '',
+          unit_cost_basis: 'tender_unit',
+          pack_quantity: '',
+          logistics_cost: '',
+          packaging_cost: '',
+        }
+      }
+      return {
+        ...current,
+        cost_model: 'product',
+        service_rate: '',
+        service_volume: '',
+        service_minimum: '',
+        service_logistics_cost: '',
+        service_equipment_cost: '',
+      }
+    })
+  }
+
   function submitEconomics(event) {
     event.preventDefault()
     if (!onSave) return
     onSave(profile, values)
   }
 
+  const isServiceCostModel = values.cost_model === 'service'
   const landedPreview = buildLandedCostPreview(profile, values)
   const summary = economicsCostSummary(priceSource, landedPreview)
 
@@ -40,76 +66,21 @@ export function ProductEconomicsForm({ profile, onSave, saving = false }) {
           <EconomicsPriceSource source={priceSource} />
           <div className="economics-input-grid">
             <label>
-              <span>Режим цены</span>
+              <span>Модель затрат</span>
               <select
-                name="unit_cost_basis"
-                onChange={(event) => updateField('unit_cost_basis', event.target.value)}
-                value={values.unit_cost_basis}
+                name="cost_model"
+                onChange={(event) => updateCostModel(event.target.value)}
+                value={values.cost_model}
               >
-                <option value="tender_unit">За единицу</option>
-                <option value="supplier_pack">За упаковку</option>
+                <option value="product">Товар</option>
+                <option value="service">Услуга</option>
               </select>
             </label>
-            <label>
-              <span>За единицу</span>
-              <input
-                inputMode="decimal"
-                name="unit_cost"
-                onChange={(event) => updateField('unit_cost', event.target.value)}
-                placeholder="0"
-                value={values.unit_cost}
-              />
-            </label>
-            <label>
-              <span>В упаковке</span>
-              <input
-                inputMode="decimal"
-                name="pack_quantity"
-                onChange={(event) => updateField('pack_quantity', event.target.value)}
-                placeholder="1"
-                value={values.pack_quantity}
-              />
-            </label>
-            <label>
-              <span>Логистика</span>
-              <input
-                inputMode="decimal"
-                name="logistics_cost"
-                onChange={(event) => updateField('logistics_cost', event.target.value)}
-                placeholder="0"
-                value={values.logistics_cost}
-              />
-            </label>
-            <label>
-              <span>Документы</span>
-              <input
-                inputMode="decimal"
-                name="documents_cost"
-                onChange={(event) => updateField('documents_cost', event.target.value)}
-                placeholder="0"
-                value={values.documents_cost}
-              />
-            </label>
-            <label>
-              <span>Упаковка</span>
-              <input
-                inputMode="decimal"
-                name="packaging_cost"
-                onChange={(event) => updateField('packaging_cost', event.target.value)}
-                placeholder="0"
-                value={values.packaging_cost}
-              />
-            </label>
-            <label>
-              <span>Прочее</span>
-              <input
-                inputMode="decimal"
-                name="other_costs"
-                onChange={(event) => updateField('other_costs', event.target.value)}
-                placeholder="0"
-                value={values.other_costs}
-              />
-            </label>
+            {isServiceCostModel ? (
+              <ServiceCostFields values={values} onChange={updateField} />
+            ) : (
+              <ProductCostFields values={values} onChange={updateField} />
+            )}
           </div>
           {landedPreview && (
             <div className="economics-landed-preview">
@@ -121,6 +92,152 @@ export function ProductEconomicsForm({ profile, onSave, saving = false }) {
         </div>
       </details>
     </form>
+  )
+}
+
+function ProductCostFields({ values, onChange }) {
+  return (
+    <>
+      <label>
+        <span>Режим цены</span>
+        <select
+          name="unit_cost_basis"
+          onChange={(event) => onChange('unit_cost_basis', event.target.value)}
+          value={values.unit_cost_basis}
+        >
+          <option value="tender_unit">За единицу</option>
+          <option value="supplier_pack">За упаковку</option>
+        </select>
+      </label>
+      <label>
+        <span>За единицу</span>
+        <input
+          inputMode="decimal"
+          name="unit_cost"
+          onChange={(event) => onChange('unit_cost', event.target.value)}
+          placeholder="0"
+          value={values.unit_cost}
+        />
+      </label>
+      <label>
+        <span>В упаковке</span>
+        <input
+          inputMode="decimal"
+          name="pack_quantity"
+          onChange={(event) => onChange('pack_quantity', event.target.value)}
+          placeholder="1"
+          value={values.pack_quantity}
+        />
+      </label>
+      <label>
+        <span>Логистика</span>
+        <input
+          inputMode="decimal"
+          name="logistics_cost"
+          onChange={(event) => onChange('logistics_cost', event.target.value)}
+          placeholder="0"
+          value={values.logistics_cost}
+        />
+      </label>
+      <CommonCostFields values={values} onChange={onChange} includePackaging />
+    </>
+  )
+}
+
+function ServiceCostFields({ values, onChange }) {
+  return (
+    <>
+      <label>
+        <span>Тариф</span>
+        <input
+          inputMode="decimal"
+          name="service_rate"
+          onChange={(event) => onChange('service_rate', event.target.value)}
+          placeholder="0"
+          value={values.service_rate}
+        />
+      </label>
+      <label>
+        <span>Объем</span>
+        <input
+          inputMode="decimal"
+          name="service_volume"
+          onChange={(event) => onChange('service_volume', event.target.value)}
+          placeholder="1"
+          value={values.service_volume}
+        />
+      </label>
+      <label>
+        <span>Минимум</span>
+        <input
+          inputMode="decimal"
+          name="service_minimum"
+          onChange={(event) => onChange('service_minimum', event.target.value)}
+          placeholder="0"
+          value={values.service_minimum}
+        />
+      </label>
+      <label>
+        <span>Логистика/выезд</span>
+        <input
+          inputMode="decimal"
+          name="service_logistics_cost"
+          onChange={(event) => onChange('service_logistics_cost', event.target.value)}
+          placeholder="0"
+          value={values.service_logistics_cost}
+        />
+      </label>
+      <label>
+        <span>Техника</span>
+        <input
+          inputMode="decimal"
+          name="service_equipment_cost"
+          onChange={(event) => onChange('service_equipment_cost', event.target.value)}
+          placeholder="0"
+          value={values.service_equipment_cost}
+        />
+      </label>
+      <CommonCostFields values={values} onChange={onChange} />
+    </>
+  )
+}
+
+function CommonCostFields({ values, onChange, includePackaging = false }) {
+  return (
+    <>
+      <label>
+        <span>Документы</span>
+        <input
+          inputMode="decimal"
+          name="documents_cost"
+          onChange={(event) => onChange('documents_cost', event.target.value)}
+          placeholder="0"
+          value={values.documents_cost}
+        />
+      </label>
+      {includePackaging && (
+        <label>
+          <span>Упаковка</span>
+          <input
+            inputMode="decimal"
+            name="packaging_cost"
+            onChange={(event) => onChange('packaging_cost', event.target.value)}
+            placeholder="0"
+            value={values.packaging_cost}
+          />
+        </label>
+      )}
+      <label>
+        <span>Прочее</span>
+        <input
+          inputMode="decimal"
+          name="other_costs"
+          onChange={(event) => onChange('other_costs', event.target.value)}
+          placeholder="0"
+          value={values.other_costs}
+        />
+      </label>
+    </>
   )
 }
 
@@ -140,6 +257,7 @@ function EconomicsPriceSource({ source }) {
 
 function economicsFormValues(economics = {}) {
   return {
+    cost_model: economics.cost_model === 'service' ? 'service' : 'product',
     unit_cost: economics.unit_cost ?? '',
     unit_cost_basis: economics.unit_cost_basis ?? 'tender_unit',
     pack_quantity: economics.pack_quantity ?? '',
@@ -147,6 +265,11 @@ function economicsFormValues(economics = {}) {
     documents_cost: economics.documents_cost ?? '',
     packaging_cost: economics.packaging_cost ?? '',
     other_costs: economics.other_costs ?? '',
+    service_rate: economics.service_rate ?? '',
+    service_volume: economics.service_volume ?? '',
+    service_minimum: economics.service_minimum ?? '',
+    service_logistics_cost: economics.service_logistics_cost ?? '',
+    service_equipment_cost: economics.service_equipment_cost ?? '',
   }
 }
 
@@ -157,6 +280,9 @@ function economicsCostSummary(priceSource, landedPreview) {
 }
 
 function buildLandedCostPreview(profile, values) {
+  if (values.cost_model === 'service') {
+    return buildServiceCostPreview(values)
+  }
   const quantity = positiveNumber(profile?.quantity)
   const unitCost = finiteNumber(values.unit_cost)
   const packQuantity = positiveNumber(values.pack_quantity)
@@ -185,6 +311,36 @@ function buildLandedCostPreview(profile, values) {
   return {
     landedCost: (directCost || 0) + extraCosts,
     caption: `${caption}; доб. затраты ${formatMoney(extraCosts)}`,
+  }
+}
+
+function buildServiceCostPreview(values) {
+  const serviceRate = finiteNumber(values.service_rate)
+  const serviceVolume = positiveNumber(values.service_volume)
+  const serviceMinimum = finiteNumber(values.service_minimum) || 0
+  const logisticsCost = finiteNumber(values.service_logistics_cost) || 0
+  const equipmentCost = finiteNumber(values.service_equipment_cost) || 0
+  const documentsCost = finiteNumber(values.documents_cost) || 0
+  const otherCosts = finiteNumber(values.other_costs) || 0
+  const extraCosts = logisticsCost + equipmentCost + documentsCost + otherCosts
+
+  let directCost = null
+  let caption = 'услуга не посчитана'
+  if (serviceRate !== null && serviceVolume !== null) {
+    directCost = serviceRate * serviceVolume
+    caption = `${formatMoney(serviceRate)} × ${serviceVolume}`
+  }
+  if (directCost !== null || serviceMinimum > 0) {
+    directCost = Math.max(directCost || 0, serviceMinimum)
+    if (serviceMinimum > 0) {
+      caption = `${caption}; минимум ${formatMoney(serviceMinimum)}`
+    }
+  }
+
+  if (directCost === null && extraCosts <= 0) return null
+  return {
+    landedCost: (directCost || 0) + extraCosts,
+    caption: `${caption}; доп. затраты ${formatMoney(extraCosts)}`,
   }
 }
 

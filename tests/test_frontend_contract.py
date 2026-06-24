@@ -49,6 +49,9 @@ TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE = (
 TENDER_ECONOMICS_PRICE_BOOK_FEED_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPriceBookFeed.jsx"
 )
+TENDER_ECONOMICS_PRICE_MEMORY_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPriceMemory.jsx"
+)
 TENDER_ECONOMICS_FORMS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsForms.jsx"
 TENDER_ECONOMICS_COST_FORM_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsCostForm.jsx"
 TENDER_ECONOMICS_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSummary.jsx"
@@ -221,8 +224,11 @@ def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     assert "CandidatePricePassport" in suppliers_source
     assert "candidate-decision-trace" in suppliers_source
     assert "price-candidate-passport" in suppliers_source
+    assert "price-candidate-passport-steps" in suppliers_source
     assert "CandidatePricePassportFacts" in suppliers_source
+    assert "CandidatePricePassportSteps" in suppliers_source
     assert "candidatePassportFacts(passport)" in suppliers_source
+    assert "funnel_steps" in suppliers_source
     assert "price-candidate-passport-facts" in suppliers_source
     assert "source_label" in suppliers_source
     assert "freshness_label" in suppliers_source
@@ -238,6 +244,7 @@ def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     assert ".provider-run-summary" in styles_source
     assert ".candidate-decision-trace" in styles_source
     assert ".price-candidate-passport" in styles_source
+    assert ".price-candidate-passport-steps" in styles_source
     assert ".price-candidate-passport-facts" in styles_source
     assert ".supplier-discovery-next-action" in styles_source
     assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
@@ -1538,6 +1545,30 @@ def test_product_profile_renders_economics_input_form():
     assert find_mojibake(forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
     assert find_mojibake(cost_form_source, TENDER_ECONOMICS_COST_FORM_SOURCE) == []
 
+
+def test_product_profile_cost_form_supports_service_cost_model():
+    cost_form_source = TENDER_ECONOMICS_COST_FORM_SOURCE.read_text(encoding="utf-8")
+
+    assert "cost_model" in cost_form_source
+    assert 'value="service"' in cost_form_source
+    assert "isServiceCostModel" in cost_form_source
+    assert "buildServiceCostPreview" in cost_form_source
+    assert "service_rate" in cost_form_source
+    assert "service_volume" in cost_form_source
+    assert "service_minimum" in cost_form_source
+    assert "service_logistics_cost" in cost_form_source
+    assert "service_equipment_cost" in cost_form_source
+    assert "Модель затрат" in cost_form_source
+    assert "Услуга" in cost_form_source
+    assert "Тариф" in cost_form_source
+    assert "Объем" in cost_form_source
+    assert "Минимум" in cost_form_source
+    assert "Логистика/выезд" in cost_form_source
+    assert "Техника" in cost_form_source
+    assert "Режим цены" in cost_form_source
+    assert find_mojibake(cost_form_source, TENDER_ECONOMICS_COST_FORM_SOURCE) == []
+
+
 def test_product_profile_renders_supplier_option_form():
     details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
@@ -1659,6 +1690,10 @@ def test_product_profile_renders_supplier_option_form():
     assert "` · оценка ${candidate.score}`" in source
     assert "` · score ${candidate.score}`" not in source
     assert "formatSourceKindLabel" in source
+    assert "price_memory: 'Память цен'" in source
+    assert "supplier_default_delivery: 'доставка по правилу'" in source
+    assert "supplier_default_vat_included: 'НДС по правилу'" in source
+    assert "Правило" in source
     assert "Цена за единицу" in source
     assert "Прайс" in source
     assert "candidate match reasons" not in source
@@ -3087,6 +3122,34 @@ def test_economics_tab_exposes_price_book_feed_import_ui():
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
+def test_economics_tab_exposes_price_memory_management_ui():
+    api_source = API_SOURCE.read_text(encoding="utf-8")
+    economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    memory_source = TENDER_ECONOMICS_PRICE_MEMORY_SOURCE.read_text(encoding="utf-8")
+    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+
+    assert "export function fetchPriceMemory" in api_source
+    assert "/api/price-memory?limit=${encodeURIComponent(limit)}" in api_source
+    assert "export function archivePriceMemoryEntry" in api_source
+    assert "/api/price-memory/${encodeURIComponent(entryId)}/archive" in api_source
+    assert "from './TenderEconomicsPriceMemory'" in economics_source
+    assert "<TenderEconomicsPriceMemory" in economics_source
+    assert "export function TenderEconomicsPriceMemory" in memory_source
+    assert "fetchPriceMemory" in memory_source
+    assert "archivePriceMemoryEntry" in memory_source
+    assert "priceMemory.summary" in memory_source
+    assert "archive_reason" in memory_source
+    assert "archiveEntry(entry)" in memory_source
+    assert "price-memory-panel" in memory_source
+    assert "price-memory-row" in memory_source
+    assert ".price-memory-panel" in styles_source
+    assert ".price-memory-row" in styles_source
+    assert find_mojibake(api_source, API_SOURCE) == []
+    assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(memory_source, TENDER_ECONOMICS_PRICE_MEMORY_SOURCE) == []
+    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+
+
 def test_dashboard_surfaces_current_offers_and_backend_decisions():
     dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
     app_source = APP_SOURCE.read_text(encoding="utf-8")
@@ -3139,9 +3202,12 @@ def test_economics_summary_surfaces_decision_engine_v2():
     assert "<DecisionEngineV2Panel decision={economicsDecision} />" in summary_source
     assert "decision.auto_price_policy" in summary_source
     assert "decision.historical_benchmark" in summary_source
+    assert "decision.one_line_explanation" in summary_source
+    assert "economics-decision-one-line" in summary_source
     assert "formatAutoPricePolicy" in summary_source
     assert "formatHistoricalBenchmark" in summary_source
     assert ".economics-decision-v2" in styles_source
+    assert ".economics-decision-one-line" in styles_source
     assert find_mojibake(summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 

@@ -220,6 +220,12 @@ def _economics_decision_v2(
     customer_risk = _dict(context.get("customer_risk"))
     safe_bid = _safe_bid(economics, participation, limit_price)
     benchmark = _historical_benchmark(customer_risk, metrics)
+    minimum_margin_percent = _first_number(
+        economics.get("target_margin_percent"),
+        _scenario_margin_percent(economics, "minimum_margin"),
+    )
+    current_margin_percent = _number(economics.get("margin_percent"))
+    discount_buffer = _discount_buffer(metrics, economics, safe_bid)
     risks = _compact_reasons(
         [
             *_text_list(analysis.get("risks")),
@@ -229,24 +235,69 @@ def _economics_decision_v2(
     )
     if benchmark.get("status") == "warning":
         risks.append("Historical benchmark differs from recent customer purchases.")
+    compact_risks = _compact_reasons(risks)[:6]
 
     return {
         "version": 2,
         "can_participate": _can_participate(status),
         "safe_bid": safe_bid,
-        "minimum_margin_percent": _first_number(
-            economics.get("target_margin_percent"),
-            _scenario_margin_percent(economics, "minimum_margin"),
-        ),
-        "current_margin_percent": _number(economics.get("margin_percent")),
-        "discount_buffer": _discount_buffer(metrics, economics, safe_bid),
-        "risks": _compact_reasons(risks)[:6],
+        "minimum_margin_percent": minimum_margin_percent,
+        "current_margin_percent": current_margin_percent,
+        "discount_buffer": discount_buffer,
+        "risks": compact_risks,
         "blockers": blockers,
         "what_blocks_application": blockers,
+        "one_line_explanation": _economics_decision_one_line(
+            status=status,
+            safe_bid=safe_bid,
+            current_margin_percent=current_margin_percent,
+            minimum_margin_percent=minimum_margin_percent,
+            discount_buffer=discount_buffer,
+            blockers=blockers,
+            risks=compact_risks,
+            reasons=reasons,
+        ),
         "auto_price_policy": supplier_auto_price_policy(metrics.get("positions_total")),
         "historical_benchmark": benchmark,
         "basis": _compact_reasons([participation.get("recommendation"), *reasons])[:5],
     }
+
+
+def _economics_decision_one_line(
+    *,
+    status: str,
+    safe_bid: dict[str, Any] | None,
+    current_margin_percent: float | None,
+    minimum_margin_percent: float | None,
+    discount_buffer: dict[str, Any] | None,
+    blockers: list[str],
+    risks: list[str],
+    reasons: list[str],
+) -> str:
+    can_participate = _can_participate(status)
+    if can_participate is True:
+        limit = _money(safe_bid.get("amount")) if safe_bid else "уточненного лимита"
+        details = []
+        if current_margin_percent is not None:
+            details.append(f"маржа {_format_percent(current_margin_percent)}")
+        if minimum_margin_percent is not None:
+            details.append(f"минимум {_format_percent(minimum_margin_percent)}")
+        buffer_percent = _number(_dict(discount_buffer).get("percent"))
+        if buffer_percent is not None:
+            details.append(f"запас снижения {_format_percent(buffer_percent)}")
+        return f"Можно участвовать до {limit}: {', '.join(details)}." if details else f"Можно участвовать до {limit}."
+    if can_participate is False:
+        return f"Не участвовать: {_first_reason(blockers, risks, reasons, fallback='экономика не проходит')}."
+    return f"Нужна проверка: {_first_reason(blockers, risks, reasons, fallback='подтверди цены, условия и риски')}."
+
+
+def _first_reason(*groups: list[str], fallback: str) -> str:
+    for group in groups:
+        for reason in group:
+            text = _text(reason, "").strip()
+            if text:
+                return text
+    return fallback
 
 
 def _can_participate(status: str) -> bool | None:

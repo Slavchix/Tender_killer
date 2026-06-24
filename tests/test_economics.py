@@ -278,6 +278,7 @@ def test_build_economics_summary_returns_financial_model_v1_and_participation_ca
     assert summary["cost_breakdown"] == {
         "direct_cost": 50000.0,
         "logistics_cost": 3000.0,
+        "equipment_cost": 0.0,
         "documents_cost": 2000.0,
         "packaging_cost": 0.0,
         "other_costs": 1000.0,
@@ -437,6 +438,59 @@ def test_build_economics_summary_calculates_landed_cost_with_pack_conversion():
     assert item["estimated_total_cost"] == 685.0
     assert summary["supplier_cost"] == 685.0
     assert summary["cost_breakdown"]["packaging_cost"] == 25.0
+
+
+def test_build_economics_summary_calculates_service_cost_model_without_packaging_flow():
+    summary = build_economics_summary(
+        {
+            "price": 50000.0,
+            "product_profiles": [
+                {
+                    "position_index": 1,
+                    "product_name": "Монтаж баннера",
+                    "quantity": 1,
+                    "unit": "услуга",
+                    "raw_payload": {
+                        "economics": {
+                            "cost_model": "service",
+                            "service_rate": 2500,
+                            "service_volume": 3,
+                            "service_minimum": 9000,
+                            "service_logistics_cost": 1500,
+                            "service_equipment_cost": 1200,
+                            "documents_cost": 300,
+                            "other_costs": 500,
+                        },
+                        "economics_assumptions": {
+                            "vat_mode": "vat_included",
+                            "risk_reserve_percent": 0,
+                        },
+                    },
+                }
+            ],
+        }
+    )
+
+    item = summary["items"][0]
+    assert item["cost_model"] == "service"
+    assert item["service_rate"] == 2500.0
+    assert item["service_volume"] == 3.0
+    assert item["service_minimum"] == 9000.0
+    assert item["direct_cost"] == 9000.0
+    assert item["total_cost"] == 9000.0
+    assert item["procurement_quantity"] is None
+    assert item["pack_quantity"] is None
+    assert item["service_logistics_cost"] == 1500.0
+    assert item["service_equipment_cost"] == 1200.0
+    assert item["extra_costs"] == 3500.0
+    assert item["landed_cost"] == 12500.0
+    assert item["estimated_total_cost"] == 12500.0
+    assert summary["supplier_cost"] == 12500.0
+    assert summary["cost_breakdown"]["direct_cost"] == 9000.0
+    assert summary["cost_breakdown"]["logistics_cost"] == 1500.0
+    assert summary["cost_breakdown"]["equipment_cost"] == 1200.0
+    assert summary["cost_breakdown"]["documents_cost"] == 300.0
+    assert summary["cost_breakdown"]["other_costs"] == 500.0
 
 
 def test_build_economics_summary_returns_market_bid_scenarios_with_profit_roles():

@@ -321,6 +321,9 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
     economics = _economics_payload(profile)
     assumptions = _assumptions_payload(profile)
     price_source = _price_source_payload(profile)
+    cost_model = _cost_model(economics.get("cost_model"))
+    if cost_model == "service":
+        return _service_item_cost(profile, economics, assumptions, price_source)
     quantity = _number(profile.get("quantity"))
     if quantity is not None and quantity <= 0:
         quantity = None
@@ -371,6 +374,7 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
     return {
         "position_index": _positive_int(profile.get("position_index")),
         "product_name": str(profile.get("product_name") or "товарная позиция"),
+        "cost_model": "product",
         "quantity": quantity,
         "unit": profile.get("unit"),
         "unit_cost": rounded_unit_cost,
@@ -396,6 +400,88 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
         "target_price": target_price,
         "price_passport": _price_passport(price_source, economics, rounded_unit_cost, rounded_total_cost),
         "unit_normalization": _unit_normalization(profile, price_source, rounded_unit_cost),
+    }
+
+
+def _service_item_cost(
+    profile: dict[str, Any],
+    economics: dict[str, Any],
+    assumptions: dict[str, Any],
+    price_source: dict[str, Any],
+) -> dict[str, Any]:
+    quantity = _number(profile.get("quantity"))
+    if quantity is not None and quantity <= 0:
+        quantity = None
+    service_rate = _first_number(economics, ("service_rate", "service_tariff", "hour_rate", "shift_rate", "unit_cost"))
+    service_volume = _first_number(economics, ("service_volume", "service_hours", "service_shifts", "work_volume")) or quantity
+    service_minimum = _first_number(economics, ("service_minimum", "service_minimum_cost", "minimum_cost", "minimum_order_amount")) or 0.0
+    total_cost = _first_number(economics, ("total_cost", "total_cost_rub", "service_total_cost"))
+    if total_cost is None and service_rate is not None and service_volume is not None:
+        total_cost = service_rate * service_volume
+    if total_cost is not None:
+        total_cost = max(total_cost, service_minimum)
+    normalized_unit_cost = total_cost / quantity if total_cost is not None and quantity else service_rate
+    logistics_cost = _first_number(economics, ("service_logistics_cost", "logistics_cost")) or 0.0
+    equipment_cost = _first_number(economics, ("service_equipment_cost", "equipment_cost")) or 0.0
+    documents_cost = _first_number(economics, ("documents_cost",)) or 0.0
+    other_costs = _first_number(economics, ("other_costs",)) or 0.0
+    extra_costs = logistics_cost + equipment_cost + documents_cost + other_costs
+    vat_mode = _vat_mode(assumptions.get("vat_mode"))
+    vat_rate_percent = _percent(assumptions.get("vat_rate_percent"))
+    if vat_mode == "no_vat":
+        vat_rate_percent = 0.0
+    risk_reserve_percent = _percent(assumptions.get("risk_reserve_percent")) or 0.0
+    target_margin_percent = _percent(assumptions.get("target_margin_percent"))
+    base_cost = total_cost + extra_costs if total_cost is not None else None
+    vat_cost = _vat_cost(base_cost, vat_mode, vat_rate_percent)
+    position_risk_reserve = _position_risk_reserve(base_cost, vat_cost, risk_reserve_percent)
+    estimated_total_cost = (
+        _round_money(base_cost + vat_cost + position_risk_reserve)
+        if base_cost is not None
+        else None
+    )
+    target_price = (
+        _price_for_margin(estimated_total_cost, target_margin_percent)
+        if estimated_total_cost is not None and target_margin_percent is not None and target_margin_percent < 100
+        else None
+    )
+    rounded_rate = _round_money(service_rate) if service_rate is not None else None
+    rounded_total_cost = _round_money(total_cost) if total_cost is not None else None
+    return {
+        "position_index": _positive_int(profile.get("position_index")),
+        "product_name": str(profile.get("product_name") or "услуга"),
+        "cost_model": "service",
+        "quantity": quantity,
+        "unit": profile.get("unit"),
+        "unit_cost": rounded_rate,
+        "service_rate": rounded_rate,
+        "service_volume": _round_percent(service_volume) if service_volume is not None else None,
+        "service_minimum": _round_money(service_minimum),
+        "unit_cost_basis": "service_rate",
+        "pack_quantity": None,
+        "procurement_quantity": None,
+        "normalized_unit_cost": _round_money(normalized_unit_cost) if normalized_unit_cost is not None else None,
+        "total_cost": rounded_total_cost,
+        "direct_cost": rounded_total_cost,
+        "logistics_cost": _round_money(logistics_cost),
+        "service_logistics_cost": _round_money(logistics_cost),
+        "equipment_cost": _round_money(equipment_cost),
+        "service_equipment_cost": _round_money(equipment_cost),
+        "documents_cost": _round_money(documents_cost),
+        "packaging_cost": 0.0,
+        "other_costs": _round_money(other_costs),
+        "extra_costs": _round_money(extra_costs),
+        "landed_cost": _round_money(base_cost) if base_cost is not None else None,
+        "vat_mode": vat_mode,
+        "vat_rate_percent": _round_percent(vat_rate_percent) if vat_rate_percent is not None else None,
+        "vat_cost": vat_cost,
+        "risk_reserve_percent": _round_percent(risk_reserve_percent),
+        "position_risk_reserve": position_risk_reserve,
+        "estimated_total_cost": estimated_total_cost,
+        "target_margin_percent": _round_percent(target_margin_percent) if target_margin_percent is not None else None,
+        "target_price": target_price,
+        "price_passport": _price_passport(price_source, economics, rounded_rate, rounded_total_cost),
+        "unit_normalization": None,
     }
 
 
@@ -629,6 +715,13 @@ def _unit_cost_basis(value: Any) -> str:
     return "tender_unit"
 
 
+def _cost_model(value: Any) -> str:
+    text = str(value or "product").strip()
+    if text == "service":
+        return "service"
+    return "product"
+
+
 def _unit_normalization(
     profile: dict[str, Any],
     price_source: dict[str, Any],
@@ -747,6 +840,7 @@ def _cost_breakdown(
     return {
         "direct_cost": _sum_item_money(items, "direct_cost"),
         "logistics_cost": _sum_item_money(items, "logistics_cost"),
+        "equipment_cost": _sum_item_money(items, "equipment_cost"),
         "documents_cost": _sum_item_money(items, "documents_cost"),
         "packaging_cost": _sum_item_money(items, "packaging_cost"),
         "other_costs": _sum_item_money(items, "other_costs"),

@@ -270,6 +270,57 @@ def test_handle_post_request_routes_product_profile_economics_update(tmp_path) -
     assert response.payload["economics"]["supplier_cost"] == 65000.0
 
 
+def test_handle_post_request_routes_service_profile_economics_update(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Banner installation",
+                quantity=1,
+                unit="service",
+            )
+        ],
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/product-profiles/1/economics",
+        {
+            "cost_model": "service",
+            "service_rate": 2500,
+            "service_volume": 3,
+            "service_minimum": 9000,
+            "service_logistics_cost": 1500,
+            "service_equipment_cost": 1200,
+            "documents_cost": 300,
+            "other_costs": 500,
+        },
+    )
+
+    profile = response.payload["product_profiles"][0]
+    assert response.status == 200
+    assert profile["raw_payload"]["economics"] == {
+        "cost_model": "service",
+        "service_rate": 2500.0,
+        "service_volume": 3.0,
+        "service_minimum": 9000.0,
+        "service_logistics_cost": 1500.0,
+        "service_equipment_cost": 1200.0,
+        "documents_cost": 300.0,
+        "other_costs": 500.0,
+    }
+    item = response.payload["economics"]["items"][0]
+    assert item["cost_model"] == "service"
+    assert response.payload["economics"]["supplier_cost"] == 12500.0
+    assert item["procurement_quantity"] is None
+    assert item["pack_quantity"] is None
+
+
 def test_handle_post_request_materializes_missing_product_profiles_for_economics_update(tmp_path) -> None:
     store = _store_with_materializable_tender_item(tmp_path)
     assert store.get_product_profiles("moscow_supplier_portal", "Auction10211242") == []
@@ -1183,6 +1234,104 @@ def test_handle_post_request_price_candidate_stage_includes_price_memory(tmp_pat
     assert profile["price_candidates"][0]["review_status"] == "pending"
     assert profile["price_candidates"][0]["raw_payload"]["price_memory"]["source_tender_external_id"] == "3668200"
     assert "economics" not in profile["raw_payload"]
+
+
+def test_price_memory_api_lists_and_archives_entries_before_reuse(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+    saved = store.upsert_price_candidates(
+        "mosreg_market",
+        "3668200",
+        1,
+        [
+            {
+                "provider": "komus",
+                "name": "Office paper A4",
+                "url": "https://example.com/paper-memory-archive",
+                "unit_price": 900.0,
+                "currency": "RUB",
+                "vat_mode": "vat_included",
+                "availability": "in_stock",
+                "confidence": "high",
+                "delivery_note": "Delivery included",
+                "unit": "pack",
+                "pack_quantity": 1,
+            }
+        ],
+        origin="supplier_discovery",
+    )
+    handle_post_request(
+        store.database_path,
+        f"/api/tenders/mosreg_market/3668200/product-profiles/1/price-candidates/{saved[0]['id']}/confirm",
+        {},
+    )
+
+    list_response = handle_get_request(store.database_path, "/api/price-memory", {})
+
+    assert list_response.status == 200
+    assert list_response.payload["price_memory"]["summary"] == {
+        "total_count": 1,
+        "active_count": 1,
+        "archived_count": 0,
+    }
+    entry = list_response.payload["price_memory"]["entries"][0]
+    assert entry["entry_status"] == "active"
+    assert entry["product_name"] == "Office paper A4"
+
+    archive_response = handle_post_request(
+        store.database_path,
+        f"/api/price-memory/{entry['id']}/archive",
+        {"reason": "wrong package"},
+    )
+
+    assert archive_response.status == 200
+    archived_entry = archive_response.payload["price_memory"]["entries"][0]
+    assert archive_response.payload["price_memory"]["summary"]["active_count"] == 0
+    assert archive_response.payload["price_memory"]["summary"]["archived_count"] == 1
+    assert archived_entry["entry_status"] == "archived"
+    assert archived_entry["archive_reason"] == "wrong package"
+
+    store.upsert_tender(
+        Tender(
+            source="mosreg_market",
+            external_id="3668201",
+            url="https://market.mosreg.ru/Trade/ViewTrade/3668201",
+            title="Next tender",
+            price=120000.0,
+        )
+    )
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668201",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668201",
+                position_index=1,
+                product_name="Office paper A4 white",
+                quantity=5,
+                unit="pack",
+            )
+        ],
+    )
+
+    stage_response = handle_post_request(store.database_path, "/api/tenders/mosreg_market/3668201/price-candidates/stage", {})
+
+    assert stage_response.payload["price_memory_stage"]["staged_count"] == 0
+    assert stage_response.payload["product_profiles"][0]["price_candidates"] == []
 
 
 def test_handle_post_request_routes_tender_price_book_feed_stage(tmp_path) -> None:

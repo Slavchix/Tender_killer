@@ -129,9 +129,10 @@ function DecisionEngineV2Panel({ decision }) {
   return (
     <section className="economics-decision-v2" aria-label="Решение экономики">
       <div className="analysis-status-row">
-        <strong>Decision engine v2</strong>
+        <strong>Решение экономики</strong>
         <span>{formatParticipationGate(decision.can_participate)}</span>
       </div>
+      {decision.one_line_explanation && <p className="economics-decision-one-line">{decision.one_line_explanation}</p>}
       <div className="economics-grid">
         <Info label="Безопасная ставка" value={formatMoney(safeBid.amount)} />
         <Info label="Минимальная маржа" value={formatPercent(decision.minimum_margin_percent)} />

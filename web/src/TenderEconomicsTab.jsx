@@ -1,4 +1,5 @@
 import { TenderEconomicsPriceBookFeed } from './TenderEconomicsPriceBookFeed'
+import { TenderEconomicsPriceMemory } from './TenderEconomicsPriceMemory'
 import { TenderEconomicsMetrics } from './TenderEconomicsMetrics'
 import { EconomicsSummary } from './TenderEconomicsSummary'
 import { TenderEconomicsWorkbench } from './TenderEconomicsWorkbench'
@@ -141,6 +142,7 @@ export function TenderEconomicsTab({
         onPriceBookFeedStage={onPriceBookFeedStage}
         stagingPriceBookFeed={stagingPriceBookFeed}
       />
+      <TenderEconomicsPriceMemory />
       <TenderEconomicsWorkbench
         economics={economics}
         profiles={profiles}

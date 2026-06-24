@@ -252,6 +252,11 @@ def test_decision_exposes_economics_decision_v2_for_safe_bid_and_policy():
         "percent": 7.0,
         "basis": "current_offer_price",
     }
+    assert economics_decision["one_line_explanation"].startswith("Можно участвовать")
+    assert "93 000" in economics_decision["one_line_explanation"]
+    assert "18%" in economics_decision["one_line_explanation"]
+    assert "15%" in economics_decision["one_line_explanation"]
+    assert "7%" in economics_decision["one_line_explanation"]
     assert economics_decision["auto_price_policy"]["level"] == "small_review_only_auto_search"
     assert economics_decision["auto_price_policy"]["active_search_allowed"] is True
     assert economics_decision["auto_price_policy"]["mass_launch_allowed"] is True
@@ -350,6 +355,7 @@ def test_decision_requires_price_quality_review_before_interesting_bid():
     assert decision["metrics"]["price_candidates_review"] == 1
     assert decision["metrics"]["price_candidates_blocked"] == 1
     assert decision["economics_decision"]["can_participate"] is None
+    assert decision["economics_decision"]["one_line_explanation"].startswith("Нужна проверка")
     assert "Не тот товар" in decision["economics_decision"]["what_blocks_application"]
 
 

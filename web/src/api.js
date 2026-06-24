@@ -260,6 +260,20 @@ export function fetchPriceDiscoveryJob(jobId) {
   })
 }
 
+export function fetchPriceMemory(limit = 50) {
+  return apiJson(`/api/price-memory?limit=${encodeURIComponent(limit)}`, {
+    errorMessage: 'Не удалось загрузить память цен',
+  })
+}
+
+export function archivePriceMemoryEntry(entryId, payload = {}) {
+  return apiJson(`/api/price-memory/${encodeURIComponent(entryId)}/archive`, {
+    method: 'POST',
+    body: payload,
+    errorMessage: 'Не удалось убрать цену из памяти',
+  })
+}
+
 export function prepareProfileSupplierSearch(tender, profile) {
   return apiJson(`${productProfilePath(tender, profile)}/supplier-search/prepare`, {
     method: 'POST',

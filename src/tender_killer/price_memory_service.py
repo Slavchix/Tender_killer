@@ -75,6 +75,43 @@ def stage_price_memory_candidates(
     }
 
 
+def list_price_memory_payload(database_path: str | Path, *, limit: int = 50) -> dict[str, Any]:
+    store = TenderStore(database_path)
+    store.initialize()
+    entries = store.list_price_book_entries(limit=limit, include_archived=True)
+    return _price_memory_payload(entries)
+
+
+def archive_price_memory_entry(
+    database_path: str | Path,
+    entry_id: int,
+    *,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    store = TenderStore(database_path)
+    store.initialize()
+    store.archive_price_book_entry(entry_id, reason=reason)
+    entries = store.list_price_book_entries(limit=50, include_archived=True)
+    return _price_memory_payload(entries)
+
+
+def _price_memory_payload(entries: list[dict[str, Any]]) -> dict[str, Any]:
+    total_count = len(entries)
+    active_count = sum(1 for entry in entries if str(entry.get("entry_status") or "active") == "active")
+    archived_count = sum(1 for entry in entries if str(entry.get("entry_status") or "active") == "archived")
+    return {
+        "ok": True,
+        "price_memory": {
+            "summary": {
+                "total_count": total_count,
+                "active_count": active_count,
+                "archived_count": archived_count,
+            },
+            "entries": entries,
+        },
+    }
+
+
 def _entry_from_confirmed_candidate(
     source: str,
     external_id: str,

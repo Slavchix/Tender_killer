@@ -43,6 +43,8 @@ from tender_killer.price_candidate_service import stage_tender_price_candidates
 from tender_killer.price_book_feed_service import stage_tender_price_book_feed
 from tender_killer.price_discovery_job_service import get_tender_price_discovery_job
 from tender_killer.price_discovery_job_service import start_tender_price_discovery_job
+from tender_killer.price_memory_service import archive_price_memory_entry
+from tender_killer.price_memory_service import list_price_memory_payload
 from tender_killer.price_memory_service import stage_price_memory_candidates
 from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
 from tender_killer.report_service import build_tender_report_response as build_tender_report_download_response
@@ -86,6 +88,7 @@ API_CAPABILITIES: tuple[str, ...] = (
     "price_candidate_review",
     "price_candidate_bulk_review",
     "price_candidate_auto_stage",
+    "price_memory_manage",
     "price_memory_stage",
     "price_auto_apply",
     "price_book_feed",
@@ -374,6 +377,13 @@ def handle_get_request(database_path: str | Path, path: str, query: dict[str, st
         )
     if path == "/api/dashboard/queues":
         return ApiResponse(build_dashboard_queues_payload(database_path, query))
+    if path == "/api/price-memory":
+        return ApiResponse(
+            list_price_memory_payload(
+                database_path,
+                limit=_integer_query_value(query.get("limit"), default=50),
+            )
+        )
     if path.startswith("/api/price-discovery/jobs/"):
         job_id = path.removeprefix("/api/price-discovery/jobs/").strip("/")
         if not job_id or "/" in job_id:
@@ -415,6 +425,28 @@ def _truthy_query_value(value: str | None) -> bool:
     return str(value or "").casefold() in {"1", "true", "yes", "on"}
 
 
+def _integer_query_value(value: str | None, *, default: int) -> int:
+    try:
+        number = int(str(value or "").strip())
+    except ValueError:
+        return default
+    return max(0, number)
+
+
+def _price_memory_archive_entry_id(path: str) -> int | None:
+    prefix = "/api/price-memory/"
+    suffix = "/archive"
+    if not path.startswith(prefix) or not path.endswith(suffix):
+        return None
+    raw_entry_id = path.removeprefix(prefix).removesuffix(suffix).strip("/")
+    if not raw_entry_id or "/" in raw_entry_id:
+        return None
+    try:
+        return int(raw_entry_id)
+    except ValueError:
+        return None
+
+
 def handle_post_request(
     database_path: str | Path,
     path: str,
@@ -429,6 +461,15 @@ def handle_post_request(
                 return ApiResponse({**payload, "error": payload.get("message") or "Search is already running."}, status=409)
             return ApiResponse(payload)
         return ApiResponse(run_search_payload(settings_factory(), filters_payload=body))
+    if path.startswith("/api/price-memory/") and path.endswith("/archive"):
+        entry_id = _price_memory_archive_entry_id(path)
+        if entry_id is None:
+            return ApiResponse({"error": "invalid price memory archive path"}, status=400)
+        reason = str(body.get("reason") or "").strip() or None
+        try:
+            return ApiResponse(archive_price_memory_entry(database_path, entry_id, reason=reason))
+        except KeyError as exc:
+            return ApiResponse({"error": str(exc)}, status=404)
     if path.startswith("/api/tenders/") and path.endswith("/analysis/workflow"):
         route = parse_tender_path(path, suffix="analysis/workflow")
         if route is None:

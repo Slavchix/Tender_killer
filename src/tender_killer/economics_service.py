@@ -16,8 +16,14 @@ ECONOMICS_NUMERIC_INPUT_FIELDS = (
     "documents_cost",
     "packaging_cost",
     "other_costs",
+    "service_rate",
+    "service_volume",
+    "service_minimum",
+    "service_logistics_cost",
+    "service_equipment_cost",
 )
 ECONOMICS_UNIT_COST_BASES = {"tender_unit", "supplier_pack"}
+ECONOMICS_COST_MODELS = {"product", "service"}
 VAT_MODES = {"unknown", "vat_included", "vat_excluded", "no_vat"}
 DEFAULT_TARGET_MARGIN_PERCENT = 15.0
 
@@ -45,7 +51,7 @@ def update_profile_economics(
     raw_payload = dict(target.get("raw_payload") or {})
     raw_payload["economics"] = economics
     target["raw_payload"] = raw_payload
-    if any(key in economics for key in ("unit_cost", "total_cost")):
+    if any(key in economics for key in ("unit_cost", "total_cost", "service_rate", "service_minimum")):
         target["profile_status"] = "priced"
 
     store.upsert_product_profiles(source, external_id, profiles)
@@ -183,6 +189,9 @@ def _driver_amounts(estimate: dict[str, Any], driver_types: set[str]) -> float:
 
 def _economics_inputs(data: dict[str, Any]) -> dict[str, Any]:
     values: dict[str, Any] = {}
+    cost_model = _cost_model(data.get("cost_model"))
+    if cost_model:
+        values["cost_model"] = cost_model
     for field in ECONOMICS_NUMERIC_INPUT_FIELDS:
         number = _number(data.get(field))
         if number is not None:
@@ -196,6 +205,11 @@ def _economics_inputs(data: dict[str, Any]) -> dict[str, Any]:
 def _unit_cost_basis(value: Any) -> str | None:
     text = str(value or "").strip()
     return text if text in ECONOMICS_UNIT_COST_BASES else None
+
+
+def _cost_model(value: Any) -> str | None:
+    text = str(value or "").strip()
+    return text if text in ECONOMICS_COST_MODELS else None
 
 
 def _assumptions_inputs(data: dict[str, Any]) -> dict[str, Any]:
