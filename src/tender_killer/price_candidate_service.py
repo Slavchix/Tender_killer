@@ -18,6 +18,22 @@ VAT_INCLUDED_VALUES = {"vat_included", "included", "with_vat", "nds_included", "
 VAT_REVIEW_VALUES = {"vat_excluded", "excluded", "without_vat", "no_vat", "nds_excluded", "без_ндс"}
 PICKUP_ONLY_MARKERS = ("pickup", "self pickup", "self-pickup", "самовывоз")
 DELIVERY_INCLUDED_MARKERS = ("delivery included", "доставка включена", "с доставкой")
+TRUSTED_SUPPLIER_VAT_NOTE = "НДС проверить: по умолчанию считаем цену поставщика с НДС."
+TRUSTED_SUPPLIER_DELIVERY_RATE_PERCENT = 3.0
+TRUSTED_SUPPLIER_MARKERS = (
+    "officemag",
+    "komus",
+    "petrovich",
+    "vseinstrumenti",
+    "vseinstrument",
+    "lemanapro",
+    "lemana",
+    "офисмаг",
+    "комус",
+    "петрович",
+    "всеинструменты",
+    "лемана",
+)
 PACK_QUANTITY_FIELDS = (
     "pack_quantity",
     "quantity_per_pack",
@@ -55,12 +71,20 @@ def rank_profile_price_candidates(profile: dict[str, Any]) -> list[dict[str, Any
     for candidate in candidates:
         if not isinstance(candidate, dict):
             continue
+        candidate = _rankable_price_candidate(profile, candidate)
         quality = evaluate_price_candidate_quality(profile, candidate)
         score, reasons = _candidate_score(candidate, quality)
         ranked_candidate = {**candidate, **quality, "score": score, "score_reasons": reasons}
         ranked_candidate["pricing_passport"] = _pricing_passport(profile, ranked_candidate)
         ranked.append(ranked_candidate)
     return sorted(ranked, key=_rank_key)
+
+
+def _rankable_price_candidate(profile: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    raw_payload = _raw_payload(candidate)
+    if _number(candidate.get("unit_price") or raw_payload.get("unit_price")) is None:
+        return {**candidate}
+    return normalize_price_candidate(profile, candidate)
 
 
 def evaluate_price_candidate_quality(profile: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
@@ -205,13 +229,27 @@ def normalize_price_candidate(profile: dict[str, Any], candidate: dict[str, Any]
 
     vat_mode = _token(candidate.get("vat_mode") or raw_payload.get("vat_mode"))
     vat_rate = _number(candidate.get("vat_rate_percent") or raw_payload.get("vat_rate_percent"))
+    supplier_defaults = _trusted_supplier_pricing_defaults(candidate, raw_payload)
     if vat_mode in VAT_REVIEW_VALUES and vat_rate and vat_rate > 0:
         unit_price = unit_price * (1 + vat_rate / 100)
         normalized["vat_mode"] = "vat_included"
+        normalized["vat_rate_percent"] = vat_rate
         normalization["vat_rate_percent"] = vat_rate
         match_reasons.append("vat_normalized")
+    elif vat_mode in VAT_REVIEW_VALUES and supplier_defaults:
+        normalized["vat_mode"] = "vat_included"
+        normalized["vat_note"] = supplier_defaults["vat_note"]
+        normalization["supplier_default_vat_note"] = supplier_defaults["vat_note"]
+        match_reasons.append("supplier_default_vat_included")
+    elif vat_mode in UNKNOWN_VALUES and supplier_defaults:
+        normalized["vat_mode"] = "vat_included"
+        normalized["vat_note"] = supplier_defaults["vat_note"]
+        normalization["supplier_default_vat_note"] = supplier_defaults["vat_note"]
+        match_reasons.append("supplier_default_vat_included")
     elif vat_mode:
         normalized["vat_mode"] = "vat_included" if vat_mode in VAT_INCLUDED_VALUES else vat_mode
+        if vat_rate is not None:
+            normalized["vat_rate_percent"] = vat_rate
 
     availability = _normalize_availability(candidate.get("availability") or raw_payload.get("availability"))
     if availability:
@@ -224,8 +262,22 @@ def normalize_price_candidate(profile: dict[str, Any], candidate: dict[str, Any]
         normalized["preorder_quantity"] = preorder_quantity
 
     delivery_note = str(candidate.get("delivery_note") or raw_payload.get("delivery_note") or "").strip()
+    delivery_token = delivery_note.casefold()
     if not delivery_note and _number(candidate.get("delivery_cost") or raw_payload.get("delivery_cost")) == 0:
         delivery_note = "Delivery included"
+        delivery_token = delivery_note.casefold()
+    elif supplier_defaults and _delivery_needs_supplier_default(delivery_token):
+        delivery_rate = _number(candidate.get("delivery_rate_percent") or raw_payload.get("delivery_rate_percent"))
+        if delivery_rate is None or delivery_rate <= 0:
+            delivery_rate = supplier_defaults["delivery_rate_percent"]
+        delivery_cost_per_unit = unit_price * delivery_rate / 100
+        unit_price += delivery_cost_per_unit
+        normalized["delivery_rate_percent"] = delivery_rate
+        normalized["delivery_cost_per_unit"] = round(delivery_cost_per_unit, 2)
+        delivery_note = f"Delivery included by supplier default ({_format_number(delivery_rate)}%)"
+        normalization["supplier_default_delivery_rate_percent"] = delivery_rate
+        normalization["supplier_default_delivery_cost_per_unit"] = round(delivery_cost_per_unit, 2)
+        match_reasons.append("supplier_default_delivery")
     if delivery_note:
         normalized["delivery_note"] = delivery_note
 
@@ -642,6 +694,7 @@ def _pricing_passport(profile: dict[str, Any], candidate: dict[str, Any]) -> dic
         "currency": candidate.get("currency") or "RUB",
         "availability": candidate.get("availability") or raw_payload.get("availability"),
         "vat_mode": candidate.get("vat_mode") or raw_payload.get("vat_mode"),
+        **({"vat_note": candidate.get("vat_note") or raw_payload.get("vat_note")} if candidate.get("vat_note") or raw_payload.get("vat_note") else {}),
         "delivery_note": delivery_note or None,
         "stock_quantity": _first_number(candidate, raw_payload, SUPPLIER_STOCK_FIELDS),
         "preorder_quantity": _first_number(candidate, raw_payload, SUPPLIER_PREORDER_FIELDS),
@@ -1050,6 +1103,48 @@ def _normalize_availability(value: Any) -> str:
     if token in UNKNOWN_VALUES:
         return "unknown"
     return token or "unknown"
+
+
+def _trusted_supplier_pricing_defaults(candidate: dict[str, Any], raw_payload: dict[str, Any]) -> dict[str, Any]:
+    if not _trusted_supplier_marker(candidate, raw_payload):
+        return {}
+    return {
+        "vat_note": TRUSTED_SUPPLIER_VAT_NOTE,
+        "delivery_rate_percent": TRUSTED_SUPPLIER_DELIVERY_RATE_PERCENT,
+    }
+
+
+def _trusted_supplier_marker(candidate: dict[str, Any], raw_payload: dict[str, Any]) -> str:
+    text = " ".join(
+        str(value)
+        for value in (
+            candidate.get("provider"),
+            raw_payload.get("provider"),
+            candidate.get("supplier_name"),
+            raw_payload.get("supplier_name"),
+            candidate.get("source_url"),
+            raw_payload.get("source_url"),
+            candidate.get("url"),
+            raw_payload.get("url"),
+            raw_payload.get("catalog"),
+        )
+        if value not in (None, "")
+    ).casefold()
+    compact = re.sub(r"[^a-z0-9]+", "", text)
+    for marker in TRUSTED_SUPPLIER_MARKERS:
+        if marker in text or marker in compact:
+            return marker
+    return ""
+
+
+def _delivery_needs_supplier_default(delivery_token: str) -> bool:
+    if not delivery_token or delivery_token in UNKNOWN_VALUES:
+        return True
+    if any(marker in delivery_token for marker in PICKUP_ONLY_MARKERS):
+        return False
+    if any(marker in delivery_token for marker in DELIVERY_INCLUDED_MARKERS):
+        return False
+    return True
 
 
 def _raw_payload(candidate: dict[str, Any]) -> dict[str, Any]:

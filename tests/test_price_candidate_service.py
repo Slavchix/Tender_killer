@@ -298,6 +298,66 @@ def test_rank_profile_price_candidates_flags_unknown_cost_drivers_before_auto_ac
     assert "quality_review" in ranked[0]["score_reasons"]
 
 
+def test_rank_profile_price_candidates_applies_trusted_supplier_delivery_default_and_vat_note() -> None:
+    profile = {
+        "position_index": 1,
+        "quantity": 2,
+        "unit": "pack",
+        "price_candidates": [
+            {
+                "id": 1,
+                "provider": "officemag",
+                "product_name": "Paper A4",
+                "source_url": "https://www.officemag.ru/catalog/goods/110532/",
+                "unit_price": 100.0,
+                "currency": "RUB",
+                "availability": "in_stock",
+                "pack_quantity": 1,
+                "unit": "pack",
+                "confidence": "high",
+            },
+        ],
+    }
+
+    candidate = rank_profile_price_candidates(profile)[0]
+
+    assert candidate["unit_price"] == 103.0
+    assert candidate["vat_mode"] == "vat_included"
+    assert candidate["vat_note"] == "НДС проверить: по умолчанию считаем цену поставщика с НДС."
+    assert candidate["delivery_rate_percent"] == 3.0
+    assert candidate["delivery_cost_per_unit"] == 3.0
+    assert candidate["quality_status"] == "ready"
+    assert candidate["auto_eligible"] is True
+    assert _flag_ids(candidate) == set()
+    assert "supplier_default_vat_included" in candidate["match_reasons"]
+    assert "supplier_default_delivery" in candidate["match_reasons"]
+    assert candidate["pricing_passport"]["unit_price"] == 103.0
+    assert candidate["pricing_passport"]["total_price"] == 206.0
+    assert candidate["pricing_passport"]["vat_note"] == "НДС проверить: по умолчанию считаем цену поставщика с НДС."
+    assert candidate["pricing_passport"]["positive_checks"] == [
+        "source_url",
+        "unit_price",
+        "availability",
+        "vat",
+        "delivery",
+        "pack_quantity",
+    ]
+
+    cyrillic_supplier = {
+        **profile,
+        "price_candidates": [
+            {
+                **profile["price_candidates"][0],
+                "id": 2,
+                "provider": "ВсеИнструменты",
+                "source_url": "",
+            }
+        ],
+    }
+
+    assert rank_profile_price_candidates(cyrillic_supplier)[0]["unit_price"] == 103.0
+
+
 def test_normalize_price_candidate_applies_vat_and_pack_conversion() -> None:
     profile = {
         "position_index": 1,
