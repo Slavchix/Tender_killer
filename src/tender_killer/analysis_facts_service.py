@@ -24,6 +24,7 @@ def build_analysis_facts(
 
     items: list[dict[str, Any]] = []
     document_roles = _document_roles(analysis, document_rows)
+    document_contexts = _document_contexts(analysis)
     summary = _text(analysis.get("summary"))
     if summary:
         items.append(
@@ -39,10 +40,10 @@ def build_analysis_facts(
         )
 
     for item in _dict_items(analysis.get("execution_terms")):
-        items.append(_execution_term_fact(item, analysis, document_rows, document_roles))
+        items.append(_execution_term_fact(item, analysis, document_rows, document_roles, document_contexts))
 
     for item in _dict_items(analysis.get("checklist")):
-        items.append(_checklist_fact(item, analysis, document_rows, document_roles))
+        items.append(_checklist_fact(item, analysis, document_rows, document_roles, document_contexts))
 
     items = _dedupe_items(items)
     return {"version": 1, "items": items, "metrics": _metrics(items)}
@@ -53,6 +54,7 @@ def _checklist_fact(
     analysis: dict[str, Any],
     documents: list[dict[str, Any]],
     document_roles: dict[str, str],
+    document_contexts: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     label = _text(item.get("label")) or "Условие"
     category = _text(item.get("category")) or "general"
@@ -70,6 +72,7 @@ def _checklist_fact(
         text=fragment or label,
         document_name=document_name,
         document_roles=document_roles,
+        document_contexts=document_contexts,
     )
     return _fact(
         kind=kind,
@@ -97,6 +100,7 @@ def _execution_term_fact(
     analysis: dict[str, Any],
     documents: list[dict[str, Any]],
     document_roles: dict[str, str],
+    document_contexts: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     label = _text(item.get("label")) or "Условие исполнения"
     category = _text(item.get("category")) or "general"
@@ -115,6 +119,7 @@ def _execution_term_fact(
         text=" ".join(part for part in (value, fragment) if part),
         document_name=document_name,
         document_roles=document_roles,
+        document_contexts=document_contexts,
     )
     return _fact(
         kind="blocker" if is_blocker else "execution_term",
@@ -293,6 +298,20 @@ def _document_roles(analysis: dict[str, Any], documents: list[dict[str, Any]]) -
     return roles
 
 
+def _document_contexts(analysis: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    context_pack = analysis.get("context_pack")
+    if not isinstance(context_pack, dict) or context_pack.get("version") != 1:
+        return {}
+    contexts: dict[str, dict[str, Any]] = {}
+    for document in context_pack.get("documents") if isinstance(context_pack.get("documents"), list) else []:
+        if not isinstance(document, dict):
+            continue
+        name = _text(document.get("name"))
+        if name:
+            contexts[name] = document
+    return contexts
+
+
 def _structured_metadata(
     *,
     label: str,
@@ -301,11 +320,20 @@ def _structured_metadata(
     text: str,
     document_name: str,
     document_roles: dict[str, str],
+    document_contexts: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     metadata: dict[str, Any] = {}
     role = _text(document_roles.get(document_name))
     if role:
         metadata["document_role"] = role
+    metadata.update(
+        _context_metadata(
+            document_contexts.get(document_name),
+            label=label,
+            category=category,
+            term_type=term_type,
+        )
+    )
 
     stage = _document_stage(label=label, category=category, text=text)
     if stage:
@@ -330,6 +358,113 @@ def _structured_metadata(
         metadata["responsible_party"] = responsible_party
 
     return metadata
+
+
+def _context_metadata(
+    context_document: dict[str, Any] | None,
+    *,
+    label: str,
+    category: str,
+    term_type: str,
+) -> dict[str, Any]:
+    if not isinstance(context_document, dict):
+        return {}
+    metadata: dict[str, Any] = {}
+    role = _text(context_document.get("document_role"))
+    if role:
+        metadata["context_document_role"] = role
+    role_confidence = _text(context_document.get("document_role_confidence"))
+    if role_confidence:
+        metadata["context_document_role_confidence"] = role_confidence
+    source_priority = _unique_texts(context_document.get("source_priority") or [])
+    if source_priority:
+        metadata["context_source_priority"] = source_priority
+    source_authority = _context_source_authority(
+        role=role,
+        source_priority=source_priority,
+        label=label,
+        category=category,
+        term_type=term_type,
+    )
+    if source_authority:
+        metadata.update(source_authority)
+    topics = _context_topics(context_document)
+    if topics:
+        metadata["context_topics"] = topics
+    mismatch_flags = _unique_texts(context_document.get("mismatch_flags") or [])
+    if mismatch_flags:
+        metadata["context_mismatch_flags"] = mismatch_flags
+    text_quality = context_document.get("text_quality") if isinstance(context_document.get("text_quality"), dict) else {}
+    text_quality_status = _text(text_quality.get("status"))
+    if text_quality_status:
+        metadata["context_text_quality"] = text_quality_status
+    return metadata
+
+
+def _context_source_authority(
+    *,
+    role: str,
+    source_priority: list[str],
+    label: str,
+    category: str,
+    term_type: str,
+) -> dict[str, str]:
+    if not role:
+        return {}
+    priority = set(source_priority)
+    topic_keys = _context_topic_keys(label=label, category=category, term_type=term_type)
+    matched_topics = sorted(priority & topic_keys)
+    if matched_topics:
+        return {
+            "context_source_authority": "primary_for_topic",
+            "context_source_reason": f"{role} covers {', '.join(matched_topics)}",
+        }
+    if role in {"contract_project", "pik_obligations_payment", "technical_spec", "technical_spec_appendix"}:
+        return {
+            "context_source_authority": "primary_document",
+            "context_source_reason": f"{role} is a primary tender document",
+        }
+    if role == "participant_requirements":
+        return {
+            "context_source_authority": "supporting_document",
+            "context_source_reason": "participant_requirements supports admission checks",
+        }
+    return {
+        "context_source_authority": "supporting_document",
+        "context_source_reason": f"{role} is a supporting source",
+    }
+
+
+def _context_topic_keys(*, label: str, category: str, term_type: str) -> set[str]:
+    combined = _normalized_text(" ".join((label, category, term_type)))
+    keys = {_text(term_type), _text(category)} - {""}
+    if category == "payment" or "оплат" in combined or "payment" in combined:
+        keys.add("payment_terms")
+    if "аванс" in combined or "advance" in combined:
+        keys.add("advance")
+    if category == "acceptance" or "прием" in combined or "приём" in combined:
+        keys.update({"acceptance_process", "acceptance_documents"})
+    if category == "delivery" or "постав" in combined or "delivery" in combined:
+        keys.update({"delivery_schedule", "delivery_place", "logistics_responsibility"})
+    if category in {"documents", "standards"} or any(marker in combined for marker in ("сертифик", "деклараци", "паспорт")):
+        keys.add("certificates_closing_docs")
+    if category in {"financial", "security"} or "обеспеч" in combined or "security" in combined:
+        keys.add("contract_security")
+    if category == "contract" or "гарант" in combined or "warranty" in combined:
+        keys.add("warranty")
+    if category == "qualification" or any(marker in combined for marker in ("лиценз", "сро", "участник")):
+        keys.add("participant_requirements")
+    if category == "penalty" or any(marker in combined for marker in ("штраф", "пени", "пеня")):
+        keys.add("penalties")
+    return keys
+
+
+def _context_topics(context_document: dict[str, Any]) -> list[str]:
+    return _unique_texts(
+        _text(section.get("topic"))
+        for section in context_document.get("section_taxonomy") or []
+        if isinstance(section, dict)
+    )
 
 
 def _clean_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:

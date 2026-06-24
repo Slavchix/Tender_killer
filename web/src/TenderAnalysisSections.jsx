@@ -385,6 +385,7 @@ function AnalysisFactCard({ item, detailed = false, onEvidenceSelect, onFeedback
   const sourceBinding = analysisSourceBinding(item)
   const confidenceLevel = analysisConfidenceLevel(item)
   const evidenceQuality = analysisEvidenceQuality(item)
+  const sourceAuthority = analysisSourceAuthority(item)
   const interpretation = item.interpretation && typeof item.interpretation === 'object' ? item.interpretation : {}
   const summary = cleanAnalysisText(item.operator_summary) || cleanAnalysisText(item.description)
   const operatorCheck = cleanAnalysisText(item.operator_check) || cleanAnalysisText(item.operator_action)
@@ -398,7 +399,15 @@ function AnalysisFactCard({ item, detailed = false, onEvidenceSelect, onFeedback
     cleanAnalysisText(interpretation.impact) || impact ? ['Влияние', cleanAnalysisText(interpretation.impact) || impact] : null,
     cleanAnalysisText(interpretation.action) || operatorCheck ? ['Что сделать', cleanAnalysisText(interpretation.action) || operatorCheck] : null,
   ].filter(Boolean)
-  const sourceDetail = Boolean(sourceLabel || sourceBinding.detail || confidenceLevel.detail || evidenceQuality.detail || item.source_context || item.fragment)
+  const sourceDetail = Boolean(
+    sourceLabel ||
+    sourceBinding.detail ||
+    confidenceLevel.detail ||
+    evidenceQuality.detail ||
+    sourceAuthority.hasContext ||
+    item.source_context ||
+    item.fragment
+  )
   return (
     <article className={`analysis-checklist-row severity-${item.severity || 'medium'} feedback-${item.feedback_state || 'none'}${weak ? ' weak' : ''}`}>
       <div className="analysis-checklist-main">
@@ -469,10 +478,19 @@ function AnalysisFactCard({ item, detailed = false, onEvidenceSelect, onFeedback
             <span className={`analysis-source-binding-${sourceBinding.level}`}>{sourceBinding.label}</span>
             <span className={`analysis-confidence-${confidenceLevel.level}`}>{confidenceLevel.label}</span>
             <span className={`analysis-evidence-quality-${evidenceQuality.level}`}>{evidenceQuality.label}</span>
+            {sourceAuthority.hasContext && (
+              <span className={`analysis-source-authority-${sourceAuthority.level}`}>{sourceAuthority.label}</span>
+            )}
           </div>
           {sourceNotes.map((note) => (
             <p key={note}>{note}</p>
           ))}
+          {sourceAuthority.hasContext && (
+            <div className="analysis-source-authority">
+              <span>{sourceAuthority.label}</span>
+              <p>{sourceAuthority.detail}</p>
+            </div>
+          )}
           {item.source_context && <p>{item.source_context}</p>}
           {item.fragment && <p>{item.fragment}</p>}
         </details>
@@ -583,6 +601,83 @@ function analysisEvidenceQuality(item) {
     label: cleanAnalysisText(quality.label) || evidenceQualityLabel(level),
     detail: cleanAnalysisText(quality.detail),
   }
+}
+
+function analysisSourceAuthority(item) {
+  const level = cleanAnalysisText(item?.context_source_authority)
+  const documentRole = cleanAnalysisText(item?.context_document_role)
+  const roleConfidence = cleanAnalysisText(item?.context_document_role_confidence)
+  const sourcePriority = uniqueAnalysisTexts(Array.isArray(item?.context_source_priority) ? item.context_source_priority : [])
+  const topics = uniqueAnalysisTexts(Array.isArray(item?.context_topics) ? item.context_topics : [])
+  const mismatchFlags = uniqueAnalysisTexts(Array.isArray(item?.context_mismatch_flags) ? item.context_mismatch_flags : [])
+  const textQuality = cleanAnalysisText(item?.context_text_quality)
+  const reason = cleanAnalysisText(item?.context_source_reason)
+  const details = uniqueAnalysisTexts([
+    reason,
+    documentRole ? `Роль документа: ${sourceDocumentRoleLabel(documentRole)}${roleConfidence ? ` (${sourceRoleConfidenceLabel(roleConfidence)})` : ''}` : '',
+    sourcePriority.length ? `Приоритет источника: ${sourcePriority.map(sourceTopicLabel).join(', ')}` : '',
+    topics.length ? `Темы документа: ${topics.map(sourceTopicLabel).join(', ')}` : '',
+    mismatchFlags.length ? `Риски контекста: ${mismatchFlags.join(', ')}` : '',
+    textQuality ? `Качество текста: ${sourceTextQualityLabel(textQuality)}` : '',
+  ])
+  return {
+    level: level || 'unknown',
+    label: sourceAuthorityLabel(level),
+    detail: details.join(' · ') || 'Источник связан с контекстной картой документов.',
+    hasContext: Boolean(level || documentRole || sourcePriority.length || topics.length || mismatchFlags.length || textQuality || reason),
+  }
+}
+
+function sourceAuthorityLabel(level) {
+  if (level === 'primary_for_topic') return 'главный источник по теме'
+  if (level === 'primary_document') return 'основной документ'
+  if (level === 'supporting_document') return 'вспомогательный источник'
+  return 'контекст источника'
+}
+
+function sourceDocumentRoleLabel(role) {
+  if (role === 'technical_spec' || role === 'technical_specification') return 'ТЗ'
+  if (role === 'technical_spec_appendix') return 'приложение к ТЗ'
+  if (role === 'contract_project') return 'проект контракта'
+  if (role === 'pik_obligations_payment') return 'ПИК, оплата и приемка'
+  if (role === 'participant_requirements') return 'требования к участнику'
+  if (role === 'unsupported_primary') return 'основной документ без текста'
+  if (role === 'other') return 'другой документ'
+  return role
+}
+
+function sourceTopicLabel(topic) {
+  const labels = {
+    acceptance_documents: 'приемочные документы',
+    acceptance_process: 'приемка',
+    advance: 'аванс',
+    certificates_closing_docs: 'сертификаты и закрывающие',
+    contract_security: 'обеспечение контракта',
+    delivery_place: 'место поставки',
+    delivery_schedule: 'срок поставки',
+    logistics_responsibility: 'логистика',
+    participant_requirements: 'требования к участнику',
+    payment_terms: 'условия оплаты',
+    penalties: 'штрафы',
+    technical_characteristics: 'характеристики',
+    warranty: 'гарантия',
+  }
+  return labels[topic] || topic
+}
+
+function sourceRoleConfidenceLabel(value) {
+  if (value === 'high') return 'уверенно'
+  if (value === 'medium') return 'средняя уверенность'
+  if (value === 'low') return 'низкая уверенность'
+  return value
+}
+
+function sourceTextQualityLabel(value) {
+  if (value === 'ok') return 'текст извлечен'
+  if (value === 'empty') return 'текст пустой'
+  if (value === 'short') return 'мало текста'
+  if (value === 'unsupported') return 'формат не прочитан'
+  return value
 }
 
 function fallbackEvidenceQualityLevel(item) {

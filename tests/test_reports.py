@@ -523,6 +523,10 @@ def test_build_tender_report_docx_renders_participation_map():
                                 "fragment": "Требуется лицензия.",
                                 "source_binding": {"label": "источник подтвержден"},
                                 "confidence_level": {"label": "уверенность высокая"},
+                                "context_source_authority": "primary_for_topic",
+                                "context_source_reason": "technical_spec covers participant_requirements",
+                                "context_document_role": "technical_spec",
+                                "context_source_priority": ["participant_requirements"],
                                 "weak_reason": "Нужна ручная проверка формулировки.",
                                 "priority": 1,
                             }
@@ -584,6 +588,9 @@ def test_build_tender_report_docx_renders_participation_map():
     assert "ТЗ.docx · стр. 2" in document_xml
     assert "источник подтвержден" in document_xml
     assert "уверенность высокая" in document_xml
+    assert "главный источник по теме" in document_xml
+    assert "ТЗ" in document_xml
+    assert "требования к участнику" in document_xml
     assert "Нужна ручная проверка формулировки" in document_xml
 
 

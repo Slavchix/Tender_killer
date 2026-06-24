@@ -1,8 +1,50 @@
 from __future__ import annotations
 
 from tender_killer.analysis import analyze_tender_texts
+from tender_killer.analysis_context_pack_service import build_analysis_context_pack
 from tender_killer.analysis_facts_service import build_analysis_facts
 from tender_killer.analysis_text_index_service import build_analysis_text_index
+
+
+def test_build_analysis_facts_adds_context_pack_source_role_priority_and_topics():
+    documents = [
+        {
+            "name": "pik.zip",
+            "document_type": "ПИК",
+            "text_status": "ok",
+            "text_content": (
+                "Сведения об обязательствах сторон и порядке оплаты. "
+                "Оплата 100% по фактическому объему после подписания УПД. "
+                "Авансирование не предусмотрено. "
+                "Документ о приемке формируется в ПИК."
+            ),
+        }
+    ]
+    analysis = {
+        "confidence": 0.9,
+        "context_pack": build_analysis_context_pack(documents),
+        "execution_terms": [
+            {
+                "type": "payment_terms",
+                "label": "условия оплаты",
+                "category": "payment",
+                "severity": "medium",
+                "value": "Оплата 100% по фактическому объему после подписания УПД.",
+                "evidence": "Оплата 100% по фактическому объему после подписания УПД.",
+            }
+        ],
+    }
+
+    facts = build_analysis_facts(analysis, documents)
+    payment = next(item for item in facts["items"] if item["label"] == "условия оплаты")
+
+    assert payment["document_role"] == "other"
+    assert payment["context_document_role"] == "pik_obligations_payment"
+    assert payment["context_document_role_confidence"] == "high"
+    assert {"payment_terms", "advance", "acceptance_documents"} <= set(payment["context_source_priority"])
+    assert {"payment_terms", "advance", "acceptance_documents"} <= set(payment["context_topics"])
+    assert payment["context_source_authority"] == "primary_for_topic"
+    assert "payment_terms" in payment["context_source_reason"]
 
 
 def test_build_analysis_facts_binds_each_fact_to_document_evidence():

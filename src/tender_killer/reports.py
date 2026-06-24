@@ -290,9 +290,75 @@ def _source_confidence_text(item: dict[str, Any]) -> str:
     confidence = item.get("confidence_level")
     binding_label = _value(binding.get("label"), "") if isinstance(binding, dict) else ""
     confidence_label = _value(confidence.get("label"), "") if isinstance(confidence, dict) else ""
+    authority_text = _source_authority_text(item)
     weak_reason = _value(item.get("weak_reason"), "")
-    parts = [part for part in (binding_label, confidence_label, weak_reason) if part]
+    parts = [part for part in (binding_label, confidence_label, authority_text, weak_reason) if part]
     return " / ".join(parts) or "нужна сверка"
+
+
+def _source_authority_text(item: dict[str, Any]) -> str:
+    authority = _value(item.get("context_source_authority"), "")
+    role = _value(item.get("context_document_role"), "")
+    reason = _value(item.get("context_source_reason"), "")
+    priority = _text_list(item.get("context_source_priority"))
+    topics = _text_list(item.get("context_topics"))
+    parts = [
+        _source_authority_label(authority),
+        _source_document_role_label(role),
+        _source_topic_text(priority or topics),
+        reason,
+    ]
+    return "; ".join(part for part in parts if part)
+
+
+def _source_authority_label(value: str) -> str:
+    if value == "primary_for_topic":
+        return "главный источник по теме"
+    if value == "primary_document":
+        return "основной документ"
+    if value == "supporting_document":
+        return "вспомогательный источник"
+    return ""
+
+
+def _source_document_role_label(value: str) -> str:
+    if value in {"technical_spec", "technical_specification"}:
+        return "ТЗ"
+    if value == "technical_spec_appendix":
+        return "приложение к ТЗ"
+    if value == "contract_project":
+        return "проект контракта"
+    if value == "pik_obligations_payment":
+        return "ПИК, оплата и приемка"
+    if value == "participant_requirements":
+        return "требования к участнику"
+    if value == "unsupported_primary":
+        return "основной документ без текста"
+    return value
+
+
+def _source_topic_text(values: list[str]) -> str:
+    labels = [_source_topic_label(value) for value in values[:4]]
+    return ", ".join(label for label in labels if label)
+
+
+def _source_topic_label(value: str) -> str:
+    labels = {
+        "acceptance_documents": "приемочные документы",
+        "acceptance_process": "приемка",
+        "advance": "аванс",
+        "certificates_closing_docs": "сертификаты и закрывающие",
+        "contract_security": "обеспечение контракта",
+        "delivery_place": "место поставки",
+        "delivery_schedule": "срок поставки",
+        "logistics_responsibility": "логистика",
+        "participant_requirements": "требования к участнику",
+        "payment_terms": "условия оплаты",
+        "penalties": "штрафы",
+        "technical_characteristics": "характеристики",
+        "warranty": "гарантия",
+    }
+    return labels.get(value, value)
 
 
 def _report_item_meaning(item: dict[str, Any]) -> str:

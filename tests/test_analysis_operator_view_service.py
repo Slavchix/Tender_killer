@@ -3,6 +3,53 @@ from __future__ import annotations
 from tender_killer.analysis_operator_view_service import MAJOR_SECTION_IDS, build_analysis_operator_view
 
 
+def test_build_analysis_operator_view_preserves_context_pack_fact_metadata():
+    analysis = {
+        "analysis_facts": {
+            "version": 1,
+            "items": [
+                {
+                    "id": "execution_term:payment_terms",
+                    "kind": "execution_term",
+                    "label": "условия оплаты",
+                    "value": "Оплата после подписания УПД.",
+                    "category": "payment",
+                    "severity": "medium",
+                    "document_name": "pik.zip",
+                    "source": "pik.zip",
+                    "source_label": "pik.zip · стр. 1",
+                    "fragment": "Оплата после подписания УПД.",
+                    "source_context": "Оплата после подписания УПД.",
+                    "context_document_role": "pik_obligations_payment",
+                    "context_document_role_confidence": "high",
+                    "context_source_priority": ["payment_terms", "advance"],
+                    "context_topics": ["payment_terms", "acceptance_documents"],
+                    "context_text_quality": "ok",
+                    "context_source_authority": "primary_for_topic",
+                    "context_source_reason": "pik_obligations_payment covers payment_terms",
+                }
+            ],
+            "metrics": {"total": 1},
+        }
+    }
+
+    view = build_analysis_operator_view(analysis, [])
+    item = next(
+        item
+        for section in view["major_blocks"]
+        for item in section["items"]
+        if item["label"] == "условия оплаты"
+    )
+
+    assert item["context_document_role"] == "pik_obligations_payment"
+    assert item["context_document_role_confidence"] == "high"
+    assert item["context_source_priority"] == ["payment_terms", "advance"]
+    assert item["context_topics"] == ["payment_terms", "acceptance_documents"]
+    assert item["context_text_quality"] == "ok"
+    assert item["context_source_authority"] == "primary_for_topic"
+    assert item["context_source_reason"] == "pik_obligations_payment covers payment_terms"
+
+
 def test_build_analysis_operator_view_returns_only_four_major_blocks_from_legacy_analysis():
     analysis = {
         "summary": "Supply office paper.",
