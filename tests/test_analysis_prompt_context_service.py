@@ -216,6 +216,7 @@ def test_build_analysis_prompt_context_includes_source_bound_agent_contract() ->
         "decision",
         "answers",
         "facts_patch",
+        "condition_review",
         "conflicts",
         "expected_missing",
         "manual_review",
@@ -326,6 +327,115 @@ def test_build_analysis_prompt_context_includes_condition_groups_and_diff() -> N
     assert context["agent_contract"]["condition_patch_policy"]["requires_condition_source"] is True
     assert context["metrics"]["condition_groups"] == 2
     assert context["metrics"]["condition_diff_items"] == 1
+
+
+def test_build_analysis_prompt_context_builds_agent_review_plan_from_conditions() -> None:
+    analysis = {
+        "summary": "Supply with condition issues.",
+        "operator_view": {
+            "condition_groups": {
+                "version": 1,
+                "items": [
+                    {
+                        "family": "advance",
+                        "label": "Advance",
+                        "status": "conflict",
+                        "source_status": "conflicting_sources",
+                        "value": "Advance both present and absent.",
+                        "sources": ["contract.docx / p. 3", "terms.docx / p. 5"],
+                        "primary_fact_id": "fact:advance-positive",
+                        "related_fact_ids": ["fact:advance-positive", "fact:advance-negative"],
+                        "operator_action": "Resolve advance contradiction.",
+                    },
+                    {
+                        "family": "payment",
+                        "label": "Payment terms",
+                        "status": "confirmed",
+                        "source_status": "primary_source",
+                        "value": "Payment within 15 business days after UPD.",
+                        "sources": ["payment.docx / p. 2"],
+                        "primary_fact_id": "fact:payment",
+                        "related_fact_ids": ["fact:payment"],
+                        "operator_action": "Check payment trigger.",
+                    },
+                    {
+                        "family": "closing_documents",
+                        "label": "Closing documents",
+                        "status": "expected_missing",
+                        "source_status": "missing",
+                        "value": "",
+                        "sources": [],
+                        "primary_fact_id": "missing:closing-documents",
+                        "related_fact_ids": ["missing:closing-documents"],
+                        "operator_action": "Find acceptance and closing documents.",
+                    },
+                    {
+                        "family": "license_sro",
+                        "label": "License/SRO",
+                        "status": "manual_review",
+                        "source_status": "weak_source",
+                        "value": "License may be required.",
+                        "sources": ["summary.html"],
+                        "primary_fact_id": "fact:license",
+                        "related_fact_ids": ["fact:license"],
+                        "operator_action": "Check participant requirements.",
+                    },
+                ],
+            }
+        },
+        "analysis_history": [
+            {
+                "changes": {
+                    "condition_diff": {
+                        "version": 2,
+                        "metrics": {"added": 0, "removed": 0, "changed": 1},
+                        "items": [
+                            {
+                                "family": "payment",
+                                "label": "Payment terms",
+                                "change_type": "changed",
+                                "status_before": "manual_review",
+                                "status_after": "confirmed",
+                                "value_before": "Payment within 30 days.",
+                                "value_after": "Payment within 15 business days after UPD.",
+                                "sources_after": ["payment.docx / p. 2"],
+                                "changed_fields": ["status", "value", "sources"],
+                            }
+                        ],
+                    }
+                }
+            }
+        ],
+        "analysis_facts": {"version": 1, "items": []},
+    }
+
+    context = build_analysis_prompt_context(analysis, [])
+
+    review_plan = context["agent_review_plan"]
+    assert review_plan["version"] == 1
+    assert review_plan["mode"] == "condition_first_review"
+    assert review_plan["metrics"] == {
+        "total": 4,
+        "conflicts": 1,
+        "changed": 1,
+        "expected_missing": 1,
+        "manual_review": 1,
+    }
+    operations = {item["family"]: item["operation"] for item in review_plan["items"]}
+    assert operations == {
+        "advance": "mark_conflict",
+        "payment": "revise",
+        "closing_documents": "mark_expected_missing",
+        "license_sro": "mark_manual_review",
+    }
+    assert review_plan["items"][0]["family"] == "advance"
+    assert review_plan["items"][0]["related_fact_ids"] == ["fact:advance-positive", "fact:advance-negative"]
+    assert review_plan["items"][1]["family"] == "payment"
+    assert review_plan["items"][1]["diff"]["change_type"] == "changed"
+    assert review_plan["items"][1]["changed_fields"] == ["status", "value", "sources"]
+    assert context["source_contract"]["review_plan_schema"] == "analysis.agent_review_plan.version=1"
+    assert context["agent_contract"]["condition_review_plan"]["schema"] == "analysis.agent_review_plan.version=1"
+    assert context["metrics"]["agent_review_items"] == 4
 
 
 def test_analyze_tender_payload_exposes_agent_prompt_context_with_bindings(tmp_path) -> None:
@@ -440,6 +550,8 @@ def test_get_tender_payload_rebuilds_stale_agent_prompt_context(tmp_path) -> Non
         raw_payload["agent_prompt_context"] = {
             "version": 1,
             "mode": "document_aware_agent_prompt",
+            "agent_contract": {"version": 1},
+            "context_pack": {"version": 1, "documents": []},
         }
         connection.execute(
             """
@@ -459,3 +571,4 @@ def test_get_tender_payload_rebuilds_stale_agent_prompt_context(tmp_path) -> Non
 
     assert context["agent_contract"]["guardrails"]["answer_only_from_sources"] is True
     assert context["agent_contract"]["questions"]
+    assert context["agent_review_plan"]["version"] == 1

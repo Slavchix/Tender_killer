@@ -401,6 +401,8 @@ def _agent_prompt_context_is_current(value: Any) -> bool:
         and isinstance(value.get("agent_contract"), dict)
         and isinstance(value.get("context_pack"), dict)
         and value["context_pack"].get("version") == 1
+        and isinstance(value.get("agent_review_plan"), dict)
+        and value["agent_review_plan"].get("version") == 1
     )
 
 

@@ -27,9 +27,10 @@ def build_analysis_prompt_context(
     analysis_facts = _analysis_facts(analysis_payload, document_rows)
     condition_groups = _condition_groups(analysis_payload)
     condition_diff = _condition_diff(analysis_payload)
+    agent_review_plan = _agent_review_plan(condition_groups, condition_diff)
     fact_items = [_prompt_fact(item) for item in _dict_items(analysis_facts.get("items"))[:MAX_PROMPT_FACT_ITEMS]]
     prompt_documents = _prompt_documents(text_index)
-    agent_contract = _agent_contract(analysis_payload, analysis_facts)
+    agent_contract = _agent_contract(analysis_payload, analysis_facts, agent_review_plan)
     return {
         "version": 1,
         "mode": "document_aware_agent_prompt",
@@ -42,16 +43,19 @@ def build_analysis_prompt_context(
             "context_schema": "analysis.context_pack.version=1",
             "condition_schema": "analysis.operator_view.condition_groups.version=1",
             "condition_diff_schema": "analysis.analysis_history.changes.condition_diff.version=2",
+            "review_plan_schema": "analysis.agent_review_plan.version=1",
         },
         "task": {
             "goal": (
                 "Review tender requirements, risks, economics-impacting conditions, "
-                "and missing checks using the supplied document chunks, evidence, and facts."
+                "and missing checks using the supplied document chunks, evidence, facts, "
+                "condition groups, and review plan."
             ),
             "output_rules": [
                 "Do not invent requirements not supported by document chunks or bound evidence.",
                 "When changing a fact, keep document_name/source_page/source_context or mark it needs_review.",
                 "Preserve existing fact ids where the meaning has not changed.",
+                "Process agent_review_plan items before proposing broad fact changes.",
             ],
         },
         "agent_contract": agent_contract,
@@ -64,6 +68,7 @@ def build_analysis_prompt_context(
         "context_pack": _prompt_context_pack(context_pack),
         "condition_groups": condition_groups,
         "condition_diff": condition_diff,
+        "agent_review_plan": agent_review_plan,
         "evidence_items": [_prompt_evidence(item) for item in evidence_items[:MAX_PROMPT_EVIDENCE_ITEMS]],
         "analysis_facts": {
             "version": 1,
@@ -79,6 +84,7 @@ def build_analysis_prompt_context(
             "agent_questions": len(agent_contract.get("questions") or []),
             "condition_groups": len(condition_groups.get("items") or []),
             "condition_diff_items": len(condition_diff.get("items") or []),
+            "agent_review_items": len(agent_review_plan.get("items") or []),
         },
     }
 
@@ -218,6 +224,100 @@ def _prompt_condition_diff_highlights(value: Any) -> list[dict[str, Any]]:
     return [_prompt_condition_change(item) for item in items]
 
 
+def _agent_review_plan(condition_groups: dict[str, Any], condition_diff: dict[str, Any]) -> dict[str, Any]:
+    diff_by_family = {
+        _text(item.get("family")): item
+        for item in _dict_items(condition_diff.get("items"))
+        if _text(item.get("family"))
+    }
+    items: list[dict[str, Any]] = []
+    for group in _dict_items(condition_groups.get("items")):
+        review_item = _agent_review_plan_item(group, diff_by_family.get(_text(group.get("family"))))
+        if review_item:
+            items.append(review_item)
+    items.sort(key=lambda item: (item["priority"], item["family"]))
+    return {
+        "version": 1,
+        "mode": "condition_first_review",
+        "items": items,
+        "metrics": {
+            "total": len(items),
+            "conflicts": sum(1 for item in items if item.get("operation") == "mark_conflict"),
+            "changed": sum(1 for item in items if item.get("review_reason") == "condition_changed"),
+            "expected_missing": sum(1 for item in items if item.get("operation") == "mark_expected_missing"),
+            "manual_review": sum(1 for item in items if item.get("operation") == "mark_manual_review"),
+        },
+    }
+
+
+def _agent_review_plan_item(group: dict[str, Any], diff: dict[str, Any] | None) -> dict[str, Any] | None:
+    family = _text(group.get("family"))
+    if not family:
+        return None
+    status = _text(group.get("status"))
+    source_status = _text(group.get("source_status"))
+    operation, reason, priority = _review_operation(status, source_status, diff)
+    if not operation:
+        return None
+    diff_payload = _prompt_condition_change(diff) if isinstance(diff, dict) else {}
+    return {
+        "id": f"condition-review:{family}",
+        "family": family,
+        "label": _text(group.get("label")),
+        "priority": priority,
+        "operation": operation,
+        "review_reason": reason,
+        "instruction": _review_instruction(reason),
+        "condition_status": status,
+        "source_status": source_status,
+        "current_value": _text(group.get("value") or group.get("summary")),
+        "sources": _text_list(group.get("sources")),
+        "primary_fact_id": _text(group.get("primary_fact_id")),
+        "related_fact_ids": _text_list(group.get("related_fact_ids")),
+        "operator_action": _text(group.get("operator_action") or group.get("resolution")),
+        "changed_fields": _text_list(diff_payload.get("changed_fields")),
+        "diff": diff_payload,
+    }
+
+
+def _review_operation(
+    status: str,
+    source_status: str,
+    diff: dict[str, Any] | None,
+) -> tuple[str, str, int]:
+    if status == "conflict":
+        return ("mark_conflict", "condition_conflict", 10)
+    if isinstance(diff, dict) and _text(diff.get("change_type")):
+        return ("revise", "condition_changed", 20)
+    if status == "expected_missing":
+        return ("mark_expected_missing", "condition_expected_missing", 30)
+    if status == "manual_review" or source_status in {"missing", "weak_source", "unbound", "conflicting_sources"}:
+        return ("mark_manual_review", "condition_manual_review", 40)
+    return ("", "", 0)
+
+
+def _review_instruction(reason: str) -> str:
+    instructions = {
+        "condition_conflict": (
+            "Compare the cited sources for the same condition and keep manual review "
+            "unless one current authoritative source clearly resolves the conflict."
+        ),
+        "condition_changed": (
+            "Re-check the changed condition against the latest cited source and update "
+            "only the condition value/status that changed."
+        ),
+        "condition_expected_missing": (
+            "Look for a cited source in the supplied context; if none exists, keep the "
+            "condition as expected_missing instead of inventing a fact."
+        ),
+        "condition_manual_review": (
+            "Keep the condition in manual review until a stronger source confirms or "
+            "rejects it."
+        ),
+    }
+    return instructions.get(reason, "Review the condition using only supplied sources.")
+
+
 def _prompt_section_taxonomy(value: Any) -> list[dict[str, Any]]:
     sections: list[dict[str, Any]] = []
     for section in _dict_items(value):
@@ -314,7 +414,11 @@ def _prompt_fact(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _agent_contract(analysis: dict[str, Any], analysis_facts: dict[str, Any]) -> dict[str, Any]:
+def _agent_contract(
+    analysis: dict[str, Any],
+    analysis_facts: dict[str, Any],
+    agent_review_plan: dict[str, Any],
+) -> dict[str, Any]:
     fact_items = _dict_items(analysis_facts.get("items"))
     questions = _agent_questions(analysis, fact_items)
     return {
@@ -331,6 +435,7 @@ def _agent_contract(analysis: dict[str, Any], analysis_facts: dict[str, Any]) ->
                 "decision",
                 "answers",
                 "facts_patch",
+                "condition_review",
                 "conflicts",
                 "expected_missing",
                 "manual_review",
@@ -347,6 +452,12 @@ def _agent_contract(analysis: dict[str, Any], analysis_facts: dict[str, Any]) ->
             "requires_condition_source": True,
             "preserve_condition_family": True,
             "use_condition_diff_for_document_updates": True,
+        },
+        "condition_review_plan": {
+            "schema": "analysis.agent_review_plan.version=1",
+            "mode": _text(agent_review_plan.get("mode")) or "condition_first_review",
+            "review_order": ["condition_conflict", "condition_changed", "condition_expected_missing", "condition_manual_review"],
+            "items": len(agent_review_plan.get("items") or []),
         },
         "questions": questions,
         "manual_review_triggers": _manual_review_triggers(fact_items, questions),
