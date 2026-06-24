@@ -155,5 +155,71 @@ def test_build_analysis_tz_passport_exposes_compact_management_block():
         "red_flags": passport["red_flags"],
         "conflicts": passport["conflicts"],
         "expected_missing": passport["expected_missing"],
+        "condition_groups": passport["summary_block"]["condition_groups"],
         "verdict": "высокий риск",
     }
+
+
+def test_build_analysis_tz_passport_exposes_condition_groups():
+    analysis = {
+        "summary": "Поставка офисной бумаги",
+        "status": "needs_review",
+        "analysis_facts": {
+            "version": 1,
+            "items": [
+                {
+                    "id": "payment",
+                    "kind": "execution_term",
+                    "label": "Оплата",
+                    "value": "Оплата в течение 15 рабочих дней после поставки.",
+                    "category": "payment",
+                    "document_name": "Проект контракта.docx",
+                    "source_label": "Проект контракта.docx · стр. 8",
+                    "context_source_authority": "primary_for_topic",
+                    "context_source_priority": ["payment_terms"],
+                },
+                {
+                    "id": "advance:no",
+                    "kind": "execution_term",
+                    "label": "Аванс",
+                    "value": "Аванс не предусмотрен.",
+                    "category": "financial",
+                    "document_name": "ТЗ.docx",
+                    "source_label": "ТЗ.docx · стр. 2",
+                    "fragment": "Аванс не предусмотрен.",
+                },
+                {
+                    "id": "advance:yes",
+                    "kind": "execution_term",
+                    "label": "Аванс",
+                    "value": "Предусмотрен аванс 30 процентов.",
+                    "category": "financial",
+                    "document_name": "Проект контракта.docx",
+                    "source_label": "Проект контракта.docx · стр. 4",
+                    "fragment": "Предусмотрен аванс 30 процентов.",
+                },
+            ],
+        },
+    }
+
+    passport = build_analysis_tz_passport(
+        analysis,
+        [
+            {"name": "ТЗ.docx", "text_status": "ok"},
+            {"name": "Проект контракта.docx", "text_status": "ok"},
+        ],
+    )
+
+    groups = {item["family"]: item for item in passport["condition_groups"]["items"]}
+
+    assert passport["condition_groups"]["metrics"]["conflicts"] == 1
+    assert groups["payment"]["status"] == "confirmed"
+    assert groups["payment"]["source_status"] == "primary_source"
+    assert groups["advance"]["status"] == "conflict"
+    assert groups["advance"]["related_fact_ids"] == ["advance:no", "advance:yes"]
+    assert "Проект контракта.docx · стр. 4" in groups["advance"]["sources"]
+    assert passport["summary_block"]["condition_groups"][:2] == [
+        "условия оплаты · подтверждено",
+        "аванс · противоречие",
+    ]
+    assert "приемка и закрывающие документы · не найдено" in passport["summary_block"]["condition_groups"]

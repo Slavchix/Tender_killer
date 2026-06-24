@@ -656,6 +656,24 @@ def _analysis_saas_elements(operator_view: dict[str, Any]) -> list[DocxElement]:
             if journal_rows:
                 elements.append(_table([["Журнал", "Кто", "Комментарий"], *journal_rows], "analysis"))
 
+    condition_groups = operator_view.get("condition_groups")
+    condition_items = condition_groups.get("items") if isinstance(condition_groups, dict) else None
+    if isinstance(condition_items, list) and condition_items:
+        rows: list[list[Any]] = [["Условие", "Статус условия", "Источник", "Что сделать"]]
+        for item in condition_items[:8]:
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                [
+                    _short_text(item.get("label") or item.get("family"), 100),
+                    _analysis_condition_group_status(item),
+                    _short_text("; ".join(_text_list(item.get("sources"))), 220),
+                    _short_text(item.get("operator_action") or item.get("resolution"), 240),
+                ]
+            )
+        if len(rows) > 1:
+            elements.extend([_p("Сводка условий ТЗ", "heading"), _table(rows, "analysis")])
+
     questions = operator_view.get("ai_questions")
     question_items = questions.get("items") if isinstance(questions, dict) else None
     if isinstance(question_items, list) and question_items:
@@ -696,6 +714,26 @@ def _analysis_saas_elements(operator_view: dict[str, Any]) -> list[DocxElement]:
     return elements
 
 
+def _analysis_condition_group_status(item: dict[str, Any]) -> str:
+    status = {
+        "confirmed": "подтверждено",
+        "conflict": "противоречие",
+        "expected_missing": "не найдено",
+        "manual_review": "ручная проверка",
+    }.get(_value(item.get("status"), ""), _value(item.get("status"), ""))
+    source_status = {
+        "primary_source": "главный источник",
+        "explicit_source": "точный источник",
+        "conflicting_sources": "конфликт источников",
+        "missing": "источник не найден",
+        "needs_source_review": "источник проверить",
+        "inferred": "источник выведен",
+    }.get(_value(item.get("source_status"), ""), _value(item.get("source_status"), ""))
+    if status and source_status:
+        return f"{status} / {source_status}"
+    return status or source_status
+
+
 def _question_source_text(source: dict[str, Any]) -> str:
     label = _value(source.get("source_label") or source.get("document_name"), "")
     fragment = _short_text(source.get("fragment"), 150)
@@ -707,7 +745,14 @@ def _question_source_text(source: dict[str, Any]) -> str:
 def _report_operator_view(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> dict[str, Any]:
     operator_view = analysis.get("operator_view") if isinstance(analysis, dict) else None
     if isinstance(operator_view, dict) and _has_four_block_sections(operator_view):
-        return operator_view
+        if isinstance(operator_view.get("condition_groups"), dict):
+            return operator_view
+        rebuilt = build_analysis_operator_view(analysis, documents)
+        return {
+            **operator_view,
+            "condition_groups": rebuilt.get("condition_groups", {}),
+            "action_plan": rebuilt.get("action_plan", operator_view.get("action_plan", [])),
+        }
     return build_analysis_operator_view(analysis, documents)
 
 

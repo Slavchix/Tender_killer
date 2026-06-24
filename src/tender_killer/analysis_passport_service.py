@@ -15,6 +15,7 @@ def build_analysis_tz_passport(
     decision = operator_view.get("decision_brief") if isinstance(operator_view.get("decision_brief"), dict) else {}
     sections = [_passport_section(section) for section in operator_view.get("sections", []) if section.get("id") in MAJOR_SECTION_IDS]
     document_state = operator_view.get("document_state") if isinstance(operator_view.get("document_state"), dict) else {}
+    condition_groups = operator_view.get("condition_groups") if isinstance(operator_view.get("condition_groups"), dict) else {}
     items = [item for section in sections for item in section.get("items", []) if _is_passport_fact_item(item)]
     subject = _passport_subject(items, analysis)
     documents_summary = _passport_documents(document_state)
@@ -48,6 +49,7 @@ def build_analysis_tz_passport(
         "red_flags": red_flags,
         "conflicts": conflicts,
         "expected_missing": expected_missing,
+        "condition_groups": condition_groups,
         "verdict": verdict,
         "summary_block": {
             "subject": subject,
@@ -56,6 +58,7 @@ def build_analysis_tz_passport(
             "red_flags": red_flags,
             "conflicts": conflicts,
             "expected_missing": expected_missing,
+            "condition_groups": _passport_condition_group_labels(condition_groups),
             "verdict": verdict["label"],
         },
         "sections": sections,
@@ -179,6 +182,35 @@ def _ordered_expected_missing(items: list[dict[str, Any]]) -> list[str]:
     labels = _unique_texts(item["label"] for item in items if item.get("expected_missing"))
     order = {spec["label"].casefold(): index for index, spec in enumerate(EXPECTED_TZ_CHECKS)}
     return sorted(labels, key=lambda label: (order.get(label.casefold(), 999), label.casefold()))
+
+
+def _passport_condition_group_labels(condition_groups: dict[str, Any]) -> list[str]:
+    groups = condition_groups.get("items") if isinstance(condition_groups, dict) else []
+    labels: list[str] = []
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        label = _passport_condition_group_label(group)
+        if label:
+            labels.append(label)
+    return labels[:8]
+
+
+def _passport_condition_group_label(group: dict[str, Any]) -> str:
+    label = str(group.get("label") or group.get("family") or "").strip()
+    status = _passport_condition_status(str(group.get("status") or "").strip())
+    if label and status:
+        return f"{label} · {status}"
+    return label or status
+
+
+def _passport_condition_status(status: str) -> str:
+    return {
+        "confirmed": "подтверждено",
+        "conflict": "противоречие",
+        "expected_missing": "не найдено",
+        "manual_review": "ручная проверка",
+    }.get(status, status)
 
 
 def _int_value(value: Any) -> int:

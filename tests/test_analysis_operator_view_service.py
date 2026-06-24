@@ -161,6 +161,63 @@ def test_build_analysis_operator_view_condition_groups_choose_primary_topic_sour
     assert view["condition_groups"]["metrics"]["confirmed"] >= 1
 
 
+def test_build_analysis_operator_view_action_plan_uses_condition_groups_not_duplicate_facts():
+    view = build_analysis_operator_view(
+        {
+            "analysis_facts": {
+                "version": 1,
+                "items": [
+                    {
+                        "id": "fact:payment",
+                        "kind": "execution_term",
+                        "label": "Оплата",
+                        "value": "Оплата в течение 15 рабочих дней после поставки.",
+                        "category": "payment",
+                        "document_name": "Проект контракта.docx",
+                        "source_label": "Проект контракта.docx · стр. 8",
+                        "context_source_authority": "primary_for_topic",
+                        "context_source_priority": ["payment_terms"],
+                    },
+                    {
+                        "id": "fact:advance-negative",
+                        "kind": "execution_term",
+                        "label": "Аванс",
+                        "value": "Аванс не предусмотрен.",
+                        "category": "financial",
+                        "document_name": "Проект контракта.docx",
+                        "source_label": "Проект контракта.docx · стр. 4",
+                        "fragment": "Аванс не предусмотрен.",
+                    },
+                    {
+                        "id": "fact:advance-positive",
+                        "kind": "execution_term",
+                        "label": "Аванс",
+                        "value": "Предусмотрен аванс 30 процентов.",
+                        "category": "financial",
+                        "document_name": "ПИК.zip",
+                        "source_label": "ПИК.zip · стр. 2",
+                        "fragment": "Предусмотрен аванс 30 процентов.",
+                    },
+                ],
+            }
+        },
+        [{"name": "Проект контракта.docx", "text_status": "ok"}],
+    )
+
+    acceptance_step = next(step for step in view["action_plan"] if step["id"] == "acceptance_payment")
+
+    assert acceptance_step["status"] == "manual_review"
+    assert acceptance_step["items"] == [
+        "аванс · противоречие",
+        "условия оплаты · подтверждено",
+        "приемка и закрывающие документы · не найдено",
+    ]
+    assert "fact:advance-negative" in acceptance_step["condition_fact_ids"]
+    assert "fact:advance-positive" in acceptance_step["condition_fact_ids"]
+    assert "Разобрать противоречие" in acceptance_step["next_step"]
+    assert acceptance_step["source"] == "condition_groups"
+
+
 def test_build_analysis_operator_view_returns_only_four_major_blocks_from_legacy_analysis():
     analysis = {
         "summary": "Supply office paper.",
@@ -733,9 +790,15 @@ def test_build_analysis_operator_view_prioritizes_actions_and_source_context():
     assert national["evidence_summary"].startswith("ТЗ.docx · стр. 4")
     assert "Участник указывает страну происхождения" in national["evidence_summary"]
     assert decision_step["next_step"] == national["operator_action"]
-    assert decision_step["items"][0] == "национальный режим/страна происхождения · ТЗ.docx · стр. 4"
+    assert decision_step["items"][0] == "национальный режим · подтверждено"
+    assert national["id"] in decision_step["condition_fact_ids"]
+    assert decision_step["source"] == "condition_groups"
     assert product_step["next_step"] == certificate["operator_action"]
-    assert product_step["items"][0] == "сертификат/декларация · ТЗ.docx · стр. 6"
+    assert product_step["items"][0] == "сертификаты и декларации · подтверждено"
+    assert certificate["id"] in product_step["condition_fact_ids"]
+    assert product_step["source"] == "condition_groups"
+
+
 def test_build_analysis_operator_view_marks_conflicting_conditions_for_manual_review():
     view = build_analysis_operator_view(
         {

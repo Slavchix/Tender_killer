@@ -1026,6 +1026,10 @@ def test_build_tender_report_docx_renders_management_tz_brief_v2():
     assert "Противоречия" in document_xml
     assert "Ожидаемые условия не найдены" in document_xml
     assert "Действия оператора" in document_xml
+    assert "Сводка условий ТЗ" in document_xml
+    assert "Статус условия" in document_xml
+    assert "противоречие" in document_xml
+    assert "Разобрать противоречие" in document_xml
     assert "Ссылки на источники" in document_xml
     assert "Что изменилось с прошлой версии" in document_xml
     assert "Аванс" in document_xml
