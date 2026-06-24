@@ -25,6 +25,7 @@ export function TenderDecisionStrip({ tender, economics, productProfiles = [], d
   const readyProducts = numericMetric(decisionMetrics.positions_priced, readyProductsFallback)
   const documentsReady = numericMetric(decisionMetrics.documents_ready, documentCounts.ok)
   const documentsTotal = numericMetric(decisionMetrics.documents_total, documents.length)
+  const priceQuality = priceQualityText(decisionMetrics)
   const decisionReasons = Array.isArray(tender.decision?.reasons) ? tender.decision.reasons.filter(Boolean).slice(0, 2) : []
   const decisionBlockers = Array.isArray(tender.decision?.blockers) ? tender.decision.blockers.filter(Boolean).slice(0, 2) : []
   const decisionTree = tender.decision?.reason_tree || null
@@ -44,6 +45,7 @@ export function TenderDecisionStrip({ tender, economics, productProfiles = [], d
         <SummaryMetric value={Number.isFinite(margin) ? marginText : economicsStatusLabel(economics?.status)} label="маржа" />
         <SummaryMetric value={formatMoney(stopPrice)} label="стоп-цена" />
         <SummaryMetric value={`${readyProducts}/${positionTotal}`} label="позиции" />
+        <SummaryMetric value={priceQuality} label="проверка цен" />
         <SummaryMetric value={riskCount} label="риски" />
         <SummaryMetric value={`${documentsReady}/${documentsTotal}`} label="документы" />
       </div>
@@ -104,4 +106,14 @@ function nonEmptyList(value) {
 function numericMetric(value, fallback) {
   const number = Number(value)
   return Number.isFinite(number) ? number : fallback
+}
+
+function priceQualityText(decisionMetrics) {
+  const review = numericMetric(decisionMetrics.price_candidates_review, 0)
+  const blocked = numericMetric(decisionMetrics.price_candidates_blocked, 0)
+  const total = numericMetric(decisionMetrics.price_candidates_total, 0)
+  if (blocked > 0) return `проверить ${review} / блок ${blocked}`
+  if (review > 0) return `проверить ${review}`
+  if (total > 0) return 'ок'
+  return 'нет кандидатов'
 }
