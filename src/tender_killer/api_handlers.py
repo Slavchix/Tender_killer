@@ -40,7 +40,7 @@ from tender_killer.price_candidate_service import apply_tender_auto_prices
 from tender_killer.price_candidate_service import confirm_ready_price_candidates
 from tender_killer.price_candidate_service import review_profile_price_candidate
 from tender_killer.price_candidate_service import stage_tender_price_candidates
-from tender_killer.price_book_feed_service import stage_tender_price_book_feed
+from tender_killer.price_book_feed_service import stage_tender_price_book_feed, stage_tender_price_book_feed_file
 from tender_killer.price_discovery_job_service import get_tender_price_discovery_job
 from tender_killer.price_discovery_job_service import start_tender_price_discovery_job
 from tender_killer.price_memory_service import archive_price_memory_entry
@@ -334,7 +334,32 @@ def stage_tender_price_book_feed_request(
 ) -> dict[str, Any]:
     rows = data.get("rows") if isinstance(data.get("rows"), list) else []
     feed_name = str(data.get("feed_name") or data.get("name") or "price book").strip() or "price book"
-    feed = stage_tender_price_book_feed(database_path, source, external_id, rows, feed_name=feed_name)
+    stage_mode = str(data.get("stage_mode") or "all").strip() or "all"
+    feed = stage_tender_price_book_feed(database_path, source, external_id, rows, feed_name=feed_name, stage_mode=stage_mode)
+    payload = get_tender_payload(database_path, source, external_id)
+    payload["price_book_feed"] = feed
+    return payload
+
+
+def stage_tender_price_book_feed_file_request(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    feed_name = str(data.get("feed_name") or data.get("name") or "price book").strip() or "price book"
+    file_name = str(data.get("file_name") or data.get("filename") or "price-book.csv").strip() or "price-book.csv"
+    content_base64 = str(data.get("content_base64") or data.get("file_base64") or "").strip()
+    stage_mode = str(data.get("stage_mode") or "all").strip() or "all"
+    feed = stage_tender_price_book_feed_file(
+        database_path,
+        source,
+        external_id,
+        file_name=file_name,
+        content_base64=content_base64,
+        feed_name=feed_name,
+        stage_mode=stage_mode,
+    )
     payload = get_tender_payload(database_path, source, external_id)
     payload["price_book_feed"] = feed
     return payload
@@ -740,6 +765,14 @@ def handle_post_request(
         if route is None:
             return ApiResponse({"error": "invalid price book feed path"}, status=400)
         return ApiResponse(stage_tender_price_book_feed_request(database_path, route.source, route.external_id, body))
+    if path.startswith("/api/tenders/") and path.endswith("/price-book/feed/file"):
+        route = parse_tender_path(path, suffix="price-book/feed/file")
+        if route is None:
+            return ApiResponse({"error": "invalid price book feed file path"}, status=400)
+        try:
+            return ApiResponse(stage_tender_price_book_feed_file_request(database_path, route.source, route.external_id, body))
+        except ValueError as exc:
+            return ApiResponse({"error": str(exc)}, status=400)
     if path.startswith("/api/tenders/") and path.endswith("/price-discovery/run"):
         route = parse_tender_path(path, suffix="price-discovery/run")
         if route is None:

@@ -18,6 +18,7 @@ export function TenderEconomicsTab({
   onSupplierOptionAutoSelectAll,
   onReadyPriceCandidatesConfirmAll,
   onPriceBookFeedStage,
+  onPriceBookFeedFileStage,
   onPriceDiscoveryRun,
   onSupplierDiscoveryImport,
   onSupplierSearchPrepare,
@@ -140,6 +141,7 @@ export function TenderEconomicsTab({
       <TenderEconomicsPriceBookFeed
         profiles={profiles}
         onPriceBookFeedStage={onPriceBookFeedStage}
+        onPriceBookFeedFileStage={onPriceBookFeedFileStage}
         stagingPriceBookFeed={stagingPriceBookFeed}
       />
       <TenderEconomicsPriceMemory />

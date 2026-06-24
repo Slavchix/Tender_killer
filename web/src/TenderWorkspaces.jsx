@@ -49,6 +49,7 @@ export function TenderWorkspaces({
     onReadyPriceCandidatesConfirmAll,
     onPriceCandidatesStage,
     onPriceBookFeedStage,
+    onPriceBookFeedFileStage,
     onAutoPricesApply,
     onPriceDiscoveryRun,
     onSupplierDiscoveryImport,
@@ -133,6 +134,7 @@ export function TenderWorkspaces({
           onReadyPriceCandidatesConfirmAll={onReadyPriceCandidatesConfirmAll}
           onPriceCandidatesStage={onPriceCandidatesStage}
           onPriceBookFeedStage={onPriceBookFeedStage}
+          onPriceBookFeedFileStage={onPriceBookFeedFileStage}
           onAutoPricesApply={onAutoPricesApply}
           onPriceDiscoveryRun={onPriceDiscoveryRun}
           onSupplierDiscoveryImport={onSupplierDiscoveryImport}

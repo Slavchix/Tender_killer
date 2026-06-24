@@ -3090,6 +3090,7 @@ def test_economics_tab_supports_price_candidate_auto_stage():
 
 
 def test_economics_tab_exposes_price_book_feed_import_ui():
+    api_source = API_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
     details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
@@ -3097,17 +3098,36 @@ def test_economics_tab_exposes_price_book_feed_import_ui():
     feed_source = TENDER_ECONOMICS_PRICE_BOOK_FEED_SOURCE.read_text(encoding="utf-8")
     styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
 
+    assert "export function stageTenderPriceBookFeedFile" in api_source
+    assert "price-book/feed/file" in api_source
     assert "stageTenderPriceBookFeed as stageTenderPriceBookFeedRequest" in hook_source
+    assert "stageTenderPriceBookFeedFile as stageTenderPriceBookFeedFileRequest" in hook_source
     assert "PRICE_BOOK_FEED_STAGE_ID" in hook_source
     assert "function stagePriceBookFeed" in hook_source
+    assert "function stagePriceBookFeedFile" in hook_source
     assert "price_book_feed" in hook_source
     assert "stagingPriceBookFeed" in hook_source
     assert "onPriceBookFeedStage" in details_source
+    assert "onPriceBookFeedFileStage" in details_source
     assert "onPriceBookFeedStage" in workspaces_source
+    assert "onPriceBookFeedFileStage" in workspaces_source
     assert "onPriceBookFeedStage" in economics_source
+    assert "onPriceBookFeedFileStage" in economics_source
     assert "TenderEconomicsPriceBookFeed" in economics_source
     assert "<TenderEconomicsPriceBookFeed" in economics_source
     assert "export function TenderEconomicsPriceBookFeed" in feed_source
+    assert "onPriceBookFeedFileStage" in feed_source
+    assert "stage_mode" in feed_source
+    assert "value=\"confident\"" in feed_source
+    assert "value=\"review\"" in feed_source
+    assert "value=\"errors\"" in feed_source
+    assert "Только уверенные" in feed_source
+    assert "Только спорные" in feed_source
+    assert "Только ошибки" in feed_source
+    assert "type=\"file\"" in feed_source
+    assert 'accept=".csv,.tsv,.txt,.xlsx,.xlsm"' in feed_source
+    assert "fileToBase64" in feed_source
+    assert "Загрузить файл" in feed_source
     assert "parsePriceBookFeedText" in feed_source
     assert "normalizeFeedHeader" in feed_source
     assert "splitDelimitedLine" in feed_source
@@ -3124,9 +3144,11 @@ def test_economics_tab_exposes_price_book_feed_import_ui():
     assert "rows: parsed.rows" in feed_source
     assert "price-book-feed-panel" in feed_source
     assert ".price-book-feed-panel" in styles_source
+    assert ".price-book-feed-file" in styles_source
     assert ".price-book-feed-preview" in styles_source
     assert ".price-book-feed-quality" in styles_source
     assert ".price-book-feed-quality-row" in styles_source
+    assert find_mojibake(api_source, API_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(feed_source, TENDER_ECONOMICS_PRICE_BOOK_FEED_SOURCE) == []

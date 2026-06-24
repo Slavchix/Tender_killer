@@ -1,4 +1,7 @@
+import base64
+import io
 import json
+import zipfile
 from urllib.parse import quote
 
 from tender_killer.api_handlers import handle_get_request, handle_post_request
@@ -81,6 +84,53 @@ def _store_with_moscow_market_state_tender(tmp_path):
         )
     )
     return store
+
+
+def _minimal_xlsx_base64(rows: list[list[str]]) -> str:
+    shared_strings: list[str] = []
+    shared_index: dict[str, int] = {}
+
+    def shared(value: str) -> int:
+        if value not in shared_index:
+            shared_index[value] = len(shared_strings)
+            shared_strings.append(value)
+        return shared_index[value]
+
+    row_xml: list[str] = []
+    for row_number, row in enumerate(rows, start=1):
+        cells = []
+        for column_index, value in enumerate(row):
+            cell_ref = f"{chr(ord('A') + column_index)}{row_number}"
+            cells.append(f'<c r="{cell_ref}" t="s"><v>{shared(str(value))}</v></c>')
+        row_xml.append(f'<row r="{row_number}">{"".join(cells)}</row>')
+
+    shared_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        f'count="{len(shared_strings)}" uniqueCount="{len(shared_strings)}">'
+        + "".join(f"<si><t>{value}</t></si>" for value in shared_strings)
+        + "</sst>"
+    )
+    sheet_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f'<sheetData>{"".join(row_xml)}</sheetData>'
+        "</worksheet>"
+    )
+    workbook_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        "<sheets><sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"rId1\" "
+        "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"/>"
+        "</sheets></workbook>"
+    )
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("[Content_Types].xml", '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
+        archive.writestr("xl/workbook.xml", workbook_xml)
+        archive.writestr("xl/sharedStrings.xml", shared_xml)
+        archive.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
 def test_handle_get_request_returns_health_payload(tmp_path) -> None:
@@ -1379,6 +1429,99 @@ def test_handle_post_request_routes_tender_price_book_feed_stage(tmp_path) -> No
     assert candidate["origin"] == "price_book_feed"
     assert candidate["source_kind"] == "price_book_feed"
     assert candidate["pricing_passport"]["next_action"] == "ready_to_confirm"
+
+
+def test_handle_post_request_routes_tender_price_book_feed_file_stage(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+                quantity=10,
+                unit="pack",
+            ),
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=2,
+                product_name="Folder A4",
+                quantity=5,
+                unit="pack",
+            ),
+        ],
+    )
+    csv_payload = base64.b64encode(
+        "position_index;supplier_name;product_name;unit_price;unit\n"
+        "1;OfficeMag;Office paper A4;359;pack\n"
+        "2;Komus;Folder A4;44;pack\n".encode("utf-8-sig")
+    ).decode("ascii")
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/price-book/feed/file",
+        {
+            "feed_name": "Office suppliers",
+            "file_name": "price.csv",
+            "content_base64": csv_payload,
+            "stage_mode": "confident",
+        },
+    )
+
+    assert response.status == 200
+    feed = response.payload["price_book_feed"]
+    assert feed["file_import"]["file_name"] == "price.csv"
+    assert feed["file_import"]["rows_count"] == 2
+    assert feed["stage_mode"] == "confident"
+    assert feed["quality_report"]["summary"]["exact_position_count"] == 2
+    assert feed["staged_count"] == 2
+    assert len(response.payload["product_profiles"][0]["price_candidates"]) == 1
+    assert len(response.payload["product_profiles"][1]["price_candidates"]) == 1
+
+
+def test_handle_post_request_routes_tender_price_book_feed_xlsx_file_stage(tmp_path) -> None:
+    store = _store_with_tender(tmp_path)
+    store.upsert_product_profiles(
+        "mosreg_market",
+        "3668200",
+        [
+            ProductProfile(
+                tender_source="mosreg_market",
+                tender_external_id="3668200",
+                position_index=1,
+                product_name="Office paper A4",
+                quantity=10,
+                unit="pack",
+            )
+        ],
+    )
+
+    response = handle_post_request(
+        store.database_path,
+        "/api/tenders/mosreg_market/3668200/price-book/feed/file",
+        {
+            "feed_name": "Office suppliers",
+            "file_name": "price.xlsx",
+            "content_base64": _minimal_xlsx_base64(
+                [
+                    ["position_index", "supplier_name", "product_name", "unit_price", "unit"],
+                    ["1", "OfficeMag", "Office paper A4", "359", "pack"],
+                ]
+            ),
+            "stage_mode": "all",
+        },
+    )
+
+    assert response.status == 200
+    feed = response.payload["price_book_feed"]
+    assert feed["file_import"]["file_type"] == "xlsx"
+    assert feed["file_import"]["rows_count"] == 1
+    assert feed["quality_report"]["summary"]["exact_position_count"] == 1
+    assert feed["staged_count"] == 1
 
 
 def test_handle_post_request_routes_tender_auto_prices_and_refreshes_economics(tmp_path) -> None:

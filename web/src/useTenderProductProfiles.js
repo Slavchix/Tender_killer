@@ -21,6 +21,7 @@ import {
   selectProfileSupplierOption,
   stageProfileSupplierDiscoveryCandidates as stageProfileSupplierDiscoveryCandidatesRequest,
   stageTenderPriceBookFeed as stageTenderPriceBookFeedRequest,
+  stageTenderPriceBookFeedFile as stageTenderPriceBookFeedFileRequest,
   stageTenderPriceCandidates as stageTenderPriceCandidatesRequest,
 } from './api'
 
@@ -290,9 +291,30 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
       .then((nextTender) => {
         const feed = nextTender.price_book_feed || {}
         const staged = Number(feed.staged_count || 0)
-        const matched = Number(feed.matched_count || 0)
+        const matched = Number(feed.quality_report?.summary?.stageable_count || feed.matched_count || 0)
         const skipped = Number(feed.skipped_count || 0)
-        return updateFromNextTender(nextTender, `Прайс загружен: кандидатов ${staged}, совпадений ${matched}, пропущено ${skipped}`)
+        const mode = feed.stage_mode ? `, режим: ${priceBookStageModeLabel(feed.stage_mode)}` : ''
+        return updateFromNextTender(nextTender, `Прайс загружен: кандидатов ${staged}, совпадений ${matched}, пропущено ${skipped}${mode}`)
+      })
+      .catch((err) => {
+        setDetailStatus(err.message)
+        throw err
+      })
+      .finally(() => setReviewingPriceCandidateId(null))
+  }
+
+  function stagePriceBookFeedFile(payload) {
+    setReviewingPriceCandidateId(PRICE_BOOK_FEED_STAGE_ID)
+    setDetailStatus('')
+    return stageTenderPriceBookFeedFileRequest(tender, payload)
+      .then((nextTender) => {
+        const feed = nextTender.price_book_feed || {}
+        const fileImport = feed.file_import || {}
+        const staged = Number(feed.staged_count || 0)
+        const matched = Number(feed.quality_report?.summary?.stageable_count || feed.matched_count || 0)
+        const skipped = Number(feed.skipped_count || 0)
+        const fileName = fileImport.file_name || 'файл'
+        return updateFromNextTender(nextTender, `Файл ${fileName}: кандидатов ${staged}, совпадений ${matched}, пропущено ${skipped}`)
       })
       .catch((err) => {
         setDetailStatus(err.message)
@@ -505,6 +527,7 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     confirmReadyPriceCandidates,
     stagePriceCandidates,
     stagePriceBookFeed,
+    stagePriceBookFeedFile,
     applyAutoPrices,
     runPriceDiscovery,
     importSupplierDiscoveryCandidate,
@@ -517,4 +540,11 @@ export function useTenderProductProfiles(tender, onTenderRefresh, setDetailStatu
     runProfileAutoEconomics,
     acceptProfileAutoEconomics,
   }
+}
+
+function priceBookStageModeLabel(mode) {
+  if (mode === 'confident') return 'только уверенные'
+  if (mode === 'review') return 'только спорные'
+  if (mode === 'errors') return 'только ошибки'
+  return 'все строки'
 }
