@@ -39,6 +39,8 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
     customer_risk_reasons = _customer_risk_reasons(customer_risk)
     economics_status = str(economics.get("status") or "")
     participation_status = str(participation.get("status") or "")
+    price_quality_reasons = _price_quality_reasons(economics)
+    price_quality_blockers = _price_quality_blockers(economics)
 
     if economics_status in {"needs_price", "needs_costs"} or participation_status in {"needs_price", "needs_costs"} or missing_costs:
         blockers = missing_costs or ["товарные позиции"]
@@ -51,6 +53,20 @@ def build_tender_decision(tender: dict[str, Any]) -> dict[str, Any]:
             reasons=["Экономика не рассчитана без закупочных цен.", *_document_reasons(metrics)],
             blockers=blockers,
             limit_price=None,
+            metrics=metrics,
+            context=context,
+        )
+
+    if price_quality_reasons or price_quality_blockers:
+        return _decision(
+            status="needs_review",
+            label="Проверить цены",
+            tone="warning",
+            summary="Цены есть, но перед расчетом заявки нужно проверить качество кандидатов.",
+            next_step="Проверить кандидатов цен",
+            reasons=_compact_reasons([*price_quality_reasons, participation.get("recommendation"), *_document_reasons(metrics)]),
+            blockers=price_quality_blockers or price_quality_reasons,
+            limit_price=participation.get("limit_price"),
             metrics=metrics,
             context=context,
         )
@@ -430,12 +446,15 @@ def _decision_metrics(
     profiles: list[dict[str, Any]],
 ) -> dict[str, Any]:
     documents_ready = sum(1 for document in documents if document.get("text_status") == "ok")
-    positions_priced = sum(
+    price_quality = _dict(economics.get("price_quality"))
+    fallback_positions_priced = sum(
         1
         for profile in profiles
         if profile.get("profile_status") == "priced"
         or bool(_dict(profile.get("raw_payload")).get("economics"))
     )
+    positions_total = _first_value(price_quality.get("positions_total"), len(profiles))
+    positions_priced = _first_value(price_quality.get("positions_priced"), fallback_positions_priced)
     return {
         "nmc_price": _first_value(economics.get("nmc_price"), market_state.get("nmc_price")),
         "current_offer_price": _first_value(market_state.get("current_offer_price"), economics.get("revenue") if economics.get("revenue_kind") == "current_offer" else None),
@@ -444,9 +463,48 @@ def _decision_metrics(
         "margin_percent": economics.get("margin_percent"),
         "documents_ready": documents_ready,
         "documents_total": len(documents),
-        "positions_total": len(profiles),
+        "positions_total": positions_total,
         "positions_priced": positions_priced,
+        "price_candidates_total": _first_value(price_quality.get("candidates_total"), 0),
+        "price_candidates_ready": _first_value(price_quality.get("candidates_ready"), 0),
+        "price_candidates_review": _first_value(price_quality.get("candidates_review"), 0),
+        "price_candidates_blocked": _first_value(price_quality.get("candidates_blocked"), 0),
     }
+
+
+def _price_quality_reasons(economics: dict[str, Any]) -> list[str]:
+    quality = _dict(economics.get("price_quality"))
+    review_count = _int_or_none(quality.get("candidates_review")) or 0
+    blocked_count = _int_or_none(quality.get("candidates_blocked")) or 0
+    if review_count <= 0 and blocked_count <= 0:
+        return []
+    reasons = _compact_reasons([
+        *_price_quality_flag_labels(quality, "review_flags"),
+        *_price_quality_flag_labels(quality, "block_flags"),
+    ])
+    if reasons:
+        return reasons
+    if blocked_count > 0:
+        return ["Есть заблокированные кандидаты цен"]
+    return ["Есть кандидаты цен на проверку"]
+
+
+def _price_quality_blockers(economics: dict[str, Any]) -> list[str]:
+    quality = _dict(economics.get("price_quality"))
+    blocked_count = _int_or_none(quality.get("candidates_blocked")) or 0
+    review_count = _int_or_none(quality.get("candidates_review")) or 0
+    if blocked_count <= 0 and review_count <= 0:
+        return []
+    if blocked_count <= 0:
+        return _price_quality_flag_labels(quality, "review_flags") or ["Есть кандидаты цен на проверку"]
+    return _price_quality_flag_labels(quality, "block_flags") or ["Есть заблокированные кандидаты цен"]
+
+
+def _price_quality_flag_labels(quality: dict[str, Any], key: str) -> list[str]:
+    labels: list[Any] = []
+    for flag in _list_of_dicts(quality.get(key)):
+        labels.append(flag.get("label") or flag.get("id"))
+    return _compact_reasons(labels)
 
 
 def _document_reasons(metrics: dict[str, Any]) -> list[str]:

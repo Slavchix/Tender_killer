@@ -308,3 +308,73 @@ def test_decision_v2_keeps_large_tender_auto_prices_manual_and_benchmarks_histor
         "no_participant_count": 1,
         "note": "Historical benchmark is a control signal only; landed cost remains the decision basis.",
     }
+
+
+def test_decision_requires_price_quality_review_before_interesting_bid():
+    decision = build_tender_decision(
+        {
+            "economics": {
+                "status": "interesting",
+                "margin_percent": 24.0,
+                "target_margin_percent": 15.0,
+                "participation_decision": {
+                    "status": "can_bid",
+                    "label": "can bid",
+                    "limit_price": 250000.0,
+                    "recommendation": "Healthy economics.",
+                },
+                "price_quality": {
+                    "positions_total": 2,
+                    "positions_priced": 2,
+                    "positions_missing": 0,
+                    "candidates_total": 3,
+                    "candidates_ready": 1,
+                    "candidates_review": 1,
+                    "candidates_blocked": 1,
+                    "review_flags": [{"id": "vat_unknown", "label": "НДС уточнить", "count": 1}],
+                    "block_flags": [{"id": "product_name_mismatch", "label": "Не тот товар", "count": 1}],
+                },
+            },
+            "analysis": {"status": "ok", "risks": [], "red_flags": [], "requirements": []},
+            "market_state": {"nmc_price": 420000.0},
+            "document_records": [{"text_status": "ok"}],
+            "product_profiles": [{"profile_status": "priced"}, {"profile_status": "priced"}],
+        }
+    )
+
+    assert decision["status"] == "needs_review"
+    assert decision["label"] == "Проверить цены"
+    assert decision["next_step"] == "Проверить кандидатов цен"
+    assert "Не тот товар" in decision["blockers"]
+    assert "НДС уточнить" in decision["reasons"]
+    assert decision["metrics"]["price_candidates_review"] == 1
+    assert decision["metrics"]["price_candidates_blocked"] == 1
+    assert decision["economics_decision"]["can_participate"] is None
+    assert "Не тот товар" in decision["economics_decision"]["what_blocks_application"]
+
+
+def test_decision_requires_price_quality_review_even_without_flag_labels():
+    decision = build_tender_decision(
+        {
+            "economics": {
+                "status": "interesting",
+                "participation_decision": {"status": "can_bid", "label": "can bid"},
+                "price_quality": {
+                    "positions_total": 1,
+                    "positions_priced": 1,
+                    "candidates_total": 1,
+                    "candidates_ready": 0,
+                    "candidates_review": 1,
+                    "candidates_blocked": 0,
+                    "review_flags": [],
+                    "block_flags": [],
+                },
+            },
+            "analysis": {"status": "ok", "risks": [], "red_flags": [], "requirements": []},
+            "document_records": [{"text_status": "ok"}],
+            "product_profiles": [{"profile_status": "priced"}],
+        }
+    )
+
+    assert decision["status"] == "needs_review"
+    assert decision["blockers"] == ["Есть кандидаты цен на проверку"]
