@@ -67,6 +67,80 @@ def test_build_economics_summary_requires_manual_costs_before_margin_decision():
     assert summary["recommendation"] == "Нужно добавить закупочную себестоимость по позициям."
 
 
+def test_build_economics_summary_exposes_price_quality_funnel():
+    tender = {
+        "price": 50000.0,
+        "product_profiles": [
+            {
+                "product_name": "Зажим для бумаг",
+                "quantity": 10,
+                "unit": "упаковка",
+                "raw_payload": {"economics": {"unit_cost": 103.0}},
+                "price_candidates": [
+                    {
+                        "id": 1,
+                        "unit_price": 103.0,
+                        "review_status": "confirmed",
+                        "quality_status": "ready",
+                        "auto_eligible": True,
+                        "quality_flags": [],
+                    }
+                ],
+            },
+            {
+                "product_name": "Папка архивная",
+                "quantity": 5,
+                "unit": "шт",
+                "price_candidates": [
+                    {
+                        "id": 2,
+                        "unit_price": 120.0,
+                        "review_status": "pending",
+                        "quality_status": "review",
+                        "auto_eligible": False,
+                        "quality_flags": [
+                            {"id": "vat_unknown", "severity": "review", "label": "НДС уточнить"},
+                            {"id": "delivery_unknown", "severity": "review", "label": "Доставка уточнить"},
+                        ],
+                    },
+                    {
+                        "id": 3,
+                        "unit_price": 10.0,
+                        "review_status": "pending",
+                        "quality_status": "blocked",
+                        "auto_eligible": False,
+                        "quality_flags": [
+                            {"id": "product_name_mismatch", "severity": "block", "label": "Не тот товар"}
+                        ],
+                    },
+                ],
+            },
+        ],
+    }
+
+    summary = build_economics_summary(tender)
+
+    assert summary["price_quality"] == {
+        "positions_total": 2,
+        "positions_priced": 1,
+        "positions_missing": 1,
+        "price_coverage_percent": 50.0,
+        "candidates_total": 3,
+        "candidates_ready": 1,
+        "candidates_review": 1,
+        "candidates_blocked": 1,
+        "candidates_unknown": 0,
+        "candidates_confirmed": 1,
+        "candidates_auto_eligible": 1,
+        "review_flags": [
+            {"id": "delivery_unknown", "label": "Доставка уточнить", "count": 1},
+            {"id": "vat_unknown", "label": "НДС уточнить", "count": 1},
+        ],
+        "block_flags": [{"id": "product_name_mismatch", "label": "Не тот товар", "count": 1}],
+        "summary": "Цены есть по 1/2 позиций. Кандидаты: 1 готово, 1 проверить, 1 блок.",
+    }
+
+
 def test_build_economics_summary_does_not_assume_single_unit_when_quantity_missing():
     summary = build_economics_summary(
         {
