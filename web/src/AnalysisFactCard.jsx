@@ -4,6 +4,7 @@ import {
   documentStatusLabel,
 } from './formatters'
 import { AnalysisFeedbackControls, feedbackHistoryText } from './AnalysisFeedbackControls'
+import { cleanAnalysisText, normalizedAnalysisText, uniqueAnalysisTexts } from './analysisTextUtils'
 
 export function AnalysisFactCard({ item, detailed = false, onEvidenceSelect, onFeedback, savingFeedbackId, weak = false }) {
   const sourceLabel = item.source_label || item.source
@@ -351,30 +352,4 @@ function priceImpactLabel(value) {
 function hasRealAnalysisSource(item) {
   const source = cleanAnalysisText(item?.source_label || item?.source || item?.document_name)
   return Boolean(source && !normalizedAnalysisText(source).includes(normalizedAnalysisText('Документ не привязан')))
-}
-
-function cleanAnalysisText(value) {
-  if (value === null || value === undefined) return ''
-  return String(value).replace(/\s+/g, ' ').trim()
-}
-
-function uniqueAnalysisTexts(values) {
-  const seen = new Set()
-  return values
-    .map((value) => cleanAnalysisText(value))
-    .filter((value) => {
-      if (!value) return false
-      const key = normalizedAnalysisText(value)
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-}
-
-function normalizedAnalysisText(value) {
-  return cleanAnalysisText(value)
-    .toLocaleLowerCase('ru-RU')
-    .replace(/[^\wа-яё]+/giu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
 }

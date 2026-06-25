@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Ban, CheckCircle2, ClipboardCheck, XCircle } from 'lucide-react'
+import { cleanAnalysisText } from './analysisTextUtils'
 
 export const ANALYSIS_FEEDBACK_ACTIONS = [
   { state: 'correct', label: 'верно', icon: CheckCircle2 },
@@ -59,9 +60,4 @@ export function feedbackStateLabel(state) {
   if (state === 'not_applicable') return 'не относится к заявке'
   if (state === 'needs_manual_review') return 'требует ручной проверки'
   return cleanAnalysisText(state)
-}
-
-function cleanAnalysisText(value) {
-  if (value === null || value === undefined) return ''
-  return String(value).replace(/\s+/g, ' ').trim()
 }

@@ -19,6 +19,9 @@ ANALYSIS_LEGACY_ADAPTER_SOURCE = (
 ANALYSIS_SECTIONS_MODEL_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "analysisSectionsModel.js"
 )
+ANALYSIS_TEXT_UTILS_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "analysisTextUtils.js"
+)
 ANALYSIS_FACT_CARD_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisFactCard.jsx"
 )
@@ -151,6 +154,28 @@ def test_tender_analysis_legacy_fallback_lives_in_adapter():
     assert "function fallbackOperatorAction" not in sections_source
     assert "export function buildLegacyAnalysisSections" in legacy_source
     assert "function legacyItem" in legacy_source
+
+
+def test_tender_analysis_text_helpers_live_in_shared_module():
+    sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+    model_source = ANALYSIS_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
+    fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
+    feedback_source = ANALYSIS_FEEDBACK_CONTROLS_SOURCE.read_text(encoding="utf-8")
+    text_utils_source = ANALYSIS_TEXT_UTILS_SOURCE.read_text(encoding="utf-8")
+
+    assert "export function cleanAnalysisText" in text_utils_source
+    assert "export function normalizedAnalysisText" in text_utils_source
+    assert "export function uniqueAnalysisTexts" in text_utils_source
+    assert "from './analysisTextUtils'" in model_source
+    assert "from './analysisTextUtils'" in fact_card_source
+    assert "from './analysisTextUtils'" in feedback_source
+    assert "function cleanAnalysisText" not in sections_source
+    assert "function cleanAnalysisText" not in model_source
+    assert "function cleanAnalysisText" not in fact_card_source
+    assert "function cleanAnalysisText" not in feedback_source
+    assert "function normalizedAnalysisText" not in model_source
+    assert "function normalizedAnalysisText" not in fact_card_source
+    assert "function uniqueAnalysisTexts" not in fact_card_source
 
 
 def test_tender_analysis_manual_section_selection_is_not_overridden_by_primary_section():
