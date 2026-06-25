@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
@@ -8,6 +8,10 @@ from tender_killer.encoding_guard import find_mojibake
 GITIGNORE_SOURCE = Path(__file__).resolve().parents[1] / ".gitignore"
 APP_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "App.jsx"
 STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css"
+STYLES_DASHBOARD_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.dashboard.css"
+STYLES_DETAIL_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.detail.css"
+STYLES_ANALYSIS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.css"
+STYLES_ECONOMICS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.economics.css"
 API_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "api.js"
 CONSTANTS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "constants.js"
 DASHBOARD_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "Dashboard.jsx"
@@ -74,6 +78,9 @@ TENDER_WORKFLOW_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src"
 TENDER_LIST_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderList.jsx"
 USE_TENDER_DOCUMENT_ANALYSIS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderDocumentAnalysis.js"
 USE_TENDER_PRODUCT_PROFILES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderProductProfiles.js"
+USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderPriceCandidateActions.js"
+)
 USE_TENDER_WORKFLOW_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderWorkflow.js"
 USE_TENDER_NOTIFICATION_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderNotification.js"
 USE_TENDER_REFRESH_DETAILS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderRefreshDetails.js"
@@ -81,6 +88,18 @@ USE_TENDER_DETAILS_UI_SOURCE = Path(__file__).resolve().parents[1] / "web" / "sr
 USE_TENDER_MARKET_STATE_IMPORT_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderMarketStateImport.js"
 )
+
+
+def read_styles_source() -> str:
+    return "\n".join(
+        (
+            STYLES_SOURCE.read_text(encoding="utf-8"),
+            STYLES_DASHBOARD_SOURCE.read_text(encoding="utf-8"),
+            STYLES_DETAIL_SOURCE.read_text(encoding="utf-8"),
+            STYLES_ANALYSIS_SOURCE.read_text(encoding="utf-8"),
+            STYLES_ECONOMICS_SOURCE.read_text(encoding="utf-8"),
+        )
+    )
 
 
 def _css_rule(source: str, selector: str) -> str:
@@ -171,7 +190,7 @@ def test_economics_workspace_exposes_compact_operator_flow():
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
     profile_workspace_source = TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "EconomicsProgressStepper" in tab_source
     assert "economics-stepper" in tab_source
@@ -197,7 +216,7 @@ def test_economics_workspace_exposes_compact_operator_flow():
 
 def test_economics_command_center_keeps_secondary_actions_collapsed():
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "economics-secondary-menu" in tab_source
     assert "economics-secondary-summary" in tab_source
@@ -214,7 +233,7 @@ def test_economics_command_center_keeps_secondary_actions_collapsed():
 def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
     discovery_source = TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "ProviderRunSummary" in discovery_source
     assert "provider-run-summary" in discovery_source
@@ -377,7 +396,7 @@ def test_frontend_uses_dedicated_filters_panel_module():
 
 def test_tender_workbench_is_list_first_with_fullscreen_detail_view():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
     back_button_rule = _css_rule(styles_source, ".detail-screen-toolbar .detail-back-button")
     heading_title_rule = _css_rule(styles_source, ".detail-screen-heading strong")
 
@@ -521,7 +540,7 @@ def test_frontend_embeds_document_preparation_in_analysis_workspace():
 
 def test_analysis_tab_renders_collapsed_analysis_history():
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "analysis?.analysis_history" in analysis_source
     assert "analysis-history" in analysis_source
@@ -869,7 +888,7 @@ def test_frontend_uses_dedicated_tender_decision_strip_module():
         if TENDER_DECISION_SUMMARY_SOURCE.exists()
         else ""
     )
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "from './TenderDecisionStrip'" in tender_details_source
     assert "from './TenderDecisionSummary'" in tender_details_source
@@ -1358,7 +1377,7 @@ def test_tender_cockpit_exposes_page_size_selector():
 
 def test_tender_analysis_renders_actionable_checklist():
     source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
-    styles = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles = read_styles_source()
 
     assert "MAJOR_ANALYSIS_SECTIONS" in source
     assert "buildMajorAnalysisSections(analysis, documents)" in source
@@ -1390,7 +1409,7 @@ def test_tender_analysis_renders_actionable_checklist():
 
 def test_summary_metrics_have_stable_wrapping_container():
     shared_source = TENDER_DETAILS_SHARED_SOURCE.read_text(encoding="utf-8")
-    styles = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles = read_styles_source()
 
     assert 'className="summary-metric"' in shared_source
     assert ".summary-metric {" in styles
@@ -1424,7 +1443,7 @@ def test_product_profile_renders_fulfillment_requirements():
 
 def test_tender_overview_surfaces_compact_customer_eis_panel():
     source = TENDER_OVERVIEW_TAB_SOURCE.read_text(encoding="utf-8")
-    styles = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles = read_styles_source()
 
     assert "CustomerEisPanel" in source
     assert "tender.customer_risk_profile" in source
@@ -1490,7 +1509,7 @@ def test_tender_details_render_economics_summary():
 
 def test_economics_summary_surfaces_analysis_cost_drivers():
     economics_summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "analysis_cost_drivers" in economics_summary_source
     assert "analysis_reserve_hint" in economics_summary_source
@@ -1574,6 +1593,7 @@ def test_product_profile_renders_supplier_option_form():
     tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
+    price_actions_source = USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE.read_text(encoding="utf-8")
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     workbench_source = (
         TENDER_ECONOMICS_WORKBENCH_SOURCE.read_text(encoding="utf-8")
@@ -1604,7 +1624,7 @@ def test_product_profile_renders_supplier_option_form():
     cost_form_source = TENDER_ECONOMICS_COST_FORM_SOURCE.read_text(encoding="utf-8") if TENDER_ECONOMICS_COST_FORM_SOURCE.exists() else ""
     api_source = API_SOURCE.read_text(encoding="utf-8")
     formatter_source = FORMATTERS_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "from './TenderEconomicsSuppliers'" not in tab_source
     assert "from './TenderEconomicsSuppliers'" not in workbench_source
@@ -1637,8 +1657,8 @@ def test_product_profile_renders_supplier_option_form():
     assert "supplier-discovery/candidates/${candidateIndex}/import" in api_source
     assert "price-candidates/${candidateId}/confirm" in api_source
     assert "price-candidates/${candidateId}/reject" in api_source
-    assert "confirmProfilePriceCandidate" in hook_source
-    assert "rejectProfilePriceCandidate" in hook_source
+    assert "confirmProfilePriceCandidate" in price_actions_source
+    assert "rejectProfilePriceCandidate" in price_actions_source
     assert "onPriceCandidateConfirm" in profile_workspace_source
     assert "onPriceCandidateReject" in profile_workspace_source
     assert "onSupplierSearchPrepare" in tab_source
@@ -1790,6 +1810,7 @@ def test_product_profile_renders_supplier_option_form():
     assert find_mojibake(tabs_source, TENDER_DETAILS_TABS_SOURCE) == []
     assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
+    assert find_mojibake(price_actions_source, USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE) == []
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
     assert find_mojibake(source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
@@ -1809,7 +1830,7 @@ def test_supplier_catalog_health_stays_on_dashboard_not_economics():
     source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
     dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
     api_source = API_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "export function fetchSupplierCatalogHealth" in api_source
     assert "function loadSupplierCatalogHealth" in app_source
@@ -1856,7 +1877,7 @@ def test_economics_tab_renders_auto_estimate_panel():
         else ""
     )
     api_source = API_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "runProfileAutoEconomics" in details_source
     assert "acceptProfileAutoEconomics" in details_source
@@ -1909,7 +1930,7 @@ def test_economics_tab_renders_assumptions_form():
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     source = TENDER_ECONOMICS_FORMS_SOURCE.read_text(encoding="utf-8") if TENDER_ECONOMICS_FORMS_SOURCE.exists() else ""
     api_source = API_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "saveProfileEconomicsAssumptions" in details_source
     assert "onEconomicsAssumptionsSave" in tab_source
@@ -1933,7 +1954,7 @@ def test_economics_tab_renders_assumptions_form():
 def test_economics_position_forms_are_collapsible_secondary_panels():
     cost_source = TENDER_ECONOMICS_COST_FORM_SOURCE.read_text(encoding="utf-8")
     assumptions_source = TENDER_ECONOMICS_FORMS_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "economics-collapsible-section" in cost_source
     assert "economics-collapsible-section" in assumptions_source
@@ -1953,7 +1974,7 @@ def test_economics_position_forms_are_collapsible_secondary_panels():
 
 def test_supplier_search_preview_always_surfaces_one_primary_quick_link():
     source = TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "allSupplierSearchLinks" in source
     assert "const primaryLinks = catalogSearchLinks.length ? catalogSearchLinks : allLinks" in source
@@ -1980,7 +2001,7 @@ def test_economics_tab_renders_bid_scenarios():
         if TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE.exists()
         else ""
     )
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "from './TenderEconomicsDecisionScenarios'" in source
     assert "BidScenarioStrip" in source
@@ -2002,7 +2023,7 @@ def test_economics_summary_renders_price_passport_and_unit_normalization():
         if TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE.exists()
         else ""
     )
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "item.price_passport" in source
     assert "item.unit_normalization" in source
@@ -2025,7 +2046,7 @@ def test_economics_tab_renders_participation_decision():
         if TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE.exists()
         else ""
     )
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "from './TenderEconomicsDecisionScenarios'" in source
     assert "ParticipationDecisionCard" in source
@@ -2061,7 +2082,7 @@ def test_economics_tab_owns_product_costs_and_suppliers():
         if TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.exists()
         else ""
     )
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "export function TenderEconomicsTab({" in tab_source
     assert "from './TenderEconomicsWorkbench'" in tab_source
@@ -2092,7 +2113,7 @@ def test_economics_tab_is_a_focused_workbench():
     workbench_source = TENDER_ECONOMICS_WORKBENCH_SOURCE.read_text(encoding="utf-8")
     profile_workspace_source = TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.read_text(encoding="utf-8")
     suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "economics-command-center" in tab_source
     assert "economics-command-actions" in tab_source
@@ -2128,7 +2149,7 @@ def test_economics_tab_is_a_focused_workbench():
 
 def test_economics_position_workspace_exposes_unified_position_scenario():
     profile_workspace_source = TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "const POSITION_SCENARIO_STEPS" in profile_workspace_source
     assert "function PositionEconomicsScenario" in profile_workspace_source
@@ -2186,7 +2207,7 @@ def test_tender_workbench_uses_decision_first_summary_shell():
         if TENDER_SUMMARY_TAB_SOURCE.exists()
         else ""
     )
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "from './TenderDecisionStrip'" in details_source
     assert "<TenderDecisionStrip" in details_source
@@ -2259,7 +2280,7 @@ def test_tender_workbench_v1_reduces_detail_panel_overload():
 def test_tender_workbench_has_top_filters_and_list_first_layout():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     filters_source = FILTERS_PANEL_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "const [filtersCollapsed, setFiltersCollapsed]" in app_source
     assert "onToggleCollapsed={() => setFiltersCollapsed" in app_source
@@ -2290,7 +2311,7 @@ def test_tender_details_v2_keeps_actions_and_document_statuses_scannable():
         else ""
     )
     analysis_documents_source = TENDER_ANALYSIS_DOCUMENTS_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
     detail_actions_rule = _css_rule(styles_source, ".detail-actions")
 
     assert "details-title-row" in header_source
@@ -2324,7 +2345,7 @@ def test_tender_detail_tabs_have_scannable_work_areas():
         else ""
     )
     formatter_source = FORMATTERS_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "export function TenderSummaryTab" in summary_source
     assert "function ProductTabSummary" in products_source
@@ -2360,7 +2381,7 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     analysis_sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
     analysis_evidence_source = TENDER_ANALYSIS_EVIDENCE_SOURCE.read_text(encoding="utf-8")
     analysis_evidence_model_source = TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "reportHref" in workspaces_source
     assert "documents={documentRecords}" in workspaces_source
@@ -2406,7 +2427,7 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
 def test_analysis_tab_renders_decision_first_brief():
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     decision_source = TENDER_ANALYSIS_DECISION_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "from './TenderAnalysisDecisionBrief'" in analysis_source
     assert "<AnalysisDecisionBrief" in analysis_source
@@ -2441,7 +2462,7 @@ def test_analysis_tab_renders_decision_first_brief():
 def test_analysis_tab_renders_compact_tz_passport_navigation():
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     passport_source = TENDER_ANALYSIS_PASSPORT_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "from './TenderAnalysisPassport'" in analysis_source
     assert "selectedSection={selectedAnalysisSection}" in analysis_source
@@ -2483,7 +2504,7 @@ def test_analysis_documents_render_structured_evidence_model():
     sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
     evidence_source = TENDER_ANALYSIS_EVIDENCE_SOURCE.read_text(encoding="utf-8")
     model_source = TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "buildDocumentEvidenceItems(analysis, documents)" not in sections_source
     assert "buildDocumentEvidenceItems(analysis, documents)" in evidence_source
@@ -2548,7 +2569,7 @@ def test_economics_tab_uses_two_column_position_workspace():
         if TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.exists()
         else ""
     )
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "from './TenderEconomicsWorkbench'" in economics_source
     assert "economics-workspace-grid" in workbench_source
@@ -2580,7 +2601,7 @@ def test_economics_tab_uses_two_column_position_workspace():
 
 def test_tender_summary_cards_wrap_without_clipping_actions():
     summary_source = TENDER_SUMMARY_TAB_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
     summary_grid_rule = _css_rule(styles_source, ".summary-work-grid")
     primary_card_rule = _css_rule(styles_source, ".summary-card.primary")
     secondary_card_rule = _css_rule(styles_source, ".summary-card.secondary")
@@ -2619,7 +2640,7 @@ def test_economics_position_rail_keeps_long_product_names_readable():
         if TENDER_ECONOMICS_POSITION_RAIL_SOURCE.exists()
         else ""
     )
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
     details_rule = _css_rule(styles_source, ".workbench-layout .details-panel")
     rail_row_rule = _css_rule(styles_source, ".economics-position-rail .profile-row")
     rail_name_rule = _css_rule(styles_source, ".economics-position-rail .profile-name")
@@ -2650,7 +2671,7 @@ def test_products_analysis_and_economics_open_in_fullscreen_workspace():
         else ""
     )
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "from './TenderWorkspaces'" in tabs_source
     assert "const [workspaceMode, setWorkspaceMode]" in tabs_source
@@ -2691,7 +2712,7 @@ def test_products_analysis_and_economics_open_in_fullscreen_workspace():
 def test_products_analysis_and_economics_are_workspace_launchers_not_inline_tabs():
     tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
     summary_source = TENDER_SUMMARY_TAB_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "const workspaceActions = [" not in tabs_source
     assert "<TenderDetailsNavigation" not in tabs_source
@@ -2828,7 +2849,7 @@ def test_tender_tab_panels_module_owns_inline_summary_and_workflow():
 
 
 def test_fullscreen_economics_workspace_is_a_dedicated_workbench():
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
     fullscreen_rule = _css_rule(styles_source, ".fullscreen-workspace.economics")
     fullscreen_economics_rule = _css_rule(styles_source, ".fullscreen-workspace-body .economics-workspace-grid")
     rail_rule = _css_rule(styles_source, ".fullscreen-workspace-body .economics-position-rail")
@@ -2866,7 +2887,7 @@ def test_decision_tabs_are_extracted_to_consistent_work_panels():
         if TENDER_WORKFLOW_TAB_SOURCE.exists()
         else ""
     )
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "export function TenderAnalysisTab" in analysis_source
     assert "export function TenderEconomicsTab" in economics_source
@@ -2941,7 +2962,7 @@ def test_tender_detail_renders_price_change_banner():
         if TENDER_DECISION_SUMMARY_SOURCE.exists()
         else ""
     )
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "<PriceChangeBanner change={tender.price_change} />" in app_source
     assert "export function PriceChangeBanner({ change })" in decision_source
@@ -2978,7 +2999,7 @@ def test_frontend_formats_market_state_for_tender_surfaces():
 
 def test_tender_list_surfaces_market_state_and_backend_decision():
     source = TENDER_LIST_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "nmcPriceValue" in source
     assert "marketStateValue(tender.market_state)" in source
@@ -2996,6 +3017,7 @@ def test_tender_list_surfaces_market_state_and_backend_decision():
 def test_economics_tab_supports_bulk_best_supplier_selection():
     api_source = API_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
+    price_actions_source = USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE.read_text(encoding="utf-8")
     details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
 
@@ -3004,14 +3026,16 @@ def test_economics_tab_supports_bulk_best_supplier_selection():
     assert "export function confirmReadyTenderPriceCandidates" in api_source
     assert "price-candidates/ready/confirm" in api_source
     assert "autoSelectTenderSupplierOptions as autoSelectTenderSupplierOptionsRequest" in hook_source
-    assert "confirmReadyTenderPriceCandidates as confirmReadyTenderPriceCandidatesRequest" in hook_source
+    assert "from './useTenderPriceCandidateActions'" in hook_source
+    assert "useTenderPriceCandidateActions({" in hook_source
+    assert "confirmReadyTenderPriceCandidates as confirmReadyTenderPriceCandidatesRequest" in price_actions_source
     assert "autoSelectingAllSuppliers" in hook_source
     assert "confirmingReadyPriceCandidates" in hook_source
-    assert "READY_PRICE_CANDIDATES_REVIEW_ID" in hook_source
-    assert "const confirmingReadyPriceCandidates = reviewingPriceCandidateId === READY_PRICE_CANDIDATES_REVIEW_ID" in hook_source
+    assert "READY_PRICE_CANDIDATES_REVIEW_ID" in price_actions_source
+    assert "confirmingReadyPriceCandidates: reviewingPriceCandidateId === READY_PRICE_CANDIDATES_REVIEW_ID" in price_actions_source
     assert "const [confirmingReadyPriceCandidates, setConfirmingReadyPriceCandidates]" not in hook_source
     assert "function autoSelectAllSupplierOptions" in hook_source
-    assert "function confirmReadyPriceCandidates" in hook_source
+    assert "function confirmReadyPriceCandidates" in price_actions_source
     assert "onSupplierOptionAutoSelectAll" in details_source
     assert "onReadyPriceCandidatesConfirmAll" in details_source
     assert "onSupplierOptionAutoSelectAll" in economics_source
@@ -3024,12 +3048,14 @@ def test_economics_tab_supports_bulk_best_supplier_selection():
     assert "Лучшие цены в расчет" not in economics_source
     assert find_mojibake(api_source, API_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
+    assert find_mojibake(price_actions_source, USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
 
 
 def test_economics_tab_supports_price_candidate_auto_stage():
     api_source = API_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
+    price_actions_source = USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE.read_text(encoding="utf-8")
     details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
@@ -3044,17 +3070,17 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     assert "price-discovery/run" in api_source
     assert "export function fetchPriceDiscoveryJob" in api_source
     assert "/api/price-discovery/jobs/${encodeURIComponent(jobId)}" in api_source
-    assert "stageTenderPriceCandidates as stageTenderPriceCandidatesRequest" in hook_source
-    assert "applyTenderAutoPrices as applyTenderAutoPricesRequest" in hook_source
-    assert "runTenderPriceDiscovery as runTenderPriceDiscoveryRequest" in hook_source
+    assert "stageTenderPriceCandidates as stageTenderPriceCandidatesRequest" in price_actions_source
+    assert "applyTenderAutoPrices as applyTenderAutoPricesRequest" in price_actions_source
+    assert "runTenderPriceDiscovery as runTenderPriceDiscoveryRequest" in price_actions_source
     assert "fetchPriceDiscoveryJob" in hook_source
-    assert "PRICE_CANDIDATE_STAGE_REVIEW_ID" in hook_source
-    assert "PRICE_AUTO_APPLY_ID" in hook_source
-    assert "PRICE_DISCOVERY_RUN_ID" in hook_source
-    assert "function isPriceDiscoveryJobComplete" in hook_source
-    assert "const stagingPriceCandidates = reviewingPriceCandidateId === PRICE_CANDIDATE_STAGE_REVIEW_ID" in hook_source
-    assert "const applyingAutoPrices = reviewingPriceCandidateId === PRICE_AUTO_APPLY_ID" in hook_source
-    assert "!isPriceDiscoveryJobComplete(job)" in hook_source
+    assert "PRICE_CANDIDATE_STAGE_REVIEW_ID" in price_actions_source
+    assert "PRICE_AUTO_APPLY_ID" in price_actions_source
+    assert "PRICE_DISCOVERY_RUN_ID" in price_actions_source
+    assert "function isPriceDiscoveryJobComplete" in price_actions_source
+    assert "stagingPriceCandidates: reviewingPriceCandidateId === PRICE_CANDIDATE_STAGE_REVIEW_ID" in price_actions_source
+    assert "applyingAutoPrices: reviewingPriceCandidateId === PRICE_AUTO_APPLY_ID" in price_actions_source
+    assert "!isPriceDiscoveryJobComplete(job)" in price_actions_source
     assert "isPriceDiscoveryJobActive(priceDiscoveryJob)" in hook_source
     assert "const [priceDiscoveryJob, setPriceDiscoveryJob]" in hook_source
     assert "fetchPriceDiscoveryJob(priceDiscoveryJob.job_id)" in hook_source
@@ -3062,10 +3088,10 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     assert "const [stagingPriceCandidates, setStagingPriceCandidates]" not in hook_source
     assert "const [applyingAutoPrices, setApplyingAutoPrices]" not in hook_source
     assert "const [runningPriceDiscovery, setRunningPriceDiscovery]" not in hook_source
-    assert "function stagePriceCandidates" in hook_source
-    assert "function applyAutoPrices" in hook_source
-    assert "function runPriceDiscovery" in hook_source
-    assert "priceDiscoveryStatusMessage(job)" in hook_source
+    assert "function stagePriceCandidates" in price_actions_source
+    assert "function applyAutoPrices" in price_actions_source
+    assert "function runPriceDiscovery" in price_actions_source
+    assert "priceDiscoveryStatusMessage(job)" in price_actions_source
     assert "onPriceCandidatesStage" in details_source
     assert "onAutoPricesApply" in details_source
     assert "onPriceDiscoveryRun" in details_source
@@ -3086,26 +3112,28 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     assert "Автоцены в расчет" not in economics_source
     assert find_mojibake(api_source, API_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
+    assert find_mojibake(price_actions_source, USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
 
 
 def test_economics_tab_exposes_price_book_feed_import_ui():
     api_source = API_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
+    price_actions_source = USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE.read_text(encoding="utf-8")
     details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     feed_source = TENDER_ECONOMICS_PRICE_BOOK_FEED_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "export function stageTenderPriceBookFeedFile" in api_source
     assert "price-book/feed/file" in api_source
-    assert "stageTenderPriceBookFeed as stageTenderPriceBookFeedRequest" in hook_source
-    assert "stageTenderPriceBookFeedFile as stageTenderPriceBookFeedFileRequest" in hook_source
-    assert "PRICE_BOOK_FEED_STAGE_ID" in hook_source
-    assert "function stagePriceBookFeed" in hook_source
-    assert "function stagePriceBookFeedFile" in hook_source
-    assert "price_book_feed" in hook_source
+    assert "stageTenderPriceBookFeed as stageTenderPriceBookFeedRequest" in price_actions_source
+    assert "stageTenderPriceBookFeedFile as stageTenderPriceBookFeedFileRequest" in price_actions_source
+    assert "PRICE_BOOK_FEED_STAGE_ID" in price_actions_source
+    assert "function stagePriceBookFeed" in price_actions_source
+    assert "function stagePriceBookFeedFile" in price_actions_source
+    assert "price_book_feed" in price_actions_source
     assert "stagingPriceBookFeed" in hook_source
     assert "onPriceBookFeedStage" in details_source
     assert "onPriceBookFeedFileStage" in details_source
@@ -3150,6 +3178,7 @@ def test_economics_tab_exposes_price_book_feed_import_ui():
     assert ".price-book-feed-quality-row" in styles_source
     assert find_mojibake(api_source, API_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
+    assert find_mojibake(price_actions_source, USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(feed_source, TENDER_ECONOMICS_PRICE_BOOK_FEED_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
@@ -3159,7 +3188,7 @@ def test_economics_tab_exposes_price_memory_management_ui():
     api_source = API_SOURCE.read_text(encoding="utf-8")
     economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     memory_source = TENDER_ECONOMICS_PRICE_MEMORY_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "export function fetchPriceMemory" in api_source
     assert "/api/price-memory?limit=${encodeURIComponent(limit)}" in api_source
@@ -3186,7 +3215,7 @@ def test_economics_tab_exposes_price_memory_management_ui():
 def test_dashboard_surfaces_current_offers_and_backend_decisions():
     dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
     app_source = APP_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "fetchDashboardQueues" in app_source
     assert "const [dashboardQueues, setDashboardQueues]" in app_source
@@ -3229,7 +3258,7 @@ def test_economics_summary_labels_current_offer_revenue():
 
 def test_economics_summary_surfaces_decision_engine_v2():
     summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "const economicsDecision = tender?.decision?.economics_decision || null" in summary_source
     assert "<DecisionEngineV2Panel decision={economicsDecision} />" in summary_source
@@ -3248,7 +3277,7 @@ def test_economics_summary_surfaces_decision_engine_v2():
 def test_economics_ui_surfaces_memory_reuse_and_final_decision_card():
     summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
     suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "decision.final_decision_card" in summary_source
     assert "FinalDecisionCard" in summary_source
@@ -3280,7 +3309,7 @@ def test_tender_detail_visual_density_has_stable_grids_and_no_negative_offsets()
     products_source = TENDER_PRODUCTS_TAB_SOURCE.read_text(encoding="utf-8")
     workflow_source = TENDER_WORKFLOW_TAB_SOURCE.read_text(encoding="utf-8")
     shared_source = TENDER_DETAILS_SHARED_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
     tab_lead_rule = _css_rule(styles_source, ".tab-lead")
     document_row_rule = _css_rule(styles_source, ".document-row")
     compact_button_rule = _css_rule(styles_source, ".secondary-button.compact")
@@ -3301,7 +3330,7 @@ def test_tender_detail_visual_density_has_stable_grids_and_no_negative_offsets()
 
 
 def test_tender_workflow_tabs_wrap_without_horizontal_scrollbar():
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
     workflow_tabs_rule = _css_rule(styles_source, ".workflow-tabs")
 
     assert "flex-wrap: wrap" in workflow_tabs_rule
@@ -3313,7 +3342,7 @@ def test_global_shell_exposes_dashboard_and_side_navigation():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     constants_source = CONSTANTS_SOURCE.read_text(encoding="utf-8")
     dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "export const viewLabels = {" in constants_source
     assert "dashboard: 'Дашборд'" in constants_source
@@ -3336,7 +3365,7 @@ def test_global_shell_exposes_dashboard_and_side_navigation():
 
 def test_sidebar_can_collapse_without_losing_navigation():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "const [sidebarCollapsed, setSidebarCollapsed]" in app_source
     assert "sidebarCollapsed ? 'app-frame sidebar-collapsed' : 'app-frame'" in app_source
@@ -3355,7 +3384,7 @@ def test_sidebar_can_collapse_without_losing_navigation():
 def test_dashboard_surfaces_attention_and_recent_tenders():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "function DashboardAttentionPanel" in dashboard_source
     assert "function DashboardTenderPreview" in dashboard_source
@@ -3380,7 +3409,7 @@ def test_dashboard_surfaces_attention_and_recent_tenders():
 def test_dashboard_surfaces_supplier_catalog_connectivity():
     app_source = APP_SOURCE.read_text(encoding="utf-8")
     dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "fetchSupplierCatalogHealth" in app_source
     assert "const [supplierCatalogHealth, setSupplierCatalogHealth]" in app_source
@@ -3426,7 +3455,7 @@ def test_dashboard_surfaces_supplier_catalog_connectivity():
 
 
 def test_dashboard_layout_uses_aligned_full_width_grid():
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
     shell_width_rule = _css_rule(styles_source, ".topbar,")
     dashboard_view_rule = _css_rule(styles_source, ".dashboard-view {")
     metrics_rule = _css_rule(styles_source, ".dashboard-view .metrics")
@@ -3456,7 +3485,7 @@ def test_frontend_exposes_local_market_state_import():
     actions_source = TENDER_DETAIL_ACTIONS_SOURCE.read_text(encoding="utf-8")
     import_source = TENDER_MARKET_STATE_IMPORT_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_MARKET_STATE_IMPORT_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "export function importTenderMarketState" in api_source
     assert "/market-state/import" in api_source

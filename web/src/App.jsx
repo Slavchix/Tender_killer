@@ -22,6 +22,10 @@ import { FiltersPanel } from './FiltersPanel'
 import { TenderList } from './TenderList'
 import { TenderDetails } from './TenderDetails'
 import './styles.css'
+import './styles.dashboard.css'
+import './styles.detail.css'
+import './styles.analysis.css'
+import './styles.economics.css'
 import {
   sourceLabels,
   workflowLabels,

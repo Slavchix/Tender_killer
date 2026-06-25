@@ -9,6 +9,21 @@ ROOT = Path(__file__).resolve().parents[1]
 APP_SOURCE = ROOT / "web" / "src" / "App.jsx"
 DASHBOARD_SOURCE = ROOT / "web" / "src" / "Dashboard.jsx"
 STYLES_SOURCE = ROOT / "web" / "src" / "styles.css"
+STYLES_DASHBOARD_SOURCE = ROOT / "web" / "src" / "styles.dashboard.css"
+STYLES_DETAIL_SOURCE = ROOT / "web" / "src" / "styles.detail.css"
+STYLES_ANALYSIS_SOURCE = ROOT / "web" / "src" / "styles.analysis.css"
+STYLES_ECONOMICS_SOURCE = ROOT / "web" / "src" / "styles.economics.css"
+STYLE_SOURCES = (
+    STYLES_SOURCE,
+    STYLES_DASHBOARD_SOURCE,
+    STYLES_DETAIL_SOURCE,
+    STYLES_ANALYSIS_SOURCE,
+    STYLES_ECONOMICS_SOURCE,
+)
+
+
+def read_styles_source() -> str:
+    return "\n".join(path.read_text(encoding="utf-8") for path in STYLE_SOURCES)
 
 
 def test_app_exposes_persisted_light_dark_theme_toggle():
@@ -25,7 +40,7 @@ def test_app_exposes_persisted_light_dark_theme_toggle():
 
 
 def test_clean_blue_tokens_are_the_only_hardcoded_hex_colors():
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
     token_block = styles_source.split("* {", 1)[0]
     rest = styles_source.split("* {", 1)[1]
 
@@ -44,12 +59,13 @@ def test_clean_blue_tokens_are_the_only_hardcoded_hex_colors():
     assert "--color-bg: #0B1220" in token_block
     assert "--radius-card: 16px" in token_block
     assert "#" not in rest
-    assert find_mojibake(styles_source, STYLES_SOURCE) == []
+    for path in STYLE_SOURCES:
+        assert find_mojibake(path.read_text(encoding="utf-8"), path) == []
 
 
 def test_dashboard_uses_queue_rail_and_work_panels():
     dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "DashboardQueueColumn" in dashboard_source
     assert "DashboardDeadlinePanel" in dashboard_source

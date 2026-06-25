@@ -16,6 +16,9 @@ TENDER_ANALYSIS_SECTIONS_SOURCE = (
 ANALYSIS_LEGACY_ADAPTER_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "analysisLegacyAdapter.js"
 )
+ANALYSIS_SECTIONS_MODEL_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "analysisSectionsModel.js"
+)
 ANALYSIS_FACT_CARD_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisFactCard.jsx"
 )
@@ -120,9 +123,15 @@ def test_tender_analysis_has_compact_mode_and_single_all_bucket():
 
 def test_tender_analysis_uses_backend_condition_groups_instead_of_frontend_semantics():
     sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+    model_source = ANALYSIS_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
 
-    assert "operatorView?.condition_groups" in sections_source
-    assert "backendConditionFamily" in sections_source
+    assert "from './analysisSectionsModel'" in sections_source
+    assert "operatorView?.condition_groups" in model_source
+    assert "backendConditionFamily" in model_source
+    assert "function buildMajorAnalysisSections" not in sections_source
+    assert "function normalizeOperatorSection" not in sections_source
+    assert "function conditionGroupByFactId" not in sections_source
+    assert "function displayableAnalysisItems" not in sections_source
     assert "function analysisSemanticFamily" not in sections_source
     assert "semanticAnalysisItemKey" not in sections_source
     assert "isRelevantAnalysisText" not in sections_source
@@ -131,10 +140,12 @@ def test_tender_analysis_uses_backend_condition_groups_instead_of_frontend_seman
 
 def test_tender_analysis_legacy_fallback_lives_in_adapter():
     sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+    model_source = ANALYSIS_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
     legacy_source = ANALYSIS_LEGACY_ADAPTER_SOURCE.read_text(encoding="utf-8")
 
-    assert "buildLegacyAnalysisSections" in sections_source
-    assert "from './analysisLegacyAdapter'" in sections_source
+    assert "analysisSectionItems" in sections_source
+    assert "buildLegacyAnalysisSections" in model_source
+    assert "from './analysisLegacyAdapter'" in model_source
     assert "function legacyMajorSections" not in sections_source
     assert "function legacyItem" not in sections_source
     assert "function fallbackOperatorAction" not in sections_source

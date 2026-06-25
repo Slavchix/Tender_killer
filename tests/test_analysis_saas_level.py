@@ -22,6 +22,18 @@ USE_TENDER_DOCUMENT_ANALYSIS_SOURCE = (
 )
 TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
 STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css"
+STYLES_ANALYSIS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.css"
+STYLES_ECONOMICS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.economics.css"
+
+
+def read_styles_source() -> str:
+    return "\n".join(
+        (
+            STYLES_SOURCE.read_text(encoding="utf-8"),
+            STYLES_ANALYSIS_SOURCE.read_text(encoding="utf-8"),
+            STYLES_ECONOMICS_SOURCE.read_text(encoding="utf-8"),
+        )
+    )
 
 
 def test_operator_view_exposes_tz_workflow_questions_and_playbooks():
@@ -258,7 +270,7 @@ def test_frontend_exposes_tz_saas_workflow_questions_and_playbooks():
     api_source = WEB_API_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_DOCUMENT_ANALYSIS_SOURCE.read_text(encoding="utf-8")
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
-    styles_source = STYLES_SOURCE.read_text(encoding="utf-8")
+    styles_source = read_styles_source()
 
     assert "export function saveAnalysisWorkflow" in api_source
     assert "/analysis/workflow" in api_source
