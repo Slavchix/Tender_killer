@@ -7,6 +7,8 @@ from tender_killer.analysis_evidence_service import build_analysis_evidence_item
 from tender_killer.analysis_facts_service import build_analysis_facts
 from tender_killer.analysis_questions_service import build_analysis_ai_questions
 from tender_killer.analysis_text_index_service import build_analysis_text_index
+from tender_killer.analysis_types import AnalysisFact
+from tender_killer.analysis_types import AnalysisFactsContract
 
 
 MAX_PROMPT_DOCUMENT_CHUNKS = 36
@@ -339,7 +341,7 @@ def _evidence_items(analysis: dict[str, Any], documents: list[dict[str, Any]]) -
     return build_analysis_evidence_items(analysis, documents)
 
 
-def _analysis_facts(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> dict[str, Any]:
+def _analysis_facts(analysis: dict[str, Any], documents: list[dict[str, Any]]) -> AnalysisFactsContract:
     value = analysis.get("analysis_facts")
     if isinstance(value, dict) and value.get("version") == 1 and isinstance(value.get("items"), list):
         return value
@@ -393,7 +395,7 @@ def _prompt_evidence(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _prompt_fact(item: dict[str, Any]) -> dict[str, Any]:
+def _prompt_fact(item: AnalysisFact) -> dict[str, Any]:
     binding = _source_binding(item)
     return {
         "id": _text(item.get("id")),
@@ -416,7 +418,7 @@ def _prompt_fact(item: dict[str, Any]) -> dict[str, Any]:
 
 def _agent_contract(
     analysis: dict[str, Any],
-    analysis_facts: dict[str, Any],
+    analysis_facts: AnalysisFactsContract,
     agent_review_plan: dict[str, Any],
 ) -> dict[str, Any]:
     fact_items = _dict_items(analysis_facts.get("items"))

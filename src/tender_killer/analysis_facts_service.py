@@ -6,6 +6,10 @@ from typing import Any
 from tender_killer.analysis_source_service import document_source_for_fragment
 from tender_killer.analysis_text_index_service import document_roles_from_text_index
 from tender_killer.analysis_text_index_service import infer_document_role
+from tender_killer.analysis_types import AnalysisFact
+from tender_killer.analysis_types import AnalysisFactsContract
+from tender_killer.analysis_types import EvidenceQuality
+from tender_killer.analysis_types import SourceBinding
 
 
 BLOCKER_CATEGORIES = {"legal", "national_regime"}
@@ -16,13 +20,13 @@ SUPPLIER_DOCUMENT_CATEGORIES = {"documents", "standards"}
 def build_analysis_facts(
     analysis: dict[str, Any] | None,
     documents: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
+) -> AnalysisFactsContract:
     """Build the compact fact layer used by UI, economics, reports, and future agents."""
     document_rows = documents or []
     if not isinstance(analysis, dict):
         return {"version": 1, "items": [], "metrics": _metrics([])}
 
-    items: list[dict[str, Any]] = []
+    items: list[AnalysisFact] = []
     document_roles = _document_roles(analysis, document_rows)
     document_contexts = _document_contexts(analysis)
     summary = _text(analysis.get("summary"))
@@ -55,7 +59,7 @@ def _checklist_fact(
     documents: list[dict[str, Any]],
     document_roles: dict[str, str],
     document_contexts: dict[str, dict[str, Any]],
-) -> dict[str, Any]:
+) -> AnalysisFact:
     label = _text(item.get("label")) or "Условие"
     category = _text(item.get("category")) or "general"
     severity = _text(item.get("severity")) or "medium"
@@ -101,7 +105,7 @@ def _execution_term_fact(
     documents: list[dict[str, Any]],
     document_roles: dict[str, str],
     document_contexts: dict[str, dict[str, Any]],
-) -> dict[str, Any]:
+) -> AnalysisFact:
     label = _text(item.get("label")) or "Условие исполнения"
     category = _text(item.get("category")) or "general"
     severity = _text(item.get("severity")) or "medium"
@@ -161,7 +165,7 @@ def _fact(
     impact: str = "",
     metadata: dict[str, Any] | None = None,
     semantic_key: str = "",
-) -> dict[str, Any]:
+) -> AnalysisFact:
     bound_document = _text(document_name)
     page_number = _page_number(source_page)
     needs_review = bool(fragment and not bound_document)
@@ -217,7 +221,7 @@ def _source_binding(
     source_context: str,
     fragment: str,
     needs_review: bool,
-) -> dict[str, str]:
+) -> SourceBinding:
     if needs_review:
         return {
             "level": "unbound",
@@ -257,7 +261,7 @@ def _confidence_level(
     source_binding_level: str,
     has_fragment: bool,
     has_context: bool,
-) -> dict[str, str]:
+) -> EvidenceQuality:
     if source_binding_level == "unbound":
         return {
             "level": "low",
