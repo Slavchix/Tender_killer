@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from tender_killer.analysis_operator_view_service import EXPECTED_TZ_CHECKS
+from tender_killer.analysis_condition_groups_service import EXPECTED_TZ_CHECKS
 from tender_killer.analysis_operator_view_service import MAJOR_SECTION_IDS, build_analysis_operator_view
 
 
