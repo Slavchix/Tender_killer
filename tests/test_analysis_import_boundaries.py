@@ -37,3 +37,15 @@ def test_operator_view_service_delegates_final_assembly():
         "analysis_workflow_service",
     ]:
         assert forbidden_import not in source
+
+
+def test_operator_view_service_delegates_fact_source_selection():
+    source = (ROOT / "src/tender_killer/analysis_operator_view_service.py").read_text(encoding="utf-8")
+
+    assert "analysis_operator_fact_source_service import build_operator_fact_source" in source
+    for forbidden_import in [
+        "analysis_legacy_operator_items_service",
+        "analysis_operator_item_service import build_operator_item",
+        "AnalysisFactsContract",
+    ]:
+        assert forbidden_import not in source
