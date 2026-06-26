@@ -21,3 +21,19 @@ def test_operator_view_does_not_reexport_section_constants():
 
     assert "MAJOR_SECTION_DEFINITIONS" not in source
     assert "MAJOR_SECTION_IDS" not in source
+
+
+def test_operator_view_service_delegates_final_assembly():
+    source = (ROOT / "src/tender_killer/analysis_operator_view_service.py").read_text(encoding="utf-8")
+
+    assert "analysis_operator_view_assembler_service import assemble_operator_view" in source
+    for forbidden_import in [
+        "analysis_action_plan_service",
+        "analysis_condition_groups_service",
+        "analysis_evidence_drilldown_service",
+        "analysis_operator_summary_service",
+        "analysis_playbook_service",
+        "analysis_questions_service",
+        "analysis_workflow_service",
+    ]:
+        assert forbidden_import not in source
