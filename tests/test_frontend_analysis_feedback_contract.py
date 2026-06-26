@@ -131,6 +131,10 @@ def test_tender_analysis_uses_backend_condition_groups_instead_of_frontend_seman
     assert "from './analysisSectionsModel'" in sections_source
     assert "operatorView?.condition_groups" in model_source
     assert "backendConditionFamily" in model_source
+    assert "operatorSections.map((section) => normalizeOperatorSection(section, conditionGroups))" in model_source
+    assert "MAJOR_ANALYSIS_SECTIONS.map((definition) => normalizeOperatorSection" not in model_source
+    assert "buildLegacyAnalysisSections(analysis, documents, MAJOR_ANALYSIS_SECTIONS)" in model_source
+    assert "id: definition.id" not in model_source
     assert "function buildMajorAnalysisSections" not in sections_source
     assert "function normalizeOperatorSection" not in sections_source
     assert "function conditionGroupByFactId" not in sections_source

@@ -70,23 +70,22 @@ function buildMajorAnalysisSections(analysis, documents = []) {
     const conditionGroups = Array.isArray(operatorView?.condition_groups?.items)
       ? operatorView.condition_groups.items
       : []
-    const sectionMap = new Map(operatorSections.map((section) => [section.id, section]))
-    return MAJOR_ANALYSIS_SECTIONS.map((definition) => normalizeOperatorSection(sectionMap.get(definition.id), definition, conditionGroups))
+    return operatorSections.map((section) => normalizeOperatorSection(section, conditionGroups))
   }
   return buildLegacyAnalysisSections(analysis, documents, MAJOR_ANALYSIS_SECTIONS)
 }
 
-function normalizeOperatorSection(section, definition, conditionGroups = []) {
+function normalizeOperatorSection(section, conditionGroups = []) {
   const conditionGroupsByFactId = conditionGroupByFactId(conditionGroups)
   const items = Array.isArray(section?.items)
     ? section.items.map((item) => normalizeBackendAnalysisItem(item, conditionGroupsByFactId))
     : []
   return {
-    id: definition.id,
-    title: section?.title || definition.title,
+    id: section?.id || 'unknown',
+    title: section?.title || 'Раздел анализа',
     count: section?.count ?? analysisItemCount(items),
     tone: section?.tone || 'default',
-    empty: section?.empty || definition.empty,
+    empty: section?.empty || 'В разделе пока нет подтвержденных пунктов.',
     backend_contract: true,
     items,
   }
