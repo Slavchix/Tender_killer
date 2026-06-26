@@ -1,72 +1,91 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 from typing import Callable
-from urllib.parse import urljoin
 
 import httpx
-from bs4 import BeautifulSoup
 
 from tender_killer import supplier_browser_fetcher
 from tender_killer.product_profile_service import ensure_product_profiles
 from tender_killer.price_candidate_service import stage_tender_price_candidates
 from tender_killer.storage import TenderStore
 from tender_killer.supplier_candidate_contract import normalize_supplier_candidate
-from tender_killer.supplier_catalog_presets import SUPPLIER_CATALOG_PRESETS
 from tender_killer.supplier_catalog_presets import supplier_catalog_providers_for_profile
 from tender_killer.supplier_discovery_service import stage_profile_supplier_candidates
 from tender_killer.supplier_lemanapro_parser import _lemanapro_plp_candidates
 from tender_killer.supplier_lemanapro_parser import _lemanapro_visible_catalog_candidates
-from tender_killer.supplier_officemag_parser import _officemag_hidden_product_page_urls
 from tender_killer.supplier_officemag_parser import _officemag_product_scopes
 from tender_killer.supplier_officemag_parser import _officemag_visible_candidates
-from tender_killer.supplier_price_discovery_utils import CATALOG_QUERY_STOP_WORDS
-from tender_killer.supplier_price_discovery_utils import CATALOG_TOKEN_RE
-from tender_killer.supplier_price_discovery_utils import NUMBER_SPACE_RE
+from tender_killer.supplier_price_discovery_catalog_pages import _catalog_fallback_page_urls
+from tender_killer.supplier_price_discovery_catalog_pages import _catalog_product_page_urls
 from tender_killer.supplier_price_discovery_utils import _append_unique_url
 from tender_killer.supplier_price_discovery_utils import _candidate_key
-from tender_killer.supplier_price_discovery_utils import _catalog_product_name_matches_query
 from tender_killer.supplier_price_discovery_utils import _catalog_provider_label
 from tender_killer.supplier_price_discovery_utils import _catalog_token_stems
-from tender_killer.supplier_price_discovery_utils import _dedupe_text_items
 from tender_killer.supplier_price_discovery_utils import _dict_items
 from tender_killer.supplier_price_discovery_utils import _fetch_catalog_text
 from tender_killer.supplier_price_discovery_utils import _fetch_public_text
 from tender_killer.supplier_price_discovery_utils import _is_provider_product_detail_url
 from tender_killer.supplier_price_discovery_utils import _is_public_product_page_url
 from tender_killer.supplier_price_discovery_utils import _is_same_public_site
-from tender_killer.supplier_price_discovery_utils import _number
 from tender_killer.supplier_price_discovery_utils import _positive_env_int
 from tender_killer.supplier_price_discovery_utils import _positive_number
 from tender_killer.supplier_price_discovery_utils import _provider_from_url
 from tender_killer.supplier_price_discovery_utils import _text
-from tender_killer.supplier_price_discovery_utils import _text_items
 from tender_killer.supplier_price_discovery_utils import _unique_candidates
 from tender_killer.supplier_provider_policy import ACTION_BROWSER_FETCH
 from tender_killer.supplier_provider_policy import ACTION_PRODUCT_PAGE_FETCH
-from tender_killer.supplier_provider_policy import ACTION_PUBLIC_SEARCH_FETCH
 from tender_killer.supplier_provider_policy import SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT
 from tender_killer.supplier_provider_policy import supplier_fetch_decision
-from tender_killer.supplier_product_matcher import supplier_product_name_match_reasons
-from tender_killer.supplier_product_matcher import supplier_product_name_mismatch_reasons
+from tender_killer.supplier_price_discovery_diagnostics import MANUAL_PRODUCT_LINK_KIND
+from tender_killer.supplier_price_discovery_diagnostics import NO_SUPPLIER_CANDIDATES_MESSAGE
+from tender_killer.supplier_price_discovery_diagnostics import _blocked_collector_diagnostics
+from tender_killer.supplier_price_discovery_diagnostics import _catalog_access_block_reason_from_body
+from tender_killer.supplier_price_discovery_diagnostics import _catalog_access_block_reason_from_error
+from tender_killer.supplier_price_discovery_diagnostics import _catalog_body_has_provider_product_signal
+from tender_killer.supplier_price_discovery_diagnostics import _collector_diagnostics
+from tender_killer.supplier_price_discovery_diagnostics import _diagnostics_has_signal
+from tender_killer.supplier_price_discovery_diagnostics import _diagnostics_is_access_blocked
+from tender_killer.supplier_price_discovery_diagnostics import _fetch_action_for_link
+from tender_killer.supplier_price_discovery_diagnostics import _increment_reason_counts
+from tender_killer.supplier_price_discovery_diagnostics import _mark_catalog_access_blocked
+from tender_killer.supplier_price_discovery_diagnostics import _mark_policy_skipped
+from tender_killer.supplier_price_discovery_diagnostics import _merge_diagnostics
+from tender_killer.supplier_price_discovery_diagnostics import _record_supplier_discovery_diagnostics
+from tender_killer.supplier_price_discovery_diagnostics import _skipped_collector_diagnostics
+from tender_killer.supplier_price_discovery_diagnostics import _skip_remaining_links
+from tender_killer.supplier_price_discovery_diagnostics import _supplier_discovery_error_message
+from tender_killer.supplier_price_discovery_diagnostics import _tender_discovery_diagnostics
+from tender_killer.supplier_price_discovery_diagnostics import _with_intent_rejection_diagnostics
+from tender_killer.supplier_price_discovery_matching import _add_rejected_by_intent
+from tender_killer.supplier_price_discovery_matching import _attribute_unit_hint
+from tender_killer.supplier_price_discovery_matching import _candidate_brand_match_reasons
+from tender_killer.supplier_price_discovery_matching import _candidate_intent_text
+from tender_killer.supplier_price_discovery_matching import _candidate_matches_profile_intent
+from tender_killer.supplier_price_discovery_matching import _candidate_profile_intent_rejection_reasons
+from tender_killer.supplier_price_discovery_matching import _candidate_with_profile_match
+from tender_killer.supplier_price_discovery_matching import _intent_rejection_sample
+from tender_killer.supplier_price_discovery_matching import _profile_intent_text
+from tender_killer.supplier_price_discovery_matching import _provider_catalog_candidates_matching_query
+from tender_killer.supplier_price_discovery_matching import _rank_tokens
+from tender_killer.supplier_price_discovery_matching import _supplier_candidate_rank_key
+from tender_killer.supplier_price_discovery_matching import _supplier_candidate_relevance_score
+from tender_killer.supplier_price_discovery_queries import BUILT_IN_CATALOG_PROVIDERS
+from tender_killer.supplier_price_discovery_queries import _catalog_providers_for_queries
+from tender_killer.supplier_price_discovery_queries import _is_builtin_catalog_search_link
+from tender_killer.supplier_price_discovery_queries import _is_catalog_search_link_for_provider
+from tender_killer.supplier_price_discovery_queries import _manual_product_catalog_providers_for_queries
+from tender_killer.supplier_price_discovery_queries import _quick_links
+from tender_killer.supplier_price_discovery_queries import _refreshed_supplier_search_queries
+from tender_killer.supplier_price_discovery_queries import _supplier_search_queries
 from tender_killer.supplier_schema_org_parser import _schema_org_candidates
 from tender_killer.supplier_schema_org_parser import _schema_product_page_urls
-from tender_killer.supplier_search_service import build_supplier_search_queries
 from tender_killer.supplier_search_service import prepare_profile_supplier_search
 from tender_killer.supplier_visible_offer_parser import _provider_visible_offer_candidates
-from tender_killer.supplier_visible_offer_parser import _same_site_anchor_urls
 
 
 SCHEMA_ORG_PRODUCT_PROVIDER = "schema_org_product"
-CATALOG_SEARCH_LINK_KIND = "catalog_search"
-MANUAL_PRODUCT_LINK_KIND = "manual_product_url"
-ACCESS_BLOCKED_ERROR_KIND = "access_blocked"
-BUILT_IN_CATALOG_PROVIDERS = tuple(str(preset["provider"]) for preset in SUPPLIER_CATALOG_PRESETS)
-BUILT_IN_CATALOG_PROVIDER_SET = {provider.casefold() for provider in BUILT_IN_CATALOG_PROVIDERS}
-ACCESS_BLOCKED_STATUS_CODES = {401, 403, 429, 503}
-MAX_INTENT_REJECTION_SAMPLES = 5
 FetchText = Callable[[str], str]
 ProgressCallback = Callable[[dict[str, Any]], None]
 _LEGACY_CATALOG_QUERY_STOP_WORDS = {
@@ -86,8 +105,6 @@ _LEGACY_CATALOG_QUERY_STOP_WORDS = {
     "for",
     "the",
 }
-NO_SUPPLIER_CANDIDATES_MESSAGE = "\u041d\u043e\u0432\u044b\u0445 \u043a\u0430\u043d\u0434\u0438\u0434\u0430\u0442\u043e\u0432 \u043f\u043e\u0441\u0442\u0430\u0432\u0449\u0438\u043a\u043e\u0432 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e."
-PREPARE_SUPPLIER_SEARCH_MESSAGE = "\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u044c \u043f\u043e\u0438\u0441\u043a \u043f\u043e\u0441\u0442\u0430\u0432\u0449\u0438\u043a\u043e\u0432."
 DEFAULT_TENDER_PRICE_DISCOVERY_MAX_POSITIONS = 50
 DEFAULT_CATALOG_MAX_PRODUCT_PAGES = 5
 DEFAULT_BULK_DISCOVERY_PROFILE_THRESHOLD = 3
@@ -897,28 +914,6 @@ def _relevant_price_collectors_for_queries(
     return relevant_collectors
 
 
-def _catalog_providers_for_queries(queries: list[dict[str, Any]]) -> set[str]:
-    providers: set[str] = set()
-    for query in queries:
-        for link in _quick_links(query):
-            link_kind = _text(link.get("link_kind"))
-            provider = _text(link.get("provider"))
-            if link_kind in {CATALOG_SEARCH_LINK_KIND, MANUAL_PRODUCT_LINK_KIND} and provider:
-                providers.add(provider.casefold())
-    return providers
-
-
-def _manual_product_catalog_providers_for_queries(queries: list[dict[str, Any]]) -> set[str]:
-    providers: set[str] = set()
-    for query in queries:
-        for link in _quick_links(query):
-            link_kind = _text(link.get("link_kind"))
-            provider = _text(link.get("provider"))
-            if link_kind == MANUAL_PRODUCT_LINK_KIND and provider:
-                providers.add(provider.casefold())
-    return providers
-
-
 def _candidate_limit_for_single_profile() -> int:
     return _positive_env_int(
         "TENDER_KILLER_PRICE_DISCOVERY_SINGLE_CANDIDATES_PER_POSITION",
@@ -984,61 +979,6 @@ def _limit_supplier_candidates_for_profile(
     return ranked[:candidate_limit]
 
 
-def _supplier_candidate_rank_key(profile: dict[str, Any], candidate: dict[str, Any]) -> tuple[float, float, str]:
-    unit_price = _number(candidate.get("unit_price"))
-    normalized_price = unit_price if unit_price is not None else float("inf")
-    name_key = _text(candidate.get("name") or candidate.get("product_name")) or ""
-    return (-_supplier_candidate_relevance_score(profile, candidate), normalized_price, name_key.casefold())
-
-
-def _supplier_candidate_relevance_score(profile: dict[str, Any], candidate: dict[str, Any]) -> float:
-    product_name = _candidate_intent_text(candidate)
-    profile_text = _profile_intent_text(profile, candidate)
-    score = _number(candidate.get("score")) or 0.0
-    if product_name and profile_text and _catalog_product_name_matches_query(product_name, profile_text):
-        score += 60
-    profile_tokens = _rank_tokens(profile_text)
-    candidate_tokens = _rank_tokens(
-        " ".join(
-            part
-            for part in (
-                product_name,
-                _text(candidate.get("brand")) or "",
-                _text(candidate.get("manufacturer")) or "",
-                _text(candidate.get("supplier_name")) or "",
-            )
-            if part
-        )
-    )
-    overlap = profile_tokens.intersection(candidate_tokens)
-    score += min(len(overlap), 12) * 4
-    brand_tokens = _rank_tokens(_text(candidate.get("brand")) or _text(candidate.get("manufacturer")) or "")
-    if brand_tokens and brand_tokens.issubset(profile_tokens.union(candidate_tokens)):
-        score += 25
-    confidence = (_text(candidate.get("confidence")) or "").casefold()
-    score += {"high": 20, "medium": 10, "needs_review": 2, "low": 2}.get(confidence, 0)
-    if _number(candidate.get("unit_price")) is not None:
-        score += 10
-    availability = (_text(candidate.get("availability")) or "").casefold()
-    if availability in {"in_stock", "available", "instock"}:
-        score += 5
-    source_kind = (_text(candidate.get("source_kind")) or "").casefold()
-    if source_kind in {"catalog_hint", "normalized_name", "manual_product_url"}:
-        score += 8
-    if candidate.get("url") or candidate.get("source_url"):
-        score += 4
-    return score
-
-
-def _rank_tokens(text: str | None) -> set[str]:
-    tokens: set[str] = set()
-    for token in CATALOG_TOKEN_RE.findall(str(text or "").casefold()):
-        if len(token) < 2 or token in CATALOG_QUERY_STOP_WORDS:
-            continue
-        tokens.add(token)
-    return tokens
-
-
 def _candidate_limit_diagnostics(candidate_limit: int | None, *, collected_count: int, staged_count: int) -> dict[str, Any]:
     diagnostics = _collector_diagnostics("candidate_limiter")
     diagnostics["run_state"] = "applied"
@@ -1083,537 +1023,11 @@ def _mark_collector_access_blocked(collector: Any) -> None:
         return
 
 
-def _candidate_matches_profile_intent(profile: dict[str, Any], candidate: dict[str, Any]) -> bool:
-    product_name = _candidate_intent_text(candidate)
-    profile_text = _profile_intent_text(profile, candidate)
-    if not product_name or not profile_text:
-        return True
-    return _catalog_product_name_matches_query(product_name, profile_text)
-
-
-def _candidate_profile_intent_rejection_reasons(profile: dict[str, Any], candidate: dict[str, Any]) -> list[str]:
-    product_name = _candidate_intent_text(candidate)
-    profile_text = _profile_intent_text(profile, candidate)
-    if not product_name or not profile_text:
-        return []
-    return supplier_product_name_mismatch_reasons(profile_text, product_name)
-
-
-def _profile_intent_text(profile: dict[str, Any], candidate: dict[str, Any]) -> str:
-    parts: list[str] = []
-    for field in ("product_name", "normalized_name"):
-        value = _text(profile.get(field))
-        if value:
-            parts.append(value)
-    for phrase in _text_items(profile.get("search_phrases")):
-        parts.append(phrase)
-    raw_payload = profile.get("raw_payload") if isinstance(profile.get("raw_payload"), dict) else {}
-    for query in _supplier_search_queries(raw_payload.get("supplier_search")):
-        if _text(query.get("kind")) == "catalog_hint" and (query_text := _text(query.get("query"))):
-            parts.append(query_text)
-    source_query = _text(candidate.get("source_query"))
-    if source_query:
-        parts.append(source_query)
-    return " ".join(parts)
-
-
-def _candidate_with_profile_match(profile: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
-    updated = dict(candidate)
-    reasons = _text_items(candidate.get("match_reasons"))
-    reasons.extend(supplier_product_name_match_reasons(_profile_intent_text(profile, candidate), _candidate_intent_text(candidate)))
-    reasons.extend(_candidate_brand_match_reasons(candidate))
-    if "profile_intent_match" not in reasons:
-        reasons.append("profile_intent_match")
-    updated["match_reasons"] = _dedupe_text_items(reasons)
-    return updated
-
-
-def _candidate_intent_text(candidate: dict[str, Any]) -> str:
-    parts: list[str] = []
-    for field in ("name", "product_name", "brand", "manufacturer", "supplier_name", "unit"):
-        if text := _text(candidate.get(field)):
-            parts.append(text)
-    for attribute in _dict_items(candidate.get("product_attributes")):
-        name = _text(attribute.get("name"))
-        value = _text(attribute.get("value"))
-        if not name or not value:
-            continue
-        parts.append(f"{name} {value}")
-        parts.append(f"{value} {name}")
-        if unit_hint := _attribute_unit_hint(name):
-            if unit_hint not in value.casefold():
-                parts.append(f"{value} {unit_hint}")
-    return " ".join(parts)
-
-
-def _candidate_brand_match_reasons(candidate: dict[str, Any]) -> list[str]:
-    brand_tokens = _rank_tokens(_text(candidate.get("brand")) or _text(candidate.get("manufacturer")) or "")
-    if not brand_tokens:
-        return []
-    source_tokens = _rank_tokens(_text(candidate.get("source_query")) or "")
-    name_tokens = _rank_tokens(_text(candidate.get("name") or candidate.get("product_name")) or "")
-    return ["brand_match"] if brand_tokens.intersection(source_tokens.union(name_tokens)) else []
-
-
-def _attribute_unit_hint(name: str) -> str | None:
-    normalized = name.casefold()
-    if "kg" in normalized or "\u043a\u0433" in normalized:
-        return "kg"
-    if "ml" in normalized or "\u043c\u043b" in normalized:
-        return "ml"
-    if "mm" in normalized or "\u043c\u043c" in normalized:
-        return "mm"
-    if re.search(r"(?<![a-z])g(?![a-z])", normalized) or "\u0433" in normalized:
-        return "g"
-    if re.search(r"(?<![a-z])l(?![a-z])", normalized) or "\u043b" in normalized:
-        return "l"
-    return None
-
-
-def _provider_catalog_candidates_matching_query(
-    candidates: list[dict[str, Any]],
-    query_text: str,
-) -> tuple[list[dict[str, Any]], int, list[dict[str, Any]]]:
-    accepted: list[dict[str, Any]] = []
-    rejected_count = 0
-    rejection_samples: list[dict[str, Any]] = []
-    for candidate in candidates:
-        product_name = _candidate_intent_text(candidate)
-        if not product_name or not query_text or _catalog_product_name_matches_query(product_name, query_text):
-            accepted.append(candidate)
-            continue
-        rejected_count += 1
-        if len(rejection_samples) < MAX_INTENT_REJECTION_SAMPLES:
-            rejection_samples.append(_intent_rejection_sample(candidate, query_text))
-    return accepted, rejected_count, rejection_samples
-
-
-def _add_rejected_by_intent(
-    diagnostics: dict[str, Any],
-    rejected_count: int,
-    rejection_samples: list[dict[str, Any]] | None = None,
-) -> None:
-    if rejected_count <= 0:
-        return
-    diagnostics["candidates_rejected_by_intent"] = (
-        int(diagnostics.get("candidates_rejected_by_intent") or 0) + rejected_count
-    )
-    if rejection_samples:
-        _extend_intent_rejection_samples(diagnostics, rejection_samples)
-
-
-def _intent_rejection_sample(candidate: dict[str, Any], query_text: str) -> dict[str, Any]:
-    sample = {
-        "name": _text(candidate.get("name") or candidate.get("product_name")) or "",
-        "url": _text(candidate.get("url")) or "",
-        "reasons": supplier_product_name_mismatch_reasons(query_text, _candidate_intent_text(candidate)),
-    }
-    return {key: value for key, value in sample.items() if value not in ("", [], None)}
-
-
-def _extend_intent_rejection_samples(target: dict[str, Any], samples: list[dict[str, Any]]) -> None:
-    current = [dict(item) for item in target.get("intent_rejection_samples") or [] if isinstance(item, dict)]
-    current = current[:MAX_INTENT_REJECTION_SAMPLES]
-    seen = {
-        (
-            (_text(item.get("url")) or "").casefold(),
-            (_text(item.get("name")) or "").casefold(),
-        )
-        for item in current
-    }
-    for sample in samples:
-        if len(current) >= MAX_INTENT_REJECTION_SAMPLES:
-            break
-        key = (
-            (_text(sample.get("url")) or "").casefold(),
-            (_text(sample.get("name")) or "").casefold(),
-        )
-        if key in seen:
-            continue
-        seen.add(key)
-        current.append(dict(sample))
-        if len(current) >= MAX_INTENT_REJECTION_SAMPLES:
-            break
-    if current:
-        target["intent_rejection_samples"] = current
-
-
-def _with_intent_rejection_diagnostics(
-    diagnostics: dict[str, Any],
-    rejected_count: int,
-    rejection_reasons: dict[str, int] | None = None,
-) -> dict[str, Any]:
-    if rejected_count <= 0:
-        return diagnostics
-    updated = dict(diagnostics)
-    updated["candidates_rejected_by_intent"] = int(updated.get("candidates_rejected_by_intent") or 0) + rejected_count
-    if rejection_reasons:
-        current_reasons = dict(updated.get("intent_rejection_reasons") or {})
-        for reason, count in rejection_reasons.items():
-            current_reasons[reason] = int(current_reasons.get(reason) or 0) + int(count)
-        updated["intent_rejection_reasons"] = current_reasons
-    return updated
-
-
-def _increment_reason_counts(target: dict[str, int], reasons: list[str]) -> None:
-    for reason in reasons:
-        target[reason] = int(target.get(reason) or 0) + 1
-
-
 def _find_profile(profiles: list[dict[str, Any]], position_index: int) -> dict[str, Any] | None:
     for profile in profiles:
         if int(profile.get("position_index") or 0) == position_index:
             return profile
     return None
-
-
-def _supplier_search_queries(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, dict):
-        return []
-    queries = value.get("queries")
-    if not isinstance(queries, list):
-        return []
-    return [dict(item) for item in queries if isinstance(item, dict)]
-
-
-def _refreshed_supplier_search_queries(profile: dict[str, Any], raw_payload: dict[str, Any]) -> list[dict[str, Any]]:
-    existing_queries = _supplier_search_queries(raw_payload.get("supplier_search"))
-    fresh_queries = build_supplier_search_queries(profile)
-    if not existing_queries:
-        return fresh_queries
-    return _unique_supplier_search_queries([*existing_queries, *fresh_queries])
-
-
-def _unique_supplier_search_queries(queries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    unique: list[dict[str, Any]] = []
-    index_by_key: dict[str, int] = {}
-    for query in queries:
-        query_text = _text(query.get("query"))
-        if not query_text:
-            continue
-        key = query_text.casefold()
-        if key in index_by_key:
-            unique[index_by_key[key]] = _merge_supplier_search_query(unique[index_by_key[key]], query)
-            continue
-        index_by_key[key] = len(unique)
-        unique.append(dict(query))
-    return unique
-
-
-def _merge_supplier_search_query(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
-    merged = dict(left)
-    if _has_direct_supplier_quick_link(left):
-        return merged
-    merged_links = _unique_quick_links([*_quick_links(left), *_quick_links(right)])
-    if merged_links:
-        merged["quick_links"] = merged_links
-    return merged
-
-
-def _has_direct_supplier_quick_link(query: dict[str, Any]) -> bool:
-    for link in _quick_links(query):
-        if _text(link.get("link_kind")) == CATALOG_SEARCH_LINK_KIND:
-            continue
-        url = _text(link.get("url"))
-        if url and _is_public_product_page_url(url):
-            return True
-    return False
-
-
-def _unique_quick_links(links: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    unique: list[dict[str, Any]] = []
-    seen: set[tuple[str, str, str, str]] = set()
-    for link in links:
-        url = _text(link.get("url"))
-        if not url:
-            continue
-        key = (
-            url.casefold(),
-            _text(link.get("provider")) or "",
-            _text(link.get("link_kind")) or "",
-            _text(link.get("preset_id")) or "",
-        )
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(dict(link))
-    return unique
-
-
-def _record_supplier_discovery_diagnostics(
-    store: TenderStore,
-    source: str,
-    external_id: str,
-    profiles: list[dict[str, Any]],
-    target: dict[str, Any],
-    collector_diagnostics: list[dict[str, Any]],
-) -> None:
-    raw_payload = dict(target.get("raw_payload") or {})
-    discovery = dict(raw_payload.get("supplier_discovery") or {})
-    candidates = _dict_items(discovery.get("candidates"))
-    discovery["status"] = discovery.get("status") or "no_candidates"
-    if not candidates:
-        discovery["status"] = "no_candidates"
-    discovery["collector_diagnostics"] = collector_diagnostics
-    discovery["candidates"] = candidates
-    raw_payload["supplier_discovery"] = discovery
-    target["raw_payload"] = raw_payload
-    store.upsert_product_profiles(source, external_id, profiles)
-
-
-def _tender_discovery_diagnostics(profiles: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    diagnostics_by_provider: dict[str, dict[str, Any]] = {}
-    for profile in profiles:
-        raw_payload = profile.get("raw_payload") if isinstance(profile.get("raw_payload"), dict) else {}
-        discovery = raw_payload.get("supplier_discovery") if isinstance(raw_payload.get("supplier_discovery"), dict) else {}
-        diagnostics = discovery.get("collector_diagnostics") if isinstance(discovery.get("collector_diagnostics"), list) else []
-        for item in diagnostics:
-            if isinstance(item, dict) and _diagnostics_has_signal(item):
-                _merge_diagnostics(diagnostics_by_provider, item)
-    return list(diagnostics_by_provider.values())
-
-
-def _supplier_discovery_error_message(exc: ValueError) -> str:
-    message = str(exc)
-    lowered = message.casefold()
-    if NO_SUPPLIER_CANDIDATES_MESSAGE.casefold() in lowered or "new candidates" in lowered:
-        return NO_SUPPLIER_CANDIDATES_MESSAGE
-    if PREPARE_SUPPLIER_SEARCH_MESSAGE.casefold() in lowered or "prepare" in lowered:
-        return PREPARE_SUPPLIER_SEARCH_MESSAGE
-    return message
-
-
-def _collector_diagnostics(provider: str) -> dict[str, Any]:
-    return {
-        "provider": provider,
-        "queries_seen": 0,
-        "links_seen": 0,
-        "links_skipped": 0,
-        "pages_fetched": 0,
-        "candidates_found": 0,
-        "errors": [],
-    }
-
-
-def _skipped_collector_diagnostics(provider: str, reason: str) -> dict[str, Any]:
-    diagnostics = _collector_diagnostics(provider)
-    diagnostics["run_state"] = "skipped"
-    diagnostics["skip_reason"] = reason
-    return diagnostics
-
-
-def _blocked_collector_diagnostics(provider: str) -> dict[str, Any]:
-    diagnostics = _collector_diagnostics(provider)
-    diagnostics["run_state"] = "blocked"
-    diagnostics["skip_reason"] = ACCESS_BLOCKED_ERROR_KIND
-    diagnostics["error_kind"] = ACCESS_BLOCKED_ERROR_KIND
-    return diagnostics
-
-
-def _fetch_action_for_link(link: dict[str, Any]) -> str:
-    return ACTION_PRODUCT_PAGE_FETCH if _text(link.get("link_kind")) == MANUAL_PRODUCT_LINK_KIND else ACTION_PUBLIC_SEARCH_FETCH
-
-
-def _mark_policy_skipped(diagnostics: dict[str, Any], reason: str) -> None:
-    diagnostics["run_state"] = "skipped"
-    diagnostics["skip_reason"] = reason
-    policy_reasons = diagnostics.setdefault("policy_skip_reasons", {})
-    policy_reasons[reason] = int(policy_reasons.get(reason) or 0) + 1
-
-
-def _mark_catalog_access_blocked(
-    diagnostics: dict[str, Any],
-    url: str,
-    *,
-    error: BaseException | None = None,
-) -> None:
-    diagnostics["run_state"] = "blocked"
-    diagnostics["skip_reason"] = ACCESS_BLOCKED_ERROR_KIND
-    diagnostics["error_kind"] = ACCESS_BLOCKED_ERROR_KIND
-    if error is None:
-        diagnostics["errors"].append(f"{ACCESS_BLOCKED_ERROR_KIND} body from {url}")
-        return
-    diagnostics["errors"].append(f"{ACCESS_BLOCKED_ERROR_KIND} error from {url}: {error}")
-
-
-def _skip_remaining_links(diagnostics: dict[str, Any], links: list[dict[str, Any]], current_index: int) -> None:
-    diagnostics["links_skipped"] += max(0, len(links) - int(current_index) - 1)
-
-
-def _catalog_access_block_reason_from_error(exc: BaseException) -> str | None:
-    response = getattr(exc, "response", None)
-    status_code = getattr(response, "status_code", None)
-    if isinstance(status_code, int) and status_code in ACCESS_BLOCKED_STATUS_CODES:
-        return ACCESS_BLOCKED_ERROR_KIND
-    text = str(exc).casefold()
-    if any(
-        marker in text
-        for marker in (
-            ACCESS_BLOCKED_ERROR_KIND,
-            "forbidden",
-            "captcha",
-            "\u043a\u0430\u043f\u0447",
-            "browser check",
-            "\u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u0432\u0430\u0448\u0435\u0433\u043e \u0432\u0435\u0431-\u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430",
-            "\u043f\u0440\u043e\u0439\u0434\u0438\u0442\u0435 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0443",
-        )
-    ):
-        return ACCESS_BLOCKED_ERROR_KIND
-    return None
-
-
-def _catalog_access_block_reason_from_body(body: str) -> str | None:
-    text = re.sub(r"\s+", " ", str(body or "")).casefold()
-    if not text:
-        return None
-    if "if you are not a bot" in text:
-        return ACCESS_BLOCKED_ERROR_KIND
-    if "forbidden" in text and ("origin:" in text or "copy the report" in text):
-        return ACCESS_BLOCKED_ERROR_KIND
-    if any(
-        marker in text
-        for marker in (
-            "access denied",
-            "browser verification",
-            "verification required",
-            "captcha",
-            "\u043a\u0430\u043f\u0447",
-            "browser check",
-            "\u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u0432\u0430\u0448\u0435\u0433\u043e \u0432\u0435\u0431-\u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430",
-            "\u043f\u0440\u043e\u0439\u0434\u0438\u0442\u0435 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0443",
-        )
-    ):
-        return ACCESS_BLOCKED_ERROR_KIND
-    return None
-
-
-def _catalog_body_has_provider_product_signal(provider: str, body: str) -> bool:
-    body_text = str(body or "")
-    if not body_text.strip():
-        return False
-    soup = BeautifulSoup(body_text, "html.parser")
-    if re.search(r'"@type"\s*:\s*(?:"Product"|\[[^\]]*"Product")', body_text, re.IGNORECASE):
-        return True
-    provider_key = str(provider or "").casefold()
-    if provider_key == "officemag":
-        return bool(
-            _officemag_product_scopes(soup)
-            or soup.select_one(".ProductHead__name, .Product__price, .js-productSum")
-        )
-    if provider_key == "komus":
-        return bool(soup.select_one("a[href*='/p/'], .product-card, [data-qa*='product' i]"))
-    if provider_key == "petrovich":
-        return bool(soup.select_one("a[href^='/product/'], a[href*='/product/'], .product-card, [data-test*='product' i]"))
-    if provider_key in {"vseinstrumenti", "lemanapro"}:
-        return bool(soup.select_one("a[href*='/product/'], .product-card, [data-qa*='product' i]"))
-    return False
-
-
-def _merge_diagnostics(current: dict[str, dict[str, Any]], item: dict[str, Any]) -> None:
-    provider = str(item.get("provider") or "unknown")
-    target = current.setdefault(provider, _collector_diagnostics(provider))
-    for field in (
-        "queries_seen",
-        "links_seen",
-        "links_skipped",
-        "pages_fetched",
-        "candidates_found",
-        "candidates_rejected_by_intent",
-    ):
-        value = int(item.get(field) or 0)
-        if field not in target and value == 0:
-            continue
-        target[field] = int(target.get(field) or 0) + value
-    for reason, count in dict(item.get("intent_rejection_reasons") or {}).items():
-        target_reasons = target.setdefault("intent_rejection_reasons", {})
-        target_reasons[str(reason)] = int(target_reasons.get(str(reason)) or 0) + int(count or 0)
-    _extend_intent_rejection_samples(
-        target,
-        [dict(sample) for sample in item.get("intent_rejection_samples") or [] if isinstance(sample, dict)],
-    )
-    if run_state := _text(item.get("run_state")):
-        target["run_state"] = run_state
-    if skip_reason := _text(item.get("skip_reason")):
-        target["skip_reason"] = skip_reason
-    if error_kind := _text(item.get("error_kind")):
-        target["error_kind"] = error_kind
-    for field in ("candidate_limit", "candidates_seen", "candidates_limited", "candidates_staged"):
-        if field in item:
-            target[field] = int(item.get(field) or 0)
-    target["errors"].extend([str(error) for error in item.get("errors") or []])
-
-
-def _diagnostics_is_access_blocked(item: dict[str, Any]) -> bool:
-    if _text(item.get("error_kind")) == ACCESS_BLOCKED_ERROR_KIND:
-        return True
-    if _text(item.get("skip_reason")) == ACCESS_BLOCKED_ERROR_KIND:
-        return True
-    return any(_catalog_access_block_reason_from_error(RuntimeError(str(error))) for error in item.get("errors") or [])
-
-
-def _diagnostics_has_signal(item: dict[str, Any]) -> bool:
-    return bool(
-        item.get("pages_fetched")
-        or item.get("candidates_found")
-        or item.get("candidates_rejected_by_intent")
-        or item.get("run_state") == "skipped"
-        or item.get("run_state") == "blocked"
-        or item.get("skip_reason")
-        or item.get("error_kind")
-        or item.get("errors")
-    )
-
-
-def _quick_links(query: dict[str, Any]) -> list[dict[str, Any]]:
-    links = query.get("quick_links")
-    if not isinstance(links, list):
-        return []
-    return [dict(link) for link in links if isinstance(link, dict) and _text(link.get("url"))]
-
-
-def _catalog_product_page_urls(html: str, source_url: str) -> list[str]:
-    urls: list[str] = []
-    seen: set[str] = set()
-    for product_url in _officemag_hidden_product_page_urls(html, source_url):
-        _append_unique_url(urls, seen, product_url)
-    for product_url in _schema_product_page_urls(html, source_url):
-        _append_unique_url(urls, seen, product_url)
-    for product_url in _same_site_anchor_urls(html, source_url):
-        _append_unique_url(urls, seen, product_url)
-    return urls
-
-
-def _catalog_fallback_page_urls(html: str, source_url: str, provider: str) -> list[str]:
-    provider_key = provider.casefold()
-    if provider_key != "officemag":
-        return []
-    soup = BeautifulSoup(html, "html.parser")
-    urls: list[str] = []
-    seen: set[str] = set()
-    for node in soup.select('input[name="SECTION"][value]'):
-        section = _text(node.get("value"))
-        if not section or not section.isdigit() or int(section) <= 0:
-            continue
-        _append_unique_url(urls, seen, urljoin(source_url, f"/catalog/{section}/"))
-    return urls
-
-
-def _is_builtin_catalog_search_link(link: dict[str, Any]) -> bool:
-    provider = _text(link.get("provider"))
-    return (
-        _text(link.get("link_kind")) in {CATALOG_SEARCH_LINK_KIND, MANUAL_PRODUCT_LINK_KIND}
-        and provider is not None
-        and provider.casefold() in BUILT_IN_CATALOG_PROVIDER_SET
-    )
-
-
-def _is_catalog_search_link_for_provider(link: dict[str, Any], provider: str) -> bool:
-    link_provider = _text(link.get("provider"))
-    return (
-        _text(link.get("link_kind")) in {CATALOG_SEARCH_LINK_KIND, MANUAL_PRODUCT_LINK_KIND}
-        and link_provider is not None
-        and link_provider.casefold() == provider.casefold()
-    )
 
 
 def _existing_candidate_keys(raw_payload: dict[str, Any]) -> set[tuple[str, str]]:
