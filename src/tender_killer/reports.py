@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from tender_killer.analysis_evidence_service import build_analysis_evidence_items
+from tender_killer.analysis_operator_sections_service import MAJOR_SECTION_IDS
 from tender_killer.analysis_operator_view_service import build_analysis_operator_view
-from tender_killer.analysis_operator_view_service import MAJOR_SECTION_IDS
 from tender_killer.reports_analysis_items import report_item_action as _report_item_action
 from tender_killer.reports_analysis_items import report_item_meaning as _report_item_meaning
 from tender_killer.reports_docx_writer import DocxElement

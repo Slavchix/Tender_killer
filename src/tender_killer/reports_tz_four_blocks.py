@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from tender_killer.analysis_operator_view_service import MAJOR_SECTION_DEFINITIONS
-from tender_killer.analysis_operator_view_service import MAJOR_SECTION_IDS
+from tender_killer.analysis_operator_sections_service import MAJOR_SECTION_DEFINITIONS
+from tender_killer.analysis_operator_sections_service import MAJOR_SECTION_IDS
 from tender_killer.reports_analysis_items import item_source_text
 from tender_killer.reports_analysis_items import operator_feedback_text
 from tender_killer.reports_analysis_items import report_item_action

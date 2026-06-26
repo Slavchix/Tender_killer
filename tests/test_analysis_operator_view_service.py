@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from tender_killer.analysis_operator_view_service import MAJOR_SECTION_IDS, build_analysis_operator_view
+from tender_killer.analysis_operator_sections_service import MAJOR_SECTION_IDS
+from tender_killer.analysis_operator_view_service import build_analysis_operator_view
 
 
 def test_build_analysis_operator_view_preserves_context_pack_fact_metadata():

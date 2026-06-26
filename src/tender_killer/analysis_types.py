@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 
 class SourceBinding(TypedDict, total=False):
@@ -129,16 +129,41 @@ class ConditionGroupsContract(TypedDict):
     metrics: ConditionGroupsMetrics
 
 
-class OperatorSection(TypedDict, total=False):
+class OperatorItem(AnalysisFact, total=False):
+    source_binding: SourceBinding
+    confidence_level: EvidenceQuality
+    evidence_quality: EvidenceQuality
+    interpretation: FactInterpretation
+    operator_summary: str
+    operator_check: str
+    operator_group: str
+    operator_action: str
+    display_tier: str
+    weak_reason: str
+    impact: str
+    price_impact: str
+    priority: int
+    is_blocker: bool
+    is_price_factor: bool
+    needs_review: bool
+    expected_missing: bool
+    conflict_flags: list[str]
+    feedback_state: str
+    feedback_label: str
+    feedback_comment: str
+    feedback_history: list[dict[str, Any]]
+
+
+class OperatorSection(TypedDict):
     id: str
     title: str
     count: int
     tone: str
     empty: str
-    items: list[AnalysisFact]
+    items: list[OperatorItem]
 
 
-class DecisionBrief(TypedDict, total=False):
+class DecisionBrief(TypedDict):
     status: str
     tone: str
     title: str
@@ -147,8 +172,8 @@ class DecisionBrief(TypedDict, total=False):
     confidence: float | None
     primary_section: str
     reasons: list[str]
-    blockers: list[str]
-    recommended_actions: list[str]
+    blockers: NotRequired[list[str]]
+    recommended_actions: NotRequired[list[str]]
 
 
 class OperatorViewMetrics(TypedDict, total=False):
@@ -169,7 +194,7 @@ class OperatorViewMetrics(TypedDict, total=False):
     unbound_facts: int
 
 
-class OperatorView(TypedDict, total=False):
+class OperatorView(TypedDict):
     version: int
     document_state: dict[str, Any]
     tz_workflow: dict[str, Any]
@@ -182,6 +207,3 @@ class OperatorView(TypedDict, total=False):
     metrics: OperatorViewMetrics
     major_blocks: list[OperatorSection]
     sections: list[OperatorSection]
-
-
-OperatorItem = AnalysisFact

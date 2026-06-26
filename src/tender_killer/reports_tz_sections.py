@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from tender_killer.analysis_passport_service import build_analysis_tz_passport
-from tender_killer.analysis_operator_view_service import MAJOR_SECTION_IDS
+from tender_killer.analysis_operator_sections_service import MAJOR_SECTION_IDS
 from tender_killer.reports_docx_writer import DocxElement
 from tender_killer.reports_docx_writer import paragraph as _p
 from tender_killer.reports_docx_writer import table as _table
