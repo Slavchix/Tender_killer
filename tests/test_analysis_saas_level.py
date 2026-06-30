@@ -30,6 +30,12 @@ TENDER_ANALYSIS_CONDITION_GROUPS_SOURCE = (
 TENDER_ANALYSIS_WORKFLOW_PANEL_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisWorkflowPanel.jsx"
 )
+TENDER_ANALYSIS_QUESTIONS_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisQuestionsPanel.jsx"
+)
+TENDER_ANALYSIS_PLAYBOOKS_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisPlaybooksPanel.jsx"
+)
 STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css"
 STYLES_ANALYSIS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.css"
 STYLES_ANALYSIS_SECONDARY_SOURCE = (
@@ -286,6 +292,8 @@ def test_frontend_exposes_tz_saas_workflow_questions_and_playbooks():
     secondary_source = TENDER_ANALYSIS_SECONDARY_SOURCE.read_text(encoding="utf-8")
     condition_groups_source = TENDER_ANALYSIS_CONDITION_GROUPS_SOURCE.read_text(encoding="utf-8")
     workflow_panel_source = TENDER_ANALYSIS_WORKFLOW_PANEL_SOURCE.read_text(encoding="utf-8")
+    questions_source = TENDER_ANALYSIS_QUESTIONS_SOURCE.read_text(encoding="utf-8")
+    playbooks_source = TENDER_ANALYSIS_PLAYBOOKS_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
     assert "export function saveAnalysisWorkflow" in api_source
@@ -302,6 +310,14 @@ def test_frontend_exposes_tz_saas_workflow_questions_and_playbooks():
     assert "export function workflowStatusLabel" in workflow_panel_source
     assert "AnalysisQuestionsPanel" in secondary_source
     assert "AnalysisPlaybooksPanel" in secondary_source
+    assert "from './TenderAnalysisQuestionsPanel'" in secondary_source
+    assert "from './TenderAnalysisPlaybooksPanel'" in secondary_source
+    assert "function AnalysisQuestionsPanel" not in secondary_source
+    assert "function AnalysisPlaybooksPanel" not in secondary_source
+    assert "export function AnalysisQuestionsPanel" in questions_source
+    assert "export function AnalysisPlaybooksPanel" in playbooks_source
+    assert "export function questionCount" in questions_source
+    assert "export function playbookCount" in playbooks_source
     assert "AnalysisEvidenceDrilldownPanel" in analysis_source
     assert "selectedEvidence" in analysis_source
     assert "onEvidenceSelect" in analysis_source

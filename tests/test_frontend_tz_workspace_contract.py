@@ -10,6 +10,7 @@ def test_tz_analysis_secondary_tools_are_collapsed_and_localized():
     source = (WEB_SRC / "TenderAnalysisTab.jsx").read_text(encoding="utf-8")
     secondary_source = (WEB_SRC / "TenderAnalysisSecondaryDrawers.jsx").read_text(encoding="utf-8")
     workflow_source = (WEB_SRC / "TenderAnalysisWorkflowPanel.jsx").read_text(encoding="utf-8")
+    playbooks_source = (WEB_SRC / "TenderAnalysisPlaybooksPanel.jsx").read_text(encoding="utf-8")
 
     assert "AnalysisSecondaryDrawers" in source
     assert "function AnalysisWorkflowPanel" not in source
@@ -18,15 +19,15 @@ def test_tz_analysis_secondary_tools_are_collapsed_and_localized():
     assert "analysis-secondary-drawer" in secondary_source
     assert "Проверка ТЗ и подсказки" in secondary_source
     assert "Контрольные вопросы" in secondary_source
-    assert "Подсказки оператора" in secondary_source
+    assert "Подсказки оператора" in playbooks_source
     assert "Рабочий процесс ТЗ" in workflow_source
     assert "Скачать отчет" in source
-    assert "оператор" in secondary_source
-    assert "{entry.actor || 'operator'}" not in secondary_source
-    assert "Workflow ТЗ" not in secondary_source
+    assert "оператор" in playbooks_source or "оператор" in workflow_source
+    assert "{entry.actor || 'operator'}" not in workflow_source
+    assert "Workflow ТЗ" not in secondary_source + workflow_source
     assert "AI-вопросы" not in secondary_source
-    assert "<span><BookOpenCheck size={15} /> Playbooks</span>" not in secondary_source
-    assert "или playbook" not in secondary_source
+    assert "<span><BookOpenCheck size={15} /> Playbooks</span>" not in playbooks_source
+    assert "или playbook" not in secondary_source + playbooks_source
 
 
 def test_tz_analysis_source_details_are_deduplicated():
