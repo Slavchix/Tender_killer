@@ -123,14 +123,33 @@ USE_TENDER_MARKET_STATE_IMPORT_SOURCE = (
 )
 
 
+def read_css_source(path: Path, seen: set[Path] | None = None) -> str:
+    seen = seen or set()
+    path = path.resolve()
+    if path in seen:
+        return ""
+    seen.add(path)
+    source = path.read_text(encoding="utf-8")
+    chunks = []
+    for line in source.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("@import "):
+            quote = "'" if "'" in stripped else '"'
+            parts = stripped.split(quote)
+            if len(parts) >= 3:
+                chunks.append(read_css_source(path.parent / parts[1], seen))
+        chunks.append(line)
+    return "\n".join(chunks)
+
+
 def read_styles_source() -> str:
     return "\n".join(
         (
-            STYLES_SOURCE.read_text(encoding="utf-8"),
-            STYLES_DASHBOARD_SOURCE.read_text(encoding="utf-8"),
-            STYLES_DETAIL_SOURCE.read_text(encoding="utf-8"),
-            STYLES_ANALYSIS_SOURCE.read_text(encoding="utf-8"),
-            STYLES_ECONOMICS_SOURCE.read_text(encoding="utf-8"),
+            read_css_source(STYLES_SOURCE),
+            read_css_source(STYLES_DASHBOARD_SOURCE),
+            read_css_source(STYLES_DETAIL_SOURCE),
+            read_css_source(STYLES_ANALYSIS_SOURCE),
+            read_css_source(STYLES_ECONOMICS_SOURCE),
         )
     )
 
