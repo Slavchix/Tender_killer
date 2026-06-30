@@ -66,6 +66,9 @@ TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE = (
 TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPriceCandidateQueue.jsx"
 )
+TENDER_ECONOMICS_BEST_PRICE_CANDIDATE_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsBestPriceCandidate.jsx"
+)
 TENDER_ECONOMICS_PRICE_CANDIDATE_PASSPORT_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPriceCandidatePassport.jsx"
 )
@@ -220,6 +223,7 @@ def test_economics_workspace_exposes_compact_operator_flow():
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
     price_candidate_queue_source = TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE.read_text(encoding="utf-8")
+    best_price_candidate_source = TENDER_ECONOMICS_BEST_PRICE_CANDIDATE_SOURCE.read_text(encoding="utf-8")
     price_candidate_passport_source = TENDER_ECONOMICS_PRICE_CANDIDATE_PASSPORT_SOURCE.read_text(encoding="utf-8")
     candidate_model_source = TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE.read_text(encoding="utf-8")
     profile_workspace_source = TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.read_text(encoding="utf-8")
@@ -231,7 +235,8 @@ def test_economics_workspace_exposes_compact_operator_flow():
     assert "nextEconomicsAction" in tab_source
     assert "primaryEconomicsAction" in tab_source
     assert "PriceCandidateQueue" in suppliers_source
-    assert "best-price-candidate" in price_candidate_queue_source
+    assert "BestPriceCandidate" in price_candidate_queue_source
+    assert "best-price-candidate" in best_price_candidate_source
     assert "candidate-queue-tabs" in price_candidate_queue_source
     assert "candidateQueueBuckets" in suppliers_source
     assert "candidateNeedsManualPrice" in price_candidate_queue_source
@@ -245,6 +250,7 @@ def test_economics_workspace_exposes_compact_operator_flow():
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
     assert find_mojibake(price_candidate_queue_source, TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE) == []
+    assert find_mojibake(best_price_candidate_source, TENDER_ECONOMICS_BEST_PRICE_CANDIDATE_SOURCE) == []
     assert find_mojibake(profile_workspace_source, TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE) == []
     assert find_mojibake(position_scenario_source, TENDER_ECONOMICS_POSITION_SCENARIO_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
