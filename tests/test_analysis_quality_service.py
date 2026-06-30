@@ -35,6 +35,22 @@ def test_find_unused_direct_imports_reports_unused_import_names(tmp_path):
     ]
 
 
+def test_find_unused_direct_imports_treats_all_exports_as_usage(tmp_path):
+    source = tmp_path / "analysis_reexport.py"
+    source.write_text(
+        "\n".join(
+            [
+                "from sample import exported_name",
+                "",
+                "__all__ = ['exported_name']",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert find_unused_direct_imports([source]) == []
+
+
 def test_analysis_modules_do_not_have_unused_direct_imports():
     analysis_sources = sorted((ROOT / "src" / "tender_killer").glob("analysis_*.py"))
 

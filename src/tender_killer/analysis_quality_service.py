@@ -38,11 +38,35 @@ def _imported_names(tree: ast.AST) -> list[tuple[str, int]]:
 
 
 def _used_names(tree: ast.AST) -> set[str]:
-    used: set[str] = set()
+    used: set[str] = _all_export_names(tree)
     for node in ast.walk(tree):
         if isinstance(node, ast.Name) and not _is_import_name(node):
             used.add(node.id)
     return used
+
+
+def _all_export_names(tree: ast.AST) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        value: ast.AST | None = None
+        if isinstance(node, ast.Assign) and any(_is_all_target(target) for target in node.targets):
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and _is_all_target(node.target):
+            value = node.value
+        if value is None:
+            continue
+        names.update(_literal_string_items(value))
+    return names
+
+
+def _is_all_target(node: ast.AST) -> bool:
+    return isinstance(node, ast.Name) and node.id == "__all__"
+
+
+def _literal_string_items(node: ast.AST) -> set[str]:
+    if not isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return set()
+    return {item.value for item in node.elts if isinstance(item, ast.Constant) and isinstance(item.value, str)}
 
 
 def _is_import_name(node: ast.Name) -> bool:

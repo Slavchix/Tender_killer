@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import importlib
+import importlib.util
+
 from tender_killer.analysis_operator_item_service import build_operator_item
+from tender_killer.analysis_operator_item_service import canonical_label
 from tender_killer.analysis_operator_item_service import dedupe_operator_items
+from tender_killer.analysis_operator_item_service import description_is_only_label
+from tender_killer.analysis_operator_item_service import fallback_kind
 from tender_killer.analysis_operator_item_service import operator_item_is_visible
+from tender_killer.analysis_operator_item_service import operator_item_quality
 
 
 def test_build_operator_item_normalizes_unbound_fact_for_manual_review():
@@ -62,3 +69,44 @@ def test_operator_item_is_visible_hides_label_only_requirement():
     }
 
     assert operator_item_is_visible(item) is False
+
+
+def test_operator_item_quality_helpers_live_in_focused_module():
+    spec = importlib.util.find_spec("tender_killer.analysis_operator_item_quality_service")
+    assert spec is not None
+
+    quality_service = importlib.import_module("tender_killer.analysis_operator_item_quality_service")
+
+    focused_dedupe_operator_items = quality_service.dedupe_operator_items
+    focused_operator_item_is_visible = quality_service.operator_item_is_visible
+    focused_operator_item_quality = quality_service.operator_item_quality
+
+    assert dedupe_operator_items is focused_dedupe_operator_items
+    assert operator_item_is_visible is focused_operator_item_is_visible
+    assert operator_item_quality is focused_operator_item_quality
+
+
+def test_operator_item_taxonomy_helpers_live_in_focused_module():
+    spec = importlib.util.find_spec("tender_killer.analysis_operator_item_taxonomy_service")
+    assert spec is not None
+
+    taxonomy_service = importlib.import_module("tender_killer.analysis_operator_item_taxonomy_service")
+
+    assert fallback_kind is taxonomy_service.fallback_kind
+    assert canonical_label is taxonomy_service.canonical_label
+
+
+def test_operator_item_wording_helpers_live_in_focused_module():
+    spec = importlib.util.find_spec("tender_killer.analysis_operator_item_wording_service")
+    assert spec is not None
+
+    wording_service = importlib.import_module("tender_killer.analysis_operator_item_wording_service")
+
+    assert description_is_only_label is wording_service.description_is_only_label
+    assert hasattr(wording_service, "operator_impact")
+    assert hasattr(wording_service, "operator_action")
+    assert hasattr(wording_service, "operator_description")
+    assert hasattr(wording_service, "operator_display_tier")
+    assert hasattr(wording_service, "operator_summary")
+    assert hasattr(wording_service, "operator_check")
+    assert hasattr(wording_service, "operator_weak_reason")

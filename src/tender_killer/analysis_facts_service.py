@@ -3,7 +3,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from tender_killer.analysis_source_service import document_source_for_fragment
+from tender_killer.analysis_fact_source_service import document_source as _document_source
+from tender_killer.analysis_fact_source_service import evidence_sources as _evidence_sources
+from tender_killer.analysis_fact_source_service import page_number as _page_number
+from tender_killer.analysis_fact_source_service import source_label as _source_label
 from tender_killer.analysis_text_index_service import document_roles_from_text_index
 from tender_killer.analysis_text_index_service import infer_document_role
 from tender_killer.analysis_types import AnalysisFact
@@ -558,71 +561,6 @@ def _document_stage(*, label: str, category: str, text: str) -> str:
     return ""
 
 
-def _resolve_document_name(item: dict[str, Any], fragment: str, documents: list[dict[str, Any]]) -> str:
-    explicit = _text(item.get("document_name") or item.get("source"))
-    if explicit:
-        return explicit
-    needle = _normalized_text(fragment)
-    if not needle:
-        return ""
-    for document in documents:
-        haystack = _normalized_text(document.get("text_content"))
-        if needle in haystack:
-            return _text(document.get("name") or document.get("url"))
-    return ""
-
-
-def _document_source(item: dict[str, Any], fragment: str, documents: list[dict[str, Any]]) -> dict[str, Any]:
-    explicit_document = _text(item.get("document_name") or item.get("source"))
-    explicit_source = {
-        "document_name": explicit_document,
-        "source_page": item.get("source_page"),
-        "source_label": _text(item.get("source_label")),
-        "source_context": _text(item.get("source_context")),
-    }
-    if (
-        explicit_source["document_name"]
-        and (explicit_source["source_page"] not in (None, "") or explicit_source["source_context"])
-    ):
-        return explicit_source
-
-    matched = document_source_for_fragment(fragment, documents)
-    if matched:
-        return {
-            "document_name": _text(matched.get("document_name")),
-            "source_page": matched.get("source_page"),
-            "source_label": _text(matched.get("source_label")),
-            "source_context": _text(matched.get("source_context")),
-        }
-
-    if explicit_document:
-        return explicit_source
-    return {
-        "document_name": _resolve_document_name(item, fragment, documents),
-        "source_page": item.get("source_page"),
-        "source_label": _text(item.get("source_label")),
-        "source_context": _text(item.get("source_context")),
-    }
-
-
-def _page_number(value: Any) -> int | None:
-    if value in (None, ""):
-        return None
-    try:
-        page = int(value)
-    except (TypeError, ValueError):
-        return None
-    return page if page > 0 else None
-
-
-def _source_label(document_name: str, page_number: int | None) -> str:
-    if not document_name:
-        return ""
-    if page_number is None:
-        return f"{document_name} · стр. не определена"
-    return f"{document_name} · стр. {page_number}"
-
-
 def _metrics(items: list[dict[str, Any]]) -> dict[str, int]:
     actionable = [item for item in items if item.get("kind") != "subject"]
     return {
@@ -714,18 +652,6 @@ def _unique_sources(values: list[Any]) -> list[dict[str, Any]]:
         seen.add(key)
         result.append(source)
     return result
-
-
-def _evidence_sources(document_name: str, source_label: str, fragment: str) -> list[dict[str, Any]]:
-    if not _text(fragment):
-        return []
-    return [
-        {
-            "document_name": _text(document_name),
-            "source_label": _text(source_label),
-            "fragment": _text(fragment),
-        }
-    ]
 
 
 def _semantic_key(label: str, category: str) -> str:
