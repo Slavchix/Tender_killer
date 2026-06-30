@@ -26,6 +26,9 @@ TENDER_ANALYSIS_SECONDARY_SOURCE = (
 )
 STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css"
 STYLES_ANALYSIS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.css"
+STYLES_ANALYSIS_SECONDARY_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.secondary.css"
+)
 STYLES_ECONOMICS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.economics.css"
 
 
@@ -34,6 +37,7 @@ def read_styles_source() -> str:
         (
             STYLES_SOURCE.read_text(encoding="utf-8"),
             STYLES_ANALYSIS_SOURCE.read_text(encoding="utf-8"),
+            STYLES_ANALYSIS_SECONDARY_SOURCE.read_text(encoding="utf-8"),
             STYLES_ECONOMICS_SOURCE.read_text(encoding="utf-8"),
         )
     )

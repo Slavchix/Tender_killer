@@ -25,6 +25,7 @@ import './styles.css'
 import './styles.dashboard.css'
 import './styles.detail.css'
 import './styles.analysis.css'
+import './styles.analysis.secondary.css'
 import './styles.economics.css'
 import {
   sourceLabels,
