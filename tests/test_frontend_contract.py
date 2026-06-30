@@ -69,6 +69,9 @@ TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE = (
 TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSupplierDiscovery.jsx"
 )
+TENDER_ECONOMICS_SUPPLIER_DISCOVERY_DIAGNOSTICS_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSupplierDiscoveryDiagnostics.jsx"
+)
 TENDER_ECONOMICS_SUPPLIER_SEARCH_PREVIEW_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSupplierSearchPreview.jsx"
 )
@@ -264,11 +267,12 @@ def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     price_candidate_queue_source = TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE.read_text(encoding="utf-8")
     candidate_model_source = TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE.read_text(encoding="utf-8")
     discovery_source = TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.read_text(encoding="utf-8")
+    discovery_diagnostics_source = TENDER_ECONOMICS_SUPPLIER_DISCOVERY_DIAGNOSTICS_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
     assert "ProviderRunSummary" in discovery_source
-    assert "provider-run-summary" in discovery_source
-    assert "supplierDiscoveryRunBuckets" in discovery_source
+    assert "provider-run-summary" in discovery_diagnostics_source
+    assert "supplierDiscoveryRunBuckets" in discovery_diagnostics_source
     assert "supplier-discovery-next-action" in discovery_source
     assert "CandidateDecisionTrace" in price_candidate_queue_source
     assert "CandidatePricePassport" in price_candidate_queue_source
@@ -301,6 +305,7 @@ def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     assert find_mojibake(price_candidate_queue_source, TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE) == []
     assert find_mojibake(candidate_model_source, TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE) == []
     assert find_mojibake(discovery_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []
+    assert find_mojibake(discovery_diagnostics_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_DIAGNOSTICS_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
@@ -748,6 +753,11 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
         if TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.exists()
         else ""
     )
+    economics_supplier_discovery_diagnostics_source = (
+        TENDER_ECONOMICS_SUPPLIER_DISCOVERY_DIAGNOSTICS_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_SUPPLIER_DISCOVERY_DIAGNOSTICS_SOURCE.exists()
+        else ""
+    )
     economics_supplier_search_preview_source = (
         TENDER_ECONOMICS_SUPPLIER_SEARCH_PREVIEW_SOURCE.read_text(encoding="utf-8")
         if TENDER_ECONOMICS_SUPPLIER_SEARCH_PREVIEW_SOURCE.exists()
@@ -822,8 +832,10 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert "function ProductSupplierOptionsForm" not in economics_source
     assert "export function ProductSupplierOptionsForm" in economics_suppliers_source
     assert "TenderEconomicsSupplierSearchPreview" in economics_supplier_discovery_source
+    assert "TenderEconomicsSupplierDiscoveryDiagnostics" in economics_supplier_discovery_source
     assert "export function SupplierSearchPreview" in economics_supplier_search_preview_source
     assert "export function SupplierDiscoveryPreview" in economics_supplier_discovery_source
+    assert "export function SupplierDiscoveryDiagnostics" in economics_supplier_discovery_diagnostics_source
     assert "export function SupplierOptionsList" in economics_supplier_options_source
     assert "export function ManualSupplierPricePanel" in economics_manual_supplier_price_source
     assert "function ProductAutoEconomicsPanel" not in economics_source
@@ -850,6 +862,10 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert find_mojibake(economics_cost_form_source, TENDER_ECONOMICS_COST_FORM_SOURCE) == []
     assert find_mojibake(economics_suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
     assert find_mojibake(economics_supplier_discovery_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []
+    assert find_mojibake(
+        economics_supplier_discovery_diagnostics_source,
+        TENDER_ECONOMICS_SUPPLIER_DISCOVERY_DIAGNOSTICS_SOURCE,
+    ) == []
     assert find_mojibake(economics_supplier_search_preview_source, TENDER_ECONOMICS_SUPPLIER_SEARCH_PREVIEW_SOURCE) == []
     assert find_mojibake(economics_supplier_options_source, TENDER_ECONOMICS_SUPPLIER_OPTIONS_SOURCE) == []
     assert find_mojibake(economics_auto_source, TENDER_ECONOMICS_AUTO_SOURCE) == []
@@ -1676,6 +1692,7 @@ def test_product_profile_renders_supplier_option_form():
         if TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.exists()
         else ""
     )
+    discovery_diagnostics_source = TENDER_ECONOMICS_SUPPLIER_DISCOVERY_DIAGNOSTICS_SOURCE.read_text(encoding="utf-8")
     search_preview_source = TENDER_ECONOMICS_SUPPLIER_SEARCH_PREVIEW_SOURCE.read_text(encoding="utf-8")
     options_source = (
         TENDER_ECONOMICS_SUPPLIER_OPTIONS_SOURCE.read_text(encoding="utf-8")
@@ -1802,29 +1819,29 @@ def test_product_profile_renders_supplier_option_form():
     assert "TenderEconomicsSupplierSearchPreview" in discovery_source
     assert "export function SupplierSearchPreview" in search_preview_source
     assert "export function SupplierDiscoveryPreview" in discovery_source
-    assert "function SupplierDiscoveryDiagnostics" in discovery_source
+    assert "export function SupplierDiscoveryDiagnostics" in discovery_diagnostics_source
     assert "supplierDiscoveryNoCandidateHint" in discovery_source
     assert "technical-discovery-details" in discovery_source
     assert "diagnosticsOpen" in discovery_source
     assert "discovery?.status === 'no_candidates'" in discovery_source
     assert "Кандидаты не найдены" in discovery_source
-    assert "Цена не прочиталась автоматически" in discovery_source
-    assert "Сайт поставщика заблокировал автоматическую проверку" in discovery_source
-    assert "Страница прочиталась, но товар не совпал с позицией" in discovery_source
+    assert "Цена не прочиталась автоматически" in discovery_diagnostics_source
+    assert "Сайт поставщика заблокировал автоматическую проверку" in discovery_diagnostics_source
+    assert "Страница прочиталась, но товар не совпал с позицией" in discovery_diagnostics_source
     assert "candidates.length > 0" in discovery_source
     assert "collector_diagnostics" in discovery_source
-    assert "diagnostics.pages_fetched" in discovery_source
-    assert "diagnostics.candidates_found" in discovery_source
-    assert "diagnostics.links_skipped" in discovery_source
-    assert "diagnostics.errors" in discovery_source
-    assert "diagnostics.intent_rejection_reasons" in discovery_source
-    assert "formatIntentRejectionReason" in discovery_source
-    assert "supplier-discovery-rejection-reasons" in discovery_source
-    assert "compactDiscoveryErrors(errors)" in discovery_source
-    assert "formatDiscoveryError(error)" in discovery_source
-    assert "Сайт требует браузерную проверку" in discovery_source
-    assert "Добавь ссылку на товар вручную" in discovery_source
-    assert "errors.join(' · ')" not in discovery_source
+    assert "diagnostics.pages_fetched" in discovery_diagnostics_source
+    assert "diagnostics.candidates_found" in discovery_diagnostics_source
+    assert "diagnostics.links_skipped" in discovery_diagnostics_source
+    assert "diagnostics.errors" in discovery_diagnostics_source
+    assert "diagnostics.intent_rejection_reasons" in discovery_diagnostics_source
+    assert "formatIntentRejectionReason" in discovery_diagnostics_source
+    assert "supplier-discovery-rejection-reasons" in discovery_diagnostics_source
+    assert "compactDiscoveryErrors(errors)" in discovery_diagnostics_source
+    assert "formatDiscoveryError(error)" in discovery_diagnostics_source
+    assert "Сайт требует браузерную проверку" in discovery_diagnostics_source
+    assert "Добавь ссылку на товар вручную" in discovery_diagnostics_source
+    assert "errors.join(' · ')" not in discovery_diagnostics_source
     assert "supplierConfidenceLabel(candidate.confidence)" in discovery_source
     assert "candidate.provider" in discovery_source
     assert "confidence_reasons" in discovery_source
@@ -1882,6 +1899,7 @@ def test_product_profile_renders_supplier_option_form():
     assert find_mojibake(price_candidate_queue_source, TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE) == []
     assert find_mojibake(candidate_model_source, TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE) == []
     assert find_mojibake(discovery_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []
+    assert find_mojibake(discovery_diagnostics_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_DIAGNOSTICS_SOURCE) == []
     assert find_mojibake(search_preview_source, TENDER_ECONOMICS_SUPPLIER_SEARCH_PREVIEW_SOURCE) == []
     assert find_mojibake(options_source, TENDER_ECONOMICS_SUPPLIER_OPTIONS_SOURCE) == []
     assert find_mojibake(forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
