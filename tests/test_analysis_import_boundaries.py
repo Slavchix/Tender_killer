@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_tz_section_constants_are_imported_from_sections_service():
     for relative_path in [
         "src/tender_killer/analysis_passport_service.py",
-        "src/tender_killer/reports.py",
+        "src/tender_killer/reports_analysis_decision.py",
         "src/tender_killer/reports_tz_four_blocks.py",
         "src/tender_killer/reports_tz_sections.py",
     ]:
@@ -49,3 +49,11 @@ def test_operator_view_service_delegates_fact_source_selection():
         "AnalysisFactsContract",
     ]:
         assert forbidden_import not in source
+
+
+def test_reports_do_not_keep_legacy_analysis_fallback_sections():
+    source = (ROOT / "src/tender_killer/reports.py").read_text(encoding="utf-8")
+
+    assert "analysis_evidence_service import build_analysis_evidence_items" not in source
+    assert "def _analysis_checklist_elements" not in source
+    assert "def _analysis_evidence_elements" not in source
