@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpenCheck, CalendarDays, FileSearch, HelpCircle, ListChecks, Save, UserRound } from 'lucide-react'
+import { BookOpenCheck, CalendarDays, HelpCircle, ListChecks, Save, UserRound } from 'lucide-react'
 import { AnalysisDecisionBrief } from './TenderAnalysisDecisionBrief'
 import { AnalysisDocumentsPanel } from './TenderAnalysisDocumentsPanel'
+import { AnalysisEvidenceDrilldownPanel } from './TenderAnalysisEvidenceDrilldown'
+import { resolveEvidenceDrilldown } from './TenderAnalysisEvidenceModel'
 import { AnalysisPassport } from './TenderAnalysisPassport'
 import {
   AnalysisSectionBody,
@@ -430,82 +432,6 @@ function PlaybookEvidenceButtons({ factIds, evidenceIndex = {}, onEvidenceSelect
   )
 }
 
-function AnalysisEvidenceDrilldownPanel({ evidenceIndex = {}, selectedEvidence }) {
-  const evidence = selectedEvidence || evidenceIndexItems(evidenceIndex)[0]
-  if (!evidence) {
-    return (
-      <aside className="analysis-evidence-drilldown empty">
-        <div className="analysis-saas-panel-head">
-          <span><FileSearch size={15} /> Источник</span>
-        </div>
-        <p>Выберите факт, вопрос или подсказку, чтобы увидеть фрагмент документа.</p>
-      </aside>
-    )
-  }
-  const sourceBinding = evidence.source_binding && typeof evidence.source_binding === 'object' ? evidence.source_binding : {}
-  const confidence = evidence.confidence_level && typeof evidence.confidence_level === 'object' ? evidence.confidence_level : {}
-  const quality = evidence.evidence_quality && typeof evidence.evidence_quality === 'object' ? evidence.evidence_quality : {}
-  const relatedFactIds = Array.isArray(evidence.related_fact_ids) ? evidence.related_fact_ids : []
-  const evidenceNotes = uniqueEvidenceNotes([sourceBinding.detail, quality.detail])
-  return (
-    <aside className="analysis-evidence-drilldown">
-      <div className="analysis-saas-panel-head">
-        <span><FileSearch size={15} /> Источник</span>
-        <strong>{quality.label || sourceBinding.label || evidence.source_label || 'фрагмент'}</strong>
-      </div>
-      <div className="analysis-evidence-drilldown-title">
-        <strong>{evidence.title || evidence.label || evidence.question || 'Источник'}</strong>
-        <span>{evidence.source_label || evidence.document_name || 'Источник не привязан'}</span>
-      </div>
-      <div className="analysis-evidence-meta">
-        {sourceBinding.label && <span className={`analysis-source-binding-${sourceBinding.level || 'context'}`}>{sourceBinding.label}</span>}
-        {confidence.label && <span className={`analysis-confidence-${confidence.level || 'medium'}`}>{confidence.label}</span>}
-        {quality.label && <span className={`analysis-evidence-quality-${quality.level || 'context'}`}>{quality.label}</span>}
-      </div>
-      {evidenceNotes.map((note) => (
-        <p key={note}>{note}</p>
-      ))}
-      {evidence.fragment && (
-        <blockquote className="analysis-evidence-fragment">
-          {evidence.fragment}
-        </blockquote>
-      )}
-      {evidence.source_context && evidence.source_context !== evidence.fragment && (
-        <p className="analysis-evidence-context">{evidence.source_context}</p>
-      )}
-      {relatedFactIds.length ? (
-        <div className="analysis-evidence-related">
-          <span>Связанные факты</span>
-          <strong>{relatedFactIds.join(', ')}</strong>
-        </div>
-      ) : null}
-    </aside>
-  )
-}
-
-function resolveEvidenceDrilldown(value, evidenceIndex = {}) {
-  if (!value) return null
-  if (typeof value === 'string') return evidenceByFactId(value, evidenceIndex)
-  const drilldownId = value.evidence_drilldown_id || value.drilldown_id
-  if (drilldownId) return evidenceById(drilldownId, evidenceIndex) || value
-  if (value.fact_id) return evidenceByFactId(value.fact_id, evidenceIndex) || value
-  if (value.id) return evidenceById(value.id, evidenceIndex) || value
-  return value
-}
-
-function evidenceByFactId(factId, evidenceIndex = {}) {
-  const itemId = evidenceIndex?.by_fact_id?.[factId] || factId
-  return evidenceById(itemId, evidenceIndex)
-}
-
-function evidenceById(id, evidenceIndex = {}) {
-  return evidenceIndexItems(evidenceIndex).find((item) => item.id === id) || null
-}
-
-function evidenceIndexItems(evidenceIndex = {}) {
-  return Array.isArray(evidenceIndex.items) ? evidenceIndex.items : []
-}
-
 function workflowStatusLabel(status) {
   const labels = {
     documents_not_downloaded: 'документы не скачаны',
@@ -536,19 +462,6 @@ function conditionGroupSummaryLabel(conditionGroups = {}) {
   if (conflicts) return `противоречий: ${conflicts}`
   if (missing) return `не найдено: ${missing}`
   return 'по смысловым группам'
-}
-
-function uniqueEvidenceNotes(values) {
-  const seen = new Set()
-  return values
-    .map((value) => String(value || '').trim())
-    .filter((value) => {
-      if (!value) return false
-      const key = value.toLowerCase()
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
 }
 
 function workflowDraftFromContract(workflow = {}) {

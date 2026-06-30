@@ -25,8 +25,27 @@ def test_tz_analysis_secondary_tools_are_collapsed_and_localized():
 
 def test_tz_analysis_source_details_are_deduplicated():
     tab_source = (WEB_SRC / "TenderAnalysisTab.jsx").read_text(encoding="utf-8")
-    sections_source = (WEB_SRC / "TenderAnalysisSections.jsx").read_text(encoding="utf-8")
+    evidence_model_source = (WEB_SRC / "TenderAnalysisEvidenceModel.js").read_text(encoding="utf-8")
+    evidence_drilldown_source = (WEB_SRC / "TenderAnalysisEvidenceDrilldown.jsx").read_text(encoding="utf-8")
+    fact_card_source = (WEB_SRC / "AnalysisFactCard.jsx").read_text(encoding="utf-8")
+    fact_model_source = (WEB_SRC / "analysisFactModel.js").read_text(encoding="utf-8")
 
-    assert "uniqueEvidenceNotes" in tab_source
-    assert "uniqueAnalysisTexts" in sections_source
-    assert "sourceNotes.map" in sections_source
+    assert "uniqueEvidenceNotes" not in tab_source
+    assert "uniqueEvidenceNotes" in evidence_model_source
+    assert "uniqueEvidenceNotes" in evidence_drilldown_source
+    assert "uniqueAnalysisTexts" in fact_card_source
+    assert "uniqueAnalysisTexts" in fact_model_source
+    assert "sourceNotes.map" in fact_card_source
+
+
+def test_tz_analysis_evidence_drilldown_is_delegated():
+    tab_source = (WEB_SRC / "TenderAnalysisTab.jsx").read_text(encoding="utf-8")
+    evidence_model_source = (WEB_SRC / "TenderAnalysisEvidenceModel.js").read_text(encoding="utf-8")
+    evidence_drilldown_source = (WEB_SRC / "TenderAnalysisEvidenceDrilldown.jsx").read_text(encoding="utf-8")
+
+    assert "from './TenderAnalysisEvidenceDrilldown'" in tab_source
+    assert "from './TenderAnalysisEvidenceModel'" in tab_source
+    assert "function AnalysisEvidenceDrilldownPanel" not in tab_source
+    assert "function resolveEvidenceDrilldown" not in tab_source
+    assert "export function AnalysisEvidenceDrilldownPanel" in evidence_drilldown_source
+    assert "export function resolveEvidenceDrilldown" in evidence_model_source
