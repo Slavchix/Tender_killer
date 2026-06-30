@@ -69,6 +69,9 @@ TENDER_ECONOMICS_PRICE_MEMORY_SOURCE = (
 TENDER_ECONOMICS_COMMAND_CENTER_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsCommandCenter.jsx"
 )
+TENDER_ECONOMICS_COMMAND_CENTER_MODEL_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsCommandCenterModel.js"
+)
 TENDER_ECONOMICS_FORMS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsForms.jsx"
 TENDER_ECONOMICS_COST_FORM_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsCostForm.jsx"
 TENDER_ECONOMICS_COST_FORM_MODEL_SOURCE = (
@@ -257,6 +260,7 @@ def test_frontend_uses_dedicated_formatters_module():
 def test_economics_workspace_exposes_compact_operator_flow():
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     command_center_source = TENDER_ECONOMICS_COMMAND_CENTER_SOURCE.read_text(encoding="utf-8")
+    command_center_model_source = TENDER_ECONOMICS_COMMAND_CENTER_MODEL_SOURCE.read_text(encoding="utf-8")
     suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
     price_candidate_queue_source = TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE.read_text(encoding="utf-8")
     best_price_candidate_source = TENDER_ECONOMICS_BEST_PRICE_CANDIDATE_SOURCE.read_text(encoding="utf-8")
@@ -269,6 +273,9 @@ def test_economics_workspace_exposes_compact_operator_flow():
     assert "EconomicsProgressStepper" in command_center_source
     assert "economics-stepper" in command_center_source
     assert "nextEconomicsAction" in command_center_source
+    assert "function nextEconomicsAction" not in command_center_source
+    assert "export function nextEconomicsAction" in command_center_model_source
+    assert "export function economicsProgressSteps" in command_center_model_source
     assert "primaryEconomicsAction" in command_center_source
     assert "PriceCandidateQueue" in suppliers_source
     assert "BestPriceCandidate" in price_candidate_queue_source
@@ -285,6 +292,7 @@ def test_economics_workspace_exposes_compact_operator_flow():
     assert ".candidate-queue-tabs" in styles_source
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(command_center_source, TENDER_ECONOMICS_COMMAND_CENTER_SOURCE) == []
+    assert find_mojibake(command_center_model_source, TENDER_ECONOMICS_COMMAND_CENTER_MODEL_SOURCE) == []
     assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
     assert find_mojibake(price_candidate_queue_source, TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE) == []
     assert find_mojibake(best_price_candidate_source, TENDER_ECONOMICS_BEST_PRICE_CANDIDATE_SOURCE) == []
@@ -295,17 +303,21 @@ def test_economics_workspace_exposes_compact_operator_flow():
 
 def test_economics_command_center_keeps_secondary_actions_collapsed():
     command_center_source = TENDER_ECONOMICS_COMMAND_CENTER_SOURCE.read_text(encoding="utf-8")
+    command_center_model_source = TENDER_ECONOMICS_COMMAND_CENTER_MODEL_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
     assert "economics-secondary-menu" in command_center_source
     assert "economics-secondary-summary" in command_center_source
     assert "secondaryEconomicsActions.map" in command_center_source
+    assert "function economicsSecondaryActions" not in command_center_source
+    assert "export function economicsSecondaryActions" in command_center_model_source
     assert "primaryEconomicsAction &&" in command_center_source
     assert ".economics-secondary-menu" in styles_source
     assert ".economics-secondary-summary" in styles_source
     assert "Готовые цены в расчет" not in command_center_source
     assert "Лучшие цены в расчет" not in command_center_source
     assert find_mojibake(command_center_source, TENDER_ECONOMICS_COMMAND_CENTER_SOURCE) == []
+    assert find_mojibake(command_center_model_source, TENDER_ECONOMICS_COMMAND_CENTER_MODEL_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
@@ -853,6 +865,7 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
         else ""
     )
     economics_command_center_source = TENDER_ECONOMICS_COMMAND_CENTER_SOURCE.read_text(encoding="utf-8")
+    economics_command_center_model_source = TENDER_ECONOMICS_COMMAND_CENTER_MODEL_SOURCE.read_text(encoding="utf-8")
 
     assert "from './TenderEconomicsTab'" in workspaces_source
     assert "export function TenderEconomicsTab" in economics_source
@@ -912,6 +925,8 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert "function TenderEconomicsMetrics" not in economics_source
     assert "export function TenderEconomicsMetrics" in economics_metrics_source
     assert "export function TenderEconomicsCommandCenter" in economics_command_center_source
+    assert "from './TenderEconomicsCommandCenterModel'" in economics_command_center_source
+    assert "export function nextEconomicsAction" in economics_command_center_model_source
     assert "function EconomicsProgressStepper" not in economics_source
     assert "function EconomicsProgressStepper" in economics_command_center_source
     assert "economics-tab-summary" in economics_metrics_source
@@ -924,6 +939,7 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(economics_command_center_source, TENDER_ECONOMICS_COMMAND_CENTER_SOURCE) == []
+    assert find_mojibake(economics_command_center_model_source, TENDER_ECONOMICS_COMMAND_CENTER_MODEL_SOURCE) == []
     assert find_mojibake(economics_summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
     assert find_mojibake(economics_decision_scenarios_source, TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE) == []
     assert find_mojibake(economics_forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
@@ -3258,6 +3274,7 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     command_center_source = TENDER_ECONOMICS_COMMAND_CENTER_SOURCE.read_text(encoding="utf-8")
+    command_center_model_source = TENDER_ECONOMICS_COMMAND_CENTER_MODEL_SOURCE.read_text(encoding="utf-8")
 
     assert "export function stageTenderPriceCandidates" in api_source
     assert "price-candidates/stage" in api_source
@@ -3301,12 +3318,14 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     assert "priceDiscoveryJob" in workspaces_source
     assert "onPriceDiscoveryRun" in economics_source
     assert "priceDiscoveryJobStatusText" in command_center_source
+    assert "export function priceDiscoveryJobStatusText" in command_center_model_source
     assert "runningPriceDiscovery" in economics_source
-    assert "SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT = 5" in command_center_source
+    assert "SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT" in command_center_source
+    assert "SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT = 5" in command_center_model_source
     assert "canRunActivePriceDiscovery" in economics_source
     assert "price-discovery-manual-required" in command_center_source
     assert "быстрые ссылки/ссылка на товар/прайс" in command_center_source
-    assert "Найти цены" in command_center_source
+    assert "Найти цены" in command_center_model_source
     assert "Подготовить цены" not in economics_source
     assert "Автоцены в расчет" not in economics_source
     assert find_mojibake(api_source, API_SOURCE) == []
@@ -3314,6 +3333,7 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     assert find_mojibake(price_actions_source, USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(command_center_source, TENDER_ECONOMICS_COMMAND_CENTER_SOURCE) == []
+    assert find_mojibake(command_center_model_source, TENDER_ECONOMICS_COMMAND_CENTER_MODEL_SOURCE) == []
 
 
 def test_economics_tab_exposes_price_book_feed_import_ui():
