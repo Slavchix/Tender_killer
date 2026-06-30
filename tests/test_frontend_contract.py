@@ -71,6 +71,9 @@ TENDER_ECONOMICS_COMMAND_CENTER_SOURCE = (
 )
 TENDER_ECONOMICS_FORMS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsForms.jsx"
 TENDER_ECONOMICS_COST_FORM_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsCostForm.jsx"
+TENDER_ECONOMICS_COST_FORM_MODEL_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsCostFormModel.js"
+)
 TENDER_ECONOMICS_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSummary.jsx"
 TENDER_ECONOMICS_SUPPLIERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSuppliers.jsx"
 TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE = (
@@ -793,6 +796,11 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
         if TENDER_ECONOMICS_COST_FORM_SOURCE.exists()
         else ""
     )
+    economics_cost_form_model_source = (
+        TENDER_ECONOMICS_COST_FORM_MODEL_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_COST_FORM_MODEL_SOURCE.exists()
+        else ""
+    )
     economics_suppliers_source = (
         TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
         if TENDER_ECONOMICS_SUPPLIERS_SOURCE.exists()
@@ -881,6 +889,9 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert "function ProductEconomicsForm" not in economics_source
     assert "export function ProductEconomicsForm" not in economics_forms_source
     assert "export function ProductEconomicsForm" in economics_cost_form_source
+    assert "from './TenderEconomicsCostFormModel'" in economics_cost_form_source
+    assert "export function economicsFormValues" in economics_cost_form_model_source
+    assert "export function buildLandedCostPreview" in economics_cost_form_model_source
     assert "export function ProductEconomicsAssumptionsForm" in economics_forms_source
     assert "function ProductSupplierOptionsForm" not in economics_source
     assert "export function ProductSupplierOptionsForm" in economics_suppliers_source
@@ -917,6 +928,7 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert find_mojibake(economics_decision_scenarios_source, TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE) == []
     assert find_mojibake(economics_forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
     assert find_mojibake(economics_cost_form_source, TENDER_ECONOMICS_COST_FORM_SOURCE) == []
+    assert find_mojibake(economics_cost_form_model_source, TENDER_ECONOMICS_COST_FORM_MODEL_SOURCE) == []
     assert find_mojibake(economics_suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
     assert find_mojibake(economics_supplier_discovery_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []
     assert find_mojibake(
@@ -1670,6 +1682,11 @@ def test_product_profile_renders_economics_input_form():
     )
     forms_source = TENDER_ECONOMICS_FORMS_SOURCE.read_text(encoding="utf-8") if TENDER_ECONOMICS_FORMS_SOURCE.exists() else ""
     cost_form_source = TENDER_ECONOMICS_COST_FORM_SOURCE.read_text(encoding="utf-8") if TENDER_ECONOMICS_COST_FORM_SOURCE.exists() else ""
+    cost_form_model_source = (
+        TENDER_ECONOMICS_COST_FORM_MODEL_SOURCE.read_text(encoding="utf-8")
+        if TENDER_ECONOMICS_COST_FORM_MODEL_SOURCE.exists()
+        else ""
+    )
     api_source = API_SOURCE.read_text(encoding="utf-8")
 
     assert "from './TenderEconomicsForms'" not in tab_source
@@ -1694,6 +1711,9 @@ def test_product_profile_renders_economics_input_form():
     assert "other_costs" in cost_form_source
     assert "economics-landed-preview" in cost_form_source
     assert "buildLandedCostPreview" in cost_form_source
+    assert "function buildLandedCostPreview" not in cost_form_source
+    assert "export function buildLandedCostPreview" in cost_form_model_source
+    assert "export function economicsCostSummary" in cost_form_model_source
     assert "Себестоимость" in cost_form_source
     assert "Итого себестоимость" in cost_form_source
     assert "landed cost" not in cost_form_source.lower()
@@ -1701,15 +1721,18 @@ def test_product_profile_renders_economics_input_form():
     assert find_mojibake(workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
     assert find_mojibake(forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
     assert find_mojibake(cost_form_source, TENDER_ECONOMICS_COST_FORM_SOURCE) == []
+    assert find_mojibake(cost_form_model_source, TENDER_ECONOMICS_COST_FORM_MODEL_SOURCE) == []
 
 
 def test_product_profile_cost_form_supports_service_cost_model():
     cost_form_source = TENDER_ECONOMICS_COST_FORM_SOURCE.read_text(encoding="utf-8")
+    cost_form_model_source = TENDER_ECONOMICS_COST_FORM_MODEL_SOURCE.read_text(encoding="utf-8")
 
     assert "cost_model" in cost_form_source
     assert 'value="service"' in cost_form_source
     assert "isServiceCostModel" in cost_form_source
-    assert "buildServiceCostPreview" in cost_form_source
+    assert "buildServiceCostPreview" not in cost_form_source
+    assert "export function buildServiceCostPreview" in cost_form_model_source
     assert "service_rate" in cost_form_source
     assert "service_volume" in cost_form_source
     assert "service_minimum" in cost_form_source
@@ -1724,6 +1747,7 @@ def test_product_profile_cost_form_supports_service_cost_model():
     assert "Техника" in cost_form_source
     assert "Режим цены" in cost_form_source
     assert find_mojibake(cost_form_source, TENDER_ECONOMICS_COST_FORM_SOURCE) == []
+    assert find_mojibake(cost_form_model_source, TENDER_ECONOMICS_COST_FORM_MODEL_SOURCE) == []
 
 
 def test_product_profile_renders_supplier_option_form():
