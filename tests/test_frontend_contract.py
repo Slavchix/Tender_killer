@@ -37,6 +37,8 @@ TENDER_ANALYSIS_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "
 TENDER_ANALYSIS_SECTIONS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisSections.jsx"
 ANALYSIS_SECTIONS_MODEL_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "analysisSectionsModel.js"
 ANALYSIS_FACT_CARD_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisFactCard.jsx"
+ANALYSIS_FACT_SOURCE_CONTEXT_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisFactSourceContext.jsx"
+ANALYSIS_FACT_VIEW_MODEL_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "analysisFactViewModel.js"
 TENDER_ANALYSIS_EVIDENCE_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisEvidencePanel.jsx"
 )
@@ -51,6 +53,9 @@ TENDER_DECISION_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "
 TENDER_ECONOMICS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsTab.jsx"
 TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsDecisionScenarios.jsx"
+)
+TENDER_ECONOMICS_DECISION_ENGINE_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsDecisionEngine.jsx"
 )
 TENDER_ECONOMICS_PRICE_BOOK_FEED_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPriceBookFeed.jsx"
@@ -1503,6 +1508,8 @@ def test_tender_analysis_renders_actionable_checklist():
     source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
     model_source = ANALYSIS_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
     fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
+    fact_source_context_source = ANALYSIS_FACT_SOURCE_CONTEXT_SOURCE.read_text(encoding="utf-8")
+    fact_view_model_source = ANALYSIS_FACT_VIEW_MODEL_SOURCE.read_text(encoding="utf-8")
     styles = read_styles_source()
 
     assert "MAJOR_ANALYSIS_SECTIONS" in model_source
@@ -1519,11 +1526,12 @@ def test_tender_analysis_renders_actionable_checklist():
     assert "analysis-checklist" in source
     assert "grid-template-columns: 1fr" in styles
     assert ".analysis-card," in styles
-    assert "item.source_label || item.source" in fact_card_source
-    assert "item.source_context" in fact_card_source
-    assert "analysis-source-context" in fact_card_source
+    assert "item.source_label || item.source" in fact_view_model_source
+    assert "item.source_context" in fact_source_context_source
+    assert "analysis-source-context" in fact_source_context_source
     assert ".analysis-source-context" in styles
     assert "Источник" in fact_card_source
+    assert "Источник" in fact_source_context_source
     row_text_rule = styles[
         styles.index(".analysis-checklist-row p"):styles.index("}", styles.index(".analysis-checklist-row p"))
     ]
@@ -1533,6 +1541,8 @@ def test_tender_analysis_renders_actionable_checklist():
     assert find_mojibake(source, TENDER_ANALYSIS_SECTIONS_SOURCE) == []
     assert find_mojibake(model_source, ANALYSIS_SECTIONS_MODEL_SOURCE) == []
     assert find_mojibake(fact_card_source, ANALYSIS_FACT_CARD_SOURCE) == []
+    assert find_mojibake(fact_source_context_source, ANALYSIS_FACT_SOURCE_CONTEXT_SOURCE) == []
+    assert find_mojibake(fact_view_model_source, ANALYSIS_FACT_VIEW_MODEL_SOURCE) == []
 
 
 def test_summary_metrics_have_stable_wrapping_container():
@@ -2653,6 +2663,8 @@ def test_analysis_tab_keeps_manual_section_selection_after_passport_click():
 def test_analysis_documents_render_structured_evidence_model():
     sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
     fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
+    fact_source_context_source = ANALYSIS_FACT_SOURCE_CONTEXT_SOURCE.read_text(encoding="utf-8")
+    fact_view_model_source = ANALYSIS_FACT_VIEW_MODEL_SOURCE.read_text(encoding="utf-8")
     fact_source_model = (Path(__file__).resolve().parents[1] / "web" / "src" / "analysisFactSourceModel.js").read_text(
         encoding="utf-8"
     )
@@ -2663,22 +2675,22 @@ def test_analysis_documents_render_structured_evidence_model():
     assert "buildDocumentEvidenceItems(analysis, documents)" not in sections_source
     assert "buildDocumentEvidenceItems(analysis, documents)" in evidence_source
     assert "TenderAnalysisEvidenceModel" not in sections_source
-    assert "analysis-source-context" in fact_card_source
-    assert "analysis-source-meta" in fact_card_source
-    assert "analysisSourceBinding(item)" in fact_card_source
-    assert "analysisConfidenceLevel(item)" in fact_card_source
-    assert "analysisEvidenceQuality(item)" in fact_card_source
-    assert "analysisSourceAuthority(item)" in fact_card_source
+    assert "analysis-source-context" in fact_source_context_source
+    assert "analysis-source-meta" in fact_source_context_source
+    assert "analysisSourceBinding(item)" in fact_view_model_source
+    assert "analysisConfidenceLevel(item)" in fact_view_model_source
+    assert "analysisEvidenceQuality(item)" in fact_view_model_source
+    assert "analysisSourceAuthority(item)" in fact_view_model_source
     assert "source_binding" in fact_source_model
     assert "confidence_level" in fact_source_model
     assert "evidence_quality" in fact_source_model
     assert "context_source_authority" in fact_source_model
     assert "context_document_role" in fact_source_model
     assert "context_source_priority" in fact_source_model
-    assert "analysis-source-authority" in fact_card_source
-    assert "analysis-evidence-quality-" in fact_card_source
+    assert "analysis-source-authority" in fact_source_context_source
+    assert "analysis-evidence-quality-" in fact_source_context_source
     assert "analysis-evidence-item" in evidence_source
-    assert "item.fragment" in fact_card_source
+    assert "item.fragment" in fact_source_context_source
     assert "item.typeLabel" in evidence_source
     assert "item.importanceLabel" in evidence_source
     assert "item.documentName" in evidence_source
@@ -2701,6 +2713,9 @@ def test_analysis_documents_render_structured_evidence_model():
     assert ".analysis-evidence-quality-conflict" in styles_source
     assert ".analysis-evidence-quality-missing" in styles_source
     assert find_mojibake(sections_source, TENDER_ANALYSIS_SECTIONS_SOURCE) == []
+    assert find_mojibake(fact_card_source, ANALYSIS_FACT_CARD_SOURCE) == []
+    assert find_mojibake(fact_source_context_source, ANALYSIS_FACT_SOURCE_CONTEXT_SOURCE) == []
+    assert find_mojibake(fact_view_model_source, ANALYSIS_FACT_VIEW_MODEL_SOURCE) == []
     assert find_mojibake(evidence_source, TENDER_ANALYSIS_EVIDENCE_SOURCE) == []
     assert find_mojibake(model_source, TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
@@ -3422,36 +3437,41 @@ def test_economics_summary_labels_current_offer_revenue():
 
 def test_economics_summary_surfaces_decision_engine_v2():
     summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
+    decision_engine_source = TENDER_ECONOMICS_DECISION_ENGINE_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
     assert "const economicsDecision = tender?.decision?.economics_decision || null" in summary_source
+    assert "from './TenderEconomicsDecisionEngine'" in summary_source
     assert "<DecisionEngineV2Panel decision={economicsDecision} />" in summary_source
-    assert "decision.auto_price_policy" in summary_source
-    assert "decision.historical_benchmark" in summary_source
-    assert "decision.one_line_explanation" in summary_source
-    assert "economics-decision-one-line" in summary_source
-    assert "formatAutoPricePolicy" in summary_source
-    assert "formatHistoricalBenchmark" in summary_source
+    assert "decision.auto_price_policy" in decision_engine_source
+    assert "decision.historical_benchmark" in decision_engine_source
+    assert "decision.one_line_explanation" in decision_engine_source
+    assert "economics-decision-one-line" in decision_engine_source
+    assert "formatAutoPricePolicy" in decision_engine_source
+    assert "formatHistoricalBenchmark" in decision_engine_source
     assert ".economics-decision-v2" in styles_source
     assert ".economics-decision-one-line" in styles_source
     assert find_mojibake(summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
+    assert find_mojibake(decision_engine_source, TENDER_ECONOMICS_DECISION_ENGINE_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
 def test_economics_ui_surfaces_memory_reuse_and_final_decision_card():
     summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
+    decision_engine_source = TENDER_ECONOMICS_DECISION_ENGINE_SOURCE.read_text(encoding="utf-8")
     candidate_model_source = TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
-    assert "decision.final_decision_card" in summary_source
-    assert "FinalDecisionCard" in summary_source
-    assert "economics-final-decision-card" in summary_source
-    assert "card.primary_reasons" in summary_source
+    assert "decision.final_decision_card" in decision_engine_source
+    assert "FinalDecisionCard" in decision_engine_source
+    assert "economics-final-decision-card" in decision_engine_source
+    assert "card.primary_reasons" in decision_engine_source
     assert "passport.reuse" in candidate_model_source
     assert "candidatePassportReuseLabel" in candidate_model_source
     assert "reuse.source_tender_external_id" in candidate_model_source
     assert ".economics-final-decision-card" in styles_source
     assert find_mojibake(summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
+    assert find_mojibake(decision_engine_source, TENDER_ECONOMICS_DECISION_ENGINE_SOURCE) == []
     assert find_mojibake(candidate_model_source, TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
