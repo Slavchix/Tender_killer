@@ -7,6 +7,10 @@ PRICE_CANDIDATE_LABELS_SOURCE = ROOT / "web" / "src" / "TenderEconomicsPriceCand
 PRICE_CANDIDATE_QUEUE_SOURCE = ROOT / "web" / "src" / "TenderEconomicsPriceCandidateQueue.jsx"
 PRICE_CANDIDATE_CARD_SOURCE = ROOT / "web" / "src" / "TenderEconomicsPriceCandidateCard.jsx"
 PRICE_CANDIDATE_PASSPORT_SOURCE = ROOT / "web" / "src" / "TenderEconomicsPriceCandidatePassport.jsx"
+SUPPLIER_DISCOVERY_DIAGNOSTICS_SOURCE = ROOT / "web" / "src" / "TenderEconomicsSupplierDiscoveryDiagnostics.jsx"
+SUPPLIER_DISCOVERY_DIAGNOSTICS_MODEL_SOURCE = (
+    ROOT / "web" / "src" / "TenderEconomicsSupplierDiscoveryDiagnosticsModel.js"
+)
 
 
 def test_price_candidate_labels_are_split_from_core_model():
@@ -45,3 +49,20 @@ def test_price_candidate_card_is_split_from_queue_shell():
     assert "CandidateDecisionTrace" in card_source
     assert "priceCandidateReasonItems" not in queue_source
     assert "priceCandidateReasonItems" in card_source
+
+
+def test_supplier_discovery_diagnostics_model_is_split_from_view():
+    source = SUPPLIER_DISCOVERY_DIAGNOSTICS_SOURCE.read_text(encoding="utf-8")
+    model_source = SUPPLIER_DISCOVERY_DIAGNOSTICS_MODEL_SOURCE.read_text(encoding="utf-8")
+
+    assert "from './TenderEconomicsSupplierDiscoveryDiagnosticsModel'" in source
+    assert "export function ProviderRunSummary" in source
+    assert "export function SupplierDiscoveryDiagnostics" in source
+    assert "function supplierDiscoveryRunBuckets" not in source
+    assert "export function supplierDiscoveryRunBuckets" in model_source
+    assert "function compactDiscoveryErrors" not in source
+    assert "export function compactDiscoveryErrors" in model_source
+    assert "function formatIntentRejectionReason" not in source
+    assert "export function formatIntentRejectionReason" in model_source
+    assert "export function supplierDiscoveryNextAction" in model_source
+    assert "export function supplierDiscoveryNoCandidateHint" in model_source
