@@ -128,10 +128,14 @@ def test_operator_view_drops_empty_cards_and_keeps_best_semantic_duplicate():
 
 
 def test_frontend_operator_view_filters_cards_before_counting():
-    source = Path("web/src/TenderAnalysisSections.jsx").read_text(encoding="utf-8")
+    sections_source = Path("web/src/TenderAnalysisSections.jsx").read_text(encoding="utf-8")
+    model_source = Path("web/src/analysisSectionsModel.js").read_text(encoding="utf-8")
+    display_source = Path("web/src/analysisItemDisplayModel.js").read_text(encoding="utf-8")
 
-    assert "displayableAnalysisItems(section.items)" in source
-    assert "count: analysisItemCount(items)" in source
-    assert "function isDisplayableAnalysisItem" in source
-    assert "analysisItemQuality(item) > 0" in source
-    assert "operator_action" not in source[source.index("function analysisItemQuality") : source.index("function semanticAnalysisItemKey")]
+    assert "displayableAnalysisItems(section.items)" in sections_source
+    assert "count: analysisItemCount(items)" in model_source
+    assert "function isDisplayableAnalysisItem" in display_source
+    assert "legacyAnalysisItemRank(item) > 0" in display_source
+    assert "operator_action" not in display_source[
+        display_source.index("function legacyAnalysisItemRank") : display_source.index("function backendAnalysisItemKey")
+    ]

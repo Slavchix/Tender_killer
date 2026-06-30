@@ -19,6 +19,12 @@ ANALYSIS_LEGACY_ADAPTER_SOURCE = (
 ANALYSIS_SECTIONS_MODEL_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "analysisSectionsModel.js"
 )
+ANALYSIS_BACKEND_SECTIONS_MODEL_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "analysisBackendSectionsModel.js"
+)
+ANALYSIS_ITEM_DISPLAY_MODEL_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "analysisItemDisplayModel.js"
+)
 ANALYSIS_TEXT_UTILS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "analysisTextUtils.js"
 )
@@ -135,11 +141,14 @@ def test_tender_analysis_has_compact_mode_and_single_all_bucket():
 def test_tender_analysis_uses_backend_condition_groups_instead_of_frontend_semantics():
     sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
     model_source = ANALYSIS_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
+    backend_source = ANALYSIS_BACKEND_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
+    display_source = ANALYSIS_ITEM_DISPLAY_MODEL_SOURCE.read_text(encoding="utf-8")
 
     assert "from './analysisSectionsModel'" in sections_source
     assert "operatorView?.condition_groups" in model_source
-    assert "backendConditionFamily" in model_source
-    assert "operatorSections.map((section) => normalizeOperatorSection(section, conditionGroups))" in model_source
+    assert "backendConditionFamily" in display_source
+    assert "buildBackendAnalysisSections(operatorSections, conditionGroups)" in model_source
+    assert "operatorSections) ? operatorSections : []).map((section) => (" in backend_source
     assert "MAJOR_ANALYSIS_SECTIONS.map((definition) => normalizeOperatorSection" not in model_source
     assert "buildLegacyAnalysisSections(analysis, documents, MAJOR_ANALYSIS_SECTIONS)" in model_source
     assert "id: definition.id" not in model_source
@@ -151,6 +160,26 @@ def test_tender_analysis_uses_backend_condition_groups_instead_of_frontend_seman
     assert "semanticAnalysisItemKey" not in sections_source
     assert "isRelevantAnalysisText" not in sections_source
     assert "meaningfulAnalysisTokens" not in sections_source
+
+
+def test_analysis_sections_model_is_split_by_responsibility():
+    model_source = ANALYSIS_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
+    backend_source = ANALYSIS_BACKEND_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
+    display_source = ANALYSIS_ITEM_DISPLAY_MODEL_SOURCE.read_text(encoding="utf-8")
+
+    assert "from './analysisBackendSectionsModel'" in model_source
+    assert "from './analysisItemDisplayModel'" in model_source
+    assert "export { displayableAnalysisItems, isAnalysisFactItem }" in model_source
+    assert "export function buildBackendAnalysisSections" in backend_source
+    assert "function normalizeOperatorSection" in backend_source
+    assert "function conditionGroupByFactId" in backend_source
+    assert "export function displayableAnalysisItems" in display_source
+    assert "export function isAnalysisFactItem" in display_source
+    assert "function legacyAnalysisItemRank" in display_source
+    assert "function normalizeOperatorSection" not in model_source
+    assert "function conditionGroupByFactId" not in model_source
+    assert "function displayableAnalysisItems" not in model_source
+    assert "function legacyAnalysisItemRank" not in model_source
 
 
 def test_tender_analysis_legacy_fallback_lives_in_adapter():
@@ -171,6 +200,8 @@ def test_tender_analysis_legacy_fallback_lives_in_adapter():
 def test_tender_analysis_text_helpers_live_in_shared_module():
     sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
     model_source = ANALYSIS_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
+    backend_source = ANALYSIS_BACKEND_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
+    display_source = ANALYSIS_ITEM_DISPLAY_MODEL_SOURCE.read_text(encoding="utf-8")
     fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
     feedback_source = ANALYSIS_FEEDBACK_CONTROLS_SOURCE.read_text(encoding="utf-8")
     text_utils_source = ANALYSIS_TEXT_UTILS_SOURCE.read_text(encoding="utf-8")
@@ -178,14 +209,18 @@ def test_tender_analysis_text_helpers_live_in_shared_module():
     assert "export function cleanAnalysisText" in text_utils_source
     assert "export function normalizedAnalysisText" in text_utils_source
     assert "export function uniqueAnalysisTexts" in text_utils_source
-    assert "from './analysisTextUtils'" in model_source
+    assert "from './analysisTextUtils'" in backend_source
+    assert "from './analysisTextUtils'" in display_source
     assert "from './analysisTextUtils'" in fact_card_source
     assert "from './analysisTextUtils'" in feedback_source
     assert "function cleanAnalysisText" not in sections_source
     assert "function cleanAnalysisText" not in model_source
+    assert "function cleanAnalysisText" not in backend_source
+    assert "function cleanAnalysisText" not in display_source
     assert "function cleanAnalysisText" not in fact_card_source
     assert "function cleanAnalysisText" not in feedback_source
     assert "function normalizedAnalysisText" not in model_source
+    assert "function normalizedAnalysisText" not in display_source
     assert "function normalizedAnalysisText" not in fact_card_source
     assert "function uniqueAnalysisTexts" not in fact_card_source
 

@@ -35,6 +35,7 @@ TENDER_WORKSPACES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" /
 TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
 TENDER_ANALYSIS_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisSummary.jsx"
 TENDER_ANALYSIS_SECTIONS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisSections.jsx"
+ANALYSIS_SECTIONS_MODEL_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "analysisSectionsModel.js"
 ANALYSIS_FACT_CARD_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisFactCard.jsx"
 TENDER_ANALYSIS_EVIDENCE_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisEvidencePanel.jsx"
@@ -56,6 +57,9 @@ TENDER_ECONOMICS_PRICE_BOOK_FEED_SOURCE = (
 )
 TENDER_ECONOMICS_PRICE_MEMORY_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPriceMemory.jsx"
+)
+TENDER_ECONOMICS_COMMAND_CENTER_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsCommandCenter.jsx"
 )
 TENDER_ECONOMICS_FORMS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsForms.jsx"
 TENDER_ECONOMICS_COST_FORM_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsCostForm.jsx"
@@ -241,6 +245,7 @@ def test_frontend_uses_dedicated_formatters_module():
 
 def test_economics_workspace_exposes_compact_operator_flow():
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    command_center_source = TENDER_ECONOMICS_COMMAND_CENTER_SOURCE.read_text(encoding="utf-8")
     suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
     price_candidate_queue_source = TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE.read_text(encoding="utf-8")
     best_price_candidate_source = TENDER_ECONOMICS_BEST_PRICE_CANDIDATE_SOURCE.read_text(encoding="utf-8")
@@ -250,10 +255,10 @@ def test_economics_workspace_exposes_compact_operator_flow():
     position_scenario_source = TENDER_ECONOMICS_POSITION_SCENARIO_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
-    assert "EconomicsProgressStepper" in tab_source
-    assert "economics-stepper" in tab_source
-    assert "nextEconomicsAction" in tab_source
-    assert "primaryEconomicsAction" in tab_source
+    assert "EconomicsProgressStepper" in command_center_source
+    assert "economics-stepper" in command_center_source
+    assert "nextEconomicsAction" in command_center_source
+    assert "primaryEconomicsAction" in command_center_source
     assert "PriceCandidateQueue" in suppliers_source
     assert "BestPriceCandidate" in price_candidate_queue_source
     assert "best-price-candidate" in best_price_candidate_source
@@ -268,6 +273,7 @@ def test_economics_workspace_exposes_compact_operator_flow():
     assert ".best-price-candidate" in styles_source
     assert ".candidate-queue-tabs" in styles_source
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(command_center_source, TENDER_ECONOMICS_COMMAND_CENTER_SOURCE) == []
     assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
     assert find_mojibake(price_candidate_queue_source, TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE) == []
     assert find_mojibake(best_price_candidate_source, TENDER_ECONOMICS_BEST_PRICE_CANDIDATE_SOURCE) == []
@@ -277,18 +283,18 @@ def test_economics_workspace_exposes_compact_operator_flow():
 
 
 def test_economics_command_center_keeps_secondary_actions_collapsed():
-    tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    command_center_source = TENDER_ECONOMICS_COMMAND_CENTER_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
-    assert "economics-secondary-menu" in tab_source
-    assert "economics-secondary-summary" in tab_source
-    assert "secondaryEconomicsActions.map" in tab_source
-    assert "primaryEconomicsAction &&" in tab_source
+    assert "economics-secondary-menu" in command_center_source
+    assert "economics-secondary-summary" in command_center_source
+    assert "secondaryEconomicsActions.map" in command_center_source
+    assert "primaryEconomicsAction &&" in command_center_source
     assert ".economics-secondary-menu" in styles_source
     assert ".economics-secondary-summary" in styles_source
-    assert "Готовые цены в расчет" not in tab_source
-    assert "Лучшие цены в расчет" not in tab_source
-    assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert "Готовые цены в расчет" not in command_center_source
+    assert "Лучшие цены в расчет" not in command_center_source
+    assert find_mojibake(command_center_source, TENDER_ECONOMICS_COMMAND_CENTER_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
@@ -724,10 +730,12 @@ def test_frontend_uses_dedicated_tender_analysis_tab_module():
 def test_frontend_analysis_reads_backend_operator_view_contract():
     analysis_summary_source = TENDER_ANALYSIS_SUMMARY_SOURCE.read_text(encoding="utf-8")
     analysis_sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+    analysis_sections_model_source = ANALYSIS_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
     analysis_decision_source = TENDER_ANALYSIS_DECISION_SOURCE.read_text(encoding="utf-8")
 
     assert "analysis?.operator_view" in analysis_summary_source
-    assert "analysis?.operator_view" in analysis_sections_source
+    assert "analysis?.operator_view" in analysis_sections_model_source
+    assert "from './analysisSectionsModel'" in analysis_sections_source
     assert "analysis?.operator_view" in analysis_decision_source
     assert "decision_brief" in analysis_decision_source
     assert "operatorView?.action_plan" in analysis_decision_source
@@ -736,11 +744,12 @@ def test_frontend_analysis_reads_backend_operator_view_contract():
     assert "documentStatusCounts" not in analysis_summary_source
     assert "documents_ready" not in analysis_summary_source
     assert "documents_total" not in analysis_summary_source
-    assert "operatorView?.sections" in analysis_sections_source
+    assert "operatorView?.sections" in analysis_sections_model_source
     assert "operatorView?.metrics" in analysis_summary_source
     assert "buildAnalysisDecision" not in analysis_decision_source
     assert find_mojibake(analysis_summary_source, TENDER_ANALYSIS_SUMMARY_SOURCE) == []
     assert find_mojibake(analysis_sections_source, TENDER_ANALYSIS_SECTIONS_SOURCE) == []
+    assert find_mojibake(analysis_sections_model_source, ANALYSIS_SECTIONS_MODEL_SOURCE) == []
     assert find_mojibake(analysis_decision_source, TENDER_ANALYSIS_DECISION_SOURCE) == []
 
 
@@ -827,10 +836,13 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
         if TENDER_ECONOMICS_METRICS_SOURCE.exists()
         else ""
     )
+    economics_command_center_source = TENDER_ECONOMICS_COMMAND_CENTER_SOURCE.read_text(encoding="utf-8")
 
     assert "from './TenderEconomicsTab'" in workspaces_source
     assert "export function TenderEconomicsTab" in economics_source
-    assert "from './TenderEconomicsMetrics'" in economics_source
+    assert "from './TenderEconomicsCommandCenter'" in economics_source
+    assert "from './TenderEconomicsMetrics'" not in economics_source
+    assert "from './TenderEconomicsMetrics'" in economics_command_center_source
     assert "from './TenderEconomicsSummary'" in economics_source
     assert "from './TenderEconomicsWorkbench'" in economics_source
     assert "from './TenderEconomicsForms'" not in economics_source
@@ -880,6 +892,9 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert "export function TenderEconomicsProfileWorkspace" in economics_profile_workspace_source
     assert "function TenderEconomicsMetrics" not in economics_source
     assert "export function TenderEconomicsMetrics" in economics_metrics_source
+    assert "export function TenderEconomicsCommandCenter" in economics_command_center_source
+    assert "function EconomicsProgressStepper" not in economics_source
+    assert "function EconomicsProgressStepper" in economics_command_center_source
     assert "economics-tab-summary" in economics_metrics_source
     assert "economics-workbench" in economics_workbench_source
     assert "<TenderEconomicsTab" in workspaces_source
@@ -889,6 +904,7 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(economics_command_center_source, TENDER_ECONOMICS_COMMAND_CENTER_SOURCE) == []
     assert find_mojibake(economics_summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
     assert find_mojibake(economics_decision_scenarios_source, TENDER_ECONOMICS_DECISION_SCENARIOS_SOURCE) == []
     assert find_mojibake(economics_forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
@@ -1482,27 +1498,29 @@ def test_tender_cockpit_exposes_page_size_selector():
 
 def test_tender_analysis_renders_actionable_checklist():
     source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+    model_source = ANALYSIS_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
+    fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
     styles = read_styles_source()
 
-    assert "MAJOR_ANALYSIS_SECTIONS" in source
-    assert "buildMajorAnalysisSections(analysis, documents)" in source
-    assert "visibleMajorAnalysisSections" in source
-    assert "analysisSectionHasContent" in source
+    assert "MAJOR_ANALYSIS_SECTIONS" in model_source
+    assert "buildMajorAnalysisSections(analysis, documents)" in model_source
+    assert "visibleMajorAnalysisSections" in model_source
+    assert "analysisSectionHasContent" in model_source
     assert "document_summary" in source
-    assert "'decision_risks'" in source
-    assert "'product_compliance'" in source
-    assert "'fulfillment_terms'" in source
-    assert "'acceptance_payment'" in source
+    assert "'decision_risks'" in model_source
+    assert "'product_compliance'" in model_source
+    assert "'fulfillment_terms'" in model_source
+    assert "'acceptance_payment'" in model_source
     assert "export function AnalysisChecklist" in source
     assert "Проверочный список" in source
     assert "analysis-checklist" in source
     assert "grid-template-columns: 1fr" in styles
     assert ".analysis-card," in styles
-    assert "item.source_label || item.source" in source
-    assert "item.source_context" in source
-    assert "analysis-source-context" in source
+    assert "item.source_label || item.source" in fact_card_source
+    assert "item.source_context" in fact_card_source
+    assert "analysis-source-context" in fact_card_source
     assert ".analysis-source-context" in styles
-    assert "Источник" in source
+    assert "Источник" in fact_card_source
     row_text_rule = styles[
         styles.index(".analysis-checklist-row p"):styles.index("}", styles.index(".analysis-checklist-row p"))
     ]
@@ -1510,6 +1528,8 @@ def test_tender_analysis_renders_actionable_checklist():
     assert "analysisCategoryLabel" in source
     assert "analysisSeverityLabel" in source
     assert find_mojibake(source, TENDER_ANALYSIS_SECTIONS_SOURCE) == []
+    assert find_mojibake(model_source, ANALYSIS_SECTIONS_MODEL_SOURCE) == []
+    assert find_mojibake(fact_card_source, ANALYSIS_FACT_CARD_SOURCE) == []
 
 
 def test_summary_metrics_have_stable_wrapping_container():
@@ -2227,6 +2247,7 @@ def test_economics_tab_owns_product_costs_and_suppliers():
 
 def test_economics_tab_is_a_focused_workbench():
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    command_center_source = TENDER_ECONOMICS_COMMAND_CENTER_SOURCE.read_text(encoding="utf-8")
     metrics_source = TENDER_ECONOMICS_METRICS_SOURCE.read_text(encoding="utf-8")
     summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
     workbench_source = TENDER_ECONOMICS_WORKBENCH_SOURCE.read_text(encoding="utf-8")
@@ -2234,9 +2255,10 @@ def test_economics_tab_is_a_focused_workbench():
     suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
-    assert "economics-command-center" in tab_source
-    assert "economics-command-actions" in tab_source
-    assert "<TenderEconomicsMetrics tender={tender} economics={economics} profiles={profiles} />" in tab_source
+    assert "<TenderEconomicsCommandCenter" in tab_source
+    assert "economics-command-center" in command_center_source
+    assert "economics-command-actions" in command_center_source
+    assert "<TenderEconomicsMetrics tender={tender} economics={economics} profiles={profiles} />" in command_center_source
     assert tab_source.index("<TenderEconomicsWorkbench") < tab_source.index("<EconomicsSummary economics={economics} tender={tender} profiles={profiles} />")
     assert "readinessStats(profiles)" in metrics_source
     assert "SummaryMetric value={`${readyPositions}/${totalPositions}`}" in metrics_source
@@ -2259,6 +2281,7 @@ def test_economics_tab_is_a_focused_workbench():
     assert ".economics-analysis-drawer" in styles_source
     assert ".supplier-tools-drawer" not in styles_source
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(command_center_source, TENDER_ECONOMICS_COMMAND_CENTER_SOURCE) == []
     assert find_mojibake(metrics_source, TENDER_ECONOMICS_METRICS_SOURCE) == []
     assert find_mojibake(summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
     assert find_mojibake(workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
@@ -2501,6 +2524,7 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     analysis_documents_source = TENDER_ANALYSIS_DOCUMENTS_SOURCE.read_text(encoding="utf-8")
     analysis_sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+    analysis_sections_model_source = ANALYSIS_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
     analysis_evidence_source = TENDER_ANALYSIS_EVIDENCE_SOURCE.read_text(encoding="utf-8")
     analysis_evidence_model_source = TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
@@ -2532,7 +2556,7 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     assert "analysis-evidence-panel" not in analysis_source
     assert "from './TenderAnalysisEvidenceModel'" in analysis_evidence_source
     assert "from './TenderAnalysisEvidenceModel'" not in analysis_sections_source
-    assert "MAJOR_ANALYSIS_SECTIONS" in analysis_sections_source
+    assert "MAJOR_ANALYSIS_SECTIONS" in analysis_sections_model_source
     assert "export function buildDocumentEvidenceItems" in analysis_evidence_model_source
     assert ".analysis-workspace" in styles_source
     assert "grid-template-columns: 1fr" in styles_source
@@ -2541,6 +2565,7 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
     assert find_mojibake(analysis_documents_source, TENDER_ANALYSIS_DOCUMENTS_SOURCE) == []
     assert find_mojibake(analysis_sections_source, TENDER_ANALYSIS_SECTIONS_SOURCE) == []
+    assert find_mojibake(analysis_sections_model_source, ANALYSIS_SECTIONS_MODEL_SOURCE) == []
     assert find_mojibake(analysis_evidence_source, TENDER_ANALYSIS_EVIDENCE_SOURCE) == []
     assert find_mojibake(analysis_evidence_model_source, TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
@@ -3044,6 +3069,7 @@ def test_decision_tabs_are_extracted_to_consistent_work_panels():
 
 def test_economics_tab_uses_tender_price_before_manual_calculation():
     app_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    command_center_source = TENDER_ECONOMICS_COMMAND_CENTER_SOURCE.read_text(encoding="utf-8")
     metrics_source = (
         TENDER_ECONOMICS_METRICS_SOURCE.read_text(encoding="utf-8")
         if TENDER_ECONOMICS_METRICS_SOURCE.exists()
@@ -3052,12 +3078,14 @@ def test_economics_tab_uses_tender_price_before_manual_calculation():
     summary_source = TENDER_ECONOMICS_SUMMARY_SOURCE.read_text(encoding="utf-8")
 
     assert "export function TenderEconomicsTab({" in app_source
-    assert "from './TenderEconomicsMetrics'" in app_source
+    assert "from './TenderEconomicsMetrics'" not in app_source
+    assert "from './TenderEconomicsMetrics'" in command_center_source
     assert "const displayedRevenue = economics?.revenue ?? marketState?.nmc_price ?? tender?.price" in metrics_source
     assert "const revenueLabel = economics?.revenue_kind === 'current_offer'" in metrics_source
     assert "<SummaryMetric value={formatMoney(displayedRevenue)} label={revenueLabel} />" in metrics_source
     assert "НМЦК подтянута из карточки закупки" in summary_source
     assert find_mojibake(app_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(command_center_source, TENDER_ECONOMICS_COMMAND_CENTER_SOURCE) == []
     assert find_mojibake(metrics_source, TENDER_ECONOMICS_METRICS_SOURCE) == []
     assert find_mojibake(summary_source, TENDER_ECONOMICS_SUMMARY_SOURCE) == []
 
@@ -3187,6 +3215,7 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
+    command_center_source = TENDER_ECONOMICS_COMMAND_CENTER_SOURCE.read_text(encoding="utf-8")
 
     assert "export function stageTenderPriceCandidates" in api_source
     assert "price-candidates/stage" in api_source
@@ -3229,19 +3258,20 @@ def test_economics_tab_supports_price_candidate_auto_stage():
     assert "onPriceDiscoveryRun" in workspaces_source
     assert "priceDiscoveryJob" in workspaces_source
     assert "onPriceDiscoveryRun" in economics_source
-    assert "priceDiscoveryJobStatusText" in economics_source
+    assert "priceDiscoveryJobStatusText" in command_center_source
     assert "runningPriceDiscovery" in economics_source
-    assert "SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT = 5" in economics_source
+    assert "SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT = 5" in command_center_source
     assert "canRunActivePriceDiscovery" in economics_source
-    assert "price-discovery-manual-required" in economics_source
-    assert "быстрые ссылки/ссылка на товар/прайс" in economics_source
-    assert "Найти цены" in economics_source
+    assert "price-discovery-manual-required" in command_center_source
+    assert "быстрые ссылки/ссылка на товар/прайс" in command_center_source
+    assert "Найти цены" in command_center_source
     assert "Подготовить цены" not in economics_source
     assert "Автоцены в расчет" not in economics_source
     assert find_mojibake(api_source, API_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
     assert find_mojibake(price_actions_source, USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
+    assert find_mojibake(command_center_source, TENDER_ECONOMICS_COMMAND_CENTER_SOURCE) == []
 
 
 def test_economics_tab_exposes_price_book_feed_import_ui():
