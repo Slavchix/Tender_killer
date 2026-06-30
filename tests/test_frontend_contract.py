@@ -63,6 +63,9 @@ TENDER_ECONOMICS_SUPPLIERS_SOURCE = Path(__file__).resolve().parents[1] / "web" 
 TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPriceCandidateModel.js"
 )
+TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPriceCandidateQueue.jsx"
+)
 TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSupplierDiscovery.jsx"
 )
@@ -201,6 +204,8 @@ def test_frontend_uses_dedicated_formatters_module():
 def test_economics_workspace_exposes_compact_operator_flow():
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
+    price_candidate_queue_source = TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE.read_text(encoding="utf-8")
+    candidate_model_source = TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE.read_text(encoding="utf-8")
     profile_workspace_source = TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
@@ -209,11 +214,11 @@ def test_economics_workspace_exposes_compact_operator_flow():
     assert "nextEconomicsAction" in tab_source
     assert "primaryEconomicsAction" in tab_source
     assert "PriceCandidateQueue" in suppliers_source
-    assert "best-price-candidate" in suppliers_source
-    assert "candidate-queue-tabs" in suppliers_source
+    assert "best-price-candidate" in price_candidate_queue_source
+    assert "candidate-queue-tabs" in price_candidate_queue_source
     assert "candidateQueueBuckets" in suppliers_source
-    assert "candidateNeedsManualPrice" in suppliers_source
-    assert "product_family_mismatch" in suppliers_source
+    assert "candidateNeedsManualPrice" in price_candidate_queue_source
+    assert "product_family_mismatch" in candidate_model_source
     assert "manual_price_required" in profile_workspace_source
     assert "Локальный browser-fetch не запустился" not in profile_workspace_source
     assert "spawn eperm" not in profile_workspace_source.lower()
@@ -222,6 +227,7 @@ def test_economics_workspace_exposes_compact_operator_flow():
     assert ".candidate-queue-tabs" in styles_source
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
+    assert find_mojibake(price_candidate_queue_source, TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE) == []
     assert find_mojibake(profile_workspace_source, TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
@@ -244,6 +250,8 @@ def test_economics_command_center_keeps_secondary_actions_collapsed():
 
 def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
+    price_candidate_queue_source = TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE.read_text(encoding="utf-8")
+    candidate_model_source = TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE.read_text(encoding="utf-8")
     discovery_source = TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
@@ -251,27 +259,27 @@ def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     assert "provider-run-summary" in discovery_source
     assert "supplierDiscoveryRunBuckets" in discovery_source
     assert "supplier-discovery-next-action" in discovery_source
-    assert "CandidateDecisionTrace" in suppliers_source
-    assert "CandidatePricePassport" in suppliers_source
-    assert "candidate-decision-trace" in suppliers_source
-    assert "price-candidate-passport" in suppliers_source
-    assert "price-candidate-passport-steps" in suppliers_source
-    assert "CandidatePricePassportFacts" in suppliers_source
-    assert "CandidatePricePassportSteps" in suppliers_source
-    assert "candidatePassportFacts(passport)" in suppliers_source
-    assert "funnel_steps" in suppliers_source
-    assert "price-candidate-passport-facts" in suppliers_source
-    assert "source_label" in suppliers_source
-    assert "freshness_label" in suppliers_source
-    assert "match_confidence" in suppliers_source
-    assert "unit_pack_label" in suppliers_source
-    assert "vat_label" in suppliers_source
-    assert "delivery_label" in suppliers_source
-    assert "evidence_url" in suppliers_source
-    assert "candidateBestReasonItems" in suppliers_source
-    assert "candidatePricingPassport" in suppliers_source
-    assert "candidate.pricing_passport" in suppliers_source
-    assert "score_reasons" in suppliers_source
+    assert "CandidateDecisionTrace" in price_candidate_queue_source
+    assert "CandidatePricePassport" in price_candidate_queue_source
+    assert "candidate-decision-trace" in price_candidate_queue_source
+    assert "price-candidate-passport" in price_candidate_queue_source
+    assert "price-candidate-passport-steps" in price_candidate_queue_source
+    assert "CandidatePricePassportFacts" in price_candidate_queue_source
+    assert "CandidatePricePassportSteps" in price_candidate_queue_source
+    assert "candidatePassportFacts(passport)" in price_candidate_queue_source
+    assert "funnel_steps" in candidate_model_source
+    assert "price-candidate-passport-facts" in price_candidate_queue_source
+    assert "source_label" in candidate_model_source
+    assert "freshness_label" in candidate_model_source
+    assert "match_confidence" in candidate_model_source
+    assert "unit_pack_label" in candidate_model_source
+    assert "vat_label" in candidate_model_source
+    assert "delivery_label" in candidate_model_source
+    assert "evidence_url" in candidate_model_source
+    assert "candidateBestReasonItems" in price_candidate_queue_source
+    assert "candidatePricingPassport" in price_candidate_queue_source
+    assert "candidate.pricing_passport" in candidate_model_source
+    assert "score_reasons" in candidate_model_source
     assert ".provider-run-summary" in styles_source
     assert ".candidate-decision-trace" in styles_source
     assert ".price-candidate-passport" in styles_source
@@ -279,6 +287,8 @@ def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     assert ".price-candidate-passport-facts" in styles_source
     assert ".supplier-discovery-next-action" in styles_source
     assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
+    assert find_mojibake(price_candidate_queue_source, TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE) == []
+    assert find_mojibake(candidate_model_source, TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE) == []
     assert find_mojibake(discovery_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
@@ -1636,6 +1646,7 @@ def test_product_profile_renders_supplier_option_form():
         if TENDER_ECONOMICS_SUPPLIERS_SOURCE.exists()
         else ""
     )
+    price_candidate_queue_source = TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE.read_text(encoding="utf-8")
     candidate_model_source = TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE.read_text(encoding="utf-8")
     discovery_source = (
         TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.read_text(encoding="utf-8")
@@ -1720,10 +1731,10 @@ def test_product_profile_renders_supplier_option_form():
     assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in _css_rule(styles_source, ".supplier-manual-mode-tabs")
     assert "price_candidates" in source
     assert "PriceCandidateQueue" in source
-    assert "tenderReferenceUnitPrice(profile)" in source
-    assert "priceComparisonForUnitPrice(candidateUnitPrice, tenderUnitPrice)" in source
-    assert "price-candidate-reference-price" in source
-    assert "price-candidate-price-delta" in source
+    assert "tenderReferenceUnitPrice(profile)" in price_candidate_queue_source
+    assert "priceComparisonForUnitPrice(candidateUnitPrice, tenderUnitPrice)" in price_candidate_queue_source
+    assert "price-candidate-reference-price" in price_candidate_queue_source
+    assert "price-candidate-price-delta" in price_candidate_queue_source
     assert "candidateQueueBuckets" in source
     assert "queuedCandidateCount" in source
     assert "reviewStatus !== 'pending'" in candidate_model_source
@@ -1731,11 +1742,11 @@ def test_product_profile_renders_supplier_option_form():
     assert "PriceCandidatesEmptyState" in source
     assert "ссылку на товар" in source
     assert "прайса/КП" in source
-    assert "formatSupplierStock(candidate)" in source
+    assert "formatSupplierStock(candidate)" in price_candidate_queue_source
     assert "formatSupplierStock(option)" in options_source
-    assert "candidate.score" in source
-    assert "` · оценка ${candidate.score}`" in source
-    assert "` · score ${candidate.score}`" not in source
+    assert "candidate.score" in price_candidate_queue_source
+    assert "` · оценка ${candidate.score}`" in price_candidate_queue_source
+    assert "` · score ${candidate.score}`" not in price_candidate_queue_source
     assert "formatSourceKindLabel" in candidate_model_source
     assert "price_memory: 'Память цен'" in candidate_model_source
     assert "supplier_default_delivery: 'доставка по правилу'" in candidate_model_source
@@ -1743,18 +1754,18 @@ def test_product_profile_renders_supplier_option_form():
     assert "Правило" in candidate_model_source
     assert "Цена за единицу" in candidate_model_source
     assert "Прайс" in candidate_model_source
-    assert "candidate match reasons" not in source
-    assert "candidate.quality_status" in source
-    assert "candidate.quality_flags" in source
-    assert "candidate.match_reasons" in source
-    assert "candidate.raw_payload?.match_reasons" in source
-    assert "priceCandidateReasonLabel" in source
-    assert "price-candidate-reasons" in source
-    assert "priceCandidateQualityLabel" in source
+    assert "candidate match reasons" not in price_candidate_queue_source
+    assert "candidate.quality_status" in price_candidate_queue_source
+    assert "candidate.quality_flags" in price_candidate_queue_source
+    assert "candidate.match_reasons" in price_candidate_queue_source
+    assert "candidate.raw_payload?.match_reasons" in price_candidate_queue_source
+    assert "priceCandidateReasonLabel" in price_candidate_queue_source
+    assert "price-candidate-reasons" in price_candidate_queue_source
+    assert "priceCandidateQualityLabel" in price_candidate_queue_source
     assert "готова к расчету" in candidate_model_source
     assert "не брать автоматически" in candidate_model_source
-    assert "Принять цену" in source
-    assert "Отклонить" in source
+    assert "Принять цену" in price_candidate_queue_source
+    assert "Отклонить" in price_candidate_queue_source
     assert "supplier_options" in source
     assert "SupplierOptionsList" in source
     assert "searching: 'Поиск'" in formatter_source
@@ -1841,6 +1852,7 @@ def test_product_profile_renders_supplier_option_form():
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
     assert find_mojibake(source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
+    assert find_mojibake(price_candidate_queue_source, TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE) == []
     assert find_mojibake(candidate_model_source, TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE) == []
     assert find_mojibake(discovery_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []
     assert find_mojibake(options_source, TENDER_ECONOMICS_SUPPLIER_OPTIONS_SOURCE) == []
