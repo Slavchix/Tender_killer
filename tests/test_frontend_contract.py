@@ -76,6 +76,9 @@ TENDER_ECONOMICS_AUTO_SOURCE = Path(__file__).resolve().parents[1] / "web" / "sr
 TENDER_ECONOMICS_POSITION_RAIL_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPositionRail.jsx"
 TENDER_ECONOMICS_WORKBENCH_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsWorkbench.jsx"
 TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsProfileWorkspace.jsx"
+TENDER_ECONOMICS_MANUAL_SUPPLIER_PRICE_PANEL_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsManualSupplierPricePanel.jsx"
+)
 TENDER_ECONOMICS_METRICS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsMetrics.jsx"
 TENDER_OVERVIEW_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderOverviewTab.jsx"
 TENDER_PRODUCTS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderProductsTab.jsx"
@@ -762,6 +765,7 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
         if TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.exists()
         else ""
     )
+    economics_manual_supplier_price_source = TENDER_ECONOMICS_MANUAL_SUPPLIER_PRICE_PANEL_SOURCE.read_text(encoding="utf-8")
     economics_metrics_source = (
         TENDER_ECONOMICS_METRICS_SOURCE.read_text(encoding="utf-8")
         if TENDER_ECONOMICS_METRICS_SOURCE.exists()
@@ -784,6 +788,7 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert "from './TenderEconomicsCostForm'" in economics_profile_workspace_source
     assert "from './TenderEconomicsSuppliers'" not in economics_workbench_source
     assert "from './TenderEconomicsSuppliers'" in economics_profile_workspace_source
+    assert "from './TenderEconomicsManualSupplierPricePanel'" in economics_profile_workspace_source
     assert "from './TenderEconomicsAuto'" not in economics_workbench_source
     assert "from './TenderEconomicsAuto'" in economics_profile_workspace_source
     assert "from './TenderEconomicsPositionRail'" in economics_workbench_source
@@ -806,6 +811,7 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert "export function SupplierSearchPreview" in economics_supplier_discovery_source
     assert "export function SupplierDiscoveryPreview" in economics_supplier_discovery_source
     assert "export function SupplierOptionsList" in economics_supplier_options_source
+    assert "export function ManualSupplierPricePanel" in economics_manual_supplier_price_source
     assert "function ProductAutoEconomicsPanel" not in economics_source
     assert "export function ProductAutoEconomicsPanel" in economics_auto_source
     assert "function EconomicsPositionRail" not in economics_source
@@ -835,6 +841,7 @@ def test_frontend_uses_dedicated_tender_economics_tab_module():
     assert find_mojibake(economics_position_rail_source, TENDER_ECONOMICS_POSITION_RAIL_SOURCE) == []
     assert find_mojibake(economics_workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
     assert find_mojibake(economics_profile_workspace_source, TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE) == []
+    assert find_mojibake(economics_manual_supplier_price_source, TENDER_ECONOMICS_MANUAL_SUPPLIER_PRICE_PANEL_SOURCE) == []
     assert find_mojibake(economics_metrics_source, TENDER_ECONOMICS_METRICS_SOURCE) == []
 
 
@@ -1641,6 +1648,7 @@ def test_product_profile_renders_supplier_option_form():
         if TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.exists()
         else ""
     )
+    manual_supplier_price_source = TENDER_ECONOMICS_MANUAL_SUPPLIER_PRICE_PANEL_SOURCE.read_text(encoding="utf-8")
     source = (
         TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
         if TENDER_ECONOMICS_SUPPLIERS_SOURCE.exists()
@@ -1668,7 +1676,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "from './TenderEconomicsSuppliers'" not in workbench_source
     assert "from './TenderEconomicsSuppliers'" in profile_workspace_source
     assert "from './TenderEconomicsSupplierOptions'" in source
-    assert "from './TenderEconomicsSupplierDiscovery'" in profile_workspace_source
+    assert "from './TenderEconomicsSupplierDiscovery'" in manual_supplier_price_source
     assert "from './TenderEconomicsSupplierDiscovery'" not in source
     assert "from './TenderEconomicsSupplierInputForm'" not in source
     assert "export function ProductSupplierOptionsForm" in source
@@ -1710,22 +1718,23 @@ def test_product_profile_renders_supplier_option_form():
     assert "onSupplierDiscoveryImport" in workbench_source
     assert "onSupplierManualPriceStage" in workbench_source
     assert "ManualSupplierPricePanel" in profile_workspace_source
-    assert "manualPriceMode" in profile_workspace_source
-    assert "supplier-manual-mode-tabs" in profile_workspace_source
-    assert "useState('links')" in profile_workspace_source
-    assert "manualPriceMode === 'url'" not in profile_workspace_source
-    assert "manual-product-url-input" not in profile_workspace_source
-    assert "manual-url-result" not in profile_workspace_source
-    assert "manualUrlResultFromTender" not in profile_workspace_source
-    assert "SupplierSearchPreview" in profile_workspace_source
-    assert "SupplierDiscoveryPreview" in profile_workspace_source
-    assert "compact={manualPriceMode === 'links'}" in profile_workspace_source
-    assert "diagnosticsOpen={false}" in profile_workspace_source
-    assert "manual-price-source-select" in profile_workspace_source
-    assert "manual-price-unit-input" in profile_workspace_source
-    assert "onSupplierManualPriceStage?.(selectedEconomicsProfile, candidate)" in profile_workspace_source
-    assert "onSupplierDiscoveryImport?.(selectedEconomicsProfile, candidateIndex)" in profile_workspace_source
-    assert "Быстрые ссылки или КП/прайс" in profile_workspace_source
+    assert "export function ManualSupplierPricePanel" in manual_supplier_price_source
+    assert "manualPriceMode" in manual_supplier_price_source
+    assert "supplier-manual-mode-tabs" in manual_supplier_price_source
+    assert "useState('links')" in manual_supplier_price_source
+    assert "manualPriceMode === 'url'" not in manual_supplier_price_source
+    assert "manual-product-url-input" not in manual_supplier_price_source
+    assert "manual-url-result" not in manual_supplier_price_source
+    assert "manualUrlResultFromTender" not in manual_supplier_price_source
+    assert "SupplierSearchPreview" in manual_supplier_price_source
+    assert "SupplierDiscoveryPreview" in manual_supplier_price_source
+    assert "compact={manualPriceMode === 'links'}" in manual_supplier_price_source
+    assert "diagnosticsOpen={false}" in manual_supplier_price_source
+    assert "manual-price-source-select" in manual_supplier_price_source
+    assert "manual-price-unit-input" in manual_supplier_price_source
+    assert "onSupplierManualPriceStage?.(selectedEconomicsProfile, candidate)" in manual_supplier_price_source
+    assert "onSupplierDiscoveryImport?.(selectedEconomicsProfile, candidateIndex)" in manual_supplier_price_source
+    assert "Быстрые ссылки или КП/прайс" in manual_supplier_price_source
     assert "supplier-manual-price-panel" in styles_source
     assert "supplier-manual-mode-tabs" in styles_source
     assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in _css_rule(styles_source, ".supplier-manual-mode-tabs")
@@ -1852,6 +1861,7 @@ def test_product_profile_renders_supplier_option_form():
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
     assert find_mojibake(source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
+    assert find_mojibake(manual_supplier_price_source, TENDER_ECONOMICS_MANUAL_SUPPLIER_PRICE_PANEL_SOURCE) == []
     assert find_mojibake(price_candidate_queue_source, TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE) == []
     assert find_mojibake(candidate_model_source, TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE) == []
     assert find_mojibake(discovery_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []
