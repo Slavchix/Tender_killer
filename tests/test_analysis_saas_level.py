@@ -21,6 +21,9 @@ USE_TENDER_DOCUMENT_ANALYSIS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderDocumentAnalysis.js"
 )
 TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
+TENDER_ANALYSIS_SECONDARY_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisSecondaryDrawers.jsx"
+)
 STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css"
 STYLES_ANALYSIS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.css"
 STYLES_ECONOMICS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.economics.css"
@@ -270,6 +273,7 @@ def test_frontend_exposes_tz_saas_workflow_questions_and_playbooks():
     api_source = WEB_API_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_DOCUMENT_ANALYSIS_SOURCE.read_text(encoding="utf-8")
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    secondary_source = TENDER_ANALYSIS_SECONDARY_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
     assert "export function saveAnalysisWorkflow" in api_source
@@ -277,17 +281,18 @@ def test_frontend_exposes_tz_saas_workflow_questions_and_playbooks():
     assert "saveAnalysisWorkflow" in hook_source
     assert "saveTzWorkflow" in hook_source
     assert "savingAnalysisWorkflow" in hook_source
-    assert "AnalysisWorkflowPanel" in analysis_source
-    assert "AnalysisQuestionsPanel" in analysis_source
-    assert "AnalysisPlaybooksPanel" in analysis_source
+    assert "AnalysisSecondaryDrawers" in analysis_source
+    assert "AnalysisWorkflowPanel" in secondary_source
+    assert "AnalysisQuestionsPanel" in secondary_source
+    assert "AnalysisPlaybooksPanel" in secondary_source
     assert "AnalysisEvidenceDrilldownPanel" in analysis_source
     assert "selectedEvidence" in analysis_source
     assert "onEvidenceSelect" in analysis_source
     assert "operator_view?.evidence_drilldowns" in analysis_source
     assert "operator_view?.tz_workflow" in analysis_source
     assert "operator_view?.condition_groups" in analysis_source
-    assert "AnalysisConditionGroupsPanel" in analysis_source
-    assert "conditionGroupStatusLabel" in analysis_source
+    assert "AnalysisConditionGroupsPanel" in secondary_source
+    assert "conditionGroupStatusLabel" in secondary_source
     assert "operator_view?.ai_questions" in analysis_source
     assert "operator_view?.playbooks" in analysis_source
     assert "analysis-workflow-panel" in styles_source
