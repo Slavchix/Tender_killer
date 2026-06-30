@@ -78,6 +78,15 @@ TENDER_WORKFLOW_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src"
 TENDER_LIST_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderList.jsx"
 USE_TENDER_DOCUMENT_ANALYSIS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderDocumentAnalysis.js"
 USE_TENDER_PRODUCT_PROFILES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderProductProfiles.js"
+USE_TENDER_PRODUCT_PROFILE_STATE_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderProductProfileState.js"
+)
+USE_TENDER_ECONOMICS_PROFILE_ACTIONS_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderEconomicsProfileActions.js"
+)
+USE_TENDER_SUPPLIER_PROFILE_ACTIONS_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderSupplierProfileActions.js"
+)
 USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderPriceCandidateActions.js"
 )
@@ -1209,10 +1218,19 @@ def test_tender_details_uses_product_profiles_hook():
         if USE_TENDER_PRODUCT_PROFILES_SOURCE.exists()
         else ""
     )
+    profile_state_source = USE_TENDER_PRODUCT_PROFILE_STATE_SOURCE.read_text(encoding="utf-8")
+    economics_actions_source = USE_TENDER_ECONOMICS_PROFILE_ACTIONS_SOURCE.read_text(encoding="utf-8")
+    supplier_actions_source = USE_TENDER_SUPPLIER_PROFILE_ACTIONS_SOURCE.read_text(encoding="utf-8")
+    profile_hook_sources = "\n".join(
+        [hook_source, profile_state_source, economics_actions_source, supplier_actions_source]
+    )
 
     assert "from './useTenderProductProfiles'" in tender_details_source
     assert "useTenderProductProfiles(tender, onTenderRefresh, setDetailStatus)" in tender_details_source
     assert "export function useTenderProductProfiles" in hook_source
+    assert "from './useTenderProductProfileState'" in hook_source
+    assert "from './useTenderEconomicsProfileActions'" in hook_source
+    assert "from './useTenderSupplierProfileActions'" in hook_source
     for api_name in (
         "rebuildTenderProductProfiles",
         "saveProfileEconomics",
@@ -1223,7 +1241,7 @@ def test_tender_details_uses_product_profiles_hook():
         "runProfileAutoEconomics",
         "acceptProfileAutoEconomics",
     ):
-        assert api_name in hook_source
+        assert api_name in profile_hook_sources
     for local_function in (
         "function rebuildProductProfiles",
         "function saveProfileEconomics",
@@ -1253,6 +1271,9 @@ def test_tender_details_uses_product_profiles_hook():
     assert "applyProductTenderState" in hook_source
     assert find_mojibake(tender_details_source, TENDER_DETAILS_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
+    assert find_mojibake(profile_state_source, USE_TENDER_PRODUCT_PROFILE_STATE_SOURCE) == []
+    assert find_mojibake(economics_actions_source, USE_TENDER_ECONOMICS_PROFILE_ACTIONS_SOURCE) == []
+    assert find_mojibake(supplier_actions_source, USE_TENDER_SUPPLIER_PROFILE_ACTIONS_SOURCE) == []
 
 
 def test_tender_details_uses_workflow_hook():
@@ -1593,6 +1614,8 @@ def test_product_profile_renders_supplier_option_form():
     tabs_source = TENDER_DETAILS_TABS_SOURCE.read_text(encoding="utf-8")
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
+    supplier_actions_hook_source = USE_TENDER_SUPPLIER_PROFILE_ACTIONS_SOURCE.read_text(encoding="utf-8")
+    profile_hook_sources = "\n".join([hook_source, supplier_actions_hook_source])
     price_actions_source = USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE.read_text(encoding="utf-8")
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     workbench_source = (
@@ -1638,8 +1661,8 @@ def test_product_profile_renders_supplier_option_form():
     assert "<ProductSupplierOptionsForm" in profile_workspace_source
     assert "selectSupplierOption" in details_source
     assert "autoSelectSupplierOption" in details_source
-    assert "err.payload?.product_profiles" in hook_source
-    assert "applyProductTenderState(err.payload, { resetSelection: false })" in hook_source
+    assert "err.payload?.product_profiles" in supplier_actions_hook_source
+    assert "applyProductTenderState(err.payload, { resetSelection: false })" in supplier_actions_hook_source
     assert "onSupplierOptionSelect" in tab_source
     assert "onSupplierOptionAutoSelect" in tab_source
     assert "product-profiles/${profile.position_index}" in api_source
@@ -1651,8 +1674,8 @@ def test_product_profile_renders_supplier_option_form():
     assert "supplier-discovery/url" in api_source
     assert "runProfileSupplierUrlDiscovery" in api_source
     assert "export function stageProfileSupplierDiscoveryCandidates" in api_source
-    assert "stageProfileSupplierDiscoveryCandidates as stageProfileSupplierDiscoveryCandidatesRequest" in hook_source
-    assert "stageSupplierManualPriceCandidate" in hook_source
+    assert "stageProfileSupplierDiscoveryCandidates as stageProfileSupplierDiscoveryCandidatesRequest" in supplier_actions_hook_source
+    assert "stageSupplierManualPriceCandidate" in profile_hook_sources
     assert "onSupplierManualPriceStage: stageSupplierManualPriceCandidate" in details_source
     assert "supplier-discovery/candidates/${candidateIndex}/import" in api_source
     assert "price-candidates/${candidateId}/confirm" in api_source
@@ -3017,6 +3040,7 @@ def test_tender_list_surfaces_market_state_and_backend_decision():
 def test_economics_tab_supports_bulk_best_supplier_selection():
     api_source = API_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_PRODUCT_PROFILES_SOURCE.read_text(encoding="utf-8")
+    supplier_actions_hook_source = USE_TENDER_SUPPLIER_PROFILE_ACTIONS_SOURCE.read_text(encoding="utf-8")
     price_actions_source = USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE.read_text(encoding="utf-8")
     details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     economics_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
@@ -3025,7 +3049,7 @@ def test_economics_tab_supports_bulk_best_supplier_selection():
     assert "product-profiles/supplier-options/best/select" in api_source
     assert "export function confirmReadyTenderPriceCandidates" in api_source
     assert "price-candidates/ready/confirm" in api_source
-    assert "autoSelectTenderSupplierOptions as autoSelectTenderSupplierOptionsRequest" in hook_source
+    assert "autoSelectTenderSupplierOptions as autoSelectTenderSupplierOptionsRequest" in supplier_actions_hook_source
     assert "from './useTenderPriceCandidateActions'" in hook_source
     assert "useTenderPriceCandidateActions({" in hook_source
     assert "confirmReadyTenderPriceCandidates as confirmReadyTenderPriceCandidatesRequest" in price_actions_source
@@ -3034,7 +3058,7 @@ def test_economics_tab_supports_bulk_best_supplier_selection():
     assert "READY_PRICE_CANDIDATES_REVIEW_ID" in price_actions_source
     assert "confirmingReadyPriceCandidates: reviewingPriceCandidateId === READY_PRICE_CANDIDATES_REVIEW_ID" in price_actions_source
     assert "const [confirmingReadyPriceCandidates, setConfirmingReadyPriceCandidates]" not in hook_source
-    assert "function autoSelectAllSupplierOptions" in hook_source
+    assert "function autoSelectAllSupplierOptions" in supplier_actions_hook_source
     assert "function confirmReadyPriceCandidates" in price_actions_source
     assert "onSupplierOptionAutoSelectAll" in details_source
     assert "onReadyPriceCandidatesConfirmAll" in details_source
@@ -3048,6 +3072,7 @@ def test_economics_tab_supports_bulk_best_supplier_selection():
     assert "Лучшие цены в расчет" not in economics_source
     assert find_mojibake(api_source, API_SOURCE) == []
     assert find_mojibake(hook_source, USE_TENDER_PRODUCT_PROFILES_SOURCE) == []
+    assert find_mojibake(supplier_actions_hook_source, USE_TENDER_SUPPLIER_PROFILE_ACTIONS_SOURCE) == []
     assert find_mojibake(price_actions_source, USE_TENDER_PRICE_CANDIDATE_ACTIONS_SOURCE) == []
     assert find_mojibake(economics_source, TENDER_ECONOMICS_TAB_SOURCE) == []
 
