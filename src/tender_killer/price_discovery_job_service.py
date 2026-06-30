@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from tender_killer.schema import initialize_schema
-from tender_killer.supplier_price_discovery_service import run_tender_supplier_price_discovery
-from tender_killer.supplier_price_discovery_service import tender_price_discovery_policy_for_tender
+from tender_killer.supplier_price_discovery_policy import tender_price_discovery_policy_for_tender
+from tender_killer.supplier_price_discovery_workflows import run_tender_supplier_price_discovery
 
 
 JOB_STATUS_QUEUED = "queued"

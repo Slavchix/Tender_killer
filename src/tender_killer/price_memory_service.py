@@ -6,9 +6,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-from tender_killer.price_candidate_service import PRICE_MATCH_STOP_WORDS
-from tender_killer.price_candidate_service import evaluate_price_candidate_quality
-from tender_killer.price_candidate_service import normalize_price_candidate
+from tender_killer.price_candidate_confirmation import PRICE_MATCH_STOP_WORDS
+from tender_killer.price_candidate_normalization import normalize_price_candidate
+from tender_killer.price_candidate_quality import evaluate_price_candidate_quality
 from tender_killer.storage import TenderStore
 
 
