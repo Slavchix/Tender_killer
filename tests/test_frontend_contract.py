@@ -76,6 +76,9 @@ TENDER_ECONOMICS_AUTO_SOURCE = Path(__file__).resolve().parents[1] / "web" / "sr
 TENDER_ECONOMICS_POSITION_RAIL_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPositionRail.jsx"
 TENDER_ECONOMICS_WORKBENCH_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsWorkbench.jsx"
 TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsProfileWorkspace.jsx"
+TENDER_ECONOMICS_POSITION_SCENARIO_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPositionScenario.jsx"
+)
 TENDER_ECONOMICS_MANUAL_SUPPLIER_PRICE_PANEL_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsManualSupplierPricePanel.jsx"
 )
@@ -210,6 +213,7 @@ def test_economics_workspace_exposes_compact_operator_flow():
     price_candidate_queue_source = TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE.read_text(encoding="utf-8")
     candidate_model_source = TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE.read_text(encoding="utf-8")
     profile_workspace_source = TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.read_text(encoding="utf-8")
+    position_scenario_source = TENDER_ECONOMICS_POSITION_SCENARIO_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
     assert "EconomicsProgressStepper" in tab_source
@@ -222,7 +226,7 @@ def test_economics_workspace_exposes_compact_operator_flow():
     assert "candidateQueueBuckets" in suppliers_source
     assert "candidateNeedsManualPrice" in price_candidate_queue_source
     assert "product_family_mismatch" in candidate_model_source
-    assert "manual_price_required" in profile_workspace_source
+    assert "manual_price_required" in position_scenario_source
     assert "Локальный browser-fetch не запустился" not in profile_workspace_source
     assert "spawn eperm" not in profile_workspace_source.lower()
     assert ".economics-stepper" in styles_source
@@ -232,6 +236,7 @@ def test_economics_workspace_exposes_compact_operator_flow():
     assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
     assert find_mojibake(price_candidate_queue_source, TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE) == []
     assert find_mojibake(profile_workspace_source, TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE) == []
+    assert find_mojibake(position_scenario_source, TENDER_ECONOMICS_POSITION_SCENARIO_SOURCE) == []
     assert find_mojibake(styles_source, STYLES_SOURCE) == []
 
 
@@ -2199,26 +2204,29 @@ def test_economics_tab_is_a_focused_workbench():
 
 def test_economics_position_workspace_exposes_unified_position_scenario():
     profile_workspace_source = TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.read_text(encoding="utf-8")
+    position_scenario_source = TENDER_ECONOMICS_POSITION_SCENARIO_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
-    assert "const POSITION_SCENARIO_STEPS" in profile_workspace_source
-    assert "function PositionEconomicsScenario" in profile_workspace_source
+    assert "TenderEconomicsPositionScenario" in profile_workspace_source
     assert "<PositionEconomicsScenario" in profile_workspace_source
     assert "buildPositionScenarioState(selectedEconomicsProfile" in profile_workspace_source
-    assert "pendingPriceCandidatesForProfile(profile)" in profile_workspace_source
-    assert "selectedSupplierOptionForProfile(profile)" in profile_workspace_source
-    assert "hasPositionEconomicsDraft(profile," in profile_workspace_source
-    assert "Нужна цена" in profile_workspace_source
-    assert "Проверить кандидата" in profile_workspace_source
-    assert "Принять цену" in profile_workspace_source
-    assert "Рассчитать" in profile_workspace_source
-    assert "Решение" in profile_workspace_source
-    assert "Осталось собрать полную себестоимость." in profile_workspace_source
-    assert "Нужна проверка цены" in profile_workspace_source
-    assert "прайс" in profile_workspace_source
-    assert "position-economics-scenario" in profile_workspace_source
-    assert "position-scenario-steps" in profile_workspace_source
-    assert "position-scenario-cta" in profile_workspace_source
+    assert "const POSITION_SCENARIO_STEPS" in position_scenario_source
+    assert "export function PositionEconomicsScenario" in position_scenario_source
+    assert "export function buildPositionScenarioState" in position_scenario_source
+    assert "pendingPriceCandidatesForProfile(profile)" in position_scenario_source
+    assert "selectedSupplierOptionForProfile(profile)" in position_scenario_source
+    assert "hasPositionEconomicsDraft(profile," in position_scenario_source
+    assert "Нужна цена" in position_scenario_source
+    assert "Проверить кандидата" in position_scenario_source
+    assert "Принять цену" in position_scenario_source
+    assert "Рассчитать" in position_scenario_source
+    assert "Решение" in position_scenario_source
+    assert "Осталось собрать полную себестоимость." in position_scenario_source
+    assert "Нужна проверка цены" in position_scenario_source
+    assert "прайс" in position_scenario_source
+    assert "position-economics-scenario" in position_scenario_source
+    assert "position-scenario-steps" in position_scenario_source
+    assert "position-scenario-cta" in position_scenario_source
     assert ".position-economics-scenario" in styles_source
     assert ".position-scenario-steps" in styles_source
     assert ".position-scenario-step" in styles_source
