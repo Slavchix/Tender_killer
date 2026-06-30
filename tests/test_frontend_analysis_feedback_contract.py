@@ -28,6 +28,9 @@ ANALYSIS_FACT_CARD_SOURCE = (
 ANALYSIS_FACT_MODEL_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "analysisFactModel.js"
 )
+ANALYSIS_FACT_COMPACT_TEXT_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "analysisFactCompactTextModel.js"
+)
 ANALYSIS_FEEDBACK_CONTROLS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisFeedbackControls.jsx"
 )
@@ -93,6 +96,7 @@ def test_tender_analysis_has_compact_mode_and_single_all_bucket():
     sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
     fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
     fact_model_source = ANALYSIS_FACT_MODEL_SOURCE.read_text(encoding="utf-8")
+    fact_compact_source = ANALYSIS_FACT_COMPACT_TEXT_SOURCE.read_text(encoding="utf-8")
     view_controls_source = ANALYSIS_VIEW_CONTROLS_SOURCE.read_text(encoding="utf-8")
 
     assert "analysisViewMode" in analysis_source
@@ -118,9 +122,9 @@ def test_tender_analysis_has_compact_mode_and_single_all_bucket():
     assert "analysis-fact-line" in fact_card_source
     assert "detailParts" in fact_card_source
     assert "compactAnalysisFactSentence" in fact_card_source
-    assert "item?.value" in fact_model_source
-    assert "item?.fragment" in fact_model_source
-    assert "точная формулировка в извлеченном тексте не найдена" in fact_model_source
+    assert "item?.value" in fact_compact_source
+    assert "item?.fragment" in fact_compact_source
+    assert "точная формулировка в извлеченном тексте не найдена" in fact_compact_source
     assert "analysis-fact-action" not in sections_source
     assert "analysis-fact-impact" not in sections_source
     assert "open={!compact}" in sections_source

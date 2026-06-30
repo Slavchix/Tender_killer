@@ -35,6 +35,7 @@ TENDER_WORKSPACES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" /
 TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
 TENDER_ANALYSIS_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisSummary.jsx"
 TENDER_ANALYSIS_SECTIONS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisSections.jsx"
+ANALYSIS_FACT_CARD_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisFactCard.jsx"
 TENDER_ANALYSIS_EVIDENCE_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisEvidencePanel.jsx"
 )
@@ -2623,6 +2624,10 @@ def test_analysis_tab_keeps_manual_section_selection_after_passport_click():
 
 def test_analysis_documents_render_structured_evidence_model():
     sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+    fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
+    fact_source_model = (Path(__file__).resolve().parents[1] / "web" / "src" / "analysisFactSourceModel.js").read_text(
+        encoding="utf-8"
+    )
     evidence_source = TENDER_ANALYSIS_EVIDENCE_SOURCE.read_text(encoding="utf-8")
     model_source = TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
@@ -2630,22 +2635,22 @@ def test_analysis_documents_render_structured_evidence_model():
     assert "buildDocumentEvidenceItems(analysis, documents)" not in sections_source
     assert "buildDocumentEvidenceItems(analysis, documents)" in evidence_source
     assert "TenderAnalysisEvidenceModel" not in sections_source
-    assert "analysis-source-context" in sections_source
-    assert "analysis-source-meta" in sections_source
-    assert "analysisSourceBinding(item)" in sections_source
-    assert "analysisConfidenceLevel(item)" in sections_source
-    assert "analysisEvidenceQuality(item)" in sections_source
-    assert "analysisSourceAuthority(item)" in sections_source
-    assert "source_binding" in sections_source
-    assert "confidence_level" in sections_source
-    assert "evidence_quality" in sections_source
-    assert "context_source_authority" in sections_source
-    assert "context_document_role" in sections_source
-    assert "context_source_priority" in sections_source
-    assert "analysis-source-authority" in sections_source
-    assert "analysis-evidence-quality-" in sections_source
+    assert "analysis-source-context" in fact_card_source
+    assert "analysis-source-meta" in fact_card_source
+    assert "analysisSourceBinding(item)" in fact_card_source
+    assert "analysisConfidenceLevel(item)" in fact_card_source
+    assert "analysisEvidenceQuality(item)" in fact_card_source
+    assert "analysisSourceAuthority(item)" in fact_card_source
+    assert "source_binding" in fact_source_model
+    assert "confidence_level" in fact_source_model
+    assert "evidence_quality" in fact_source_model
+    assert "context_source_authority" in fact_source_model
+    assert "context_document_role" in fact_source_model
+    assert "context_source_priority" in fact_source_model
+    assert "analysis-source-authority" in fact_card_source
+    assert "analysis-evidence-quality-" in fact_card_source
     assert "analysis-evidence-item" in evidence_source
-    assert "item.fragment" in sections_source
+    assert "item.fragment" in fact_card_source
     assert "item.typeLabel" in evidence_source
     assert "item.importanceLabel" in evidence_source
     assert "item.documentName" in evidence_source
