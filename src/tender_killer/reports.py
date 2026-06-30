@@ -11,6 +11,7 @@ from tender_killer.reports_docx_writer import docx_bytes as _docx_bytes
 from tender_killer.reports_docx_writer import paragraph as _p
 from tender_killer.reports_docx_writer import table as _table
 from tender_killer.reports_participation_map import participation_map_elements as _participation_map_elements
+from tender_killer.reports_product_profiles import report_product_profile_summary as _product_profile_summary
 from tender_killer.reports_tz_four_blocks import analysis_four_block_elements as _analysis_four_block_elements
 from tender_killer.reports_tz_sections import analysis_history_elements as _analysis_history_elements
 from tender_killer.reports_tz_sections import analysis_management_brief_elements as _analysis_management_brief_elements
@@ -294,48 +295,6 @@ def _economics_elements(economics: dict[str, Any]) -> list[DocxElement]:
         elements.append(_p("Первые позиции без себестоимости", "heading2"))
         elements.extend(_list_elements(_limited_text_list(missing_cost_inputs, fallback="нет", limit=5)))
     return elements
-
-
-def _profile_evidence_elements(profile: dict[str, Any]) -> list[DocxElement]:
-    rows = [
-        ["Документ", "Требование"],
-        *[
-            [_value(item.get("source")), _value(item.get("value"))]
-            for item in profile.get("evidence") or []
-            if isinstance(item, dict) and item.get("field") == "document_requirement"
-        ],
-    ]
-    if len(rows) == 1:
-        return []
-    return [_p("Подтверждения из ТЗ", "heading2"), _table(rows)]
-
-
-def _list_paragraphs(values: list[Any]) -> list[tuple[str, str]]:
-    return [(f"- {_value(value)}", "normal") for value in values]
-
-
-def _product_profile_summary(tender: dict[str, Any], product_profiles: list[Any]) -> dict[str, int]:
-    summary = tender.get("product_profile_summary")
-    keys = ("total", "ready", "needs_review", "matched", "priced", "rejected")
-    if isinstance(summary, dict):
-        return {key: _int_value(summary.get(key)) for key in keys}
-
-    counts = dict.fromkeys(keys, 0)
-    counts["total"] = len(product_profiles)
-    for profile in product_profiles:
-        if not isinstance(profile, dict):
-            continue
-        status = str(profile.get("profile_status") or "")
-        if status in counts and status != "total":
-            counts[status] += 1
-    return counts
-
-
-def _int_value(value: Any) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return 0
 
 
 def _value(value: Any, fallback: str = "не указано") -> str:

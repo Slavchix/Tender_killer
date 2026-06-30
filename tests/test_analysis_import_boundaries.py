@@ -57,3 +57,12 @@ def test_reports_do_not_keep_legacy_analysis_fallback_sections():
     assert "analysis_evidence_service import build_analysis_evidence_items" not in source
     assert "def _analysis_checklist_elements" not in source
     assert "def _analysis_evidence_elements" not in source
+
+
+def test_reports_delegate_product_profile_summary():
+    source = (ROOT / "src/tender_killer/reports.py").read_text(encoding="utf-8")
+
+    assert "reports_product_profiles import report_product_profile_summary as _product_profile_summary" in source
+    assert "def _product_profile_summary" not in source
+    assert "def _profile_evidence_elements" not in source
+    assert "def _list_paragraphs" not in source
