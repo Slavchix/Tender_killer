@@ -3,7 +3,8 @@ import {
   analysisCategoryLabel,
   analysisSeverityLabel,
 } from './formatters'
-import { AnalysisFactCard, isWeakAnalysisFact } from './AnalysisFactCard'
+import { AnalysisFactCard } from './AnalysisFactCard'
+import { isWeakAnalysisFact } from './analysisFactModel'
 import { AnalysisViewControls } from './AnalysisViewControls'
 import {
   analysisSectionItems,
