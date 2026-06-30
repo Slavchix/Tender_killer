@@ -9,6 +9,7 @@ WEB_SRC = Path("web/src")
 def test_tz_analysis_secondary_tools_are_collapsed_and_localized():
     source = (WEB_SRC / "TenderAnalysisTab.jsx").read_text(encoding="utf-8")
     secondary_source = (WEB_SRC / "TenderAnalysisSecondaryDrawers.jsx").read_text(encoding="utf-8")
+    workflow_source = (WEB_SRC / "TenderAnalysisWorkflowPanel.jsx").read_text(encoding="utf-8")
 
     assert "AnalysisSecondaryDrawers" in source
     assert "function AnalysisWorkflowPanel" not in source
@@ -18,7 +19,7 @@ def test_tz_analysis_secondary_tools_are_collapsed_and_localized():
     assert "Проверка ТЗ и подсказки" in secondary_source
     assert "Контрольные вопросы" in secondary_source
     assert "Подсказки оператора" in secondary_source
-    assert "Рабочий процесс ТЗ" in secondary_source
+    assert "Рабочий процесс ТЗ" in workflow_source
     assert "Скачать отчет" in source
     assert "оператор" in secondary_source
     assert "{entry.actor || 'operator'}" not in secondary_source
