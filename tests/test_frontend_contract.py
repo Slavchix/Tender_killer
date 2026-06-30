@@ -60,6 +60,9 @@ TENDER_ECONOMICS_FORMS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "s
 TENDER_ECONOMICS_COST_FORM_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsCostForm.jsx"
 TENDER_ECONOMICS_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSummary.jsx"
 TENDER_ECONOMICS_SUPPLIERS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSuppliers.jsx"
+TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPriceCandidateModel.js"
+)
 TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSupplierDiscovery.jsx"
 )
@@ -1633,6 +1636,7 @@ def test_product_profile_renders_supplier_option_form():
         if TENDER_ECONOMICS_SUPPLIERS_SOURCE.exists()
         else ""
     )
+    candidate_model_source = TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE.read_text(encoding="utf-8")
     discovery_source = (
         TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.read_text(encoding="utf-8")
         if TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.exists()
@@ -1722,7 +1726,7 @@ def test_product_profile_renders_supplier_option_form():
     assert "price-candidate-price-delta" in source
     assert "candidateQueueBuckets" in source
     assert "queuedCandidateCount" in source
-    assert "reviewStatus !== 'pending'" in source
+    assert "reviewStatus !== 'pending'" in candidate_model_source
     assert "showSupplierOptions" in source
     assert "PriceCandidatesEmptyState" in source
     assert "ссылку на товар" in source
@@ -1732,13 +1736,13 @@ def test_product_profile_renders_supplier_option_form():
     assert "candidate.score" in source
     assert "` · оценка ${candidate.score}`" in source
     assert "` · score ${candidate.score}`" not in source
-    assert "formatSourceKindLabel" in source
-    assert "price_memory: 'Память цен'" in source
-    assert "supplier_default_delivery: 'доставка по правилу'" in source
-    assert "supplier_default_vat_included: 'НДС по правилу'" in source
-    assert "Правило" in source
-    assert "Цена за единицу" in source
-    assert "Прайс" in source
+    assert "formatSourceKindLabel" in candidate_model_source
+    assert "price_memory: 'Память цен'" in candidate_model_source
+    assert "supplier_default_delivery: 'доставка по правилу'" in candidate_model_source
+    assert "supplier_default_vat_included: 'НДС по правилу'" in candidate_model_source
+    assert "Правило" in candidate_model_source
+    assert "Цена за единицу" in candidate_model_source
+    assert "Прайс" in candidate_model_source
     assert "candidate match reasons" not in source
     assert "candidate.quality_status" in source
     assert "candidate.quality_flags" in source
@@ -1747,8 +1751,8 @@ def test_product_profile_renders_supplier_option_form():
     assert "priceCandidateReasonLabel" in source
     assert "price-candidate-reasons" in source
     assert "priceCandidateQualityLabel" in source
-    assert "готова к расчету" in source
-    assert "не брать автоматически" in source
+    assert "готова к расчету" in candidate_model_source
+    assert "не брать автоматически" in candidate_model_source
     assert "Принять цену" in source
     assert "Отклонить" in source
     assert "supplier_options" in source
@@ -1837,6 +1841,7 @@ def test_product_profile_renders_supplier_option_form():
     assert find_mojibake(tab_source, TENDER_ECONOMICS_TAB_SOURCE) == []
     assert find_mojibake(workbench_source, TENDER_ECONOMICS_WORKBENCH_SOURCE) == []
     assert find_mojibake(source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
+    assert find_mojibake(candidate_model_source, TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE) == []
     assert find_mojibake(discovery_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []
     assert find_mojibake(options_source, TENDER_ECONOMICS_SUPPLIER_OPTIONS_SOURCE) == []
     assert find_mojibake(forms_source, TENDER_ECONOMICS_FORMS_SOURCE) == []
