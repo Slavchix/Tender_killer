@@ -66,6 +66,9 @@ TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE = (
 TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPriceCandidateQueue.jsx"
 )
+TENDER_ECONOMICS_PRICE_CANDIDATE_PASSPORT_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsPriceCandidatePassport.jsx"
+)
 TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderEconomicsSupplierDiscovery.jsx"
 )
@@ -217,6 +220,7 @@ def test_economics_workspace_exposes_compact_operator_flow():
     tab_source = TENDER_ECONOMICS_TAB_SOURCE.read_text(encoding="utf-8")
     suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
     price_candidate_queue_source = TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE.read_text(encoding="utf-8")
+    price_candidate_passport_source = TENDER_ECONOMICS_PRICE_CANDIDATE_PASSPORT_SOURCE.read_text(encoding="utf-8")
     candidate_model_source = TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE.read_text(encoding="utf-8")
     profile_workspace_source = TENDER_ECONOMICS_PROFILE_WORKSPACE_SOURCE.read_text(encoding="utf-8")
     position_scenario_source = TENDER_ECONOMICS_POSITION_SCENARIO_SOURCE.read_text(encoding="utf-8")
@@ -265,6 +269,7 @@ def test_economics_command_center_keeps_secondary_actions_collapsed():
 def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     suppliers_source = TENDER_ECONOMICS_SUPPLIERS_SOURCE.read_text(encoding="utf-8")
     price_candidate_queue_source = TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE.read_text(encoding="utf-8")
+    price_candidate_passport_source = TENDER_ECONOMICS_PRICE_CANDIDATE_PASSPORT_SOURCE.read_text(encoding="utf-8")
     candidate_model_source = TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE.read_text(encoding="utf-8")
     discovery_source = TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE.read_text(encoding="utf-8")
     discovery_diagnostics_source = TENDER_ECONOMICS_SUPPLIER_DISCOVERY_DIAGNOSTICS_SOURCE.read_text(encoding="utf-8")
@@ -274,16 +279,17 @@ def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     assert "provider-run-summary" in discovery_diagnostics_source
     assert "supplierDiscoveryRunBuckets" in discovery_diagnostics_source
     assert "supplier-discovery-next-action" in discovery_source
-    assert "CandidateDecisionTrace" in price_candidate_queue_source
-    assert "CandidatePricePassport" in price_candidate_queue_source
-    assert "candidate-decision-trace" in price_candidate_queue_source
-    assert "price-candidate-passport" in price_candidate_queue_source
-    assert "price-candidate-passport-steps" in price_candidate_queue_source
-    assert "CandidatePricePassportFacts" in price_candidate_queue_source
-    assert "CandidatePricePassportSteps" in price_candidate_queue_source
-    assert "candidatePassportFacts(passport)" in price_candidate_queue_source
+    assert "TenderEconomicsPriceCandidatePassport" in price_candidate_queue_source
+    assert "export function CandidateDecisionTrace" in price_candidate_passport_source
+    assert "export function CandidatePricePassport" in price_candidate_passport_source
+    assert "candidate-decision-trace" in price_candidate_passport_source
+    assert "price-candidate-passport" in price_candidate_passport_source
+    assert "price-candidate-passport-steps" in price_candidate_passport_source
+    assert "CandidatePricePassportFacts" in price_candidate_passport_source
+    assert "CandidatePricePassportSteps" in price_candidate_passport_source
+    assert "candidatePassportFacts(passport)" in price_candidate_passport_source
     assert "funnel_steps" in candidate_model_source
-    assert "price-candidate-passport-facts" in price_candidate_queue_source
+    assert "price-candidate-passport-facts" in price_candidate_passport_source
     assert "source_label" in candidate_model_source
     assert "freshness_label" in candidate_model_source
     assert "match_confidence" in candidate_model_source
@@ -291,8 +297,8 @@ def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     assert "vat_label" in candidate_model_source
     assert "delivery_label" in candidate_model_source
     assert "evidence_url" in candidate_model_source
-    assert "candidateBestReasonItems" in price_candidate_queue_source
-    assert "candidatePricingPassport" in price_candidate_queue_source
+    assert "candidateBestReasonItems" in price_candidate_passport_source
+    assert "candidatePricingPassport" in price_candidate_passport_source
     assert "candidate.pricing_passport" in candidate_model_source
     assert "score_reasons" in candidate_model_source
     assert ".provider-run-summary" in styles_source
@@ -303,6 +309,7 @@ def test_economics_workspace_surfaces_provider_run_and_candidate_explanations():
     assert ".supplier-discovery-next-action" in styles_source
     assert find_mojibake(suppliers_source, TENDER_ECONOMICS_SUPPLIERS_SOURCE) == []
     assert find_mojibake(price_candidate_queue_source, TENDER_ECONOMICS_PRICE_CANDIDATE_QUEUE_SOURCE) == []
+    assert find_mojibake(price_candidate_passport_source, TENDER_ECONOMICS_PRICE_CANDIDATE_PASSPORT_SOURCE) == []
     assert find_mojibake(candidate_model_source, TENDER_ECONOMICS_PRICE_CANDIDATE_MODEL_SOURCE) == []
     assert find_mojibake(discovery_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_SOURCE) == []
     assert find_mojibake(discovery_diagnostics_source, TENDER_ECONOMICS_SUPPLIER_DISCOVERY_DIAGNOSTICS_SOURCE) == []
