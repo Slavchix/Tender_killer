@@ -1,0 +1,290 @@
+import { TenderEconomicsMetrics } from './TenderEconomicsMetrics'
+
+export const SMALL_TENDER_ACTIVE_DISCOVERY_LIMIT = 5
+
+export function TenderEconomicsCommandCenter({
+  tender,
+  economics,
+  profiles = [],
+  readyPriceCandidateCount = 0,
+  hasSupplierOptions = false,
+  canRunActivePriceDiscovery = false,
+  requiresManualPriceFlow = false,
+  priceDiscoveryRunCount = 0,
+  runningPriceDiscovery = false,
+  confirmingReadyPriceCandidates = false,
+  autoSelectingAllSuppliers = false,
+  priceDiscoveryJob = null,
+  onPriceDiscoveryRun,
+  onReadyPriceCandidatesConfirmAll,
+  onSupplierOptionAutoSelectAll,
+}) {
+  const priceDiscoveryJobText = priceDiscoveryJobStatusText(priceDiscoveryJob)
+  const economicsSteps = economicsProgressSteps({
+    profiles,
+    readyPriceCandidateCount,
+    hasSupplierOptions,
+    requiresManualPriceFlow,
+  })
+  const primaryEconomicsAction = nextEconomicsAction({
+    canRunActivePriceDiscovery,
+    requiresManualPriceFlow,
+    priceDiscoveryRunCount,
+    readyPriceCandidateCount,
+    hasSupplierOptions,
+    runningPriceDiscovery,
+    confirmingReadyPriceCandidates,
+    autoSelectingAllSuppliers,
+    onPriceDiscoveryRun,
+    onReadyPriceCandidatesConfirmAll,
+    onSupplierOptionAutoSelectAll,
+  })
+  const secondaryEconomicsActions = economicsSecondaryActions({
+    canRunActivePriceDiscovery,
+    priceDiscoveryRunCount,
+    readyPriceCandidateCount,
+    hasSupplierOptions,
+    runningPriceDiscovery,
+    confirmingReadyPriceCandidates,
+    autoSelectingAllSuppliers,
+    onPriceDiscoveryRun,
+    onReadyPriceCandidatesConfirmAll,
+    onSupplierOptionAutoSelectAll,
+  }).filter((action) => action.id !== primaryEconomicsAction?.id)
+
+  return (
+    <div className="economics-command-center">
+      <div className="section-heading-row economics-command-heading">
+        <div>
+          <h3>Экономика</h3>
+          <p>Закрой цены по позициям, проверь кандидатов и собери расчет участия.</p>
+        </div>
+        <div className="economics-command-actions">
+          {primaryEconomicsAction && (
+            <button
+              className="secondary-button compact economics-primary-action"
+              disabled={primaryEconomicsAction.disabled}
+              onClick={() => ignoreEconomicsActionError(primaryEconomicsAction.onRun?.())}
+              title={primaryEconomicsAction.description}
+              type="button"
+            >
+              {primaryEconomicsAction.label}
+            </button>
+          )}
+          {secondaryEconomicsActions.length > 0 && (
+            <details className="economics-secondary-menu">
+              <summary className="economics-secondary-summary">
+                Еще <span>{secondaryEconomicsActions.filter((action) => !action.disabled).length}</span>
+              </summary>
+              <div className="economics-secondary-actions" aria-label="Дополнительные действия экономики">
+                {secondaryEconomicsActions.map((action) => (
+                  <button
+                    className="secondary-button compact"
+                    disabled={action.disabled}
+                    key={action.id}
+                    onClick={() => ignoreEconomicsActionError(action.onRun?.())}
+                    title={action.description}
+                    type="button"
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      </div>
+      <EconomicsProgressStepper steps={economicsSteps} />
+      {requiresManualPriceFlow && (
+        <p className="muted-text price-discovery-manual-required">
+          Крупная закупка: используй быстрые ссылки/ссылка на товар/прайс вместо активного автопоиска цен.
+        </p>
+      )}
+      {priceDiscoveryJobText && <p className="muted-text price-discovery-progress">{priceDiscoveryJobText}</p>}
+      <TenderEconomicsMetrics tender={tender} economics={economics} profiles={profiles} />
+    </div>
+  )
+}
+
+export function hasReadyPriceCandidateWithoutCost(profile) {
+  if (hasPositiveEconomicsCost(profile)) return false
+  const candidates = Array.isArray(profile?.price_candidates) ? profile.price_candidates : []
+  return candidates.some((candidate) => {
+    const reviewStatus = String(candidate?.review_status || 'pending').toLowerCase()
+    return candidate?.auto_eligible === true && reviewStatus !== 'confirmed' && reviewStatus !== 'rejected'
+  })
+}
+
+export function profileNeedsPriceDiscovery(profile) {
+  return !hasPositiveEconomicsCost(profile)
+}
+
+export function hasPositiveEconomicsCost(profile) {
+  const economics = profile?.raw_payload?.economics || {}
+  return Number(economics.unit_cost || 0) > 0 || Number(economics.total_cost || 0) > 0
+}
+
+function ignoreEconomicsActionError(result) {
+  if (result?.catch) {
+    result.catch(() => {})
+  }
+}
+
+function EconomicsProgressStepper({ steps = [] }) {
+  if (!steps.length) return null
+  return (
+    <div className="economics-stepper" aria-label="Ход расчета экономики">
+      {steps.map((step) => (
+        <div className={`economics-step ${step.tone || 'idle'}`} key={step.id}>
+          <span>{step.label}</span>
+          <strong>{step.value}</strong>
+          <em>{step.detail}</em>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function nextEconomicsAction({
+  canRunActivePriceDiscovery,
+  requiresManualPriceFlow,
+  priceDiscoveryRunCount,
+  readyPriceCandidateCount,
+  hasSupplierOptions,
+  runningPriceDiscovery,
+  confirmingReadyPriceCandidates,
+  autoSelectingAllSuppliers,
+  onPriceDiscoveryRun,
+  onReadyPriceCandidatesConfirmAll,
+  onSupplierOptionAutoSelectAll,
+}) {
+  if (canRunActivePriceDiscovery && priceDiscoveryRunCount > 0) {
+    return {
+      id: 'discover',
+      label: runningPriceDiscovery ? 'Ищу цены...' : `Найти цены (${priceDiscoveryRunCount})`,
+      description: 'Активный автопоиск доступен только для мелкой закупки до 5 позиций.',
+      disabled: runningPriceDiscovery || !onPriceDiscoveryRun,
+      onRun: onPriceDiscoveryRun,
+    }
+  }
+  if (requiresManualPriceFlow && priceDiscoveryRunCount > 0) {
+    return {
+      id: 'manual',
+      label: `Добавить цены (${priceDiscoveryRunCount})`,
+      description: 'Для крупной закупки используй ссылки, прайс или КП без массового запуска.',
+      disabled: true,
+    }
+  }
+  if (readyPriceCandidateCount > 0) {
+    return {
+      id: 'ready',
+      label: confirmingReadyPriceCandidates ? 'Принимаю...' : `Принять готовые (${readyPriceCandidateCount})`,
+      description: 'Добавить проверенные кандидаты в расчет позиции.',
+      disabled: confirmingReadyPriceCandidates || !onReadyPriceCandidatesConfirmAll,
+      onRun: onReadyPriceCandidatesConfirmAll,
+    }
+  }
+  if (hasSupplierOptions) {
+    return {
+      id: 'best',
+      label: autoSelectingAllSuppliers ? 'Выбираю...' : 'Лучшие в расчет',
+      description: 'Выбрать лучшие цены поставщиков для расчета.',
+      disabled: autoSelectingAllSuppliers || !onSupplierOptionAutoSelectAll,
+      onRun: onSupplierOptionAutoSelectAll,
+    }
+  }
+  return {
+    id: 'review',
+    label: 'Проверить расчет',
+    description: 'Цены закрыты или ожидают ручной проверки.',
+    disabled: true,
+  }
+}
+
+function economicsSecondaryActions({
+  canRunActivePriceDiscovery,
+  priceDiscoveryRunCount,
+  readyPriceCandidateCount,
+  hasSupplierOptions,
+  runningPriceDiscovery,
+  confirmingReadyPriceCandidates,
+  autoSelectingAllSuppliers,
+  onPriceDiscoveryRun,
+  onReadyPriceCandidatesConfirmAll,
+  onSupplierOptionAutoSelectAll,
+}) {
+  const actions = []
+  if (canRunActivePriceDiscovery) {
+    actions.push({
+      id: 'discover',
+      label: runningPriceDiscovery ? 'Ищу...' : `Поиск (${priceDiscoveryRunCount})`,
+      description: 'Активный автопоиск цен по позициям.',
+      disabled: runningPriceDiscovery || !onPriceDiscoveryRun || priceDiscoveryRunCount === 0,
+      onRun: onPriceDiscoveryRun,
+    })
+  }
+  actions.push({
+    id: 'ready',
+    label: confirmingReadyPriceCandidates ? 'Принимаю...' : `Готовые (${readyPriceCandidateCount})`,
+    description: 'Принять готовых кандидатов цен.',
+    disabled: confirmingReadyPriceCandidates || !onReadyPriceCandidatesConfirmAll || readyPriceCandidateCount === 0,
+    onRun: onReadyPriceCandidatesConfirmAll,
+  })
+  actions.push({
+    id: 'best',
+    label: autoSelectingAllSuppliers ? 'Выбираю...' : 'Лучшие цены',
+    description: 'Поставить лучшие цены в расчет.',
+    disabled: autoSelectingAllSuppliers || !onSupplierOptionAutoSelectAll || !hasSupplierOptions,
+    onRun: onSupplierOptionAutoSelectAll,
+  })
+  return actions
+}
+
+function economicsProgressSteps({
+  profiles = [],
+  readyPriceCandidateCount = 0,
+  hasSupplierOptions = false,
+  requiresManualPriceFlow = false,
+}) {
+  const total = profiles.length
+  const priced = profiles.filter(hasPositiveEconomicsCost).length
+  const missing = Math.max(0, total - priced)
+  return [
+    {
+      id: 'prices',
+      label: 'Цены',
+      value: total > 0 ? `${priced}/${total}` : '0',
+      detail: requiresManualPriceFlow ? 'ручной поток' : `добавить ${missing}`,
+      tone: priced === total && total > 0 ? 'done' : missing > 0 ? 'active' : 'idle',
+    },
+    {
+      id: 'candidates',
+      label: 'Кандидаты',
+      value: String(readyPriceCandidateCount),
+      detail: readyPriceCandidateCount > 0 ? 'готовы к приемке' : 'очередь пуста',
+      tone: readyPriceCandidateCount > 0 ? 'active' : 'idle',
+    },
+    {
+      id: 'calculation',
+      label: 'Расчет',
+      value: hasSupplierOptions ? 'варианты' : priced > 0 ? 'собирается' : 'ждет цен',
+      detail: hasSupplierOptions ? 'можно выбрать' : 'маржа после цен',
+      tone: hasSupplierOptions || (priced === total && total > 0) ? 'done' : 'idle',
+    },
+  ]
+}
+
+function priceDiscoveryJobStatusText(job) {
+  if (!job?.job_id) return ''
+  const searched = Number(job.searched_count || 0)
+  const total = Number(job.total_profiles || 0)
+  const staged = Number(job.staged_count || job.result?.staged_count || 0)
+  const ready = Number(job.ready_count || job.result?.ready_count || 0)
+  const progress = total > 0 ? `${searched}/${total}` : `${searched}`
+  const completedByProgress = job.status === 'running' && total > 0 && searched >= total
+  if (job.status === 'failed') return `Поиск цен: ошибка, проверено ${progress}.`
+  if (job.status === 'succeeded' || completedByProgress) {
+    return `Поиск цен завершен: проверено ${progress}, подготовлено ${staged}, готово ${ready}.`
+  }
+  return `Поиск цен выполняется: проверено ${progress}, подготовлено ${staged}, готово ${ready}.`
+}
