@@ -1,6 +1,30 @@
 from __future__ import annotations
 
 from tender_killer.economics import build_economics_summary
+from tender_killer.economics_costing import _landed_cost_totals
+from tender_killer.economics_costing_models import LandedCostTotals
+
+
+def test_landed_cost_totals_calculates_shared_vat_reserve_and_margin():
+    totals = _landed_cost_totals(
+        base_cost=100.0,
+        vat_mode="vat_excluded",
+        vat_rate_percent=20.0,
+        risk_reserve_percent=5.0,
+        target_margin_percent=15.0,
+    )
+
+    assert totals == LandedCostTotals(
+        base_cost=100.0,
+        vat_mode="vat_excluded",
+        vat_rate_percent=20.0,
+        vat_cost=20.0,
+        risk_reserve_percent=5.0,
+        position_risk_reserve=6.0,
+        estimated_total_cost=126.0,
+        target_margin_percent=15.0,
+        target_price=148.24,
+    )
 
 
 def test_build_economics_summary_calculates_margin_from_manual_profile_costs():

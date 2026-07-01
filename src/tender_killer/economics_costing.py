@@ -4,6 +4,7 @@ import math
 from typing import Any
 
 from .economics_constants import INTERESTING_MARGIN_PERCENT
+from .economics_costing_models import LandedCostTotals
 
 
 def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
@@ -46,17 +47,12 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
     risk_reserve_percent = _percent(assumptions.get("risk_reserve_percent")) or 0.0
     target_margin_percent = _percent(assumptions.get("target_margin_percent"))
     base_cost = total_cost + extra_costs if total_cost is not None else None
-    vat_cost = _vat_cost(base_cost, vat_mode, vat_rate_percent)
-    position_risk_reserve = _position_risk_reserve(base_cost, vat_cost, risk_reserve_percent)
-    estimated_total_cost = (
-        _round_money(base_cost + vat_cost + position_risk_reserve)
-        if base_cost is not None
-        else None
-    )
-    target_price = (
-        _price_for_margin(estimated_total_cost, target_margin_percent)
-        if estimated_total_cost is not None and target_margin_percent is not None and target_margin_percent < 100
-        else None
+    totals = _landed_cost_totals(
+        base_cost,
+        vat_mode,
+        vat_rate_percent,
+        risk_reserve_percent,
+        target_margin_percent,
     )
     rounded_unit_cost = _round_money(unit_cost) if unit_cost is not None else None
     rounded_total_cost = _round_money(total_cost) if total_cost is not None else None
@@ -81,12 +77,12 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
         "landed_cost": _round_money(base_cost) if base_cost is not None else None,
         "vat_mode": vat_mode,
         "vat_rate_percent": _round_percent(vat_rate_percent) if vat_rate_percent is not None else None,
-        "vat_cost": vat_cost,
+        "vat_cost": totals.vat_cost,
         "risk_reserve_percent": _round_percent(risk_reserve_percent),
-        "position_risk_reserve": position_risk_reserve,
-        "estimated_total_cost": estimated_total_cost,
+        "position_risk_reserve": totals.position_risk_reserve,
+        "estimated_total_cost": totals.estimated_total_cost,
         "target_margin_percent": _round_percent(target_margin_percent) if target_margin_percent is not None else None,
-        "target_price": target_price,
+        "target_price": totals.target_price,
         "price_passport": _price_passport(price_source, economics, rounded_unit_cost, rounded_total_cost),
         "unit_normalization": _unit_normalization(profile, price_source, rounded_unit_cost),
     }
@@ -122,17 +118,12 @@ def _service_item_cost(
     risk_reserve_percent = _percent(assumptions.get("risk_reserve_percent")) or 0.0
     target_margin_percent = _percent(assumptions.get("target_margin_percent"))
     base_cost = total_cost + extra_costs if total_cost is not None else None
-    vat_cost = _vat_cost(base_cost, vat_mode, vat_rate_percent)
-    position_risk_reserve = _position_risk_reserve(base_cost, vat_cost, risk_reserve_percent)
-    estimated_total_cost = (
-        _round_money(base_cost + vat_cost + position_risk_reserve)
-        if base_cost is not None
-        else None
-    )
-    target_price = (
-        _price_for_margin(estimated_total_cost, target_margin_percent)
-        if estimated_total_cost is not None and target_margin_percent is not None and target_margin_percent < 100
-        else None
+    totals = _landed_cost_totals(
+        base_cost,
+        vat_mode,
+        vat_rate_percent,
+        risk_reserve_percent,
+        target_margin_percent,
     )
     rounded_rate = _round_money(service_rate) if service_rate is not None else None
     rounded_total_cost = _round_money(total_cost) if total_cost is not None else None
@@ -163,12 +154,12 @@ def _service_item_cost(
         "landed_cost": _round_money(base_cost) if base_cost is not None else None,
         "vat_mode": vat_mode,
         "vat_rate_percent": _round_percent(vat_rate_percent) if vat_rate_percent is not None else None,
-        "vat_cost": vat_cost,
+        "vat_cost": totals.vat_cost,
         "risk_reserve_percent": _round_percent(risk_reserve_percent),
-        "position_risk_reserve": position_risk_reserve,
-        "estimated_total_cost": estimated_total_cost,
+        "position_risk_reserve": totals.position_risk_reserve,
+        "estimated_total_cost": totals.estimated_total_cost,
         "target_margin_percent": _round_percent(target_margin_percent) if target_margin_percent is not None else None,
-        "target_price": target_price,
+        "target_price": totals.target_price,
         "price_passport": _price_passport(price_source, economics, rounded_rate, rounded_total_cost),
         "unit_normalization": None,
     }
@@ -327,6 +318,38 @@ def _position_risk_reserve(base_cost: float | None, vat_cost: float, risk_reserv
     if base_cost is None:
         return 0.0
     return _round_money((base_cost + vat_cost) * risk_reserve_percent / 100)
+
+
+def _landed_cost_totals(
+    base_cost: float | None,
+    vat_mode: str,
+    vat_rate_percent: float | None,
+    risk_reserve_percent: float,
+    target_margin_percent: float | None,
+) -> LandedCostTotals:
+    vat_cost = _vat_cost(base_cost, vat_mode, vat_rate_percent)
+    position_risk_reserve = _position_risk_reserve(base_cost, vat_cost, risk_reserve_percent)
+    estimated_total_cost = (
+        _round_money(base_cost + vat_cost + position_risk_reserve)
+        if base_cost is not None
+        else None
+    )
+    target_price = (
+        _price_for_margin(estimated_total_cost, target_margin_percent)
+        if estimated_total_cost is not None and target_margin_percent is not None and target_margin_percent < 100
+        else None
+    )
+    return LandedCostTotals(
+        base_cost=base_cost,
+        vat_mode=vat_mode,
+        vat_rate_percent=vat_rate_percent,
+        vat_cost=vat_cost,
+        risk_reserve_percent=risk_reserve_percent,
+        position_risk_reserve=position_risk_reserve,
+        estimated_total_cost=estimated_total_cost,
+        target_margin_percent=target_margin_percent,
+        target_price=target_price,
+    )
 
 
 def _target_margin_percent(items: list[dict[str, Any]]) -> float:
