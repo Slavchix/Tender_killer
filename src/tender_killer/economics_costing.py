@@ -4,16 +4,34 @@ import math
 from typing import Any
 
 from .economics_constants import INTERESTING_MARGIN_PERCENT
-from .economics_costing_models import LandedCostTotals
+from .economics_costing_models import LandedCostTotals, PositionCostContext
 
 
 def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
+    context = _position_cost_context(profile)
+    if context.cost_model == "service":
+        return _service_item_cost(context)
+    return _product_item_cost(context)
+
+
+def _position_cost_context(profile: dict[str, Any]) -> PositionCostContext:
     economics = _economics_payload(profile)
     assumptions = _assumptions_payload(profile)
     price_source = _price_source_payload(profile)
-    cost_model = _cost_model(economics.get("cost_model"))
-    if cost_model == "service":
-        return _service_item_cost(profile, economics, assumptions, price_source)
+    return PositionCostContext(
+        profile=profile,
+        economics=economics,
+        assumptions=assumptions,
+        price_source=price_source,
+        cost_model=_cost_model(economics.get("cost_model")),
+    )
+
+
+def _product_item_cost(context: PositionCostContext) -> dict[str, Any]:
+    profile = context.profile
+    economics = context.economics
+    assumptions = context.assumptions
+    price_source = context.price_source
     quantity = _number(profile.get("quantity"))
     if quantity is not None and quantity <= 0:
         quantity = None
@@ -88,12 +106,11 @@ def _item_cost(profile: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _service_item_cost(
-    profile: dict[str, Any],
-    economics: dict[str, Any],
-    assumptions: dict[str, Any],
-    price_source: dict[str, Any],
-) -> dict[str, Any]:
+def _service_item_cost(context: PositionCostContext) -> dict[str, Any]:
+    profile = context.profile
+    economics = context.economics
+    assumptions = context.assumptions
+    price_source = context.price_source
     quantity = _number(profile.get("quantity"))
     if quantity is not None and quantity <= 0:
         quantity = None

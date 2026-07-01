@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from tender_killer.economics import build_economics_summary
-from tender_killer.economics_costing import _landed_cost_totals
-from tender_killer.economics_costing_models import LandedCostTotals
+from tender_killer.economics_costing import _landed_cost_totals, _position_cost_context
+from tender_killer.economics_costing_models import LandedCostTotals, PositionCostContext
 
 
 def test_landed_cost_totals_calculates_shared_vat_reserve_and_margin():
@@ -24,6 +24,27 @@ def test_landed_cost_totals_calculates_shared_vat_reserve_and_margin():
         estimated_total_cost=126.0,
         target_margin_percent=15.0,
         target_price=148.24,
+    )
+
+
+def test_position_cost_context_reads_economics_payloads():
+    profile = {
+        "quantity": 2,
+        "raw_payload": {
+            "economics": {"cost_model": "service", "unit_cost": 150.0},
+            "economics_assumptions": {"vat_mode": "vat_included"},
+            "economics_price_source": {"source": "manual"},
+        },
+    }
+
+    context = _position_cost_context(profile)
+
+    assert context == PositionCostContext(
+        profile=profile,
+        economics={"cost_model": "service", "unit_cost": 150.0},
+        assumptions={"vat_mode": "vat_included"},
+        price_source={"source": "manual"},
+        cost_model="service",
     )
 
 

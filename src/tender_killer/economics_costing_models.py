@@ -1,6 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass(frozen=True)
+class PositionCostContext:
+    profile: dict[str, Any]
+    economics: dict[str, Any]
+    assumptions: dict[str, Any]
+    price_source: dict[str, Any]
+    cost_model: str
 
 
 @dataclass(frozen=True)
