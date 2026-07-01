@@ -3,10 +3,16 @@ import {
   downloadTenderDocuments,
   extractTenderDocumentText,
   runTenderAnalysis,
-  saveAnalysisFeedback,
-  saveAnalysisWorkflow,
 } from './api'
 import { documentRecordsForTender } from './formatters'
+import {
+  buildAnalysisErrorState,
+  buildDownloadDocumentsStatus,
+  buildExtractDocumentTextStatus,
+  documentTenderKey,
+  isCurrentRequest,
+} from './tenderDocumentAnalysisModel'
+import { useTenderAnalysisSaveActions } from './useTenderAnalysisSaveActions'
 
 export function useTenderDocumentAnalysis(tender) {
   const currentTenderKey = documentTenderKey(tender)
@@ -21,10 +27,15 @@ export function useTenderDocumentAnalysis(tender) {
   const [extracting, setExtracting] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [preparingAnalysis, setPreparingAnalysis] = useState(false)
-  const [savingAnalysisFeedbackId, setSavingAnalysisFeedbackId] = useState('')
-  const [savingAnalysisWorkflow, setSavingAnalysisWorkflow] = useState(false)
   const [downloadStatus, setDownloadStatus] = useState('')
   const [extractStatus, setExtractStatus] = useState('')
+  const {
+    savingAnalysisFeedbackId,
+    savingAnalysisWorkflow,
+    resetAnalysisSaveState,
+    saveFactFeedback,
+    saveTzWorkflow,
+  } = useTenderAnalysisSaveActions(tender, setAnalysis)
 
   currentTenderKeyRef.current = currentTenderKey
 
@@ -39,8 +50,7 @@ export function useTenderDocumentAnalysis(tender) {
     setExtracting(false)
     setAnalyzing(false)
     setPreparingAnalysis(false)
-    setSavingAnalysisFeedbackId('')
-    setSavingAnalysisWorkflow(false)
+    resetAnalysisSaveState()
     setDownloadStatus('')
     setExtractStatus('')
   }, [tender.source, tender.external_id, tender.analysis, tender.document_records, tender.documents])
@@ -55,14 +65,7 @@ export function useTenderDocumentAnalysis(tender) {
       .then((payload) => {
         if (!isCurrentRequest(downloadRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return
         setDocumentRecords(payload.document_records || [])
-        const skipped = payload.skipped || 0
-        const firstError = payload.failed?.[0]?.error
-        const statusParts = [`Скачано: ${payload.downloaded || 0}`]
-        if (skipped) statusParts.push(`уже скачано: ${skipped}`)
-        if (payload.failed?.length) {
-          statusParts.push(`ошибок: ${payload.failed.length}${firstError ? `: ${firstError}` : ''}`)
-        }
-        setDownloadStatus(statusParts.join(', '))
+        setDownloadStatus(buildDownloadDocumentsStatus(payload))
       })
       .catch((err) => {
         if (!isCurrentRequest(downloadRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return
@@ -84,10 +87,7 @@ export function useTenderDocumentAnalysis(tender) {
       .then((payload) => {
         if (!isCurrentRequest(extractRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return
         setDocumentRecords(payload.document_records || [])
-        const firstError = payload.failed?.[0]?.error
-        setExtractStatus(
-          `Извлечено: ${payload.extracted || 0}${payload.failed?.length ? `, ошибок: ${payload.failed.length}${firstError ? `: ${firstError}` : ''}` : ''}`
-        )
+        setExtractStatus(buildExtractDocumentTextStatus(payload))
       })
       .catch((err) => {
         if (!isCurrentRequest(extractRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return
@@ -111,15 +111,7 @@ export function useTenderDocumentAnalysis(tender) {
       })
       .catch((err) => {
         if (!isCurrentRequest(analysisRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return
-        setAnalysis({
-          summary: err.message,
-          requirements: [],
-          risks: [],
-          red_flags: ['ошибка анализа'],
-          checklist: [],
-          status: 'needs_review',
-          confidence: 0,
-        })
+        setAnalysis(buildAnalysisErrorState(err.message))
       })
       .finally(() => {
         if (!isCurrentRequest(analysisRequestRef, requestId, requestTenderKey, currentTenderKeyRef)) return
@@ -144,41 +136,6 @@ export function useTenderDocumentAnalysis(tender) {
     }
   }
 
-  function saveFactFeedback(factId, state, comment = '') {
-    if (!factId) return Promise.resolve()
-    setSavingAnalysisFeedbackId(factId)
-    return saveAnalysisFeedback(tender, { fact_id: factId, state, comment })
-      .then((payload) => {
-        setAnalysis(payload.analysis || null)
-      })
-      .catch((err) => {
-        setAnalysis((currentAnalysis) => ({
-          ...(currentAnalysis || {}),
-          feedback_error: err.message,
-        }))
-      })
-      .finally(() => {
-        setSavingAnalysisFeedbackId('')
-      })
-  }
-
-  function saveTzWorkflow(payload) {
-    setSavingAnalysisWorkflow(true)
-    return saveAnalysisWorkflow(tender, payload)
-      .then((responsePayload) => {
-        setAnalysis(responsePayload.analysis || null)
-      })
-      .catch((err) => {
-        setAnalysis((currentAnalysis) => ({
-          ...(currentAnalysis || {}),
-          workflow_error: err.message,
-        }))
-      })
-      .finally(() => {
-        setSavingAnalysisWorkflow(false)
-      })
-  }
-
   return {
     documentRecords,
     setDocumentRecords,
@@ -199,12 +156,4 @@ export function useTenderDocumentAnalysis(tender) {
     saveFactFeedback,
     saveTzWorkflow,
   }
-}
-
-function documentTenderKey(tender) {
-  return `${tender.source}/${tender.external_id}`
-}
-
-function isCurrentRequest(requestRef, requestId, requestTenderKey, currentTenderKeyRef) {
-  return requestRef.current === requestId && currentTenderKeyRef.current === requestTenderKey
 }

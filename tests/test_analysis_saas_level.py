@@ -20,6 +20,9 @@ WEB_API_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "api.js"
 USE_TENDER_DOCUMENT_ANALYSIS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderDocumentAnalysis.js"
 )
+USE_TENDER_ANALYSIS_SAVE_ACTIONS_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderAnalysisSaveActions.js"
+)
 TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
 TENDER_ANALYSIS_SECONDARY_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisSecondaryDrawers.jsx"
@@ -288,6 +291,11 @@ def test_analysis_workflow_endpoint_persists_owner_deadline_comment_and_journal(
 def test_frontend_exposes_tz_saas_workflow_questions_and_playbooks():
     api_source = WEB_API_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_DOCUMENT_ANALYSIS_SOURCE.read_text(encoding="utf-8")
+    save_actions_source = (
+        USE_TENDER_ANALYSIS_SAVE_ACTIONS_SOURCE.read_text(encoding="utf-8")
+        if USE_TENDER_ANALYSIS_SAVE_ACTIONS_SOURCE.exists()
+        else ""
+    )
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     secondary_source = TENDER_ANALYSIS_SECONDARY_SOURCE.read_text(encoding="utf-8")
     condition_groups_source = TENDER_ANALYSIS_CONDITION_GROUPS_SOURCE.read_text(encoding="utf-8")
@@ -298,7 +306,8 @@ def test_frontend_exposes_tz_saas_workflow_questions_and_playbooks():
 
     assert "export function saveAnalysisWorkflow" in api_source
     assert "/analysis/workflow" in api_source
-    assert "saveAnalysisWorkflow" in hook_source
+    assert "saveAnalysisWorkflow" in save_actions_source
+    assert "useTenderAnalysisSaveActions(tender, setAnalysis)" in hook_source
     assert "saveTzWorkflow" in hook_source
     assert "savingAnalysisWorkflow" in hook_source
     assert "AnalysisSecondaryDrawers" in analysis_source

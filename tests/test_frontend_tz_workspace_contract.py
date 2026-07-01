@@ -34,15 +34,16 @@ def test_tz_analysis_source_details_are_deduplicated():
     tab_source = (WEB_SRC / "TenderAnalysisTab.jsx").read_text(encoding="utf-8")
     evidence_model_source = (WEB_SRC / "TenderAnalysisEvidenceModel.js").read_text(encoding="utf-8")
     evidence_drilldown_source = (WEB_SRC / "TenderAnalysisEvidenceDrilldown.jsx").read_text(encoding="utf-8")
-    fact_card_source = (WEB_SRC / "AnalysisFactCard.jsx").read_text(encoding="utf-8")
+    fact_source_context_source = (WEB_SRC / "AnalysisFactSourceContext.jsx").read_text(encoding="utf-8")
+    fact_view_model_source = (WEB_SRC / "analysisFactViewModel.js").read_text(encoding="utf-8")
     fact_source_model_source = (WEB_SRC / "analysisFactSourceModel.js").read_text(encoding="utf-8")
 
     assert "uniqueEvidenceNotes" not in tab_source
     assert "uniqueEvidenceNotes" in evidence_model_source
     assert "uniqueEvidenceNotes" in evidence_drilldown_source
-    assert "uniqueAnalysisTexts" in fact_card_source
+    assert "uniqueAnalysisTexts" in fact_view_model_source
     assert "uniqueAnalysisTexts" in fact_source_model_source
-    assert "sourceNotes.map" in fact_card_source
+    assert "sourceNotes.map" in fact_source_context_source
 
 
 def test_tz_analysis_evidence_drilldown_is_delegated():

@@ -7,14 +7,26 @@ API_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "api.js"
 USE_TENDER_DOCUMENT_ANALYSIS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderDocumentAnalysis.js"
 )
+USE_TENDER_ANALYSIS_SAVE_ACTIONS_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderAnalysisSaveActions.js"
+)
 TENDER_DETAILS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderDetails.jsx"
 TENDER_WORKSPACES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderWorkspaces.jsx"
 TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
+TENDER_ANALYSIS_HISTORY_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisHistory.jsx"
+)
+TENDER_ANALYSIS_DECISION_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisDecisionBrief.jsx"
+)
 TENDER_ANALYSIS_SECTIONS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisSections.jsx"
 )
 ANALYSIS_LEGACY_ADAPTER_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "analysisLegacyAdapter.js"
+)
+ANALYSIS_LEGACY_ITEM_MODEL_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "analysisLegacyItemModel.js"
 )
 ANALYSIS_SECTIONS_MODEL_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "analysisSectionsModel.js"
@@ -28,11 +40,26 @@ ANALYSIS_ITEM_DISPLAY_MODEL_SOURCE = (
 ANALYSIS_TEXT_UTILS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "analysisTextUtils.js"
 )
+ANALYSIS_HISTORY_MODEL_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "analysisHistoryModel.js"
+)
+ANALYSIS_DECISION_MODEL_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "analysisDecisionModel.js"
+)
 ANALYSIS_FACT_CARD_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisFactCard.jsx"
 )
+ANALYSIS_FACT_BODY_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisFactBody.jsx"
+)
+ANALYSIS_FACT_SOURCE_CONTEXT_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisFactSourceContext.jsx"
+)
 ANALYSIS_FACT_MODEL_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "analysisFactModel.js"
+)
+ANALYSIS_FACT_VIEW_MODEL_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "analysisFactViewModel.js"
 )
 ANALYSIS_FACT_COMPACT_TEXT_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "analysisFactCompactTextModel.js"
@@ -64,16 +91,24 @@ def read_styles_source() -> str:
 def test_tender_analysis_renders_fact_feedback_controls():
     api_source = API_SOURCE.read_text(encoding="utf-8")
     hook_source = USE_TENDER_DOCUMENT_ANALYSIS_SOURCE.read_text(encoding="utf-8")
+    save_actions_source = (
+        USE_TENDER_ANALYSIS_SAVE_ACTIONS_SOURCE.read_text(encoding="utf-8")
+        if USE_TENDER_ANALYSIS_SAVE_ACTIONS_SOURCE.exists()
+        else ""
+    )
     details_source = TENDER_DETAILS_SOURCE.read_text(encoding="utf-8")
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
     fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
+    fact_view_model_source = ANALYSIS_FACT_VIEW_MODEL_SOURCE.read_text(encoding="utf-8")
     feedback_source = ANALYSIS_FEEDBACK_CONTROLS_SOURCE.read_text(encoding="utf-8")
 
     assert "export function saveAnalysisFeedback" in api_source
     assert "/analysis/feedback" in api_source
-    assert "saveAnalysisFeedback" in hook_source
+    assert "from './useTenderAnalysisSaveActions'" in hook_source
+    assert "useTenderAnalysisSaveActions(tender, setAnalysis)" in hook_source
+    assert "saveAnalysisFeedback" in save_actions_source
     assert "savingAnalysisFeedbackId" in hook_source
     assert "onAnalysisFeedback: saveFactFeedback" in details_source
     assert "onAnalysisFeedback," in workspaces_source
@@ -93,15 +128,17 @@ def test_tender_analysis_renders_fact_feedback_controls():
     assert "analysis-feedback-comment" in feedback_source
     assert "analysis-feedback-actions" in feedback_source
     assert "feedback_state" in feedback_source
-    assert "feedback_comment" in fact_card_source
-    assert "feedback_history" in fact_card_source
+    assert "feedback_comment" in fact_view_model_source
+    assert "feedback_history" in fact_view_model_source
 
 
 def test_tender_analysis_has_compact_mode_and_single_all_bucket():
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
     fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
+    fact_body_source = ANALYSIS_FACT_BODY_SOURCE.read_text(encoding="utf-8")
     fact_model_source = ANALYSIS_FACT_MODEL_SOURCE.read_text(encoding="utf-8")
+    fact_view_model_source = ANALYSIS_FACT_VIEW_MODEL_SOURCE.read_text(encoding="utf-8")
     fact_compact_source = ANALYSIS_FACT_COMPACT_TEXT_SOURCE.read_text(encoding="utf-8")
     view_controls_source = ANALYSIS_VIEW_CONTROLS_SOURCE.read_text(encoding="utf-8")
 
@@ -118,23 +155,23 @@ def test_tender_analysis_has_compact_mode_and_single_all_bucket():
     assert "analysisFactFilter" not in analysis_source
     assert "analysis-hidden-facts" in sections_source
     assert "analysis-weak-facts" in sections_source
-    assert "operator_summary" in fact_card_source
-    assert "operator_check" in fact_card_source
-    assert "weak_reason" in fact_card_source
-    assert "item.interpretation" in fact_card_source
-    assert "analysis-fact-detail-grid" in fact_card_source
-    assert "Что найдено" in fact_card_source
-    assert "Что означает" in fact_card_source
-    assert "analysis-fact-line" in fact_card_source
-    assert "detailParts" in fact_card_source
-    assert "compactAnalysisFactSentence" in fact_card_source
+    assert "operator_summary" in fact_view_model_source
+    assert "operator_check" in fact_view_model_source
+    assert "weak_reason" in fact_view_model_source
+    assert "item.interpretation" in fact_view_model_source
+    assert "analysis-fact-detail-grid" in fact_body_source
+    assert "Что найдено" in fact_view_model_source
+    assert "Что означает" in fact_view_model_source
+    assert "analysis-fact-line" in fact_body_source
+    assert "detailParts" in fact_view_model_source
+    assert "compactAnalysisFactSentence" in fact_view_model_source
     assert "item?.value" in fact_compact_source
     assert "item?.fragment" in fact_compact_source
     assert "точная формулировка в извлеченном тексте не найдена" in fact_compact_source
     assert "analysis-fact-action" not in sections_source
     assert "analysis-fact-impact" not in sections_source
     assert "open={!compact}" in sections_source
-    assert "detailed && sourceDetail" in fact_card_source
+    assert "detailed && view.sourceDetail" in fact_card_source
     assert "detailed={!compact}" in sections_source
 
 
@@ -186,6 +223,11 @@ def test_tender_analysis_legacy_fallback_lives_in_adapter():
     sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
     model_source = ANALYSIS_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
     legacy_source = ANALYSIS_LEGACY_ADAPTER_SOURCE.read_text(encoding="utf-8")
+    legacy_item_source = (
+        ANALYSIS_LEGACY_ITEM_MODEL_SOURCE.read_text(encoding="utf-8")
+        if ANALYSIS_LEGACY_ITEM_MODEL_SOURCE.exists()
+        else ""
+    )
 
     assert "analysisSectionItems" in sections_source
     assert "buildLegacyAnalysisSections" in model_source
@@ -193,8 +235,14 @@ def test_tender_analysis_legacy_fallback_lives_in_adapter():
     assert "function legacyMajorSections" not in sections_source
     assert "function legacyItem" not in sections_source
     assert "function fallbackOperatorAction" not in sections_source
+    assert "from './analysisLegacyItemModel'" in legacy_source
     assert "export function buildLegacyAnalysisSections" in legacy_source
-    assert "function legacyItem" in legacy_source
+    assert "function legacyItem" not in legacy_source
+    assert "function fallbackOperatorAction" not in legacy_source
+    assert "export function legacyItem" in legacy_item_source
+    assert "export function legacyAnalysisItemCount" in legacy_item_source
+    assert "export function dedupeItems" in legacy_item_source
+    assert "export function normalizeReasonList" in legacy_item_source
 
 
 def test_tender_analysis_text_helpers_live_in_shared_module():
@@ -203,6 +251,7 @@ def test_tender_analysis_text_helpers_live_in_shared_module():
     backend_source = ANALYSIS_BACKEND_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
     display_source = ANALYSIS_ITEM_DISPLAY_MODEL_SOURCE.read_text(encoding="utf-8")
     fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
+    fact_view_model_source = ANALYSIS_FACT_VIEW_MODEL_SOURCE.read_text(encoding="utf-8")
     feedback_source = ANALYSIS_FEEDBACK_CONTROLS_SOURCE.read_text(encoding="utf-8")
     text_utils_source = ANALYSIS_TEXT_UTILS_SOURCE.read_text(encoding="utf-8")
 
@@ -211,13 +260,14 @@ def test_tender_analysis_text_helpers_live_in_shared_module():
     assert "export function uniqueAnalysisTexts" in text_utils_source
     assert "from './analysisTextUtils'" in backend_source
     assert "from './analysisTextUtils'" in display_source
-    assert "from './analysisTextUtils'" in fact_card_source
+    assert "from './analysisTextUtils'" in fact_view_model_source
     assert "from './analysisTextUtils'" in feedback_source
     assert "function cleanAnalysisText" not in sections_source
     assert "function cleanAnalysisText" not in model_source
     assert "function cleanAnalysisText" not in backend_source
     assert "function cleanAnalysisText" not in display_source
     assert "function cleanAnalysisText" not in fact_card_source
+    assert "function cleanAnalysisText" not in fact_view_model_source
     assert "function cleanAnalysisText" not in feedback_source
     assert "function normalizedAnalysisText" not in model_source
     assert "function normalizedAnalysisText" not in display_source
@@ -238,18 +288,52 @@ def test_tender_analysis_manual_section_selection_is_not_overridden_by_primary_s
 
 
 def test_tender_analysis_history_exposes_change_details():
-    analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    history_source = TENDER_ANALYSIS_HISTORY_SOURCE.read_text(encoding="utf-8")
 
-    assert "AnalysisHistoryDetails" in analysis_source
-    assert "analysis-history-details" in analysis_source
-    assert "changes.added" in analysis_source
-    assert "changes.changed" in analysis_source
-    assert "changes.removed" in analysis_source
-    assert "changes.feedback" in analysis_source
-    assert "changes.documents" in analysis_source
-    assert "changes.condition_changes" in analysis_source
-    assert "Документы" in analysis_source
-    assert "Изменившиеся условия" in analysis_source
+    assert "AnalysisHistoryDetails" in history_source
+    assert "analysis-history-details" in history_source
+    assert "changes.added" in history_source
+    assert "changes.changed" in history_source
+    assert "changes.removed" in history_source
+    assert "changes.feedback" in history_source
+    assert "changes.documents" in history_source
+    assert "changes.condition_changes" in history_source
+    assert "Документы" in history_source
+    assert "Изменившиеся условия" in history_source
+
+
+def test_tender_analysis_history_is_split_from_tab():
+    analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    history_source = TENDER_ANALYSIS_HISTORY_SOURCE.read_text(encoding="utf-8")
+    history_model_source = ANALYSIS_HISTORY_MODEL_SOURCE.read_text(encoding="utf-8")
+
+    assert "from './TenderAnalysisHistory'" in analysis_source
+    assert "<AnalysisHistory history={analysisHistory}" in analysis_source
+    assert "export function AnalysisHistory" in history_source
+    assert "from './analysisHistoryModel'" in history_source
+    assert "export function formatAnalysisHistoryDate" in history_model_source
+    assert "export function formatConditionChange" in history_model_source
+    assert "function AnalysisHistory" not in analysis_source
+    assert "function AnalysisHistoryDetails" not in analysis_source
+    assert "function formatConditionChange" not in analysis_source
+    assert "function formatAnalysisHistoryDate" not in analysis_source
+
+
+def test_tender_analysis_decision_fallback_is_split_from_component():
+    decision_source = TENDER_ANALYSIS_DECISION_SOURCE.read_text(encoding="utf-8")
+    decision_model_source = ANALYSIS_DECISION_MODEL_SOURCE.read_text(encoding="utf-8")
+
+    assert "from './analysisDecisionModel'" in decision_source
+    assert "buildAnalysisDecision(analysis, documents)" in decision_source
+    assert "export function buildAnalysisDecision" in decision_model_source
+    assert "function fallbackAnalysisDecision" in decision_model_source
+    assert "function normalizeReasonList" in decision_model_source
+    assert "analysisStatusLabel" in decision_model_source
+    assert "formatConfidence" in decision_model_source
+    assert "function fallbackAnalysisDecision" not in decision_source
+    assert "function normalizeReasonList" not in decision_source
+    assert "analysisStatusLabel" not in decision_source
+    assert "formatConfidence" not in decision_source
 
 
 def test_tender_analysis_passport_renders_v2_compact_block():
