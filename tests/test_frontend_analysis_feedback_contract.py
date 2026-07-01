@@ -22,6 +22,12 @@ TENDER_ANALYSIS_DECISION_SOURCE = (
 TENDER_ANALYSIS_SECTIONS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisSections.jsx"
 )
+ANALYSIS_OPERATOR_SECTION_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisOperatorSection.jsx"
+)
+USE_TENDER_ANALYSIS_WORKSPACE_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderAnalysisWorkspace.js"
+)
 ANALYSIS_LEGACY_ADAPTER_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "analysisLegacyAdapter.js"
 )
@@ -78,12 +84,31 @@ STYLES_ANALYSIS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "
 STYLES_ECONOMICS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.economics.css"
 
 
+def read_css_source(path: Path, seen: set[Path] | None = None) -> str:
+    seen = seen or set()
+    path = path.resolve()
+    if path in seen:
+        return ""
+    seen.add(path)
+    source = path.read_text(encoding="utf-8")
+    chunks = []
+    for line in source.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("@import "):
+            quote = "'" if "'" in stripped else '"'
+            parts = stripped.split(quote)
+            if len(parts) >= 3:
+                chunks.append(read_css_source(path.parent / parts[1], seen))
+        chunks.append(line)
+    return "\n".join(chunks)
+
+
 def read_styles_source() -> str:
     return "\n".join(
         (
-            STYLES_SOURCE.read_text(encoding="utf-8"),
-            STYLES_ANALYSIS_SOURCE.read_text(encoding="utf-8"),
-            STYLES_ECONOMICS_SOURCE.read_text(encoding="utf-8"),
+            read_css_source(STYLES_SOURCE),
+            read_css_source(STYLES_ANALYSIS_SOURCE),
+            read_css_source(STYLES_ECONOMICS_SOURCE),
         )
     )
 
@@ -100,6 +125,7 @@ def test_tender_analysis_renders_fact_feedback_controls():
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+    operator_section_source = ANALYSIS_OPERATOR_SECTION_SOURCE.read_text(encoding="utf-8")
     fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
     fact_view_model_source = ANALYSIS_FACT_VIEW_MODEL_SOURCE.read_text(encoding="utf-8")
     feedback_source = ANALYSIS_FEEDBACK_CONTROLS_SOURCE.read_text(encoding="utf-8")
@@ -114,7 +140,7 @@ def test_tender_analysis_renders_fact_feedback_controls():
     assert "onAnalysisFeedback," in workspaces_source
     assert "onFeedback={onAnalysisFeedback}" in analysis_source
     assert "onFeedback={onFeedback}" in sections_source
-    assert "from './AnalysisFactCard'" in sections_source
+    assert "from './AnalysisFactCard'" in operator_section_source
     assert "function AnalysisFactCard" not in sections_source
     assert "function AnalysisFeedbackControls" not in sections_source
     assert "CheckCircle2" in feedback_source
@@ -135,6 +161,8 @@ def test_tender_analysis_renders_fact_feedback_controls():
 def test_tender_analysis_has_compact_mode_and_single_all_bucket():
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
     sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+    operator_section_source = ANALYSIS_OPERATOR_SECTION_SOURCE.read_text(encoding="utf-8")
+    workspace_hook_source = USE_TENDER_ANALYSIS_WORKSPACE_SOURCE.read_text(encoding="utf-8")
     fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
     fact_body_source = ANALYSIS_FACT_BODY_SOURCE.read_text(encoding="utf-8")
     fact_model_source = ANALYSIS_FACT_MODEL_SOURCE.read_text(encoding="utf-8")
@@ -142,19 +170,19 @@ def test_tender_analysis_has_compact_mode_and_single_all_bucket():
     fact_compact_source = ANALYSIS_FACT_COMPACT_TEXT_SOURCE.read_text(encoding="utf-8")
     view_controls_source = ANALYSIS_VIEW_CONTROLS_SOURCE.read_text(encoding="utf-8")
 
-    assert "analysisViewMode" in analysis_source
-    assert "from './AnalysisViewControls'" in sections_source
+    assert "analysisViewMode" in workspace_hook_source
+    assert "from './AnalysisViewControls'" in operator_section_source
     assert "function AnalysisViewControls" not in sections_source
     assert "analysis-view-controls" in view_controls_source
     assert "analysis-mode-toggle" in view_controls_source
     assert "analysis-filter-chips" in view_controls_source
-    assert "totalCount={analysisItems.length}" in sections_source
+    assert "totalCount={analysisItems.length}" in operator_section_source
     assert "<span>Все</span>" in view_controls_source
     assert "activeFilter" not in sections_source
     assert "onFilterChange" not in sections_source
     assert "analysisFactFilter" not in analysis_source
-    assert "analysis-hidden-facts" in sections_source
-    assert "analysis-weak-facts" in sections_source
+    assert "analysis-hidden-facts" in operator_section_source
+    assert "analysis-weak-facts" in operator_section_source
     assert "operator_summary" in fact_view_model_source
     assert "operator_check" in fact_view_model_source
     assert "weak_reason" in fact_view_model_source
@@ -170,9 +198,9 @@ def test_tender_analysis_has_compact_mode_and_single_all_bucket():
     assert "точная формулировка в извлеченном тексте не найдена" in fact_compact_source
     assert "analysis-fact-action" not in sections_source
     assert "analysis-fact-impact" not in sections_source
-    assert "open={!compact}" in sections_source
+    assert "open={!compact}" in operator_section_source
     assert "detailed && view.sourceDetail" in fact_card_source
-    assert "detailed={!compact}" in sections_source
+    assert "detailed={!compact}" in operator_section_source
 
 
 def test_tender_analysis_uses_backend_condition_groups_instead_of_frontend_semantics():
@@ -277,12 +305,13 @@ def test_tender_analysis_text_helpers_live_in_shared_module():
 
 def test_tender_analysis_manual_section_selection_is_not_overridden_by_primary_section():
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    workspace_hook_source = USE_TENDER_ANALYSIS_WORKSPACE_SOURCE.read_text(encoding="utf-8")
 
-    assert "useRef" in analysis_source
-    assert "userSelectedAnalysisSectionRef" in analysis_source
-    assert "function selectAnalysisSection" in analysis_source
-    assert "userSelectedAnalysisSectionRef.current = true" in analysis_source
-    assert "!userSelectedAnalysisSectionRef.current && primarySection" in analysis_source
+    assert "useRef" in workspace_hook_source
+    assert "userSelectedAnalysisSectionRef" in workspace_hook_source
+    assert "function selectAnalysisSection" in workspace_hook_source
+    assert "userSelectedAnalysisSectionRef.current = true" in workspace_hook_source
+    assert "!userSelectedAnalysisSectionRef.current && primarySection" in workspace_hook_source
     assert "onSelectSection={selectAnalysisSection}" in analysis_source
     assert "onOpenSection={selectAnalysisSection}" in analysis_source
 

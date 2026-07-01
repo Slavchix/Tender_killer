@@ -12,17 +12,18 @@ ANALYSIS_FACT_SOURCE_MODEL_SOURCE = ROOT / "web" / "src" / "analysisFactSourceMo
 ANALYSIS_FACT_SOURCE_LABELS_SOURCE = ROOT / "web" / "src" / "analysisFactSourceLabels.js"
 ANALYSIS_FACT_TAG_MODEL_SOURCE = ROOT / "web" / "src" / "analysisFactTagModel.js"
 TENDER_ANALYSIS_SECTIONS_SOURCE = ROOT / "web" / "src" / "TenderAnalysisSections.jsx"
+ANALYSIS_OPERATOR_SECTION_SOURCE = ROOT / "web" / "src" / "AnalysisOperatorSection.jsx"
 
 
 def test_analysis_fact_card_delegates_fact_metadata_to_model():
     card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
-    sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+    operator_section_source = ANALYSIS_OPERATOR_SECTION_SOURCE.read_text(encoding="utf-8")
     model_source = ANALYSIS_FACT_MODEL_SOURCE.read_text(encoding="utf-8")
     view_model_source = ANALYSIS_FACT_VIEW_MODEL_SOURCE.read_text(encoding="utf-8")
 
     assert "from './analysisFactViewModel'" in card_source
     assert "from './analysisFactModel'" in view_model_source
-    assert "from './analysisFactModel'" in sections_source
+    assert "from './analysisFactModel'" in operator_section_source
     assert "export function isWeakAnalysisFact" in model_source
     assert "compactAnalysisFactSentence" in model_source
     assert "analysisSourceBinding" in model_source

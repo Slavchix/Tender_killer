@@ -11,6 +11,13 @@ STYLES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.cs
 STYLES_DASHBOARD_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.dashboard.css"
 STYLES_DETAIL_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.detail.css"
 STYLES_ANALYSIS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.css"
+STYLES_ANALYSIS_LAYOUT_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.layout.css"
+STYLES_ANALYSIS_DECISION_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.decision.css"
+STYLES_ANALYSIS_PASSPORT_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.passport.css"
+STYLES_ANALYSIS_WORKSPACE_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.workspace.css"
+STYLES_ANALYSIS_FACTS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.facts.css"
+STYLES_ANALYSIS_EVIDENCE_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.evidence.css"
+STYLES_ANALYSIS_DOCUMENTS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.analysis.documents.css"
 STYLES_ECONOMICS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.economics.css"
 API_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "api.js"
 CONSTANTS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "constants.js"
@@ -33,8 +40,18 @@ TENDER_TAB_PANELS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" /
 TENDER_FULLSCREEN_WORKSPACE_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderFullscreenWorkspace.jsx"
 TENDER_WORKSPACES_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderWorkspaces.jsx"
 TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
+TENDER_ANALYSIS_HISTORY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisHistory.jsx"
+USE_TENDER_ANALYSIS_WORKSPACE_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderAnalysisWorkspace.js"
+)
+USE_TENDER_ANALYSIS_WORKFLOW_DRAFT_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderAnalysisWorkflowDraft.js"
+)
 TENDER_ANALYSIS_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisSummary.jsx"
 TENDER_ANALYSIS_SECTIONS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisSections.jsx"
+ANALYSIS_SECTION_RAIL_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisSectionRail.jsx"
+ANALYSIS_OPERATOR_SECTION_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisOperatorSection.jsx"
+ANALYSIS_DOCUMENT_SUMMARY_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisDocumentSummaryItem.jsx"
 ANALYSIS_SHARED_LISTS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisSharedLists.jsx"
 ANALYSIS_SECTIONS_MODEL_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "analysisSectionsModel.js"
 ANALYSIS_FACT_CARD_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "AnalysisFactCard.jsx"
@@ -182,6 +199,60 @@ def _css_rule(source: str, selector: str) -> str:
     start = source.index(selector)
     end = source.index("}", start)
     return source[start:end]
+
+
+def test_analysis_css_is_split_by_workspace_zone():
+    analysis_entry_source = STYLES_ANALYSIS_SOURCE.read_text(encoding="utf-8")
+    layout_source = STYLES_ANALYSIS_LAYOUT_SOURCE.read_text(encoding="utf-8") if STYLES_ANALYSIS_LAYOUT_SOURCE.exists() else ""
+    decision_source = (
+        STYLES_ANALYSIS_DECISION_SOURCE.read_text(encoding="utf-8")
+        if STYLES_ANALYSIS_DECISION_SOURCE.exists()
+        else ""
+    )
+    passport_source = (
+        STYLES_ANALYSIS_PASSPORT_SOURCE.read_text(encoding="utf-8")
+        if STYLES_ANALYSIS_PASSPORT_SOURCE.exists()
+        else ""
+    )
+    workspace_source = (
+        STYLES_ANALYSIS_WORKSPACE_SOURCE.read_text(encoding="utf-8")
+        if STYLES_ANALYSIS_WORKSPACE_SOURCE.exists()
+        else ""
+    )
+    facts_source = STYLES_ANALYSIS_FACTS_SOURCE.read_text(encoding="utf-8") if STYLES_ANALYSIS_FACTS_SOURCE.exists() else ""
+    evidence_source = (
+        STYLES_ANALYSIS_EVIDENCE_SOURCE.read_text(encoding="utf-8")
+        if STYLES_ANALYSIS_EVIDENCE_SOURCE.exists()
+        else ""
+    )
+    documents_source = (
+        STYLES_ANALYSIS_DOCUMENTS_SOURCE.read_text(encoding="utf-8")
+        if STYLES_ANALYSIS_DOCUMENTS_SOURCE.exists()
+        else ""
+    )
+
+    assert "@import './styles.analysis.layout.css';" in analysis_entry_source
+    assert "@import './styles.analysis.decision.css';" in analysis_entry_source
+    assert "@import './styles.analysis.passport.css';" in analysis_entry_source
+    assert "@import './styles.analysis.workspace.css';" in analysis_entry_source
+    assert "@import './styles.analysis.facts.css';" in analysis_entry_source
+    assert "@import './styles.analysis.evidence.css';" in analysis_entry_source
+    assert "@import './styles.analysis.documents.css';" in analysis_entry_source
+    assert ".analysis-history" in layout_source
+    assert ".analysis-decision-brief" in decision_source
+    assert ".analysis-passport" in passport_source
+    assert ".analysis-workspace" in workspace_source
+    assert ".analysis-checklist-row" in facts_source
+    assert ".analysis-evidence-drilldown" in evidence_source
+    assert ".analysis-document-row" in documents_source
+    assert find_mojibake(analysis_entry_source, STYLES_ANALYSIS_SOURCE) == []
+    assert find_mojibake(layout_source, STYLES_ANALYSIS_LAYOUT_SOURCE) == []
+    assert find_mojibake(decision_source, STYLES_ANALYSIS_DECISION_SOURCE) == []
+    assert find_mojibake(passport_source, STYLES_ANALYSIS_PASSPORT_SOURCE) == []
+    assert find_mojibake(workspace_source, STYLES_ANALYSIS_WORKSPACE_SOURCE) == []
+    assert find_mojibake(facts_source, STYLES_ANALYSIS_FACTS_SOURCE) == []
+    assert find_mojibake(evidence_source, STYLES_ANALYSIS_EVIDENCE_SOURCE) == []
+    assert find_mojibake(documents_source, STYLES_ANALYSIS_DOCUMENTS_SOURCE) == []
 
 
 def test_tender_cockpit_exposes_normalized_metadata_filters():
@@ -645,15 +716,17 @@ def test_frontend_embeds_document_preparation_in_analysis_workspace():
 
 def test_analysis_tab_renders_collapsed_analysis_history():
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    history_source = TENDER_ANALYSIS_HISTORY_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
     assert "analysis?.analysis_history" in analysis_source
-    assert "analysis-history" in analysis_source
-    assert "История анализа" in analysis_source
-    assert "entry.changes" in analysis_source
+    assert "analysis-history" in history_source
+    assert "История анализа" in history_source
+    assert "entry.changes" in history_source
     assert ".analysis-history" in styles_source
     assert ".analysis-history-row" in styles_source
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
+    assert find_mojibake(history_source, TENDER_ANALYSIS_HISTORY_SOURCE) == []
 
 
 def test_analysis_workspace_exposes_single_prepare_flow():
@@ -720,6 +793,16 @@ def test_frontend_uses_dedicated_tender_analysis_tab_module():
         if ANALYSIS_SHARED_LISTS_SOURCE.exists()
         else ""
     )
+    analysis_section_rail_source = (
+        ANALYSIS_SECTION_RAIL_SOURCE.read_text(encoding="utf-8")
+        if ANALYSIS_SECTION_RAIL_SOURCE.exists()
+        else ""
+    )
+    analysis_operator_section_source = (
+        ANALYSIS_OPERATOR_SECTION_SOURCE.read_text(encoding="utf-8")
+        if ANALYSIS_OPERATOR_SECTION_SOURCE.exists()
+        else ""
+    )
     analysis_evidence_source = (
         TENDER_ANALYSIS_EVIDENCE_SOURCE.read_text(encoding="utf-8")
         if TENDER_ANALYSIS_EVIDENCE_SOURCE.exists()
@@ -738,15 +821,19 @@ def test_frontend_uses_dedicated_tender_analysis_tab_module():
     assert "from './TenderAnalysisEvidencePanel'" not in analysis_source
     assert "from './TenderAnalysisDecisionBrief'" in analysis_source
     assert "export function AnalysisSummary" in analysis_summary_source
-    assert "export function AnalysisSectionRail" in analysis_sections_source
+    assert "export { AnalysisSectionRail } from './AnalysisSectionRail'" in analysis_sections_source
+    assert "export function AnalysisSectionRail" in analysis_section_rail_source
     assert "export function AnalysisSectionBody" in analysis_sections_source
+    assert "from './AnalysisOperatorSection'" in analysis_sections_source
+    assert "function AnalysisOperatorSection" not in analysis_sections_source
+    assert "export function AnalysisOperatorSection" in analysis_operator_section_source
     assert "export { AnalysisList, AnalysisChecklist } from './AnalysisSharedLists'" in analysis_sections_source
     assert "export function AnalysisList" in analysis_shared_lists_source
     assert "export function AnalysisChecklist" in analysis_shared_lists_source
     assert "export function AnalysisEvidencePanel" in analysis_evidence_source
     assert "export function AnalysisDecisionBrief" in analysis_decision_source
     assert "analysis-tab-summary" in analysis_summary_source
-    assert "analysis-checklist" in analysis_sections_source
+    assert "analysis-checklist" in analysis_operator_section_source
     assert "<TenderAnalysisTab" in workspaces_source
     assert "function AnalysisTabPanel" not in tender_details_source
     assert "function AnalysisChecklist" not in tender_details_source
@@ -757,6 +844,8 @@ def test_frontend_uses_dedicated_tender_analysis_tab_module():
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
     assert find_mojibake(analysis_summary_source, TENDER_ANALYSIS_SUMMARY_SOURCE) == []
     assert find_mojibake(analysis_sections_source, TENDER_ANALYSIS_SECTIONS_SOURCE) == []
+    assert find_mojibake(analysis_section_rail_source, ANALYSIS_SECTION_RAIL_SOURCE) == []
+    assert find_mojibake(analysis_operator_section_source, ANALYSIS_OPERATOR_SECTION_SOURCE) == []
     assert find_mojibake(analysis_shared_lists_source, ANALYSIS_SHARED_LISTS_SOURCE) == []
     assert find_mojibake(analysis_evidence_source, TENDER_ANALYSIS_EVIDENCE_SOURCE) == []
     assert find_mojibake(analysis_decision_source, TENDER_ANALYSIS_DECISION_SOURCE) == []
@@ -1566,6 +1655,7 @@ def test_tender_cockpit_exposes_page_size_selector():
 def test_tender_analysis_renders_actionable_checklist():
     source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
     shared_lists_source = ANALYSIS_SHARED_LISTS_SOURCE.read_text(encoding="utf-8")
+    operator_section_source = ANALYSIS_OPERATOR_SECTION_SOURCE.read_text(encoding="utf-8")
     model_source = ANALYSIS_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
     fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
     fact_source_context_source = ANALYSIS_FACT_SOURCE_CONTEXT_SOURCE.read_text(encoding="utf-8")
@@ -1576,14 +1666,14 @@ def test_tender_analysis_renders_actionable_checklist():
     assert "buildMajorAnalysisSections(analysis, documents)" in model_source
     assert "visibleMajorAnalysisSections" in model_source
     assert "analysisSectionHasContent" in model_source
-    assert "document_summary" in source
+    assert "document_summary" in operator_section_source
     assert "'decision_risks'" in model_source
     assert "'product_compliance'" in model_source
     assert "'fulfillment_terms'" in model_source
     assert "'acceptance_payment'" in model_source
     assert "export function AnalysisChecklist" in shared_lists_source
     assert "Проверочный список" in shared_lists_source
-    assert "analysis-checklist" in source
+    assert "analysis-checklist" in operator_section_source
     assert "grid-template-columns: 1fr" in styles
     assert ".analysis-card," in styles
     assert "item.source_label || item.source" in fact_view_model_source
@@ -1600,6 +1690,7 @@ def test_tender_analysis_renders_actionable_checklist():
     assert "analysisSeverityLabel" in shared_lists_source
     assert find_mojibake(source, TENDER_ANALYSIS_SECTIONS_SOURCE) == []
     assert find_mojibake(shared_lists_source, ANALYSIS_SHARED_LISTS_SOURCE) == []
+    assert find_mojibake(operator_section_source, ANALYSIS_OPERATOR_SECTION_SOURCE) == []
     assert find_mojibake(model_source, ANALYSIS_SECTIONS_MODEL_SOURCE) == []
     assert find_mojibake(fact_card_source, ANALYSIS_FACT_CARD_SOURCE) == []
     assert find_mojibake(fact_source_context_source, ANALYSIS_FACT_SOURCE_CONTEXT_SOURCE) == []
@@ -2613,8 +2704,18 @@ def test_tender_detail_tabs_have_scannable_work_areas():
 def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     workspaces_source = TENDER_WORKSPACES_SOURCE.read_text(encoding="utf-8")
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    workspace_hook_source = (
+        USE_TENDER_ANALYSIS_WORKSPACE_SOURCE.read_text(encoding="utf-8")
+        if USE_TENDER_ANALYSIS_WORKSPACE_SOURCE.exists()
+        else ""
+    )
     analysis_documents_source = TENDER_ANALYSIS_DOCUMENTS_SOURCE.read_text(encoding="utf-8")
     analysis_sections_source = TENDER_ANALYSIS_SECTIONS_SOURCE.read_text(encoding="utf-8")
+    analysis_section_rail_source = (
+        ANALYSIS_SECTION_RAIL_SOURCE.read_text(encoding="utf-8")
+        if ANALYSIS_SECTION_RAIL_SOURCE.exists()
+        else ""
+    )
     analysis_sections_model_source = ANALYSIS_SECTIONS_MODEL_SOURCE.read_text(encoding="utf-8")
     analysis_evidence_source = TENDER_ANALYSIS_EVIDENCE_SOURCE.read_text(encoding="utf-8")
     analysis_evidence_model_source = TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE.read_text(encoding="utf-8")
@@ -2632,18 +2733,20 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     assert "Скачать документы" in analysis_documents_source
     assert "Извлечь текст" in analysis_documents_source
     assert "analysis-workspace" in analysis_source
-    assert "analysis-section-rail" in analysis_sections_source
-    assert "const [selectedAnalysisSection, setSelectedAnalysisSection]" in analysis_source
-    assert "analysisSectionItems(analysis, documents)" in analysis_source
+    assert "analysis-section-rail" in analysis_section_rail_source
+    assert "from './useTenderAnalysisWorkspace'" in analysis_source
+    assert "useTenderAnalysisWorkspace(analysis, documents)" in analysis_source
+    assert "const [selectedAnalysisSection, setSelectedAnalysisSection]" not in analysis_source
+    assert "analysisSectionItems(analysis, documents)" in workspace_hook_source
     assert "<AnalysisSectionRail" not in analysis_source
     assert "sections={analysisSections}" in analysis_source
     assert "onSelectSection={selectAnalysisSection}" in analysis_source
     assert "<AnalysisSectionBody" in analysis_source
     assert "TenderAnalysisEvidencePanel" not in analysis_source
     assert "<AnalysisEvidencePanel" not in analysis_source
-    assert "sections.map" in analysis_sections_source
-    assert "onClick={() => onSelectSection(section.id)}" in analysis_sections_source
-    assert "aria-pressed={active}" in analysis_sections_source
+    assert "sections.map" in analysis_section_rail_source
+    assert "onClick={() => onSelectSection(section.id)}" in analysis_section_rail_source
+    assert "aria-pressed={active}" in analysis_section_rail_source
     assert "analysis-evidence-panel" not in analysis_source
     assert "from './TenderAnalysisEvidenceModel'" in analysis_evidence_source
     assert "from './TenderAnalysisEvidenceModel'" not in analysis_sections_source
@@ -2654,8 +2757,10 @@ def test_analysis_tab_exposes_word_report_and_source_evidence_workspace():
     assert ".analysis-section-item:hover" in styles_source
     assert find_mojibake(workspaces_source, TENDER_WORKSPACES_SOURCE) == []
     assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
+    assert find_mojibake(workspace_hook_source, USE_TENDER_ANALYSIS_WORKSPACE_SOURCE) == []
     assert find_mojibake(analysis_documents_source, TENDER_ANALYSIS_DOCUMENTS_SOURCE) == []
     assert find_mojibake(analysis_sections_source, TENDER_ANALYSIS_SECTIONS_SOURCE) == []
+    assert find_mojibake(analysis_section_rail_source, ANALYSIS_SECTION_RAIL_SOURCE) == []
     assert find_mojibake(analysis_sections_model_source, ANALYSIS_SECTIONS_MODEL_SOURCE) == []
     assert find_mojibake(analysis_evidence_source, TENDER_ANALYSIS_EVIDENCE_SOURCE) == []
     assert find_mojibake(analysis_evidence_model_source, TENDER_ANALYSIS_EVIDENCE_MODEL_SOURCE) == []
@@ -2701,6 +2806,11 @@ def test_analysis_tab_renders_decision_first_brief():
 
 def test_analysis_tab_renders_compact_tz_passport_navigation():
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    workspace_hook_source = (
+        USE_TENDER_ANALYSIS_WORKSPACE_SOURCE.read_text(encoding="utf-8")
+        if USE_TENDER_ANALYSIS_WORKSPACE_SOURCE.exists()
+        else ""
+    )
     passport_source = TENDER_ANALYSIS_PASSPORT_SOURCE.read_text(encoding="utf-8")
     styles_source = read_styles_source()
 
@@ -2708,6 +2818,7 @@ def test_analysis_tab_renders_compact_tz_passport_navigation():
     assert "selectedSection={selectedAnalysisSection}" in analysis_source
     assert "onSelectSection={selectAnalysisSection}" in analysis_source
     assert "sections={analysisSections}" in analysis_source
+    assert "setAnalysisViewMode" in workspace_hook_source
     assert "<AnalysisSectionRail" not in analysis_source
     decision_index = analysis_source.index("<AnalysisDecisionBrief")
     passport_index = analysis_source.index("<AnalysisPassport")
@@ -2727,8 +2838,28 @@ def test_analysis_tab_renders_compact_tz_passport_navigation():
     assert find_mojibake(passport_source, TENDER_ANALYSIS_PASSPORT_SOURCE) == []
 
 
-def test_analysis_tab_keeps_manual_section_selection_after_passport_click():
+def test_analysis_tab_delegates_workflow_draft_to_hook():
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    workflow_hook_source = (
+        USE_TENDER_ANALYSIS_WORKFLOW_DRAFT_SOURCE.read_text(encoding="utf-8")
+        if USE_TENDER_ANALYSIS_WORKFLOW_DRAFT_SOURCE.exists()
+        else ""
+    )
+
+    assert "from './useTenderAnalysisWorkflowDraft'" in analysis_source
+    assert "useTenderAnalysisWorkflowDraft(tzWorkflow, onAnalysisWorkflow)" in analysis_source
+    assert "workflowDraftFromContract" not in analysis_source
+    assert "function updateWorkflowDraft" not in analysis_source
+    assert "function saveWorkflowDraft" not in analysis_source
+    assert "export function useTenderAnalysisWorkflowDraft" in workflow_hook_source
+    assert "function workflowDraftFromContract" in workflow_hook_source
+    assert "onAnalysisWorkflow?.(workflowDraft)" in workflow_hook_source
+    assert find_mojibake(analysis_source, TENDER_ANALYSIS_TAB_SOURCE) == []
+    assert find_mojibake(workflow_hook_source, USE_TENDER_ANALYSIS_WORKFLOW_DRAFT_SOURCE) == []
+
+
+def test_analysis_tab_keeps_manual_section_selection_after_passport_click():
+    analysis_source = USE_TENDER_ANALYSIS_WORKSPACE_SOURCE.read_text(encoding="utf-8")
 
     effect_start = analysis_source.index("useEffect(() => {")
     effect_end = analysis_source.index("}, [analysisSectionKey, primarySection])", effect_start)
@@ -2745,6 +2876,11 @@ def test_analysis_documents_render_structured_evidence_model():
     fact_card_source = ANALYSIS_FACT_CARD_SOURCE.read_text(encoding="utf-8")
     fact_source_context_source = ANALYSIS_FACT_SOURCE_CONTEXT_SOURCE.read_text(encoding="utf-8")
     fact_view_model_source = ANALYSIS_FACT_VIEW_MODEL_SOURCE.read_text(encoding="utf-8")
+    document_summary_source = (
+        ANALYSIS_DOCUMENT_SUMMARY_SOURCE.read_text(encoding="utf-8")
+        if ANALYSIS_DOCUMENT_SUMMARY_SOURCE.exists()
+        else ""
+    )
     fact_source_model = (Path(__file__).resolve().parents[1] / "web" / "src" / "analysisFactSourceModel.js").read_text(
         encoding="utf-8"
     )
@@ -2755,6 +2891,9 @@ def test_analysis_documents_render_structured_evidence_model():
     assert "buildDocumentEvidenceItems(analysis, documents)" not in sections_source
     assert "buildDocumentEvidenceItems(analysis, documents)" in evidence_source
     assert "TenderAnalysisEvidenceModel" not in sections_source
+    assert "DocumentSummaryItem" not in sections_source
+    assert "export function AnalysisDocumentSummaryItem" in document_summary_source
+    assert "analysis-document-summary" in document_summary_source
     assert "analysis-source-context" in fact_source_context_source
     assert "analysis-source-meta" in fact_source_context_source
     assert "analysisSourceBinding(item)" in fact_view_model_source
@@ -2794,6 +2933,7 @@ def test_analysis_documents_render_structured_evidence_model():
     assert ".analysis-evidence-quality-missing" in styles_source
     assert find_mojibake(sections_source, TENDER_ANALYSIS_SECTIONS_SOURCE) == []
     assert find_mojibake(fact_card_source, ANALYSIS_FACT_CARD_SOURCE) == []
+    assert find_mojibake(document_summary_source, ANALYSIS_DOCUMENT_SUMMARY_SOURCE) == []
     assert find_mojibake(fact_source_context_source, ANALYSIS_FACT_SOURCE_CONTEXT_SOURCE) == []
     assert find_mojibake(fact_view_model_source, ANALYSIS_FACT_VIEW_MODEL_SOURCE) == []
     assert find_mojibake(evidence_source, TENDER_ANALYSIS_EVIDENCE_SOURCE) == []

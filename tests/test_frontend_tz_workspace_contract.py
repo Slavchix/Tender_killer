@@ -48,11 +48,12 @@ def test_tz_analysis_source_details_are_deduplicated():
 
 def test_tz_analysis_evidence_drilldown_is_delegated():
     tab_source = (WEB_SRC / "TenderAnalysisTab.jsx").read_text(encoding="utf-8")
+    workspace_hook_source = (WEB_SRC / "useTenderAnalysisWorkspace.js").read_text(encoding="utf-8")
     evidence_model_source = (WEB_SRC / "TenderAnalysisEvidenceModel.js").read_text(encoding="utf-8")
     evidence_drilldown_source = (WEB_SRC / "TenderAnalysisEvidenceDrilldown.jsx").read_text(encoding="utf-8")
 
     assert "from './TenderAnalysisEvidenceDrilldown'" in tab_source
-    assert "from './TenderAnalysisEvidenceModel'" in tab_source
+    assert "from './TenderAnalysisEvidenceModel'" in workspace_hook_source
     assert "function AnalysisEvidenceDrilldownPanel" not in tab_source
     assert "function resolveEvidenceDrilldown" not in tab_source
     assert "export function AnalysisEvidenceDrilldownPanel" in evidence_drilldown_source

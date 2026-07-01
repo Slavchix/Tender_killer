@@ -24,6 +24,9 @@ USE_TENDER_ANALYSIS_SAVE_ACTIONS_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderAnalysisSaveActions.js"
 )
 TENDER_ANALYSIS_TAB_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisTab.jsx"
+USE_TENDER_ANALYSIS_WORKSPACE_SOURCE = (
+    Path(__file__).resolve().parents[1] / "web" / "src" / "useTenderAnalysisWorkspace.js"
+)
 TENDER_ANALYSIS_SECONDARY_SOURCE = (
     Path(__file__).resolve().parents[1] / "web" / "src" / "TenderAnalysisSecondaryDrawers.jsx"
 )
@@ -47,13 +50,32 @@ STYLES_ANALYSIS_SECONDARY_SOURCE = (
 STYLES_ECONOMICS_SOURCE = Path(__file__).resolve().parents[1] / "web" / "src" / "styles.economics.css"
 
 
+def read_css_source(path: Path, seen: set[Path] | None = None) -> str:
+    seen = seen or set()
+    path = path.resolve()
+    if path in seen:
+        return ""
+    seen.add(path)
+    source = path.read_text(encoding="utf-8")
+    chunks = []
+    for line in source.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("@import "):
+            quote = "'" if "'" in stripped else '"'
+            parts = stripped.split(quote)
+            if len(parts) >= 3:
+                chunks.append(read_css_source(path.parent / parts[1], seen))
+        chunks.append(line)
+    return "\n".join(chunks)
+
+
 def read_styles_source() -> str:
     return "\n".join(
         (
-            STYLES_SOURCE.read_text(encoding="utf-8"),
-            STYLES_ANALYSIS_SOURCE.read_text(encoding="utf-8"),
-            STYLES_ANALYSIS_SECONDARY_SOURCE.read_text(encoding="utf-8"),
-            STYLES_ECONOMICS_SOURCE.read_text(encoding="utf-8"),
+            read_css_source(STYLES_SOURCE),
+            read_css_source(STYLES_ANALYSIS_SOURCE),
+            read_css_source(STYLES_ANALYSIS_SECONDARY_SOURCE),
+            read_css_source(STYLES_ECONOMICS_SOURCE),
         )
     )
 
@@ -297,6 +319,7 @@ def test_frontend_exposes_tz_saas_workflow_questions_and_playbooks():
         else ""
     )
     analysis_source = TENDER_ANALYSIS_TAB_SOURCE.read_text(encoding="utf-8")
+    workspace_hook_source = USE_TENDER_ANALYSIS_WORKSPACE_SOURCE.read_text(encoding="utf-8")
     secondary_source = TENDER_ANALYSIS_SECONDARY_SOURCE.read_text(encoding="utf-8")
     condition_groups_source = TENDER_ANALYSIS_CONDITION_GROUPS_SOURCE.read_text(encoding="utf-8")
     workflow_panel_source = TENDER_ANALYSIS_WORKFLOW_PANEL_SOURCE.read_text(encoding="utf-8")
@@ -330,7 +353,7 @@ def test_frontend_exposes_tz_saas_workflow_questions_and_playbooks():
     assert "AnalysisEvidenceDrilldownPanel" in analysis_source
     assert "selectedEvidence" in analysis_source
     assert "onEvidenceSelect" in analysis_source
-    assert "operator_view?.evidence_drilldowns" in analysis_source
+    assert "operator_view?.evidence_drilldowns" in workspace_hook_source
     assert "operator_view?.tz_workflow" in analysis_source
     assert "operator_view?.condition_groups" in analysis_source
     assert "AnalysisConditionGroupsPanel" in secondary_source

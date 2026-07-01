@@ -1,16 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
 import { AnalysisDecisionBrief } from './TenderAnalysisDecisionBrief'
 import { AnalysisDocumentsPanel } from './TenderAnalysisDocumentsPanel'
 import { AnalysisEvidenceDrilldownPanel } from './TenderAnalysisEvidenceDrilldown'
-import { resolveEvidenceDrilldown } from './TenderAnalysisEvidenceModel'
 import { AnalysisHistory } from './TenderAnalysisHistory'
 import { AnalysisPassport } from './TenderAnalysisPassport'
 import { AnalysisSecondaryDrawers } from './TenderAnalysisSecondaryDrawers'
-import {
-  AnalysisSectionBody,
-  analysisSectionItems,
-} from './TenderAnalysisSections'
+import { AnalysisSectionBody } from './TenderAnalysisSections'
 import { AnalysisSummary } from './TenderAnalysisSummary'
+import { useTenderAnalysisWorkflowDraft } from './useTenderAnalysisWorkflowDraft'
+import { useTenderAnalysisWorkspace } from './useTenderAnalysisWorkspace'
 
 export function TenderAnalysisTab({
   analysis,
@@ -28,61 +25,27 @@ export function TenderAnalysisTab({
   reportHref,
   documents = [],
 }) {
-  const [selectedAnalysisSection, setSelectedAnalysisSection] = useState('decision_risks')
-  const [analysisViewMode, setAnalysisViewMode] = useState('compact')
-  const userSelectedAnalysisSectionRef = useRef(false)
-  const analysisSections = analysisSectionItems(analysis, documents)
-  const analysisSectionKey = analysisSections.map((section) => section.id).join('|')
   const analysisActionDisabled = preparingAnalysis || downloading || extracting || analyzing
-  const primarySection = analysis?.operator_view?.decision_brief?.primary_section
   const tzWorkflow = analysis?.operator_view?.tz_workflow || {}
   const conditionGroups = analysis?.operator_view?.condition_groups || {}
   const aiQuestions = analysis?.operator_view?.ai_questions || {}
   const playbooks = analysis?.operator_view?.playbooks || {}
-  const evidenceDrilldowns = analysis?.operator_view?.evidence_drilldowns || {}
   const analysisHistory = analysis?.analysis_history || []
-  const [workflowDraft, setWorkflowDraft] = useState(workflowDraftFromContract(tzWorkflow))
-  const [selectedEvidence, setSelectedEvidence] = useState(null)
-
-  useEffect(() => {
-    const sectionIds = new Set(analysisSections.map((section) => section.id))
-    setSelectedAnalysisSection((currentSection) => {
-      if (!userSelectedAnalysisSectionRef.current && primarySection && sectionIds.has(primarySection)) {
-        return primarySection
-      }
-      if (!sectionIds.has(currentSection)) {
-        userSelectedAnalysisSectionRef.current = false
-        return analysisSections[0]?.id || 'decision_risks'
-      }
-      return currentSection
-    })
-  }, [analysisSectionKey, primarySection])
-
-  useEffect(() => {
-    setWorkflowDraft(workflowDraftFromContract(tzWorkflow))
-  }, [tzWorkflow.status, tzWorkflow.responsible, tzWorkflow.deadline, tzWorkflow.comment])
-
-  useEffect(() => {
-    setSelectedEvidence(null)
-  }, [analysis?.analyzed_at, analysis?.status])
-
-  function selectAnalysisSection(sectionId) {
-    userSelectedAnalysisSectionRef.current = true
-    setSelectedAnalysisSection(sectionId)
-  }
-
-  function selectEvidenceDrilldown(value) {
-    setSelectedEvidence(resolveEvidenceDrilldown(value, evidenceDrilldowns))
-  }
-
-  function updateWorkflowDraft(field, value) {
-    setWorkflowDraft((current) => ({ ...current, [field]: value }))
-  }
-
-  function saveWorkflowDraft(event) {
-    event.preventDefault()
-    onAnalysisWorkflow?.(workflowDraft)
-  }
+  const {
+    analysisSections,
+    analysisViewMode,
+    evidenceDrilldowns,
+    selectAnalysisSection,
+    selectEvidenceDrilldown,
+    selectedAnalysisSection,
+    selectedEvidence,
+    setAnalysisViewMode,
+  } = useTenderAnalysisWorkspace(analysis, documents)
+  const {
+    saveWorkflowDraft,
+    updateWorkflowDraft,
+    workflowDraft,
+  } = useTenderAnalysisWorkflowDraft(tzWorkflow, onAnalysisWorkflow)
 
   return (
     <section className="detail-section active analysis-section">
@@ -164,13 +127,4 @@ export function TenderAnalysisTab({
       </div>
     </section>
   )
-}
-
-function workflowDraftFromContract(workflow = {}) {
-  return {
-    status: workflow.status || 'analysis_ready',
-    responsible: workflow.responsible || '',
-    deadline: workflow.deadline || '',
-    comment: workflow.comment || '',
-  }
 }

@@ -1,0 +1,129 @@
+﻿.analysis-action-row {
+  align-items: flex-start;
+}
+
+.analysis-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-end;
+}
+
+.analysis-actions .primary-button,
+.analysis-actions .secondary-button,
+.analysis-actions .secondary-link-button {
+  width: auto;
+  min-width: 136px;
+  margin-top: 0;
+}
+
+.analysis-saas-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.95fr) minmax(320px, 1.25fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.analysis-history {
+  padding: 8px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.analysis-history summary {
+  color: var(--color-success);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.analysis-history-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.analysis-history-row {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.analysis-history-row div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.analysis-history-row strong {
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.analysis-history-row span,
+.analysis-history-row small {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.analysis-history-row p {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.analysis-history-details {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.analysis-history-details summary {
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.analysis-history-details div {
+  display: grid;
+  gap: 7px;
+  margin-top: 6px;
+}
+
+.analysis-history-details section {
+  display: grid;
+  gap: 4px;
+  padding: 7px 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.analysis-history-details strong {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.analysis-history-details ul {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding-left: 16px;
+}
+
+.analysis-history-details li {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
