@@ -39,18 +39,9 @@ def update_profile_economics(
     store.initialize()
     profiles = ensure_product_profiles(database_path, source, external_id)
 
-    target = None
-    for profile in profiles:
-        if int(profile.get("position_index") or 0) == position_index:
-            target = profile
-            break
-    if target is None:
-        raise KeyError(f"Product profile position {position_index} not found.")
-
+    target = _find_profile(profiles, position_index)
     economics = _economics_inputs(data)
-    raw_payload = dict(target.get("raw_payload") or {})
-    raw_payload["economics"] = economics
-    target["raw_payload"] = raw_payload
+    _set_raw_payload_sections(target, economics=economics)
     if any(key in economics for key in ("unit_cost", "total_cost", "service_rate", "service_minimum")):
         target["profile_status"] = "priced"
 
@@ -71,9 +62,7 @@ def update_profile_economics_assumptions(
 
     target = _find_profile(profiles, position_index)
     assumptions = _assumptions_inputs(data)
-    raw_payload = dict(target.get("raw_payload") or {})
-    raw_payload["economics_assumptions"] = assumptions
-    target["raw_payload"] = raw_payload
+    _set_raw_payload_sections(target, economics_assumptions=assumptions)
 
     store.upsert_product_profiles(source, external_id, profiles)
     return {"ok": True, "economics_assumptions": assumptions}
@@ -90,22 +79,18 @@ def update_profile_auto_economics(
     store.initialize()
     profiles = ensure_product_profiles(database_path, source, external_id)
 
-    target = None
-    for profile in profiles:
-        if int(profile.get("position_index") or 0) == position_index:
-            target = profile
-            break
-    if target is None:
-        raise KeyError(f"Product profile position {position_index} not found.")
-
+    target = _find_profile(profiles, position_index)
     estimate = build_auto_economics_estimate(target, document_records or [])
-    raw_payload = dict(target.get("raw_payload") or {})
-    raw_payload["economics_auto"] = estimate
-    raw_payload["economics_assumptions"] = _merge_auto_assumptions(
+    raw_payload = _profile_raw_payload(target)
+    assumptions = _merge_auto_assumptions(
         raw_payload.get("economics_assumptions"),
         _assumptions_from_auto_estimate(estimate),
     )
-    target["raw_payload"] = raw_payload
+    _set_raw_payload_sections(
+        target,
+        economics_auto=estimate,
+        economics_assumptions=assumptions,
+    )
 
     store.upsert_product_profiles(source, external_id, profiles)
     return {"ok": True, "economics_auto": estimate}
@@ -124,13 +109,14 @@ def accept_profile_auto_economics(
     target = _find_profile(profiles, position_index)
     estimate = _auto_estimate_payload(target)
     economics = _economics_from_auto_estimate(estimate)
-    raw_payload = dict(target.get("raw_payload") or {})
-    raw_payload["economics"] = economics
-    raw_payload["economics_acceptance"] = {
-        "source": "auto_estimate",
-        "accepted": True,
-    }
-    target["raw_payload"] = raw_payload
+    _set_raw_payload_sections(
+        target,
+        economics=economics,
+        economics_acceptance={
+            "source": "auto_estimate",
+            "accepted": True,
+        },
+    )
     if any(key in economics for key in ("unit_cost", "total_cost")):
         target["profile_status"] = "priced"
 
@@ -145,8 +131,20 @@ def _find_profile(profiles: list[dict[str, Any]], position_index: int) -> dict[s
     raise KeyError(f"Product profile position {position_index} not found.")
 
 
+def _profile_raw_payload(profile: dict[str, Any]) -> dict[str, Any]:
+    raw_payload = profile.get("raw_payload")
+    return dict(raw_payload) if isinstance(raw_payload, dict) else {}
+
+
+def _set_raw_payload_sections(profile: dict[str, Any], **sections: Any) -> dict[str, Any]:
+    raw_payload = _profile_raw_payload(profile)
+    raw_payload.update(sections)
+    profile["raw_payload"] = raw_payload
+    return raw_payload
+
+
 def _auto_estimate_payload(profile: dict[str, Any]) -> dict[str, Any]:
-    raw_payload = profile.get("raw_payload") if isinstance(profile.get("raw_payload"), dict) else {}
+    raw_payload = _profile_raw_payload(profile)
     estimate = raw_payload.get("economics_auto")
     if not isinstance(estimate, dict):
         raise KeyError("Product profile auto economics estimate not found.")
