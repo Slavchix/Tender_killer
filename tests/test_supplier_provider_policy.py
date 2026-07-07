@@ -1,0 +1,183 @@
+from __future__ import annotations
+
+import tender_killer.supplier_provider_policy as provider_policy
+from tender_killer.supplier_provider_policy import get_supplier_provider_policy
+from tender_killer.supplier_provider_policy import supplier_fetch_decision
+
+
+REQUIRED_POLICY_FIELDS = {
+    "provider",
+    "label",
+    "default_mode",
+    "allow_quick_links",
+    "allow_public_search_fetch",
+    "allow_product_page_fetch",
+    "allow_browser_fetch",
+    "allow_internal_api",
+    "recommended_flow",
+    "risk_level",
+    "operator_note",
+}
+
+
+def test_provider_policy_documents_required_supplier_modes() -> None:
+    officemag = get_supplier_provider_policy("officemag")
+    vseinstrumenti = get_supplier_provider_policy("vseinstrumenti")
+    komus = get_supplier_provider_policy("komus")
+
+    assert REQUIRED_POLICY_FIELDS.issubset(officemag.keys())
+    assert officemag["default_mode"] == "limited_public_search"
+    assert officemag["allow_quick_links"] is True
+    assert officemag["allow_public_search_fetch"] is True
+    assert officemag["public_search_max_positions"] == 5
+    assert officemag["allow_product_page_fetch"] is True
+    assert officemag["allow_browser_fetch"] is True
+    assert officemag["browser_fetch_max_positions"] == 5
+    assert officemag["allow_internal_api"] is False
+
+    assert vseinstrumenti["allow_public_search_fetch"] is True
+    assert vseinstrumenti["public_search_max_positions"] == 5
+    assert vseinstrumenti["allow_product_page_fetch"] is True
+    assert vseinstrumenti["allow_browser_fetch"] is True
+
+    assert komus["allow_quick_links"] is True
+    assert komus["allow_public_search_fetch"] is True
+    assert komus["public_search_max_positions"] == 5
+    assert komus["allow_product_page_fetch"] is True
+    assert komus["allow_browser_fetch"] is True
+    assert komus["recommended_flow"] == "limited_search_feed_quote"
+
+
+def test_provider_policy_exposes_pricing_defaults_for_economics() -> None:
+    for provider in ("officemag", "komus", "lemanapro", "vseinstrumenti", "petrovich"):
+        policy = get_supplier_provider_policy(provider)
+        defaults = policy["pricing_defaults"]
+
+        assert defaults["vat_mode"] == "included_by_default"
+        assert defaults["vat_rate_percent"] == 22
+        assert defaults["delivery_rate_percent"] == 3.0
+        assert defaults["minimum_order_policy"] == "check_supplier_card"
+        assert defaults["packaging_policy"] == "check_supplier_card"
+        assert "Проверь НДС" in defaults["operator_note"]
+        assert "minimum_order" in defaults["manual_checks"]
+        assert "packaging" in defaults["manual_checks"]
+        assert "availability" in defaults["manual_checks"]
+
+
+def test_supplier_fetch_decision_separates_quick_links_from_collectors() -> None:
+    quick_link = supplier_fetch_decision(
+        "https://www.officemag.ru/search/?q=paper",
+        provider="officemag",
+        action="quick_link",
+        tender_position_count=20,
+    )
+    small_search = supplier_fetch_decision(
+        "https://www.officemag.ru/search/?q=paper",
+        provider="officemag",
+        action="public_search_fetch",
+        tender_position_count=1,
+    )
+    large_search = supplier_fetch_decision(
+        "https://www.officemag.ru/search/?q=paper",
+        provider="officemag",
+        action="public_search_fetch",
+        tender_position_count=20,
+    )
+    manual_product = supplier_fetch_decision(
+        "https://www.officemag.ru/catalog/goods/110532/",
+        provider="officemag",
+        action="product_page_fetch",
+        tender_position_count=20,
+    )
+    small_browser = supplier_fetch_decision(
+        "https://www.officemag.ru/search/?q=paper",
+        provider="officemag",
+        action="browser_fetch",
+        tender_position_count=1,
+    )
+    large_browser = supplier_fetch_decision(
+        "https://www.officemag.ru/search/?q=paper",
+        provider="officemag",
+        action="browser_fetch",
+        tender_position_count=20,
+    )
+
+    assert quick_link["allowed"] is True
+    assert small_search["allowed"] is True
+    assert large_search["allowed"] is False
+    assert large_search["reason"] == "large_tender_manual_required"
+    assert manual_product["allowed"] is True
+    assert small_browser["allowed"] is True
+    assert large_browser["allowed"] is False
+    assert large_browser["reason"] == "large_tender_manual_required"
+
+
+def test_supplier_fetch_decision_limits_active_search_to_small_tenders() -> None:
+    small_tender = supplier_fetch_decision(
+        "https://www.vseinstrumenti.ru/search/?what=cement",
+        provider="vseinstrumenti",
+        action="public_search_fetch",
+        tender_position_count=5,
+    )
+    large_tender = supplier_fetch_decision(
+        "https://www.vseinstrumenti.ru/search/?what=cement",
+        provider="vseinstrumenti",
+        action="public_search_fetch",
+        tender_position_count=6,
+    )
+
+    assert small_tender["allowed"] is True
+    assert large_tender["allowed"] is False
+    assert large_tender["reason"] == "large_tender_manual_required"
+
+
+def test_supplier_fetch_decision_blocks_private_or_internal_urls() -> None:
+    unsafe_urls = [
+        "https://petrovich.ru/login?token=secret",
+        "https://petrovich.ru/api-common/product/get_price?id=1",
+        "https://petrovich.ru/catalog/item/ajax/price",
+        "https://petrovich.ru/graphql?query={price}",
+        "https://petrovich.ru/orders/123",
+        "https://petrovich.ru/catalog/item?session=abc",
+    ]
+
+    for url in unsafe_urls:
+        decision = supplier_fetch_decision(
+            url,
+            provider="petrovich",
+            action="product_page_fetch",
+            tender_position_count=1,
+        )
+        assert decision["allowed"] is False
+        assert decision["reason"] == "unsafe_url"
+
+    safe_product = supplier_fetch_decision(
+        "https://petrovich.ru/catalog/cement-25kg/",
+        provider="petrovich",
+        action="product_page_fetch",
+        tender_position_count=12,
+    )
+    assert safe_product["allowed"] is True
+
+
+def test_supplier_auto_price_policy_defines_small_and_large_tender_levels() -> None:
+    small = provider_policy.supplier_auto_price_policy(5)
+    large = provider_policy.supplier_auto_price_policy(6)
+
+    assert small["level"] == "small_review_only_auto_search"
+    assert small["active_search_allowed"] is True
+    assert small["review_only"] is True
+    assert small["mass_launch_allowed"] is True
+    assert small["site_parsing_role"] == "helper"
+
+    assert large["level"] == "large_manual_sources"
+    assert large["active_search_allowed"] is False
+    assert large["review_only"] is True
+    assert large["mass_launch_allowed"] is False
+    assert large["primary_sources"] == [
+        "price_book_feed",
+        "supplier_quote",
+        "manual_url",
+        "quick_links",
+    ]
+    assert large["site_parsing_role"] == "helper_only"

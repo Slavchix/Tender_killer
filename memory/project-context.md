@@ -26,6 +26,61 @@ Tender Killer - будущий софт для поставщиков в гос�
 6. Подсвечивает красные флаги.
 7. Помогает решить: участвовать, смотреть осторожно или пропустить.
 
+## MVP parser implementation checkpoint
+
+На ветке `codex/moscow-mo-parser` реализован первый технический MVP:
+
+- Python 3.12 модульный монолит с SQLite-хранилищем, дедупликацией по `source + external_id` и Telegram-уведомлениями.
+- Первые источники: `moscow` = Портал поставщиков Москвы `zakupki.mos.ru`, `mosreg` = электронный магазин МО `market.mosreg.ru`.
+- Фильтры вынесены в JSON-профиль и могут настраиваться по регионам, диапазону цены, ОКПД2, ключевым словам, стоп-словам, active-only режиму и выбранным площадкам.
+- ОКПД2 работает по префиксам: `17.12` ловит `17.12.14`, полный код тоже можно указывать.
+- Завершенные, закрытые, отмененные и просроченные закупки по умолчанию не отправляются.
+- Telegram-бот добавлен как быстрый личный интерфейс настройки фильтров. Команды: `/filters`, `/region`, `/price`, `/okpd2`, `/sources`, `/active`, `/search`.
+- Бот меняет тот же локальный файл фильтров, который читает CLI. На текущем этапе это быстрее и проще, чем отдельный веб-кабинет; позже эти же профили можно перенести в SaaS-хранилище.
+- Бот работает только пока локально запущен процесс `python -m tender_killer.bot` и выставлен корректный `TELEGRAM_BOT_TOKEN`. Публикация в GitHub сама по себе бота не запускает.
+- Важно: Telegram-токен был однажды вставлен в чат, поэтому для долгого использования безопаснее перевыпустить токен через BotFather.
+
+## Telegram profiles and source diagnostics checkpoint
+
+Дата: 2026-05-19.
+
+- Фильтры переведены из одиночного JSON-профиля в коллекцию профилей: `profiles` + `active_profile_ids`.
+- Каждый профиль хранит `name`, `regions`, `sources`, `okpd2`, `min_price`, `max_price`, `keywords`, `exclude_keywords`, `only_active`.
+- Старый формат `filters.json` поддерживается через автоматическую миграцию в профиль `Default`.
+- Telegram-команды профилей: `/profiles`, `/profile_new`, `/profile_edit`, `/profile_toggle`, `/sources_status`, `/search`.
+- Меню бота теперь показывает основные действия: профили, создание профиля, редактирование, включение/выключение, запуск поиска и статус источников.
+- Поиск работает по всем активным профилям; отключенные профили не участвуют.
+- Добавлен фоновый авто-поиск внутри процесса бота, интервал задается `TENDER_KILLER_AUTO_SEARCH_MINUTES`, по умолчанию 30 минут. Для авто-отправки нужен `TELEGRAM_CHAT_ID`.
+- Summary `/search` теперь показывает не только `FailedSources=1`, но и конкретные ошибки источников с URL/HTTP-кодом/коротким текстом.
+- `/sources_status` показывает последний запуск и ошибки источников.
+- Текущее важное правило сохранено: лучше `Fetched=0`, чем мусорная карточка из HTML.
+- Проверка публичных endpoints: `zakupki.mos.ru/newapi/api/Auction/Get` без нужных параметров возвращает JSON-ошибку 400, `market.mosreg.ru/api/Purchase/Get` возвращает HTML главной страницы. У `api.market.mosreg.ru` найден JSON `Common/TradesFilterContent`, но это справочник фильтров, не список закупок. Подтвержденные стабильные list endpoints Москвы/МО еще надо найти отдельно через браузерную сетевую диагностику.
+
+## Mosreg working endpoint checkpoint
+
+Дата: 2026-05-19.
+
+- Через Network на `market.mosreg.ru` найден рабочий публичный endpoint списка закупок МО: `POST https://api.market.mosreg.ru/api/Trade/GetTradesForParticipantOrAnonymous`.
+- Payload v1: `tradeState="15"` для активных закупок, `page=1`, `itemsPerPage=50`, `UsedClassificatorType=20`, пустые фильтры цены/дат/классификаторов.
+- Endpoint работает без сохранения пользовательского `Authorization: Bearer ...`; токен из браузера не нужен в коде и не должен храниться в репозитории.
+- Ответ содержит `totalpages`, `totalrecords`, `invdata`. Основные поля: `Id`, `TradeName`, `CustomerFullName`, `InitialPrice`, `TradeStateName`, `FillingApplicationEndDate`, `PublicationDate`, `CategoryName`, `SourcePlatformName`.
+- Детальная ссылка строится как `https://market.mosreg.ru/Trade/ViewTrade/{Id}`.
+- Документы конкретной закупки доступны через `GET https://api.market.mosreg.ru/api/Trade/{Id}/GetTradeDocuments`.
+- Dry-run после подключения МО: `Fetched=50 Saved=50 Matched=14 Notified=14 FailedSources=0`.
+- Москва пока не подключена к реальному list endpoint; placeholder `zakupki.mos.ru/newapi/api/Auction/Get` отключен на уровне адаптера и возвращает пустой список.
+
+## Telegram filter UX checkpoint
+
+Дата: 2026-05-19.
+
+- Фильтры в Telegram переводятся от ручного редактирования командой к мастеру `Настроить поиск`.
+- Мастер создает профиль по шаблону категории: `Бумага/канцелярия`, `Хозтовары`, `Картриджи/оргтехника`, `Электрика`, `Сантехника`, `Стройматериалы`.
+- После шаблона пользователь выбирает закон (`44-ФЗ`, `223-ФЗ`, `44-ФЗ + 223-ФЗ`), этап (`Подача заявок`, `Работа комиссии`, `Закупка отменена`, `Закупка завершена`, `Все этапы`), регион, цену и ОКПД2.
+- В профиль добавлено поле `laws`; фильтр закона смотрит на данные источника, например `SourcePlatformName` из МО (`ЕАСУЗ 44`).
+- Этап закупки хранится через `statuses`; пресет `Подача заявок` включает active-only, остальные этапы отключают strict active-only.
+- Ориентир UX: фильтры должны быть ближе к панели поискового робота: закон, этап, регион, ОКПД2, площадки, цена, активность. Ключевые слова остаются внутри шаблонов и расширенного редактирования.
+- Добавлен режим `Тест поиска` / `/test_search`: он отправляет подходящие карточки повторно, даже если они уже были в таблице уведомлений. Это нужно для проверки новых фильтров; обычный `/search` сохраняет дедупликацию и не спамит дублями.
+
 ## Источники закупок
 
 Основные источники для изучения и будущих адаптеров:
@@ -75,3 +130,1258 @@ Tender Killer - будущий софт для поставщиков в гос�
 - 223-ФЗ - закупки госкорпораций и компаний с госучастием, где правила зависят от положения о закупке заказчика.
 - Малые закупки не стоит жестко считать только "до 100 000 рублей": в документах найдено противоречие, а актуальные лимиты зависят от основания и формата закупки.
 
+## Web workspace checkpoint
+
+Дата: 2026-05-19.
+
+- Принято продуктовое разделение: сайт становится основной рабочей панелью для просмотра, фильтрации и будущего анализа закупок; Telegram-бот остается каналом уведомлений о новых подходящих закупках.
+- Добавлен локальный Vite + React интерфейс в `web/`, запуск из корня проекта через `npm run dev`. Скрипт одновременно поднимает Python API и Vite dev server.
+- Добавлен локальный HTTP API `tender_killer.web_api` поверх SQLite: `GET /api/health`, `GET /api/tenders`, `GET /api/tenders/{source}/{external_id}`.
+- Сайт читает закупки из SQLite и поддерживает фильтры: поиск по названию/заказчику/raw payload, площадка, закон (`44-ФЗ`/`223-ФЗ`), регион, статус/активность, ОКПД2-префикс, минимальная и максимальная цена.
+- В интерфейсе видны основные поля карточки: источник, номер, цена, дедлайн, статус, регион, заказчик, ссылка на источник, документы и сырые признаки (`Закон`, `ОКПД2`, `Категория`).
+- Telegram-профили пока остаются отдельным механизмом настройки поиска/уведомлений; сайт на этом этапе является панелью просмотра сохраненной SQLite-истории. Следующий логичный шаг - добавить рабочие статусы на сайте: `Новая`, `Открыта`, `Интересно`, `В работу`, `Пропустить`, `Архив`.
+- Проверка перед публикацией: `pytest` показал `68 passed`, Vite production build прошел, локальная страница открылась в браузере и отрисовала фильтры без console errors.
+
+## Web search and Telegram notification checkpoint
+
+Дата: 2026-05-20.
+
+- Принято финальное разделение MVP: сайт - основное рабочее место, Telegram - только канал уведомлений.
+- Кнопка `Запустить поиск` на сайте отправляет текущие фильтры экрана в API и запускает поиск именно по ним, а не по старым Telegram-профилям из `filters.json`.
+- После поиска сайт перезагружает список с теми же фильтрами, чтобы счетчик `Matched` и видимые карточки не жили разными логиками.
+- Telegram-уведомления в web/API режиме работают в режиме `new_only`: отправляются только закупки, впервые созданные в SQLite на текущем запуске и прошедшие фильтр.
+- Старые закупки остаются на сайте и повторно в Telegram не отправляются, даже если токен Telegram был включен позже.
+- В summary сайта добавлен признак `Telegram=on/off`, чтобы понимать, настроены ли `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID`.
+- Фоновый поиск оставляется как будущая возможность, но он должен использовать тот же принцип `new_only`, чтобы не спамить архивом.
+- Telegram-бот постепенно превращается в notification-only канал; настройки, фильтры, статусы и ручной запуск должны жить на сайте.
+
+## Future analyst and critic agents
+
+Дата: 2026-05-20.
+
+- Для автоматической расстановки статусов нужна не одна LLM, а минимум двухэтапная схема: агент-аналитик и агент-критик.
+- Агент-аналитик разбирает карточку, документы, ТЗ, позиции, требования, сроки, поставку, сертификаты, национальный режим, цену, себестоимость, доставку, обеспечение, налоги и предварительную маржу.
+- Выход аналитика должен быть структурированным: `summary`, `items`, `requirements`, `risks`, `economics`, `recommended_status`, `confidence`, `reasons`.
+- Агент-критик повторно анализирует тендер и вывод аналитика. Его задача - искать пропуски, завышенную уверенность, скрытые требования, нереалистичную маржу, неподходящий товар, проблемы с сертификатами/лицензиями/СРО, поставкой, приемкой и оплатой.
+- Финальный статус не должен ставиться без правил согласования:
+  - аналитик рекомендует `Интересно`, критик согласен - ставим `Интересно`;
+  - аналитик рекомендует `Интересно`, критик нашел блокирующий риск - ставим `Нужна проверка`;
+  - аналитик рекомендует `Пропустить`, критик согласен - ставим `Пропустить`;
+  - аналитик и критик расходятся - ставим `Нужна проверка`, а не автоматическое решение.
+- Будущие рабочие статусы: `Новая`, `Анализируется`, `Интересно`, `В работу`, `Нужна проверка`, `Пропустить`, `Архив`.
+- Автоматический статус всегда должен сохранять объяснение: какие факты повлияли на решение, какие риски найдены, чего не хватает для уверенного решения.
+- Ручное изменение статуса на сайте должно оставаться главным: пользователь может переопределить решение агентов, а система должна хранить это как пользовательское решение.
+
+## Mosreg detail data and web workspace checkpoint
+
+Дата: 2026-05-20.
+
+- Добавлен фундамент detail-данных для МО: модель `TenderItem`, SQLite-таблица `tender_items`, сохранение позиций вместе с закупкой и выдача позиций через detail API.
+- `MosregMarketAdapter` умеет нормализовать позиции из payload, если источник отдает массивы вроде `TradeObjects`, `Products`, `Items`, `Positions`.
+- Проверенные endpoint-ы МО для позиций `GetTradeProducts`, `GetTradeObjects`, `GetTradePositions`, `GetTradeItems` вернули 404; подтвержденный endpoint документов - `GET https://api.market.mosreg.ru/api/Trade/{Id}/GetTradeDocuments`.
+- Адаптер МО теперь может добирать реальные документы через `GetTradeDocuments`; если запрос документов не сработал, остается fallback на endpoint документов.
+- Сайт показывает `items_count` в списке и блок `Позиции закупки` в карточке: наименование, детализация, количество, цена за единицу, сумма, ОКПД2/КОЗ.
+- Документы в карточке сайта теперь отображаются как кликабельные ссылки.
+- Улучшена рабочая панель сайта: добавлена кнопка `Очистить`, вкладки по рабочим статусам, фильтр `workflow_status` в API и ручная кнопка `Отправить в Telegram` из карточки.
+- Следующий важный шаг по данным: найти реальный network endpoint МО для позиций на detail-странице или извлечь позиции из документа/ТЗ после скачивания документов.
+
+## Web filter UX checkpoint
+
+Дата: 2026-05-20.
+
+- Фильтры сайта переведены из технической формы в рабочую панель: площадки выбираются мультикнопками, закон и статус - сегментированными переключателями, регион - быстрыми кнопками и ручным вводом.
+- Статус по умолчанию для сайта теперь `active`, чтобы завершенные закупки не попадали в рабочую выдачу без явного переключения.
+- ОКПД2 на сайте принимает несколько префиксов через запятую, например `17.12, 22.23, 27`.
+- Backend API поддерживает мультивыбор `source`, `law`, `region`, `okpd2`; быстрый регион `Москва + МО` разворачивается в `Москва` и `Московская область`.
+- SQLite-выдача умеет фильтровать ОКПД2 не только по полю закупки, но и по сохраненным позициям `tender_items.okpd2`.
+- На сайте добавлен блок `Применено сейчас`, чтобы видеть фактические условия текущей выдачи.
+
+## Local SQLite admin viewer checkpoint
+
+Дата: 2026-05-20.
+
+- Для личной локальной версии добавлен встроенный read-only просмотр SQLite прямо на сайте через верхнюю кнопку `SQLite`.
+- Backend API добавил админские read-only endpoints: `GET /api/db/tables` и `GET /api/db/tables/{table}`.
+- В целях безопасности MVP использует allowlist таблиц: `tenders`, `tender_items`, `tender_workflow`; произвольные таблицы и `sqlite_master` не отдаются.
+- На сайте экран SQLite показывает список таблиц с количеством строк, строки выбранной таблицы, колонки и поиск по содержимому таблицы.
+- Это личная/админская функция. При появлении ролей и пользователей экран SQLite должен быть доступен только администраторам, а обычным пользователям показывать только рабочие закупки и аналитику.
+
+## Moscow detail enrichment checkpoint
+
+Дата: 2026-05-20.
+
+- Подтвержден публичный detail endpoint Москвы: `GET https://zakupki.mos.ru/newapi/api/Auction/Get?auctionId={id}`. Без авторизации он вернул карточку КС с `items`, `auctionItem`, `deliveries`, `files`, `federalLawName`, `state`, `startCost`.
+- `MoscowSupplierPortalAdapter` теперь после списка закупок добирает detail JSON по `auctionId` и кладет его в `raw_payload.__detail`.
+- Для Москвы теперь нормализуются позиции `TenderItem`: наименование, количество, единица измерения, цена за единицу, сумма, классификационный/описательный признак из `okpdName`.
+- Для Москвы теперь нормализуются документы из `files`/`licenseFiles` в download-ссылки `newapi/api/FileStorage/Download?id=...&fileName=...`.
+- Карточка сайта показывает имя московского файла из `fileName` query-параметра, а не технический путь `Download`.
+- Проверка на живом endpoint: один реальный московский тендер вернул 2 документа и 1 позицию.
+
+## Tender documents layer checkpoint
+
+Дата: 2026-05-20.
+
+- Документы вынесены в отдельную модель `TenderDocument` и SQLite-таблицу `tender_documents`.
+- Для каждого документа сохраняются: `name`, `document_type`, `url`, `source_document_id`, `local_path`, `downloaded_at`, `text_status`, `raw_payload_json`.
+- `TenderStore.upsert_tender` теперь сохраняет документы отдельно, при повторном поиске не затирая уже скачанный `local_path/downloaded_at`.
+- Detail API карточки возвращает `document_records`; старый `documents_json` остается для совместимости.
+- Добавлен endpoint `POST /api/tenders/{source}/{external_id}/documents/download`: скачивает документы выбранной закупки в `data/documents/{source}/{external_id}/` и обновляет `local_path`, `downloaded_at`, `text_status`.
+- Для старых закупок, у которых есть только `documents_json`, скачивание делает fallback-заполнение `tender_documents`.
+- Сайт показывает документы таблицей: имя, тип, статус скачивания и будущий статус извлечения текста; добавлена кнопка `Скачать документы`.
+- Следующий логичный слой: извлечение текста из `.docx`, `.pdf`, `.xlsx` и сохранение результата для будущего анализа ТЗ.
+
+## Document text extraction checkpoint
+
+Дата: 2026-05-20.
+
+- Подключен следующий слой конвейера документов: скачанный файл теперь можно превратить в машинно-читаемый текст прямо из карточки закупки на сайте.
+- SQLite-таблица `tender_documents` расширена полями `text_content`, `text_extracted_at`, `text_error`; старые базы автоматически получают эти колонки при обращении через API.
+- Добавлен backend endpoint `POST /api/tenders/{source}/{external_id}/documents/extract-text`.
+- Извлечение текста использует существующий `DocumentTextExtractor` из `src/tender_killer/documents.py`: поддерживаются `.docx`, `.xlsx`, `.zip`, текстовые форматы и простой best-effort для `.pdf`.
+- Если локальный файл документа отсутствует, документ получает `text_status = missing_file`, а ошибка сохраняется в `text_error`; это видно на сайте и в SQLite.
+- Карточка сайта теперь показывает кнопку `Извлечь текст`, результат обработки, `text_status`, ошибку и короткое превью извлеченного текста.
+- Это еще не LLM-анализ ТЗ. Это подготовительный слой: `карточка закупки -> документы -> локальные файлы -> текст -> будущий аналитик/критик`.
+
+## Rule-based TZ analysis checkpoint
+
+Дата: 2026-05-20.
+
+- Добавлен первый слой анализа ТЗ без LLM: `src/tender_killer/analysis.py`.
+- Анализатор читает извлеченный текст документов и детерминированно ищет признаки, важные поставщику материалов:
+  - сертификаты и декларации;
+  - сроки поставки;
+  - приемку через ЕИС;
+  - ГОСТ/ТУ;
+  - обеспечение исполнения контракта и независимую гарантию;
+  - штрафы/пени;
+  - национальный режим, страну происхождения и постановление 1875;
+  - лицензии/СРО.
+- Результат сохраняется в новую SQLite-таблицу `tender_analysis`: `summary`, `requirements_json`, `risks_json`, `red_flags_json`, `recommended_status`, `confidence`, `raw_payload_json`, `analyzed_at`.
+- Добавлен API endpoint `POST /api/tenders/{source}/{external_id}/analysis/run`.
+- `get_tender_payload` теперь возвращает блок `analysis`, если анализ уже запускался.
+- Сайт получил блок `Выжимка ТЗ` с кнопкой `Проанализировать ТЗ`, краткой выжимкой, требованиями, рисками, красными флагами, статусом и уверенностью.
+- На этом этапе анализатор намеренно осторожный: базовый статус `needs_review` / `Нужна проверка`. Автоматическое `Интересно` или `Пропустить` лучше включать позже, когда появятся расчет экономики, товары, маржа и агент-критик.
+
+## Tender Word report checkpoint
+
+Дата: 2026-05-20.
+
+- Добавлен DOCX-отчет v1 без внешних зависимостей: `src/tender_killer/reports.py` собирает Word-файл через стандартный ZIP/XML.
+- Отчет предназначен не для краткого UI, а как рабочий документ для сохранения и дальнейшего пополнения.
+- В отчет входят:
+  - паспорт закупки: номер, источник, ссылка, заказчик, регион, статус, цена, дедлайн;
+  - блок `Что закупают`: позиции, количество, единица, цена, сумма, ОКПД2/КОЗ;
+  - документы: имя, тип, статус извлечения текста;
+  - выжимка ТЗ, требования, риски, красные флаги и предварительный статус;
+  - заготовка `Будущий расчет экономики` для будущих товаров, поставщиков, доставки, налогов, маржи и минимальной ставки;
+  - фрагменты извлеченного текста для проверки источника выводов.
+- Добавлен endpoint `GET /api/tenders/{source}/{external_id}/report.docx`, который сразу отдает скачиваемый Word-файл.
+- На сайте в карточке закупки добавлена кнопка `Скачать отчет Word`.
+- Дальше сайт должен оставаться коротким “экраном решения”, а полный разбор и будущая экономика будут расти внутри Word-отчета.
+
+## Product search profile checkpoint
+
+Дата: 2026-05-21.
+
+- Добавлен мост между закупкой и будущим парсером товаров: `src/tender_killer/product_profile.py`.
+- `get_tender_payload` теперь возвращает `product_profiles`.
+- Каждый товарный профиль содержит:
+  - `product_name`;
+  - `category`;
+  - `okpd2`;
+  - `quantity`;
+  - `unit`;
+  - `required_characteristics`;
+  - `search_phrases`;
+  - `stop_words`;
+  - `source` (`item` или `card`).
+- Если структурированные позиции найдены, профиль строится по позициям. Если позиций нет, используется fallback из карточки: название закупки, категория, ОКПД2/КОЗ и цена.
+- На сайте добавлен блок `Товарный профиль`: он показывает товар, ОКПД2/КОЗ, количество, поисковые фразы, характеристики и стоп-слова.
+- Word-отчет получил раздел `Товарный профиль для поиска`, чтобы отчет стал входом для будущего парсера товаров и расчета экономики.
+- Это пока не поиск товаров и не расчет маржи. Это нормализованный запрос, который дальше можно отдавать CSV-прайсам, ручным ссылкам поставщиков или полноценным парсерам сайтов.
+
+## Classifier code/type checkpoint
+
+Дата: 2026-05-21.
+
+- Для позиций закупки добавлены отдельные поля `classifier_code` и `classifier_type`.
+- Важно: `КОЗ-2` не то же самое, что `ОКПД2`. `КОЗ-2` - классификатор, который встречается на площадке МО/ЕАСУЗ. Его код может выглядеть как `11.218.01.01.01.002`; это не классический ОКПД2, но для поиска товара он так же важен.
+- `TenderItem` теперь хранит не только старое поле `okpd2`, но и явные `classifier_code`/`classifier_type`, чтобы не смешивать разные классификаторы в одно поле.
+- SQLite-таблица `tender_items`, API, сайт, товарный профиль и Word-отчет теперь показывают код классификатора и тип классификатора отдельно.
+- Для будущего парсера товаров это критично: товарный поиск должен использовать название позиции, детальное название, количество, единицу измерения, цену, `classifier_code` и `classifier_type`.
+- Если у конкретной МО-закупки в карточке на сайте позиции видны, но в Tender Killer товарный профиль строится только из общей карточки, значит текущий list endpoint не отдал `TradeObjects`. Следующий слой должен добирать позиции из detail endpoint, документа или страницы карточки.
+
+## Product search classifier research checkpoint
+
+Дата: 2026-05-21.
+
+- Проведено отдельное исследование: можно ли искать реальные товары только по ОКПД2/КТРУ/КОЗ-2.
+- Ключевой вывод: классификатор не является товарным SKU. Он полезен как фильтр категории и регуляторный признак, но для подбора товара нужен гибридный профиль: наименование позиции, детальное наименование, характеристики, ГОСТ/ТУ/ТР ТС, сертификаты/декларации, бренд/модель/артикул, страна происхождения, единица измерения, количество, цена и классификаторы.
+- Для архитектуры Tender Killer это означает: следующий слой должен быть не “поиск по ОКПД2”, а “движок товарного профиля”, который формирует поисковые фразы, стоп-слова и обязательные признаки для будущих парсеров поставщиков.
+- Сохранены рабочие материалы:
+  - `memory/product-search-classifier-research.md`;
+  - `memory/product-search-classifier-research.docx`.
+
+## Persistent product profiles checkpoint
+
+Дата: 2026-05-21.
+
+- `ProductProfile` стал отдельной постоянной сущностью в SQLite.
+- Один тендер теперь может иметь много товарных профилей: по одному на каждую позицию закупки.
+- Это важно для закупок с 20-40 товарами: поиск, подбор поставщиков, будущий расчет маржи и агент-критик должны работать на уровне позиции, а не только тендера.
+- `product_profiles` хранит товарное имя, детальное описание, количество, единицу, цену, ОКПД2, классификаторы, характеристики, ГОСТ/ТУ, сертификаты/декларации, поисковые фразы, стоп-слова, evidence, статус и уверенность.
+- `POST /api/tenders/{source}/{external_id}/product-profiles/rebuild` пересобирает и сохраняет профили.
+- Сайт показывает товарные профили списком с компактной сводкой и детальной панелью выбранной позиции.
+- Word-отчет показывает сводку по всем товарным профилям, чтобы отчеты по закупкам с множеством позиций оставались читаемыми.
+- При обновлении тендера сохраненные товарные профили инвалидируются, чтобы не показывать устаревшую сводку после изменения позиций.
+
+## Detail refresh checkpoint
+
+Дата: 2026-05-21.
+
+- Добавлен ручной backend refresh для детальной карточки: `POST /api/tenders/{source}/{external_id}/details/refresh`.
+- Refresh берет сохраненный `raw_payload`, добирает detail payload через адаптер источника, заново нормализует тендер, сохраняет документы и позиции в SQLite и пересобирает товарные профили.
+- Если источник не отдал новые detail-данные, refresh не перезаписывает существующие позиции/документы. Это защищает от потери уже сохраненной информации.
+- На сайте в карточке закупки появилась кнопка `Обновить детали карточки`. После обновления показывается краткая сводка: сколько позиций, документов и товарных профилей получилось.
+- Для Москвы refresh использует `MoscowSupplierPortalAdapter` и detail marker `__detail`.
+- Для МО refresh использует `MosregMarketAdapter` и подтвержденный endpoint документов `GetTradeDocuments`; позиции появляются, если источник/детальный payload отдал массивы вроде `TradeObjects`, `Products`, `Items`, `Positions`.
+- Практический смысл: старые сохраненные тендеры можно обогащать без нового общего поиска, а будущий парсер товаров получает более полные товарные профили.
+
+## Tender detail UX checkpoint
+
+Дата: 2026-05-21.
+
+- Правая панель сайта была перегружена: паспорт закупки, действия, анализ, документы, товарные профили, позиции и сырые признаки показывались одной длинной простыней.
+- Принято UX-решение: правая карточка должна быть коротким рабочим экраном, а не техническим дампом.
+- Карточка разделена на вкладки:
+  - `Обзор` - паспорт закупки, заказчик, регион, закон, категория;
+  - `Товары` - товарные профили и раскрываемые позиции из карточки;
+  - `Документы` - список документов, статус скачивания и извлечения текста;
+  - `Анализ` - выжимка ТЗ, требования, риски, красные флаги;
+  - `Статус` - рабочий статус, заметка и debug-блок с сырыми признаками.
+- Основные действия вынесены в компактную верхнюю строку: источник, обновить, документы, текст, анализ, Word, Telegram.
+- Превью текста документов скрыто под раскрытие, чтобы не забивать интерфейс.
+- `Сырые признаки` спрятаны в debug-блок, потому что это полезно разработчику, но мешает рабочему просмотру закупки.
+- Telegram остается каналом уведомлений; сайт становится основным рабочим кабинетом.
+- README обновлен под фактическую архитектуру: сайт, detail refresh, документы, анализ ТЗ, товарные профили, Word-отчет и SQLite-viewer.
+
+## Mosreg HTML item fallback checkpoint
+
+Дата: 2026-05-21.
+
+- Найден корень проблемы с МО-закупками: endpoint списка `GetTradesForParticipantOrAnonymous` и `GetTradeDocuments` не всегда отдают позиции закупки.
+- На странице `https://market.mosreg.ru/Trade/ViewTrade/{Id}` блок `Объекты закупки` присутствует в HTML и содержит товар, детализированное наименование, количество, единицу, цену, код классификатора и тип классификатора.
+- `MosregMarketAdapter` теперь при detail refresh может скачать HTML карточки и распарсить позиции из `.objectPurchase .outputResults__oneResult`.
+- Для закупки `3666760` проверено локально: подтягивается товар `Бланк из бумаги или картона`, детали `Поставка зачетных книжек`, количество `700`, классификатор `11.105.01.02.08.01.008`, тип `КОЗ-2`.
+- В интерфейсе поле `Детали` означает `Детализированное наименование` позиции из карточки источника. Это не юридический анализ и не характеристики ТЗ; характеристики позже должны добавляться из документов/ТЗ в товарный профиль.
+
+## Product profile document evidence and readable Word report checkpoint
+
+Дата: 2026-05-21.
+
+- Товарный профиль начал связывать позицию закупки с требованиями из документов/ТЗ: релевантные предложения из извлеченного текста добавляются в `required_characteristics`.
+- Для таких фрагментов добавляется `evidence` с источником документа, чтобы дальше было понятно, откуда взялось требование.
+- Это сделано без новой миграции БД: используются уже существующие поля профиля `required_characteristics` и `evidence`.
+- Word-отчет перестроен из длинного потока абзацев в читаемые блоки с таблицами:
+  - `Краткое решение`;
+  - `Паспорт закупки`;
+  - `Что закупают`;
+  - `Сводка товарных профилей`;
+  - `Товарный профиль для поиска`;
+  - `Документы и ТЗ`;
+  - `Выжимка ТЗ`;
+  - приложение с фрагментами извлеченного текста.
+- Сайт остается коротким рабочим экраном, а Word-отчет становится местом для полного разбора закупки и будущего добавления расчета маржи.
+- Проверка этапа: `127 passed` при запуске `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full` вне sandbox. Внутри sandbox полный pytest может падать на правах временных папок `tmp_path`, поэтому для полного прогона нужен unrestricted shell.
+
+## Product profile v2 checkpoint
+
+Дата: 2026-05-21.
+
+- Детальная карточка товарного профиля на сайте разделена на рабочие блоки:
+  - `Идентификация позиции`: товар, детализированное наименование, количество, цена, сумма, ОКПД2 и классификатор площадки;
+  - `Пакет для поиска товара`: поисковые фразы и стоп-слова для будущего парсера поставщиков;
+  - `Требования и документы`: характеристики, стандарты, сертификаты/декларации, страна происхождения;
+  - `Подтверждения из ТЗ`: фрагменты документов с указанием файла-источника.
+- Это закрепляет архитектуру: сайт показывает компактный профиль позиции, а Word-отчет хранит более полный доказательный разбор.
+- В Word-отчет добавлена таблица `Подтверждения из ТЗ` внутри товарного профиля, чтобы было видно, из какого документа взято требование.
+- Следующий логичный шаг: улучшить качество извлечения требований из ТЗ, чтобы профиль заполнялся не общими фразами, а конкретными характеристиками товара, сертификатами, ГОСТами и ограничениями по происхождению.
+
+## Rule-based TZ extraction v2 checkpoint
+
+Дата: 2026-05-21.
+
+- Следующий слой анализа ТЗ делаем без LLM: сначала надежные правила, потом подключение агентов/LLM как опциональный усилитель.
+- Товарный профиль начал вытаскивать более конкретные параметры из документов:
+  - формат, плотность, белизна, количество листов в пачке;
+  - размеры, масса, объем;
+  - признак нового товара;
+  - декларация/сертификат соответствия, паспорт качества;
+  - национальный режим / ПП 1875, страна происхождения, РРПП/РПП/ЕРПТ и реестр российской промышленной продукции.
+- Общий `analysis` также подсвечивает паспорт качества, реестры российской продукции и страну происхождения, чтобы вкладка анализа и товарный профиль не расходились по смыслу.
+- Ограничение текущей версии: это не полноценное понимание ТЗ, а регулярные правила. Для сложных формулировок и конфликтов требований позже нужен LLM-аналитик и агент-критик.
+
+## Architecture cleanup checkpoint: public adapter detail enrichment
+
+Дата: 2026-05-21.
+
+- Начата поэтапная чистка раздела `Что мы сделали спорно или временно` из audit-документа.
+- Исправлен пункт 3.3: `refresh_tender_detail_payload` больше не вызывает приватный метод адаптера `_enrich_payload`.
+- В адаптерах Москвы и МО введен публичный контракт `enrich_payload(payload)`, который используют и обычный `fetch`, и ручной detail refresh.
+- Практический смысл: API-слой больше не знает внутренности адаптера, а следующий шаг по разделению `web_api.py` можно делать через устойчивые публичные интерфейсы.
+
+## Architecture cleanup checkpoint: centralized SQLite schema
+
+Дата: 2026-05-21.
+
+- Исправлен пункт 3.2 audit-документа: схема SQLite больше не размазана между `storage.py` и `web_api.py`.
+- Добавлен модуль `src/tender_killer/schema.py` с единым контрактом создания и мягкого апгрейда таблиц.
+- `TenderStore.initialize()` теперь вызывает `initialize_schema(connection)`.
+- `web_api.py` использует публичные `ensure_*` функции из `schema.py` для SQLite-viewer, документов, анализа и workflow.
+- Добавлены тесты `tests/test_schema.py`, которые проверяют создание базовых таблиц и миграцию старых минимальных таблиц.
+- Практический смысл: перед экономикой, ЕИС и SaaS-слоем у нас появляется одно место, где эволюционирует структура базы.
+
+## Architecture cleanup checkpoint: normalized tender filter metadata
+
+Date: 2026-05-21.
+
+- Continued audit item 3.4: tender filtering should rely on normalized fields instead of scanning `raw_payload_json`.
+- `tenders` now stores normalized metadata: `law`, `status_normalized`, `region_code`, `source_family`, `procedure_type`, `customer_inn`.
+- `TenderStore.upsert_tender()` fills these fields via `src/tender_killer/tender_metadata.py`.
+- Web list filters now support stable filters for active status, law, quick region code, `procedure_type`, `source_family`, and `customer_inn`, while retaining legacy text fallback where useful.
+- Practical meaning: later UI filters, analytics, margin workflow, and customer/risk views can use stable columns rather than source-specific payload strings.
+- Session handoff note: after this checkpoint, branch `codex/moscow-mo-parser` was ahead of origin by the normalized metadata commits. README now contains a `Current Handoff Snapshot` with the current architecture, verification command, and recommended next steps for a fresh session.
+
+## Architecture cleanup checkpoint: product profile service split
+
+Дата: 2026-05-21.
+
+- Начат пункт 3.1 audit-документа: уменьшение монолитного `web_api.py`.
+- Вынесен первый доменный сервис `src/tender_killer/product_profile_service.py`.
+- Сервис отвечает за:
+  - сборку товарных профилей из готового payload;
+  - сохранение пересобранных профилей;
+  - расчет summary по статусам профилей.
+- `web_api.py` сохранил совместимый endpoint/wrapper `rebuild_product_profiles`, но больше не содержит саму бизнес-логику summary/rebuild.
+- Добавлены тесты `tests/test_product_profile_service.py`.
+- Следующий срез по 3.1: вынести document service (`download_tender_documents_payload`, `extract_tender_document_text_payload`) из `web_api.py`.
+
+## Architecture cleanup checkpoint: tender query service and source checkpoints
+
+Date: 2026-05-21.
+
+- Continued audit items 3.4 and 3.5.
+- Tender list SQL, list filtering, pagination, and site search filter construction moved from `src/tender_killer/web_api.py` to `src/tender_killer/tender_query_service.py`.
+- `GET /api/tenders` payload now includes real filtered `total`, `limit`, and `offset` in addition to `items`.
+- Source adapters accept configurable page depth through `TENDER_KILLER_SOURCE_MAX_PAGES`; default remains `1` to preserve conservative MVP behavior.
+- Moscow and Mosreg adapters now accept a `published_from` checkpoint and pass it into source query payloads (`publicationDateFrom` / `filterDateFrom`).
+- SQLite schema now includes `source_runs` for source success/error diagnostics and last seen publication date.
+- `TenderPipeline` passes stored source checkpoints into adapters before fetch, records successful runs with the newest fetched publication date, and records source errors for diagnostics.
+- Source publication checkpoints are monotonic: older fetched pages cannot move `last_seen_published_at` backwards.
+- Verification during this slice:
+  - `25 passed` for `tests/test_tender_query_service.py tests/test_sources.py tests/test_pipeline.py tests/test_config.py`
+  - `40 passed` for `tests/test_web_api.py tests/test_schema.py`
+  - `147 passed` for full `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`
+  - `148 passed` after adding the monotonic checkpoint regression test
+
+## Architecture cleanup checkpoint: source status UI and incremental overlap
+
+Date: 2026-05-21.
+
+- Continued audit item 3.5.
+- Added `src/tender_killer/source_run_service.py` as the public service for source run diagnostics.
+- The local API now exposes `GET /api/sources/status` with known source rows, labels, last success, checkpoint, and last error state.
+- SQLite admin view includes the `source_runs` table, so checkpoint and error diagnostics are inspectable from the site database tab.
+- The React tender cockpit shows source status/checkpoint rows and refreshes them after manual search.
+- `TENDER_KILLER_SOURCE_OVERLAP_MINUTES` controls the incremental overlap window, defaulting to `60`.
+- `TenderPipeline` applies the overlap only to `adapter.published_from`; stored `last_seen_published_at` remains monotonic and is not moved backwards by older pages.
+- Tender list pagination now has explicit API navigation fields (`has_next`, `has_previous`, `next_offset`, `previous_offset`) and the React cockpit uses them for next/previous controls.
+- The site requests tender pages with a bounded limit of 25 rows, shows the total count, and resets offset when filters/workflow tabs change.
+- The React filter panel now exposes normalized metadata filters for `source_family`, `procedure_type`, and `customer_inn`.
+- Workflow persistence moved from `web_api.py` into `src/tender_killer/workflow_service.py`; request-level workflow payload handling now lives in `src/tender_killer/api_handlers.py`.
+- Report download payload construction moved into `src/tender_killer/report_service.py`; request-level report loading now lives in `src/tender_killer/api_handlers.py`.
+- Tender detail payload loading and detail refresh moved into `src/tender_killer/tender_detail_service.py`; `web_api.py` keeps the existing HTTP routes/API names through `api_handlers`.
+- Manual Telegram notification payload construction moved into `src/tender_killer/notification_service.py`; `web_api.py` no longer owns payload-to-`Tender` conversion for manual notifications.
+- TZ analysis run persistence moved into `src/tender_killer/analysis_service.py`; HTTP dispatch goes through `src/tender_killer/api_handlers.py`.
+- Search run orchestration moved into `src/tender_killer/search_service.py`; `/api/search` remains available through the thin HTTP adapter plus `api_handlers`.
+- The React tender list now has a page-size selector for 10/25/50/100 rows. Default remains 25, and changing page size resets the list to offset 0 while keeping active filters.
+- Added `src/tender_killer/dev_health.py` and wired `scripts/dev-web.ps1` through it. `npm run dev` now checks both `/api/health` and `/api/sources/status`, reuses a healthy existing API, and fails clearly if port 8000 is occupied by a stale or incompatible backend.
+- Added `src/tender_killer/dev_smoke.py` for local site smoke checks: direct API, Vite HTML, Vite `/api` proxy, source status proxying, and key UI labels that guard against the page-size mojibake regression.
+- Added `src/tender_killer/encoding_guard.py` plus `tests/test_encoding_guard.py` to scan runtime/UI/docs files for Cyrillic mojibake; `dev_smoke` now uses the same detector instead of a hand-written forbidden-string list.
+- Added `src/tender_killer/api_routes.py` so tender/database API path parsing is no longer hand-split throughout `web_api.py`.
+- Added `src/tender_killer/api_handlers.py` so GET/POST route dispatch lives outside `web_api.py`; `web_api.py` now reads request bodies and serializes responses, while the handler module chooses the service.
+- Cleanup before product work: removed ignored pytest/cache/build artifacts from the workspace, removed old `web_api.py` service re-export imports, and added a regression test that keeps `web_api.py` as a thin HTTP adapter.
+- Latest full verification in this slice: `177 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Product analysis checkpoint: actionable TZ checklist
+
+Date: 2026-05-21.
+
+- Started the product layer before economics by improving rule-based TZ analysis.
+- `analyze_tender_texts(...)` still returns backward-compatible `requirements`, `risks`, and `red_flags`, but now also returns `checklist`.
+- Each checklist row has `label`, `category`, `severity`, and `evidence`, so later economics/margin work can ask concrete questions like: which documents are required, what delivery risk exists, whether national regime applies, and what proof fragment triggered the flag.
+- `get_tender_payload(...)` lifts the checklist from `tender_analysis.raw_payload_json` into `analysis.checklist`.
+- Word reports now include a `Проверочный список` section under `Выжимка ТЗ`.
+- Full verification after this slice: `178 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Product UI checkpoint: TZ checklist in analysis tab
+
+Date: 2026-05-22.
+
+- After pushing the backend/report checklist slice, the React tender details panel now renders `analysis.checklist` in the `Анализ` tab.
+- The UI keeps the existing summary/requirements/risks/red-flags blocks, and adds a compact `Проверочный список` with category, importance, and evidence text.
+- This makes the supplier-side checks visible in the main site flow instead of hiding them only inside the Word report.
+- Full verification after this slice: `179 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Product profile checkpoint: fulfillment requirements for economics
+
+Date: 2026-05-22.
+
+- Product profiles now include `fulfillment_requirements`: structured rows with `type`, `source`, and `value`.
+- Rule-based extraction currently recognizes delivery timing, packaging, warranty, and acceptance/EIS sentences from extracted TZ documents.
+- SQLite persists the new field through `fulfillment_requirements_json`, including migration for existing `product_profiles` tables.
+- The product tab renders these rows under `Поставка и исполнение`, so the future economics workflow can see non-price obligations next to item characteristics.
+- Full verification after this slice: `181 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Economics checkpoint: draft margin summary
+
+Date: 2026-05-22.
+
+- Added `src/tender_killer/economics.py` as the first draft calculation service.
+- The calculation uses tender price as revenue, manual per-profile cost inputs from `profile.raw_payload.economics`, and fulfillment requirements to create a simple risk reserve.
+- `get_tender_payload(...)` now returns `economics` with status, recommendation, revenue, supplier cost, risk reserve, estimated total cost, gross margin, margin percent, missing cost inputs, risk types, and item rows.
+- Word reports render `Черновик экономики` when an economics payload is present.
+- The site has an `Экономика` tab in the tender card with the same summary and missing-cost prompts.
+- The service does not guess market prices; if supplier costs are absent, it returns `needs_costs`.
+- Full verification after this slice: `185 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Economics input checkpoint: site cost entry
+
+Date: 2026-05-22.
+
+- Added `src/tender_killer/economics_service.py` for saving supplier cost inputs into a product profile without putting this logic back into `web_api.py`.
+- Added `POST /api/tenders/{source}/{external_id}/product-profiles/{position_index}/economics`; route parsing lives in `src/tender_killer/api_routes.py`, request dispatch lives in `src/tender_killer/api_handlers.py`.
+- The service stores cleaned numeric inputs in `profile.raw_payload.economics`: `unit_cost`, `logistics_cost`, `documents_cost`, and `other_costs`. Existing raw payload keys are preserved.
+- After save, the API returns the full tender detail payload, so the React card refreshes product profiles and the `Экономика` tab immediately shows the recalculated margin.
+- The product profile detail on the site now has a compact `Себестоимость` form next to the position context. This makes the first economics workflow usable without a supplier parser yet.
+- Full verification after this slice: `189 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Supplier options checkpoint: manual product candidates
+
+Date: 2026-05-22.
+
+- Added `src/tender_killer/supplier_option_service.py` for appending manual supplier candidates to a product profile.
+- Added `POST /api/tenders/{source}/{external_id}/product-profiles/{position_index}/supplier-options`; route parsing lives in `src/tender_killer/api_routes.py`, request dispatch lives in `src/tender_killer/api_handlers.py`.
+- The service stores cleaned candidate rows in `profile.raw_payload.supplier_options`: `name`, `url`, `unit_price`, `availability`, `status`, and `note`. Existing raw payload keys and existing candidates are preserved.
+- The React product profile detail now has a `Поставщики` block: a compact form for adding a candidate and a list of saved candidates with link, price, availability/status, and note.
+- Supplier candidates intentionally do not overwrite `raw_payload.economics` yet. Next step after UI review: choose/mark a candidate and copy its unit price into the economics input deliberately.
+- Full verification after this slice: `194 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Frontend UX checkpoint: Tender Workbench v1
+
+Date: 2026-05-22.
+
+- UX issue found after adding economics and supplier candidates: the selected tender card became a full workbench squeezed into a narrow right sidebar.
+- First repair slice keeps the current app structure but changes the tender screen into `workspace workbench-layout`, giving the selected tender detail a wider desktop area.
+- Added `TenderDecisionSummary` at the top of the tender card: НМЦК, срок, заказчик, экономика/margin, workflow status, and next step are visible before the deeper tabs.
+- Product detail is split into sub-tabs: `Паспорт`, `Цены`, `Поставщики`, and `ТЗ`. This removes the long single-column product profile stream while keeping the data close to the selected position.
+- The global SaaS shell/dashboard is intentionally left for the next UX slice; the first priority was making the tender workbench readable.
+- Verification: frontend contract `8 passed`; full `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full` returned `195 passed`.
+- Build note: direct `node ... vite build` is blocked in this Windows shell with `Access is denied`; JSX syntax was checked separately through Babel parser in the Node REPL.
+
+## Frontend UX checkpoint: collapsible tender filters
+
+Date: 2026-05-22.
+
+- Continued the workbench readability slice after user review: the left filter panel can now collapse into a narrow rail.
+- Collapsing filters changes the desktop grid to give the tender list more width while keeping the selected tender detail visible on the right.
+- Mobile keeps a single-column layout and shows the filter title again when collapsed, so the control remains understandable on narrow screens.
+- Verification in this slice: frontend contract `9 passed`; JSX syntax parsed successfully through Babel parser in the Node REPL.
+
+## Frontend UX checkpoint: global shell and dashboard
+
+Date: 2026-05-22.
+
+- Fixed the tender workflow status row: buttons now wrap instead of forcing a horizontal scrollbar under the list header.
+- Added a global SaaS-style shell with left navigation for `Дашборд`, `Закупки`, and `SQLite`; filters remain inside the `Закупки` workbench and are not mixed with product navigation.
+- The app now opens on `Дашборд`, showing the existing metrics, source status, and workflow queue counts. `Закупки` keeps the workbench/list/card flow, and `SQLite` remains a separate data view.
+- Verification in this slice before full run: frontend contract `11 passed`; JSX syntax parsed successfully through Babel parser in the Node REPL.
+
+## Frontend UX checkpoint: collapsible sidebar and dashboard contents
+
+Date: 2026-05-22.
+
+- The global left navigation now collapses into a narrow icon rail and expands back by button click; the main content grid shifts with it instead of overlaying the work area.
+- Dashboard V1 is framed as an operational start screen: metrics, source state, workflow queue, `Требует внимания`, and `Последние закупки`.
+- The attention panel uses existing local state: API error, source errors, new tenders, and interesting tenders. No new backend endpoint is needed for this slice.
+- Frontend contract after this slice: `13 passed`; JSX syntax parsed successfully through Babel parser in the Node REPL.
+
+## Frontend UX checkpoint: aligned dashboard grid
+
+Date: 2026-05-22.
+
+- Fixed the first visual pass of the dashboard: metrics now occupy the same full-width content container as the rest of the page instead of floating in the middle.
+- Dashboard rows now share the same two-column grid, and cards stretch to the row height. This removes the accidental uneven gaps between source status, queue, attention, and recent tender blocks.
+- Added a frontend contract that keeps the dashboard on a full-width aligned grid.
+
+## Competitor-inspired Telegram checkpoint: quick entry
+
+Date: 2026-05-22.
+
+- After reviewing Zakupki Assistant, the product direction is: keep the website as the main workbench, but add Telegram as a fast entry point for natural-language search setup.
+- Added `src/tender_killer/quick_search.py`: parses text like `строительные материалы Москва МО до 2 млн 44-ФЗ` into a dedicated `quick-entry` filter profile.
+- Existing filters/profiles are preserved. The quick profile is upserted separately and can be used for an immediate preview search.
+- Telegram `text_menu_handler` now treats unknown free text as quick-entry setup and replies with a parsed summary plus `Запустить быстрый поиск`.
+- Added competitor notes in `docs/competitors/zakupkiassistant-analysis.md`.
+
+## Competitor-inspired Telegram checkpoint: search statistics
+
+Date: 2026-05-22.
+
+- `PipelineStats` now separates relevant matches into `matched_new` and `matched_existing`.
+- Search stats now include compact breakdowns by source, law, and region, collected only for tenders that matched active filters.
+- Telegram `/search`, `/test_search`, and `/sources_status` now show readable Russian summaries instead of raw `Fetched/Saved/Matched` counters.
+- `/api/search/run` exposes the same structured counters through `source_counts`, `law_counts`, and `region_counts`, so the site can later render a competitor-style search results panel.
+- Full verification after this slice: `207 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Competitor-inspired Telegram checkpoint: compact tender cards
+
+Date: 2026-05-22.
+
+- Telegram tender notifications are now compact: title, source/law, price/deadline, customer/region, matched filter, and source URL.
+- `build_tender_actions(...)` adds inline buttons: `Открыть источник`, `Документы`, and `Анализ`.
+- `TelegramNotifier.send(...)` can send Telegram `reply_markup`, and both pipeline notifications and manual site notifications pass the new inline keyboard.
+- Bot callback handling for `Документы` and `Анализ` reads the local SQLite tender payload and replies with saved document links or saved analysis/checklist. It does not submit applications, log in, sign, or mutate procurement data.
+- Full verification after this slice: `212 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Telegram site notification diagnostics checkpoint
+
+Date: 2026-05-22.
+
+- Root cause of the site `TG` button appearing to do nothing: `/api/tenders/{source}/{external_id}/notify` returned `sent=false` when the API process did not have Telegram settings, and the UI only showed a generic `Telegram не настроен`.
+- Added local `app_state` table plus `telegram_chat_service.py`; the bot stores the last chat id after user interaction, so the site can reuse it when `TELEGRAM_CHAT_ID` is not set.
+- The API still requires `TELEGRAM_BOT_TOKEN` in the API process environment; the token is not stored in SQLite.
+- Manual notification payloads now return explicit `reason`, `missing`, and `message` fields for missing Telegram settings or send failure.
+- The React tender card now displays the backend message, so the user sees which setting is missing instead of a silent/no-op feeling.
+- Full verification after this slice: `216 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Quick search and document extraction checkpoint
+
+Date: 2026-05-22.
+
+- Root cause of Telegram quick search returning `Релевантных: 0` for `строительные материалы`: the phrase was treated as one exact keyword both in the bot quick profile and in the site search collection.
+- `quick_search.py` now expands `строительные материалы` / `стройматериалы` into construction-material terms (`стройматериал`, `материал`, `смесь`, `цемент`, `краск`, `крепеж`, etc.) and adds stop words for obvious non-material matches (`услуг`, `работ`, `информацион`, `медицин`, `картридж`, etc.).
+- Site `/api/search` and list `q` filtering reuse the same expansion. List filtering searches visible tender fields instead of raw JSON, so broad terms do not match hidden payload noise.
+- Added local `.env` support in `Settings.from_env`; `.env` is ignored by Git. This lets the API site and bot share `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` without retyping PowerShell env vars each run.
+- Document extraction now distinguishes unsupported files from empty text. RAR archives and true legacy binary `.doc` files are marked `unsupported`; simple `.doc` text/HTML/RTF-like files can be extracted heuristically.
+- Updated the local ignored `filters.json` quick-entry profile and re-extracted text statuses for `mosreg_market/3673016`; SQLite now shows unsupported `.doc`/`.rar` clearly instead of `empty`.
+- Full verification after this slice: `228 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+
+## Frontend architecture checkpoint: tender detail decomposition
+
+Date: 2026-05-26.
+
+- The current branch is `codex/moscow-mo-parser`.
+- The project direction remains: website is the main workbench; Telegram is notifications and quick entry only; SQLite is the local source of truth; no legal actions such as application submission, signing, or user-login automation.
+- Active tender filtering now excludes expired deadlines in `src/tender_killer/tender_query_service.py`: active lists require normalized active status and `(deadline_at IS NULL OR datetime(deadline_at) >= datetime('now'))`.
+- The frontend has been split into focused modules instead of concentrating everything in `App.jsx` and `TenderDetails.jsx`.
+- Extracted frontend modules now include:
+  - `web/src/api.js`;
+  - `web/src/constants.js`;
+  - `web/src/formatters.js`;
+  - `web/src/Dashboard.jsx`;
+  - `web/src/DatabaseView.jsx`;
+  - `web/src/FiltersPanel.jsx`;
+  - `web/src/TenderList.jsx`;
+  - `web/src/PaginationBar.jsx`;
+  - `web/src/TenderDetailActions.jsx`;
+  - `web/src/TenderDetailsHeader.jsx`;
+  - `web/src/TenderDetailsStatusStack.jsx`;
+  - `web/src/TenderDetailsTabs.jsx`;
+  - `web/src/TenderDetailsShared.jsx`;
+  - `web/src/TenderDecisionSummary.jsx`;
+  - `web/src/TenderOverviewTab.jsx`;
+  - `web/src/TenderAnalysisDocumentsPanel.jsx`;
+  - `web/src/TenderAnalysisTab.jsx`;
+  - `web/src/TenderWorkflowTab.jsx`;
+  - `web/src/TenderProductsTab.jsx`;
+  - `web/src/TenderEconomicsTab.jsx`.
+- Tender detail hooks now include `web/src/useTenderDetailsUi.js`, `web/src/useTenderDocumentAnalysis.js`, `web/src/useTenderNotification.js`, `web/src/useTenderProductProfiles.js`, `web/src/useTenderRefreshDetails.js`, and `web/src/useTenderWorkflow.js`.
+- Document preparation now lives in `TenderAnalysisDocumentsPanel.jsx` inside the full-screen `Анализ ТЗ` workspace. The separate `TenderDocumentsTab.jsx` module/workspace is no longer active.
+- `TenderAnalysisTab.jsx` owns the TZ analysis workspace shell, while reusable analysis sections and `AnalysisList` live in `TenderAnalysisSections.jsx` for product/economics reuse.
+- `TenderEconomicsTab.jsx` owns the economics workbench: NMC summary, cost inputs, supplier candidates, selected supplier price source, assumptions, auto-estimate run/accept controls, bid thresholds, and participation decision UI.
+- Supplier search preparation now lives in `src/tender_killer/supplier_search_service.py`. It builds deterministic per-position supplier search queries from normalized product names, search phrases, and classifiers; `POST /api/tenders/{source}/{external_id}/product-profiles/{position}/supplier-search/prepare` persists those queries under `raw_payload.supplier_search`. Prepared queries include manual Google/Yandex links, optional public catalog provider links from `raw_payload.supplier_catalogs`, and matching built-in catalog presets, without running network search or changing economics.
+- Built-in supplier catalog presets live in `src/tender_killer/supplier_catalog_presets.py`. Current first-pass providers are `officemag` and `komus` for office supplies, plus `petrovich` and `vseinstrumenti` for building/tool materials. `raw_payload.supplier_catalog_preset_ids` can select exact preset IDs or disable presets with an empty list, and the economics supplier block now exposes compact controls for auto/select/disable per product profile.
+- Manual supplier candidates now preserve the prepared search query that led to them through `source_query` and `source_kind` fields in `raw_payload.supplier_options`, so review evidence stays attached to candidate prices before selection.
+- Supplier discovery review now lives in `src/tender_killer/supplier_discovery_service.py`. Discovered candidates can be staged under `raw_payload.supplier_discovery.candidates` and imported into `supplier_options`; import marks the discovery candidate as `imported` but does not select the supplier or update economics.
+- Supplier discovery candidates now normalize `provider`, derive `confidence` and `confidence_reasons` from price/link/source-query evidence, and preserve provider/confidence when imported into `supplier_options`.
+- First public supplier discovery run now lives in `src/tender_killer/supplier_price_discovery_service.py`. `SchemaOrgProductCollector` ignores Google/Yandex search pages, can follow same-site schema.org catalog/ListItem product URLs, fetches public product pages, parses JSON-LD Product/Offer, and stages review-only `schema_org_product` candidates with unit price, currency, VAT mode, delivery note, availability, provider confidence, and source-query evidence.
+- Built-in public catalog discovery now has provider-specific collectors for `officemag`, `komus`, `petrovich`, and `vseinstrumenti`. They only consume matching `catalog_search` links, follow same-site catalog anchors/product URLs, parse schema.org Product/Offer on product pages, and stage review-only candidates under the real catalog provider while the generic schema.org collector remains the fallback for manual/unknown public links.
+- Provider-specific catalog collectors now also have a narrow visible-offer fallback for OfficeMag, Komus, Petrovich, and Vseinstrumenti product pages: if schema.org offers are missing, they can extract the H1 product name, visible ruble price, and availability from product-detail pages only. Category/search pages are still used only for following product links.
+- Supplier catalog health diagnostics now live in `src/tender_killer/supplier_catalog_health_service.py` and `GET /api/supplier-catalogs/health`. The endpoint is network-free by default and returns configured provider/sample URL diagnostics; `?live=1` performs public HTTP checks per built-in catalog provider and reports HTTP status or fetch errors.
+- Live supplier catalog health now classifies access-blocked/network failures and stores short readable response previews, so the economics panel can show when a public catalog returned a browser/captcha challenge instead of a parseable page.
+- Supplier discovery staging now stores provider collector diagnostics under `raw_payload.supplier_discovery.collector_diagnostics`, including seen queries/links, skipped links, fetched pages, candidates found, and fetch errors.
+- `TenderEconomicsTab.jsx` now shows configured supplier catalog health in the supplier block next to preset controls. The UI uses the network-free health endpoint by default, preserving explicit operator control over live external checks.
+- The supplier catalog health block now has an explicit manual live check button. Normal page load still calls the network-free health endpoint, while the button calls `/api/supplier-catalogs/health?live=1` and refreshes the same panel with live HTTP diagnostics.
+- `TenderEconomicsTab.jsx` renders collector diagnostics in the supplier discovery preview next to staged candidates, so operator review can see provider, seen/skipped links, fetched pages, candidates found, and errors.
+- Public supplier discovery fetch errors now reuse catalog access-blocked/network diagnostics and include readable response previews in collector errors when a provider returns a browser/captcha challenge instead of a product page.
+- Manual supplier URL discovery is available through `POST /api/tenders/{source}/{external_id}/product-profiles/{position}/supplier-discovery/url`: the economics supplier form can send a pasted product URL, and the backend stages any parsed schema.org/provider-visible offer as a review-only candidate without selecting it or updating economics.
+- `web/src/api.js` now surfaces backend JSON `error` messages, so supplier discovery can show no-new-candidates and missing-prepared-query responses instead of only generic client text.
+- The API handler now converts supplier discovery run `ValueError`s for missing prepared queries and no new candidates into JSON `400` responses, so the React client receives the real service message instead of an unhandled server error.
+- No-candidate supplier discovery runs now write `raw_payload.supplier_discovery.status = "no_candidates"` with collector diagnostics and an empty candidate list. The API error response includes the refreshed tender payload, and `useTenderProductProfiles.js` applies that payload before surfacing the error message, so the economics tab can show diagnostics even when no supplier candidates were staged.
+- `TenderEconomicsTab.jsx` shows a distinct `Кандидаты не найдены` supplier discovery state when diagnostics exist without staged candidates, with a short pointer to inspect diagnostics below instead of the normal found-candidates heading.
+- `tender_killer.dev_health` now requires `/api/health` capabilities for `supplier_search_prepare`, `supplier_catalog_presets`, and `supplier_catalog_health`, and also checks `/api/supplier-catalogs/health`, so stale backend processes on port 8000 are rejected before Vite proxies newer supplier UI actions to them.
+- The API dispatcher has a regression test for `/api/tenders?status=active&limit=25&offset=0`, covering the tender list route that powers the main workbench.
+- `web/src/TenderDetails.jsx` is now a thin coordinator for selected tender actions, hooks, and tab composition; workflow, product, overview, analysis/document preparation, and economics UI live in dedicated modules.
+- Latest local targeted verification after live supplier catalog health UI: `55 passed` for `tests/test_frontend_contract.py`.
+- Latest provider discovery verification: `14 passed` for `tests/test_supplier_price_discovery_service.py`.
+- Latest API handler verification: `20 passed` for `tests/test_api_handlers.py`.
+- Full verification after manual supplier URL discovery: `346 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- JSX syntax was checked through Babel parser in the Node REPL after wiring supplier catalog health through `api.js`, `useTenderProductProfiles.js`, `TenderDetails.jsx`, `TenderDetailsTabs.jsx`, and `TenderEconomicsTab.jsx`.
+- Next planned steps:
+  1. Validate real catalog pages and add narrow provider parsing rules where schema.org/anchor discovery is not enough.
+  2. Use manual live catalog health diagnostics to decide which remaining providers need narrow parsing fixes first.
+  3. Keep Telegram as notifications/quick entry, not the main workbench.
+
+## Web auto refresh and bid state checkpoint
+
+Date: 2026-05-27.
+
+- The Moscow supplier portal can publish many short-lived active auctions during the day, so the local web API now starts an hourly background refresh by default via `src/tender_killer/web_search_runner.py`.
+- The site `Запустить поиск` button and the hourly refresh use the same `WebSearchRunner`, which serializes runs with a lock. If an auto refresh is already running, a manual search receives HTTP `409` with a clear "search already running" message instead of racing SQLite writes.
+- `TENDER_KILLER_WEB_AUTO_SEARCH_MINUTES` controls the web background interval; default is `60`, and `0` disables it.
+- `/api/health` and `tender_killer.dev_health` now advertise/require `web_auto_search`, so stale backend processes are rejected by the dev startup guard.
+- `src/tender_killer/market_state.py` now exposes `bid_count` and uses the minimum public Moscow bid from `__detail.bets` when several bids are present. Single-bid sessions keep the existing `lastBetCost` source semantics.
+- Frontend market-state formatters now include bid count next to the displayed participant price where available, so list rows, decision cards, dashboard previews, and economics summary can show "minimum bid + number of bids" from the same SQLite-backed payload.
+- Source adapters for Moscow and Mosreg pass `trust_env=False` to their public HTTP calls. This prevents local/Codex proxy environment variables such as `HTTP_PROXY=http://127.0.0.1:9` from breaking source refreshes with `WinError 10061`.
+
+## Local market-state import checkpoint
+
+Date: 2026-05-28.
+
+- Active Moscow supplier portal sessions expose exact current bid state to an authenticated browser through `GET https://zakupki.mos.ru/newapi/api/Auction/GetBetUpdate?auctionId=...&lastLoadedBetNum=...`.
+- Tender Killer must not ask the operator to paste bearer tokens, cookies, passwords, ЭП credentials, SMS codes, or any private auth material into the app or repository.
+- Local MVP: the operator copies only the JSON response body from DevTools and pastes it into a compact `Импорт ставки` panel in the tender card. The backend accepts only an allowlisted market-state subset: `lastBetCost`, `nextCost`, `uniqueSupplierCount`, `lastBetSupplier`, `state`, `endDate`, `rowVersion`, and safe bid-diff fields.
+- `POST /api/tenders/{source}/{external_id}/market-state/import` stores that sanitized subset under `raw_payload.__market_state_import`, records a `current_offer` price snapshot, refreshes `market_state`, and therefore updates the same tender card, economics, list, and dashboard surfaces that already read SQLite.
+- The import endpoint rejects recursive sensitive keys such as `Authorization`, `Cookie`, `token`, `password`, or `secret` before anything is written.
+- Future SaaS shape: use a separate read-only browser connector/extension or desktop helper that runs in the user's already-authenticated browser context and sends only sanitized `GetBetUpdate` result fields to Tender Killer. The server should never store portal passwords or raw bearer cookies; if an official OAuth/session API appears later, use encrypted short-lived per-user credentials with audit logging, strict endpoint allowlists, tenant isolation, and an explicit no-submit/no-sign/no-legal-action boundary.
+
+## Analysis workspace consolidation checkpoint
+
+Date: 2026-05-29.
+
+- The standalone document workspace was merged into the full-screen `Анализ ТЗ` workspace. Operators now prepare analysis in one place instead of switching between document and analysis surfaces.
+- `web/src/TenderAnalysisTab.jsx` exposes a primary `Подготовить анализ` action that runs the existing sequence: download documents, extract document text, then run TZ analysis. Manual `Скачать документы`, `Извлечь текст`, and `Проанализировать` controls remain available inside the same workspace for diagnostics and reruns.
+- `web/src/useTenderDocumentAnalysis.js` owns the new `prepareTenderAnalysis` chain and `preparingAnalysis` state, keeping `TenderDetails.jsx` as a coordinator.
+- Local development logs `api-dev.out.log` and `api-dev.err.log` are ignored by Git.
+
+## PDF ToUnicode extraction checkpoint
+
+Date: 2026-05-28.
+
+- Root cause of Moscow PDFs showing `No machine-readable text extracted`: many contract PDFs are not scans, but store Cyrillic text as internal two-byte font codes plus a `/ToUnicode` CMap. The previous extractor only read simple literal PDF strings and therefore filtered the decoded byte noise as empty.
+- `src/tender_killer/documents.py` now parses PDF `/ToUnicode` CMaps, including `beginbfchar` and `beginbfrange`, and decodes `Tj`/`TJ` literal and hex text tokens through that map before the existing text-quality filter runs.
+- `tests/test_documents.py::test_pdf_extractor_reads_tounicode_cmap_text` covers a minimal PDF with glyph codes mapped to `Проект контракта`; the original failing symptom was verified red before the fix.
+- Re-extraction against the local Moscow smartphone tender PDF changed the contract text from empty to readable Cyrillic starting with `Государственный Контракт` / `Поставка смартфонов`; locally downloaded PDF rows no longer have `text_status = 'empty'` after the batch refresh.
+- True image-only scanned PDFs now have an optional OCR fallback hook. The current `/ToUnicode` and PDF text-token extractor remains the fast path; OCR runs only after the PDF text layer returns no clean text.
+- `DocumentTextExtractor(ocr_runner=...)` supports injected OCR in tests and local integrations. In normal local runs, `TENDER_KILLER_PDF_OCR_COMMAND` can point to a wrapper command that prints recognized text to stdout and receives the PDF path as the last argument, or via a `{path}` placeholder. `TENDER_KILLER_PDF_OCR_TIMEOUT_SECONDS` controls the command timeout.
+- The OCR command runner captures stdout/stderr as bytes and decodes through the same `utf-8`/`cp1251`/`latin-1` fallback as other document text, which avoids Windows console encoding turning Cyrillic OCR output into unusable text.
+- Added `scripts/ocr-pdf.ps1` as the local OCR wrapper. Configure `TENDER_KILLER_PDF_OCR_COMMAND="powershell -NoProfile -ExecutionPolicy Bypass -File scripts\ocr-pdf.ps1 {path}"`. The script prefers OCRmyPDF; otherwise it uses Tesseract plus Poppler `pdftoppm`, writes recognized text to stdout, and reports a short `OCR backend not found` error when engines are missing.
+- `scripts/dev-web.ps1` auto-enables the local OCR wrapper for the backend process when `TENDER_KILLER_PDF_OCR_COMMAND` is not already set. This keeps normal local startup simple while still allowing an explicit override.
+- This desktop now has Tesseract 5.5, Poppler 25.07, and `rus.traineddata` installed through local tools; `scripts/ocr-pdf.ps1` smoke-tested a PDF render through `pdftoppm -> tesseract` and returned `OCR TEST 123`.
+- No OCR engine is bundled or required in git. This keeps the repo light and SaaS-safe; a future production shape should run OCR in a separate worker/container with per-tenant file isolation and no portal auth material.
+- Full verification after real local OCR setup: `400 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-real-ocr-elevated`.
+
+## Decision Engine v1 checkpoint
+
+Date: 2026-05-29.
+
+- Added `src/tender_killer/decision_service.py` with a pure `build_tender_decision(tender)` contract.
+- `get_tender_payload(...)` now attaches `tender["decision"]` after `market_state` and `economics` are built.
+- The decision payload combines economics, analysis, document extraction status, market state, and product profile readiness into one backend-owned operator decision.
+- Stable decision fields: `status`, `label`, `tone`, `summary`, `next_step`, `reasons`, `blockers`, `limit_price`, and `metrics`.
+- Initial statuses covered by tests: `missing_prices`, `needs_review`, `with_limit`, `skip`, and `interesting`.
+- The frontend now uses shared formatter helpers `tenderDecisionLabel`, `tenderDecisionStatus`, and `tenderDecisionNextStep` so the tender card decision strip, tender list badge, dashboard preview, and summary next-step read the backend `tender.decision` payload first and only fall back to economics for older payloads.
+- The tender card decision strip now renders compact `decision.reasons` and `decision.blockers` blocks below the metrics, preserving the top strip as the primary fast decision surface.
+- Word reports now include a `Решение Tender Killer` section with decision status, summary, next step, reasons, and blockers when `tender.decision` is present.
+- Remaining decision follow-up: feed decision blockers into workflow queues and dashboard attention items.
+- Full verification after Decision Engine v1: `416 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full`.
+- Full verification after surfacing decision reasons/blockers in card and report: `418 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-decision-reasons`.
+
+## Analysis evidence backend model checkpoint
+
+Date: 2026-05-29.
+
+- Added `src/tender_killer/analysis_evidence_service.py` as the single place that turns rule-based analysis checklist rows into operator evidence items.
+- Backend analysis payloads now expose `analysis.evidence_items` with stable fields: `id`, `label`, `category`, `severity`, `type_label`, `importance_label`, `document_name`, `fragment`, and `impact`.
+- `analyze_tender_payload(...)` stores those evidence items in `raw_payload_json`; `get_tender_payload(...)` also builds them for older saved analysis rows that only have a checklist.
+- Word report evidence and the React document evidence model now consume the same backend `analysis.evidence_items` contract instead of duplicating label/impact/document-name heuristics on the frontend or inside report rendering.
+- This keeps the next agent/LLM analysis layer clean: future document-aware prompts can replace or enrich evidence generation without changing the UI/report contract.
+- Full verification after backend analysis evidence model: `417 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-evidence`.
+
+## Analysis execution terms checkpoint
+
+Date: 2026-06-01.
+
+- Rule-based TZ analysis now emits `analysis.execution_terms` as a normalized backend contract for operator-critical execution conditions.
+- Covered term types: `delivery_deadline`, `payment_terms`, `advance_payment`, `warranty_period`, `contract_security`, and `penalties`.
+- Each term carries stable `type`, `label`, `value`, `category`, `severity`, and `evidence` fields so future document-aware agents can enrich the same shape instead of forcing frontend/report changes.
+- `src/tender_killer/analysis_operator_view_service.py` now adds an `execution_terms` metric and a dedicated `Условия исполнения` section between requirements and price factors.
+- The intent is to make the analysis workspace answer "what must we price/check before bidding" faster: delivery/payment/guarantee/security terms are no longer buried only in generic checklist/evidence rows.
+- Targeted verification after this checkpoint: `11 passed` for `tests/test_analysis.py tests/test_analysis_operator_view_service.py tests/test_analysis_service.py` when run outside the sandbox due local pytest temp permissions.
+- Full verification after this checkpoint: `433 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-execution-terms`.
+
+## Analysis source binding checkpoint
+
+Date: 2026-06-01.
+
+- `analyze_tender_payload(...)` now matches checklist evidence and execution term fragments back to the extracted source document text before saving analysis.
+- Matched rows receive `document_name` and `source`, which lets `analysis.evidence_items` and `operator_view.sections[].items[].source` show whether a condition came from the ТЗ, contract draft, or another document.
+- `get_tender_payload(...)` and list payloads now expose saved `analysis.execution_terms` from `raw_payload_json`; previously the field was saved but not lifted back into the public analysis payload.
+- Regression coverage: `tests/test_analysis_service.py::test_analyze_tender_payload_binds_execution_terms_to_source_documents` uses two documents and verifies that certificate evidence binds to `spec.docx`, while delivery/security execution terms bind to `contract.docx`.
+- Targeted verification after this checkpoint: `22 passed` for `tests/test_analysis.py tests/test_analysis_service.py tests/test_analysis_operator_view_service.py tests/test_tender_query_service.py`.
+- Full verification after this checkpoint: `434 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-source-binding`.
+
+## TZ passport checkpoint
+
+Date: 2026-06-01.
+
+- Added `src/tender_killer/analysis_passport_service.py` with `build_analysis_tz_passport(...)`.
+- `analysis.tz_passport` is a compact backend-owned contract for the full-screen analysis workspace: subject, execution terms, supplier documents/compliance, blockers, and price factors.
+- `analyze_tender_payload(...)` stores the passport in analysis `raw_payload_json`; detail/list payload readers expose it and rebuild it for older analysis rows that only have checklist/execution term data.
+- The React analysis workspace now renders `web/src/TenderAnalysisPassport.jsx` above the detailed section/evidence workspace, so operators see the main ТЗ answer before drilling into fragments.
+- TDD coverage added in `tests/test_analysis_passport_service.py`, `tests/test_analysis_service.py`, and `tests/test_frontend_contract.py`.
+- Targeted verification after this checkpoint: `112 passed` for the analysis and frontend contract slice.
+- Vite build was verified through direct Node invocation because the local `npm.cmd` wrapper returned `Access is denied`: `node node_modules\vite\bin\vite.js build`.
+- Full verification after this checkpoint: `437 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-tz-passport-final`.
+
+## TZ passport economics/report checkpoint
+
+Date: 2026-06-01.
+
+- Economics now treats `analysis.tz_passport` as the first source for analysis cost drivers, then falls back to `analysis.operator_view` for older payloads.
+- Passport `blockers` and `price_factors` feed `analysis_cost_drivers` and `analysis_reserve_hint`, so security, urgent delivery, payment/compliance, and other ТЗ conditions are visible to the reserve/decision layer.
+- Word reports now render a `Паспорт ТЗ` section near the top of the report, before raw operator sections and the long ТЗ digest.
+- The Word passport table keeps condition section, label, value, source document, and economic impact together for fast review and future agent output.
+- Targeted verification after this checkpoint: `36 passed` for economics, reports, passport, analysis service, detail service, and query service tests.
+- Full verification after this checkpoint: `439 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-tz-passport-economics-report`.
+
+## TZ passport decision checkpoint
+
+Date: 2026-06-01.
+
+- `build_tender_decision(...)` now reads `analysis.tz_passport.sections`.
+- Passport `blockers` are treated as analysis blockers alongside legacy red flags and `operator_view` blockers, so they can move a tender into `needs_review`.
+- Passport `price_factors` are included in decision reasons, making urgent delivery, security, payment, and compliance price-impact conditions visible in the tender card/list/dashboard decision payload.
+- The old `operator_view` path remains as fallback/compatibility for saved analysis payloads that do not yet contain `tz_passport`.
+- Targeted verification after this checkpoint: `37 passed` for decision, query, detail, economics, and report tests.
+- Full verification after this checkpoint: `440 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-tz-passport-decision`.
+
+## Analysis facts checkpoint
+
+Date: 2026-06-01.
+
+- Added `src/tender_killer/analysis_facts_service.py` with `build_analysis_facts(...)`.
+- `analysis.analysis_facts` is a v1 backend-owned fact layer for the next pre-agent analysis stage.
+- Facts normalize the tender subject, supplier-document requirements, execution terms, blockers, and price factors into one list with `kind`, `label`, `value`, `category`, `severity`, `confidence`, `rule_id`, `document_name`, `fragment`, `impact`, `is_blocker`, `is_price_factor`, and `needs_review`.
+- Fact evidence is resolved against extracted document text; unbound evidence is explicit through `document_name="Документ не привязан"` and `needs_review=true`, instead of being silently treated as reliable.
+- Duplicate facts from checklist and execution-term extraction are deduped by normalized fragment/category, with structured execution terms taking precedence.
+- `analyze_tender_payload(...)` stores `analysis_facts` in analysis `raw_payload_json`; detail and list payload readers expose saved facts and rebuild them for older rows.
+- Targeted verification after this checkpoint: `14 passed` for `tests/test_analysis_facts_service.py tests/test_analysis_service.py tests/test_tender_query_service.py`.
+- Full verification after this checkpoint: `443 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-facts`.
+
+## Analysis operator blocks and anti-noise checkpoint
+
+Date: 2026-06-01.
+
+- `build_analysis_operator_view(...)` now prefers `analysis.analysis_facts` v1 when present.
+- Fact-backed operator sections group analysis into `Блокеры участия`, `Что подготовить`, `Исполнение договора`, `Влияние на цену`, `Проверить руками`, `Документы`, and `Доказательства`.
+- The `manual_review` section is populated from facts with `needs_review=true`, so unbound evidence is visible as an operator task instead of being mixed into ordinary requirements.
+- Operator metrics now include `facts` and `unbound_facts` when the fact contract is present, while legacy checklist/execution/evidence contracts remain supported for older saved analyses.
+- Rule-based analysis now filters known noisy contexts: storage/confidentiality phrases with `в течение 3 лет` no longer become `короткий срок поставки`, and `лицензионное соглашение` no longer becomes `лицензия/СРО`.
+- Targeted verification after this checkpoint: `49 passed` for analysis, facts, service, operator view, passport, detail/query, decision, and economics tests.
+- Full verification after this checkpoint: `445 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-blocks`.
+
+## Bulk supplier price selection checkpoint
+
+Date: 2026-05-29.
+
+- Added tender-level bulk supplier selection through `apply_best_profile_supplier_options(...)` and `POST /api/tenders/{source}/{external_id}/product-profiles/supplier-options/best/select`.
+- The bulk action loops over all product profiles, applies `best_supplier_price(...)` where an eligible supplier option with price exists, writes `raw_payload.economics.unit_cost`, attaches `economics_price_source`, marks selected options, and skips positions without usable prices.
+- Existing manual selections are preserved when `selected_supplier_option_index` points to a priced supplier option; otherwise the lowest eligible candidate is selected.
+- The React economics workspace now exposes a `Лучшие цены в расчет` button in the full-screen economics header, so many-position tenders can fill reviewed supplier prices without clicking each row.
+- The refreshed tender payload includes `supplier_selection` counts plus recalculated economics and backend decision, so the card/list/dashboard can immediately reflect the new status.
+- Full verification after bulk supplier price selection: `421 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-bulk-best`.
+
+## Analysis facts economics benchmark checkpoint
+
+Date: 2026-06-01.
+
+- `build_economics_summary(...)` now reads `analysis.analysis_facts` v1 before `analysis.tz_passport` and legacy `operator_view`.
+- Only facts marked `is_blocker` or `is_price_factor` become `analysis_cost_drivers`, preserving supplier-document facts for analysis UI while keeping economics focused on decision/price impact.
+- Fact-backed cost drivers keep label, category, severity, source document, impact, and reserve hint, so the same backend fact contract can drive the analysis workspace, economics reserve hint, and future agents.
+- Rule-based analysis now recognizes `регистрационное удостоверение` / Росздравнадзор and `срок годности` as explicit requirements for pre-agent medical/regulated goods checks.
+- Added `tests/test_analysis_benchmark.py` as a small benchmark suite with real-ish cases: medical goods, known noise-only text, and service/SRO work.
+- Targeted verification after this checkpoint: `28 passed` for economics, analysis benchmark, analysis, facts, and operator view tests.
+- Full verification after this checkpoint: `449 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-economics-benchmark`.
+
+## Analysis operator routing checkpoint
+
+Date: 2026-06-01.
+
+- `analysis.analysis_facts` v1 now includes operator routing fields on every fact: `operator_group`, `operator_action`, `price_impact`, and `priority`.
+- Groups currently map facts into `overview`, `blocker`, `prepare`, `execution`, `price`, `manual_review`, or `review`; this is intentionally agent-ready so future LLM analysis can enrich the same shape.
+- `price_impact` currently normalizes categories into `logistics`, `working_capital`, `documents`, `reserve`, `compliance`, or `none`, giving economics/report layers a stable vocabulary before agents.
+- Unbound evidence receives `operator_group="manual_review"` and high priority, so questionable facts surface above ordinary blockers and cannot quietly look confirmed.
+- `build_analysis_operator_view(...)` now propagates these fields and sorts fact-backed sections by priority.
+- Targeted verification after this checkpoint: `32 passed` for facts, operator view, analysis service, tender query, economics, and analysis benchmark tests.
+- Full verification after this checkpoint: `449 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-operator-routing`.
+
+## Analysis domain rules checkpoint
+
+Date: 2026-06-01.
+
+- Expanded the pre-agent rule-based analysis benchmark from 3 to 5 real-ish cases.
+- Medical/regulated goods now detect `температурный режим хранения` and `стерильность` in addition to registration certificate, declaration, passport quality, and shelf-life requirements.
+- Construction/equipment ТЗ now detect `монтаж/пусконаладка` and `инструктаж заказчика`.
+- Electronics/equipment ТЗ now detect `эквивалент` and `совместимость`.
+- Service/work ТЗ now detect `квалифицированный персонал` and `акт выполненных работ`.
+- Fact dedupe now keeps different facts from the same sentence, such as `эквивалент` and `совместимость`, while still collapsing near-duplicate execution/checklist facts like `Обеспечение исполнения` versus `обеспечение исполнения контракта`.
+- Targeted verification after this checkpoint: `43 passed` for analysis, benchmark, facts, operator view, analysis service, query, and economics tests.
+- Full verification after this checkpoint: `452 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-domain-rules`.
+
+## Analysis decision workflow checkpoint
+
+Date: 2026-06-01.
+
+- `build_analysis_operator_view(...)` now returns `document_state` with document readiness counts, status, summary, and next step.
+- `build_analysis_operator_view(...)` also returns `action_plan`, a compact ordered workflow built from manual-review facts, blockers, price factors/execution terms, requirements, and document readiness.
+- The React analysis decision brief renders the backend action plan as compact cards and shows the backend document state summary; `AnalysisSummary` uses `document_state.text_ready/total` when available.
+- Word reports now include `План проверки ТЗ` and `Состояние документов`, using the same backend `operator_view` contract instead of raw extracted text or long checklist sections.
+- Targeted verification after this checkpoint: `135 passed` for analysis, reports, frontend contract, detail/query, and related tests.
+- Vite build verification after this checkpoint: direct bundled Node invocation of `node_modules\vite\bin\vite.js build` completed successfully.
+- Full verification after this checkpoint: `454 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-analysis-decision-workflow`.
+
+## Dashboard queues and economics architecture checkpoint
+
+Date: 2026-06-02.
+
+- Added `src/tender_killer/dashboard_queue_service.py` and `GET /api/dashboard/queues`.
+- Dashboard queues are backend-owned instead of derived from the current visible page. The service scans the active filtered set and returns summary counts plus sample items for `missing_prices`, `needs_review`, `with_limit`, `interesting`, `documents_review`, and `urgent_deadline`.
+- `list_tenders_payload(...)` now passes persisted `tender_documents.text_status` counts into `build_tender_decision(...)`, so list/dashboard decision metrics can show real document readiness instead of `0/0`.
+- The React dashboard loads `fetchDashboardQueues(...)`, refreshes queues after search/detail/workflow changes, and keeps a fallback to page-derived workflow counts if the endpoint is unavailable.
+- Tender list rows are decision-first: they show `decision.next_step` and the first blocker/reason instead of separate economics and analysis status snippets.
+- `tender_killer.dev_health` now requires the `dashboard_queues` capability, preventing stale local API processes from being treated as compatible before Vite starts.
+- Local dev stack after restart: API `http://127.0.0.1:8000`, Vite `http://127.0.0.1:5173`, dev smoke OK.
+- Full verification after this checkpoint: `465 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp pytest-cache-files-full-dashboard-final`.
+
+Economics architecture notes from the dedicated agent:
+
+- Current economics is manual-first and review-only, with supplier candidates and auto-estimate drafts already present, but there is no single auditable auto-pricing pipeline from public price source to confirmed cost input.
+- Recommended next layer: `pricing_pipeline` with query generation, provider collectors, normalized price candidates, candidate scoring/confidence reasons, staged review, operator confirm/reject/refresh, and economics recalculation only from confirmed prices.
+- Keep the legal boundary: no portal login, no cookies/tokens, no automated bid/submission/signing. Public catalog scraping can be brittle and must remain review-first.
+- Short-term storage can preserve compatibility through `product_profiles.raw_payload`, but SaaS-ready history should move to normalized tables such as `supplier_price_runs`, `supplier_price_candidates`, and `supplier_price_observations`.
+- UI direction for the economics modal: show ranked candidates with source, price, confidence reasons, observed time, availability/VAT/unit hints, rejected/stale states, and bulk "find prices for all positions" as stage-only, not silent accept.
+
+## Price candidates persistence checkpoint
+
+Date: 2026-06-02.
+
+- Started the auto-pricing foundation with a normalized SQLite table `price_candidates`.
+- Each candidate is scoped by tender source/external id and product profile `position_index`, and stores origin, provider, product name, supplier name, source URL/query, unit price, currency, VAT mode, availability, offer status, review status, confidence, confidence/match reasons, supplier option link, timestamps, raw payload, and a stable fingerprint.
+- `TenderStore.upsert_price_candidates(...)` deduplicates by `(tender_source, tender_external_id, position_index, fingerprint)`, so repeated discovery of the same provider URL updates the candidate instead of adding duplicates.
+- `TenderStore.list_price_candidates(...)` exposes candidates by tender/profile, and `get_product_profiles(...)` attaches `price_candidates` to each profile for the future economics UI.
+- Existing `supplier_discovery` JSON is still preserved for current UI compatibility, but `stage_profile_supplier_candidates(...)` now mirrors staged discovery candidates into `price_candidates`.
+- `import_profile_supplier_candidate(...)` now also marks the normalized price candidate as `imported` and stores the resulting `supplier_option_index`, including for older JSON-only candidates.
+- Verification: frontend contract `89 passed`; Python compileall passed; direct workspace-temp runner passed `49` related backend tests across storage, supplier discovery, supplier price discovery, supplier options, auto-economics, and tender detail service.
+- Current pytest caveat in this desktop sandbox: normal pytest `tmp_path` setup fails before tests with `PermissionError` on generated temp roots such as `.pytest-local-temp/pytest-of-zinin.v.a`; direct workspace-temp test execution confirms the new backend contracts are green.
+
+## Price candidate review checkpoint
+
+Date: 2026-06-02.
+
+- `price_candidates` is no longer only a storage layer: detail payloads rank candidates with `score` and `score_reasons`, and `/price-candidates/{id}/confirm|reject` lets the operator review a normalized price per product position.
+- Confirming a price candidate applies it to `raw_payload.economics.unit_cost`, writes `raw_payload.economics_price_source` with candidate id, source, provider, URL, query, and unit price, selects or creates the matching supplier option, and marks the candidate as `confirmed`.
+- Rejecting a candidate only marks it as `rejected`; it does not change supplier options or economics.
+- React economics now shows `price_candidates` above supplier inputs with accept/reject controls, preserving the older discovery/import flow as review evidence.
+- Next economics step: improve candidate quality before automation with pack/unit conversion, VAT, delivery, minimum-order normalization, availability checks, and confidence thresholds for auto-staging.
+
+## Price candidate quality checkpoint
+
+Date: 2026-06-02.
+
+- Added backend price-quality gates in `src/tender_killer/price_candidate_service.py`.
+- `rank_profile_price_candidates(...)` now attaches `quality_status`, `auto_eligible`, and `quality_flags` to each candidate before sorting.
+- Current rules check positive unit price, rejected candidates, availability, currency, VAT mode, delivery terms, pack/unit conversion hints, and minimum order quantity/amount.
+- Quality affects ranking: ready candidates get a positive score reason, review candidates are slightly penalized, and blocked candidates sink below usable offers.
+- Confirming a candidate now stores the same quality snapshot inside `raw_payload.economics_price_source`, so manual economics inputs remain auditable later.
+- React economics renders compact quality labels and chips next to ranked candidates, making it clear whether a price is ready for calculation, needs review, or must not be auto-used.
+- Verification: price candidate ranking tests `3 passed`; direct workspace-temp runner passed confirm/reject review scenarios; frontend contract `89 passed`.
+- Current pytest caveat remains: `tmp_path` tests can fail during Windows temp cleanup in this sandbox, so workspace-local direct runners were used for the temp-dependent confirm/reject checks.
+
+## Price candidate bulk-ready confirmation checkpoint
+
+Date: 2026-06-02.
+
+- Added tender-level bulk confirmation for normalized price candidates through `confirm_ready_price_candidates(...)`.
+- New endpoint: `POST /api/tenders/{source}/{external_id}/price-candidates/ready/confirm`.
+- The bulk action applies only candidates with `auto_eligible=true` and a non-reviewed status to product profiles that do not already have saved positive `raw_payload.economics.unit_cost` or `total_cost`.
+- Confirmed candidates are marked `confirmed`, linked to the selected supplier option, and written into `raw_payload.economics.unit_cost` with `economics_price_source.selection="bulk_auto_eligible"`.
+- Positions with existing manual costs are preserved; positions without ready candidates stay in `needs_costs` and keep their review candidates visible.
+- React economics now exposes `Готовые цены в расчет (N)` in the full-screen economics header, next to the older reviewed-supplier bulk button.
+- Verification: direct workspace-temp runner passed the new service/API bulk confirmation scenarios; frontend contract `89 passed`; Python compileall passed; Vite production build passed through direct bundled Node invocation.
+- Current pytest caveat remains: temp-dependent pytest tests can fail during Windows temp setup/cleanup in this desktop sandbox, so direct workspace-temp runners are still used for those targeted backend checks.
+
+## Price candidate auto-stage checkpoint
+
+Date: 2026-06-02.
+
+- Added tender-level auto-stage for already saved supplier evidence through `stage_tender_price_candidates(...)`.
+- New endpoint/capability: `POST /api/tenders/{source}/{external_id}/price-candidates/stage` / `price_candidate_auto_stage`.
+- The stage action reads existing `raw_payload.supplier_options` and `raw_payload.supplier_discovery.candidates`, normalizes them into the backend `price_candidates` table, and returns counts for staged/ready/review/blocked candidates.
+- Normalization currently covers VAT excluded -> VAT included, pack-to-piece unit conversion, availability tokens, delivery hints, source kind, match reasons, and raw original/normalized price evidence.
+- This remains review-only: staging candidates does not select a supplier, does not write `raw_payload.economics`, and does not change tender economics until the operator confirms a candidate or uses the existing bulk ready-confirm action.
+- React economics now exposes `Подготовить цены (N)` in the full-screen economics header. Loading state reuses the existing price-candidate review sentinel instead of adding a new hook, avoiding the previous hook-order regression.
+- Verification: manual workspace-temp runner passed the targeted price candidate service/API stage suite; frontend contract auto-stage test passed; Python compileall passed.
+- Next economics steps: replace the saved-evidence-only stage with an active provider run that records per-provider diagnostics, then expand collectors and scoring before any wider automation.
+
+## Active supplier price discovery checkpoint
+
+Date: 2026-06-02.
+
+Local dev supervisor note, 2026-06-03: `scripts/dev-web.ps1` now keeps API `127.0.0.1:8000` and web `127.0.0.1:5173` alive, restarts stale/unhealthy local processes, writes ignored logs to `logs/`, and falls back to `tender_killer.dev_static_proxy` when npm/Vite is unavailable or unhealthy.
+
+- Added tender-level active supplier price discovery through `run_tender_supplier_price_discovery(...)`.
+- New endpoint/capability: `POST /api/tenders/{source}/{external_id}/price-discovery/run` / `price_discovery_run`.
+- The run loops over product profiles, prepares supplier search queries, executes configured public provider collectors, preserves per-position no-candidate/error states, aggregates provider diagnostics, and then normalizes discovered evidence into `price_candidates`.
+- This is still review-only. The run does not write product-profile economics and does not select suppliers; calculation changes still require confirming an individual candidate or using the existing ready-candidate bulk confirmation action.
+- React economics now exposes `Найти цены (N)` in the full-screen economics header for positions that still need costs. The loading state reuses the existing price-candidate review sentinel, so the hook order stays stable.
+- Next economics steps: improve provider coverage/scoring, expose richer provider diagnostics in the modal, and only then consider narrower auto-confirm rules for very high-confidence candidates.
+
+## Full handoff before new session
+
+Date: 2026-06-05.
+
+Primary branch and worktree state:
+
+- Shared/preview repository: `C:\Users\zinin.v.a\Documents\tender_killer`, branch `codex/moscow-mo-parser`.
+- Dedicated economics repository/worktree: `C:\Users\zinin.v.a\Documents\tender_killer_economics`, branch `codex/economics-flow`.
+- Current shared commit at handoff: `6f8c4b6 Use tender item quantities in economics`.
+- The economics commit was pushed to both `codex/economics-flow` and `codex/moscow-mo-parser`.
+- Keep the working rule: economics changes go through the economics worktree first. Before pushing the shared branch, fetch origin, merge `origin/codex/moscow-mo-parser` into the economics branch, verify `origin/codex/moscow-mo-parser` is an ancestor of `HEAD`, then push the economics branch and finally `HEAD:codex/moscow-mo-parser`. Do not force-push.
+- The preview repository should only be fast-forwarded when clean. If it is dirty, preserve those changes first and report it.
+
+Local runtime state:
+
+- API target: `http://127.0.0.1:8000`.
+- User-facing preview target at the end of this session: `http://127.0.0.1:5175`.
+- `scripts/dev-web.ps1` in the repo still defaults to frontend port `5173`; previous sessions also left stale `5173/5174` listeners. When debugging "connection refused" or `chrome-error://chromewebdata`, check actual listeners and restart only the intended API/web pair.
+- Browser console warnings from `contentscript.js`, `ObjectMultiplex`, and similar are likely injected browser-extension noise, not Tender Killer code.
+
+Last economics implementation checkpoint:
+
+- Commit `6f8c4b6 Use tender item quantities in economics` fixed old product profiles that had no `quantity`/`unit`.
+- Backend economics now falls back from product profiles to `tender_items` by `position_index` when profile quantity/unit are missing.
+- Price staging, review, and auto-price calculation use the same fallback, so old saved tenders can still calculate totals.
+- React economics enriches profiles from `tender.items` before rendering/calculation, so the modal can show quantities even when old profile payloads are incomplete.
+- Tests were added/updated in:
+  - `tests/test_economics.py`
+  - `tests/test_price_candidate_service.py`
+- Changed economics files:
+  - `src/tender_killer/economics.py`
+  - `src/tender_killer/price_candidate_service.py`
+  - `web/src/TenderEconomicsTab.jsx`
+- Targeted verification after merge: `66 passed` for `tests\test_economics.py tests\test_price_candidate_service.py tests\test_supplier_price_discovery_service.py tests\test_economics_service.py tests\test_economics_auto.py -p no:cacheprovider --basetemp pytest-cache-files-economics-after-merge`.
+- `npm run build` could not be run from the normal shell because `npm` was not on PATH. Use the bundled Node/Vite path or the dev supervisor/static proxy fallback when needed.
+
+OfficeMag and supplier catalog state:
+
+- OfficeMag is the current proving ground for automatic supplier prices.
+- The desired future pattern is not "patch per product", but a robust pipeline:
+  1. tender position and quantity/unit;
+  2. normalized search intent and candidate queries;
+  3. provider collector result pages/product pages;
+  4. parsed product cards with source URL, price tiers, stock, package/minimum order, VAT/delivery hints;
+  5. matcher/scorer with category/noun/unit/quantity gates;
+  6. staged price candidates;
+  7. operator confirm/reject;
+  8. confirmed unit cost applied to the exact product position;
+  9. tender-level economics recalculation.
+- Current unresolved bug: OfficeMag can be shown as available by health check but product discovery may still find no candidates, or it can return irrelevant candidates.
+- Current bad examples from the UI:
+  - Query for cartridges can return paper/sign/mop-like products.
+  - Query for "Ручка канцелярская", "Файл-вкладыш", "Папка картонная" found no candidates even though OfficeMag was marked available.
+  - Candidate lists sometimes show prices without enough evidence/link/stock context.
+  - Applying a candidate can update summary totals while the selected product row still looks empty.
+- Current OfficeMag paper reference:
+  - Product code `110532`.
+  - Product name: `Бумага офисная A4, 80 г/м², 500 л., марка C, ОФИСМАГ, Россия, 146% (CIE), 110532`.
+  - Price tiers visible on the page: `364` from 1, `361` from 5, `359` from 10.
+  - Stock shown by user: Moscow stock `14194`, preorder `+2047`, package/minimum context `в упаковке: 5`.
+  - For a 60-pack tender, pricing should choose the `359` tier and calculate total `21540`, not a one-pack or one-piece total.
+- Next OfficeMag work should start by instrumenting/logging the matcher path for one failing position, then adding tests that reject unrelated paper/sign/mop candidates for cartridge/stationery positions.
+
+Economics UX direction:
+
+- The economics modal is currently too dense. After the pipeline is technically reliable, redesign the modal around a smaller number of understandable zones:
+  - top decision and calculated totals;
+  - position list with quantity/unit and cost status;
+  - selected position detail;
+  - price candidates with source links, stock, tiers, and match reasons;
+  - assumptions and manual cost overrides.
+- Quantity must be visible directly in economics for every position. The operator should not have to infer quantity from another screen.
+- If a supplier has tier pricing, show all meaningful tiers and explain which tier was used for the calculation based on tender quantity/package/minimum order.
+- A supplier price is evidence until confirmed. It should not silently become economics cost without operator confirmation or a future explicitly trusted auto-rule.
+
+Parallel analysis/UI state from the recent sessions:
+
+- Documents were folded into the analysis workspace. The separate documents card/button should stay out of the short tender summary.
+- Product details were folded into economics. The separate products card/button should stay out of the short tender summary.
+- Analysis workspace now handles document download, text extraction, analysis, evidence, and Word export in one place.
+- Desired Word output is a compact 5-8 page operator brief. Do not revive the old long raw text report.
+- Analysis now has backend-owned evidence/fact/passport/operator-view layers. Future work should reduce duplication between `Паспорт ТЗ`, evidence, and operator blocks.
+- The user wants every important extracted fact to show where it came from: document name and page when available, or at least document name plus enough surrounding context to manually verify.
+- Agent-based analysis can improve deep interpretation later, but current pre-agent analysis should still avoid unexplained fragments.
+
+Main UI state from the recent sessions:
+
+- The main procurement page moved toward full-width tender list mode with collapsible top filters.
+- Clicking a tender opens a full-screen tender card.
+- The short tender card should stay a quick decision screen: core facts, source/refresh, compact economics and analysis cards, next step/status.
+- Filters were questioned: platform is useful now; region should eventually become a dropdown over Russian regions when more platforms are added; source type/procedure type need clearer purpose before more UI weight is spent on them.
+- Do not re-expand the right rail with duplicate NMC/bid/margin blocks. Keep the top decision strip as the single source for those metrics in the short card.
+
+Boundaries and safety:
+
+- Tender Killer must not submit bids/applications, sign documents, log into portals for the user, store portal passwords, bearer tokens, cookies, SMS codes, or electronic-signature data.
+- Local Moscow bid import is safe only as pasted response JSON from `GetBetUpdate` and must continue rejecting sensitive keys recursively.
+- Supplier catalog scraping is brittle and should remain review-first until a reliable official/API-like channel is proven.
+
+## Supplier catalogs and focused economics checkpoint
+
+Date: 2026-06-08.
+
+- The current shared work continues on `codex/moscow-mo-parser` in `C:\Users\zinin.v.a\Documents\tender_killer`.
+- Process startup/restart pain point: avoid the old inline PowerShell `Start-Process` supervisor block. Local process control should go through the Python dev-control path and the checked scripts, with bounded checks and clear logs instead of long hanging terminal commands.
+- Dashboard is now the home for platform/source status and supplier catalog health. These cards are collapsible because the number of procurement platforms and supplier catalogs will keep growing.
+- Economics no longer needs catalog health panels, source-query forms, or manual supplier request scaffolding. Those controls were removed from the default economics workspace because the operator did not use them and they made the screen unreadable.
+- The focused economics workspace should stay organized as: top command summary, position rail, selected position, price candidates, accepted supplier/options, manual cost inputs, assumptions/reserves, and collapsed analysis/TZ context.
+- Analysis/TZ results remain important for future pricing and risk decisions, but they should stay available as compact/collapsed context unless the operator opens them.
+- Supplier catalog price discovery is still review-first: found prices are evidence until an operator confirms them or a future explicit high-confidence auto-rule handles them.
+- Active practical provider coverage now includes OfficeMag, Vseinstrumenti, and Lemana Pro. Komus and Petrovich remain in diagnostics/status because they can be blocked by HTTP 503/401/captcha states.
+- Provider routing direction: for each tender position, run only catalogs that make sense for the category, and keep one manual review link per selected provider/catalog instead of opening many browser tabs.
+- Matching direction learned from OfficeMag/Vseinstrumenti/Lemana Pro: prefer manufacturer/model/pack/quantity signals, show tender reference unit/total price next to candidates, and treat broad category fallback as lower confidence.
+- OfficeMag paper tier reference remains a regression case: product `110532`, tiers `364` from 1, `361` from 5, `359` from 10, pack/minimum context 5, Moscow stock 14194 plus preorder 2047; a 60-pack tender should choose unit price `359` and total `21540`.
+- Vseinstrumenti and Lemana Pro browser/manual fallback should open at most one useful review tab/link per provider when automatic parsing is incomplete.
+- Recent frontend verification for the focused economics slice used targeted contract tests plus Vite build through the bundled Node/Vite path because normal `npm` may not be on PATH in the shell.
+
+## Safe supplier connector policy checkpoint
+
+Date: 2026-06-09.
+
+- Current branch/worktree for the next session: `codex/moscow-mo-parser` in `C:\Users\zinin.v.a\Documents\tender_killer`.
+- Latest pushed supplier-discovery safety commit: `37f537d Harden supplier catalog discovery`.
+- The main product direction changed from "automatic catalog scraping" to "supplier price confirmation center". Tender Killer should prepare links, help the operator verify a product, extract evidence from a public product URL when safe, stage a price candidate, show quality risks, and write economics only after explicit confirmation.
+- Small tender rule: for tenders with 1-5 product positions, the existing active price discovery can remain available as review-only automation with strict limits, provider policy, cooldown/access-block handling, and no automatic economics write.
+- Large tender rule: for tenders with more than 5 positions, hide or disable the active `Найти цены` discovery button so it cannot accidentally launch many external requests. Large tenders should default to quick links, manual product URL paste, price/quote/feed import, and operator confirmation.
+- Provider policy should become the central gate before any supplier fetch. It must distinguish operator quick links from automatic collectors and describe each provider's allowed actions, recommended flow, and risk state.
+- Required provider policy fields: `provider`, `label`, `default_mode`, `allow_quick_links`, `allow_public_search_fetch`, `allow_product_page_fetch`, `allow_browser_fetch`, `allow_internal_api`, `recommended_flow`, `risk_level`, and `operator_note`.
+- Provider direction:
+  - `lemanapro`: quick links/manual product URL only; no automatic search-page fetch.
+  - `officemag`: quick links/manual product URL; no automatic background search-page fetch.
+  - `komus`: quick links plus feed/quote recommended; no automatic public search fetch and no browser fetch.
+  - `vseinstrumenti`: limited public search only for small tenders, public product URL allowed, no internal APIs, stop on `access_blocked`.
+  - `petrovich`: no confirmed public price API. `api-lkpartners.petrovich.ru` is a JWT-protected partner API candidate only if official credentials are provided later. Without that, use product URL/B2B quote/manual feed and only limited public search for small tenders.
+- Important Petrovich research from 2026-06-09:
+  - Old `https://api.petrovich.ru/catalog/v2.3/...` endpoints return HTTP `410` with `API закрыто. Больше не поддерживается`.
+  - `https://api-lkpartners.petrovich.ru/docs.json` exposes OpenAPI 3.1 with `/auth`, `/products`, `/product-stocks`, `/orders`, etc., but useful endpoints return `401 JWT Token not found` without partner access.
+  - `SimplyKot/petrovich-api` is unrelated to the store catalog; it is about Russian name declension.
+  - `aaron-ty/petrovich-auth-api` is about checking Petrovich account existence by phone/email through session/auth endpoints, not product prices or stock; do not use it for supplier pricing.
+  - 1C-Presta/smartHUB paid integrations may be commercially useful later if the product gets paying customers, but current architecture should only leave a connector slot for paid feed/API sources rather than depending on them now.
+- URL safety must block fetches for private or unsafe paths/parameters such as `login`, `auth`, `checkout`, `cart`, `cabinet`, `lk`, `user`, `order`, `orders`, `token`, `session`, `password`, `secret`, `cookie`, `authorization`, `/api-common/`, `/get_price`, `/price`, `/ajax`, and non-official `/graphql`.
+- Browser fetch must not become a workaround for WAF/captcha. It can only be an explicit `manual_only` operator action and must stop on captcha/challenge/403/429/503, preserving diagnostics and prompting for manual price/quote/feed instead.
+- Price candidates remain review-first. Candidate evidence should show supplier, product name, unit price, VAT, availability, delivery, unit, packaging/multiplicity, minimum order, source URL, confidence, quality status, and quality flags. Only `review_status = confirmed` or an explicit ready-candidate bulk accept action may write to `raw_payload.economics.unit_cost`.
+- The next implementation should start by adding tests for provider policy, URL safety, large-vs-small discovery button behavior, manual product URL discovery, and regression coverage for existing price-candidate confirm flow.
+
+## Supplier provider policy implementation checkpoint
+
+Date: 2026-06-09.
+
+- Implemented central supplier provider policy in `src/tender_killer/supplier_provider_policy.py`.
+- Active supplier price discovery is now capped at small tenders with 1-5 positions. Larger tenders return `status = manual_required`, do not start a background job, and should use quick links/manual URL/feed/quote.
+- OfficeMag and Lemana Pro are quick-link/manual product URL providers only; OfficeMag background search-page fetches now skip with policy diagnostics instead of fetching.
+- Vseinstrumenti and Petrovich retain limited public search only for small tenders plus product URL/manual flows; unsafe/private URLs are blocked before fetch.
+- Browser fetch fallback is no longer automatic for catalog fetches. It is only allowed for manual product URL fetch paths where the provider policy allows the action.
+- Economics UI hides the active `Найти цены` button for large tenders and shows the manual-flow note instead.
+- Focused verification after implementation: supplier policy tests, supplier price-discovery slices, job service tests, frontend contract tests, encoding guard, Python `py_compile`, and Vite production build through bundled Node all passed.
+
+## Manual supplier price flow implementation checkpoint
+
+Date: 2026-06-09.
+
+- PR for the branch already exists as `https://github.com/Slavchix/Tender_killer/pull/1`. GitHub App could not convert it to draft because the integration lacks `convertPullRequestToDraft` access.
+- Focused economics workspace now exposes manual supplier price flow per selected position.
+- The manual panel supports quick links preparation, manual public product URL checking, and direct review-first candidate staging from quote/feed/manual price evidence.
+- Direct quote/feed/manual price staging goes through the existing `supplier-discovery/candidates` endpoint and creates price candidates for review. It does not write `raw_payload.economics.unit_cost` until the operator confirms a price candidate.
+- Verification for this slice: frontend contract, supplier discovery API handler slice with local basetemp/escalation, encoding guard, `git diff --check`, and Vite production build through bundled Node passed.
+
+## EIS reference and customer risk checkpoint
+
+Date: 2026-06-10.
+
+- Step 5/6 audit direction is now represented in code without adding unsafe network automation.
+- Added `src/tender_killer/eis_reference_service.py`: `build_eis_reference(...)` prepares official EIS lookup links for purchase search, customer contracts, customer complaints, RNP, and the EIS home page. It sets `network_fetch_enabled = false`; this is a manual/operator lookup layer and a future adapter contract, not an active EIS scraper.
+- Added `src/tender_killer/customer_risk_service.py`: `build_customer_risk_profile(...)` scores current tender signals, local same-customer history, analysis red flags, and future `raw_payload.eis_customer_context` fields such as terminated contracts, complaints, payment delays, and rejected applications.
+- `get_tender_payload(...)` now attaches both `eis_reference` and `customer_risk_profile`. Local history is matched by normalized `customer_inn` first, then by customer name when INN is missing.
+- `build_tender_decision(...)` now turns high customer risk into `needs_review` before the normal green `interesting` branch, preserving missing-price and hard economics blockers as higher-priority decisions.
+- Tests cover the pure EIS/reference contract, customer risk scoring, detail payload integration, and decision gating for high-risk customers.
+- Full verification after this checkpoint: `663 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=.pytest-tmp-full-risk4`.
+
+## Customer/EIS product surface checkpoint
+
+Date: 2026-06-10.
+
+- The customer/EIS backend context is now visible in the product surfaces rather than only in JSON.
+- Tender overview shows a compact `Заказчик / ЕИС` block with risk level, customer/INN, local history count, official EIS lookup value, up to two risk reasons, and up to three official EIS links.
+- Dashboard queues now include `customer_review`; the right rail renders a compact `Заказчик / ЕИС` panel for high-risk customer signals, missing identity, repeated no-participant history, complaints, terminated contracts, or payment-delay evidence.
+- Word reports now include a short `Заказчик / ЕИС` section with customer identity, risk score, history size, EIS purchase number, network-fetch status, risk reasons, and links.
+- `list_tenders_payload(...)` now attaches `eis_reference` and `customer_risk_profile` so dashboard/list surfaces can use the same backend contract as detail payloads.
+- Verification: related dashboard/detail/customer/EIS/report/frontend contract slice passed with `123 passed`; encoding guard passed with `2 passed`; full suite passed with `667 passed` for `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=.pytest-tmp-full-ui-risk`.
+- Visual/browser verification was not run in this environment because the Browser callable tool was not exposed by tool search and Node/npm are not available on PATH for Vite/dev-smoke.
+
+## Manual OfficeMag URL fallback checkpoint
+
+Date: 2026-06-10.
+
+- Root cause from live `data/tenders.sqlite` for OfficeMag URL `https://www.officemag.ru/catalog/goods/128875/`: supplier discovery recorded `catalog_officemag` with `HTTP 503 access_blocked`, `pages_fetched = 0`, `candidates_found = 0`; the public fetch was blocked before the parser could read the product price.
+- Backend policy nuance: active catalog/search-page fetch remains limited to small tenders, but a manually pasted product-card URL is now treated as a single operator action. `ProviderCatalogCollector._fetch_link_text(...)` passes a one-position context to `ACTION_BROWSER_FETCH` only when the original action is `ACTION_PRODUCT_PAGE_FETCH`, so browser fallback can rescue manual OfficeMag product URLs in larger tenders without re-enabling mass search.
+- UI now preserves API error payload diagnostics for manual URL checks and surfaces the real no-candidate reason in the main economics panel: supplier access blocked, product mismatch, or price not recognized. The collapsed technical diagnostics still show provider counters/errors.
+- Focused verification passed: OfficeMag manual browser fallback, large search still blocked, OfficeMag product-detail parser, API manual URL route, and frontend supplier contract (`5 passed`).
+
+## Economics hardening session checkpoint
+
+Date: 2026-06-16.
+
+- Worktree/branch: `C:\Users\zinin.v.a\Documents\tender_killer`, branch `codex/moscow-mo-parser`.
+- Latest pushed economics commits from this session:
+  - `7dc9d0b Strengthen economics pricing model`
+  - `ef276da Preserve manual supplier links without prices`
+  - `6351c7a Clarify manual price candidate actions`
+  - `0e834de Strengthen price candidate gates`
+- Focused economics direction is now clearer: Tender Killer is a supplier price confirmation center, not a mass supplier scraping bot.
+- Manual supplier product URL behavior:
+  - If a pasted supplier URL cannot be parsed for price because the site blocks access, omits schema.org price, or returns no product candidate, the URL can still be saved as a review-only price candidate with `manual_price_required = true`.
+  - UI wording for this case is "Ссылка сохранена" / "нужна цена" rather than "new candidates not found".
+  - The compact action opens the supplier URL; the candidate cannot be accepted as a price until an actual price is entered or staged from КП/feed/manual evidence.
+- Price candidate quality gates:
+  - `evaluate_price_candidate_quality(...)` now keeps concrete supplier-product mismatch reasons from `supplier_product_matcher`, not only the generic `product_name_mismatch`.
+  - Block flags can include `product_family_mismatch`, `dimension_mismatch`, `piece_pack_count_mismatch`, `weight_mismatch`, `volume_mismatch`, `material_mismatch`, `color_mismatch`, `brand_mismatch`, `paper_format_mismatch`, `paper_sheet_count_mismatch`, and `family_modifier_mismatch`.
+  - `review_profile_price_candidate(..., review_status="confirmed")` now refuses to confirm a `quality_status = blocked` candidate. This prevents unrelated OfficeMag-style paper/sign/mop candidates from writing into `raw_payload.economics.unit_cost`.
+  - Bulk ready-confirm still only applies `auto_eligible` candidates and therefore remains gated by the quality status.
+- Operator UI:
+  - `TenderEconomicsSuppliers.jsx` exposes readable labels for the new mismatch reasons.
+  - Blocked/manual candidates remain visible as evidence, but the accept path is intentionally blocked or redirected to manual price entry.
+- Verification from this session:
+  - `tests/test_price_candidate_service.py tests/test_supplier_product_matcher.py tests/test_frontend_contract.py::test_economics_workspace_exposes_compact_operator_flow tests/test_frontend_contract.py::test_economics_workspace_surfaces_provider_run_and_candidate_explanations tests/test_api_handlers.py::test_handle_post_request_routes_product_profile_price_candidate_confirm tests/test_api_handlers.py::test_handle_post_request_routes_product_profile_price_candidate_reject tests/test_api_handlers.py::test_handle_post_request_routes_ready_price_candidate_bulk_confirm tests/test_api_handlers.py::test_handle_post_request_routes_tender_auto_prices_and_refreshes_economics` passed with `38 passed`.
+  - Vite production build through bundled Node passed.
+  - Local API/UI smoke passed on `http://127.0.0.1:5175/` and `GET /api/tenders/mosreg_market/3684752`: health ok, 2 product profiles, economics present.
+- Keep these economic changes separated from the parallel ТЗ dirty files unless the user explicitly asks to combine them.
+
+## Cloudflare tunnel and local preview checkpoint
+
+Date: 2026-06-16.
+
+- A `cloudflared` process was visible locally during the session.
+- The active local preview responded at `http://127.0.0.1:5175/` with HTTP 200.
+- Important mental model:
+  - Cloudflare tunnel does not read GitHub and does not update because of `git push`.
+  - The tunnel forwards to whatever local target it was started with, usually the Vite dev server or a local reverse proxy.
+  - Frontend edits are visible through the tunnel when the local Vite server has picked them up; browser refresh may be required if HMR did not reconnect through the tunnel.
+  - Backend/API edits are visible only if the API process is running with auto-reload or after restarting the API.
+  - If the tunnel points at static `dist`, run Vite build and restart/reload the static server before expecting changes on the public URL.
+
+## TZ interpretation and report handoff checkpoint
+
+Date: 2026-06-16.
+
+- Relevant pushed TZ commit before the current dirty slice: `88a9487 Improve TZ analysis interpretation`.
+- Current uncommitted TZ/report files in the shared worktree:
+  - `src/tender_killer/analysis_operator_view_service.py`
+  - `src/tender_killer/reports.py`
+  - `tests/test_analysis_operator_view_service.py`
+  - `tests/test_reports.py`
+- Intended behavior in the dirty TZ slice:
+  - `build_analysis_operator_view(...)` annotates conflicting extracted conditions. Current conflict detector covers advance and VAT polarity: for example "авансирование не предусмотрено" plus "предусмотрен аванс 30%" marks both items with `conflict_flags`, forces `needs_review`, and increments `metrics.conflicts`.
+  - Operator view adds expected-missing checks when documents have extracted text but important acceptance/payment conditions are absent from facts. Current expected checks cover `условия оплаты` and `приемка и закрывающие документы`; they use `display_tier = "expected_missing"`, `expected_missing = true`, and an interpretation with `confidence = "missing"`.
+  - Operator metrics add `conflicts` and `expected_missing`.
+  - Operator checks for conflicts and expected-missing items are written as direct human actions rather than generic "найти точное место".
+  - Word report 4-block table is being expanded from `Блок / Пункт / Что значит / Действие / Источник` to `Блок / Пункт / Что найдено / Что означает / Влияние / Что сделать / Источник`.
+  - Report rows now prefer structured `item.interpretation.found`, `meaning`, `impact`, and `action` where available.
+- New/changed tests in the dirty TZ slice:
+  - `test_build_analysis_operator_view_marks_conflicting_conditions_for_manual_review`
+  - `test_build_analysis_operator_view_adds_expected_missing_checks_from_context`
+  - `test_build_tender_report_docx_uses_structured_interpretation_in_four_block_table`
+  - Existing report assertion updated to expect `Что означает` and `Что сделать`.
+- Known caution for the next session:
+  - These files are dirty and not included in the economics commits. Review and test them as a separate ТЗ/report change before staging.
+  - The dirty slice adds about `269 insertions` across the four files.
+  - Run at least `tests/test_analysis_operator_view_service.py tests/test_reports.py` before committing this slice; broader report/analysis tests may be appropriate because report layout and operator-view metrics are shared surfaces.
+
+## TZ context strengthening checkpoint
+
+Date: 2026-06-24.
+
+- Worktree/branch: `C:\Users\zinin.v.a\Documents\tender_killer`, branch `codex/moscow-mo-parser`.
+- This is a ТЗ/analysis-only slice. Do not stage or modify parallel economics files from this session unless the user explicitly switches to economics.
+- Current uncommitted ТЗ files:
+  - `src/tender_killer/analysis_context_pack_service.py`
+  - `src/tender_killer/analysis_facts_service.py`
+  - `src/tender_killer/analysis_history_service.py`
+  - `src/tender_killer/analysis_operator_view_service.py`
+  - `src/tender_killer/analysis_prompt_context_service.py`
+  - `src/tender_killer/reports.py`
+  - `tests/test_analysis_456_features.py`
+  - `tests/test_analysis_context_pack_service.py`
+  - `tests/test_analysis_operator_view_service.py`
+  - `tests/test_analysis_prompt_context_service.py`
+  - `tests/test_analysis_saas_level.py`
+- Implemented points 3-4 of the latest ТЗ context plan:
+  - `analysis_history_service.build_analysis_change_summary(...)` now emits `condition_diff` v2 from `operator_view.condition_groups`, not only flat facts.
+  - The diff v2 carries `items`, `metrics`, `highlights`, changed documents, and `action_plan_changed`; legacy `condition_changes` remains as `condition_diff.items`.
+  - Expanded condition labels/families include `delivery_place`, `warranty`, `license_sro`, `packaging_marking`, `termination`, `participant_restrictions`, and `retentions`.
+  - Source hierarchy now depends on condition family: payment/advance/closing docs prefer ПИК obligations/payment, delivery prefers ТЗ, contract-security/penalty/termination/warranty/retentions prefer contract project, participant restrictions and bid security prefer source card / participant requirements.
+  - `analysis_context_pack_service` and `analysis_facts_service` now detect `bid_security`, `participant_restrictions`, `termination`, and `retentions`.
+- Implemented points 5-6 of the same plan:
+  - `analysis_prompt_context_service.build_analysis_prompt_context(...)` now includes `condition_groups` and `condition_diff` v2, so a future document-aware agent sees the interpreted condition layer and document-change summary instead of only raw facts.
+  - The prompt `source_contract` declares `condition_schema` and `condition_diff_schema`.
+  - `agent_contract.condition_patch_policy` requires source-bound condition edits, preserving condition family and using condition diff when documents change.
+  - Word SaaS headings are Russian/operator-facing: `Рабочий статус ТЗ`, `Контрольные вопросы ТЗ`, `Плейбуки оператора`; old headings `AI-вопросы по ТЗ` and `Tender playbooks` should not reappear.
+- TDD evidence:
+  - Red tests failed as intended on missing `condition_schema` and the old Word heading.
+  - Green targeted checks: `3 passed` for the new prompt/playbook/Word tests.
+  - Related checks: `27 passed` for prompt context, SaaS-level, and reports.
+  - Related backend analysis checks: `48 passed` for analysis history/context/facts/operator/passport/service.
+- Suggested commit scope for this slice: the 11 ТЗ files above plus README/memory updates only.
+
+## Parallel economics checkpoint visible from shared worktree
+
+Date: 2026-06-24.
+
+- These files are dirty in the same working tree but belong to the parallel economics/price-memory session:
+  - `src/tender_killer/price_candidate_service.py`
+  - `src/tender_killer/price_memory_service.py`
+  - `src/tender_killer/schema.py`
+  - `src/tender_killer/storage.py`
+  - `tests/test_api_handlers.py`
+  - `tests/test_frontend_contract.py`
+  - `tests/test_price_candidate_service.py`
+  - `web/src/TenderEconomicsSuppliers.jsx`
+  - `web/src/styles.css`
+- Observed behavior from the current diff:
+  - Price candidate passport adds `funnel_steps` for source/match/price/terms/decision, with statuses `ok`, `review`, or `block`.
+  - Trusted supplier defaults add a visible rule: НДС считается включенным по правилу, доставка добавляется 3%, but the operator note still says to verify VAT by product card or quote.
+  - Price memory now has list/archive payload helpers, and `price_book_entries` grows `entry_status`, `archived_at`, and `archive_reason`.
+  - Storage filters active price-memory entries by default and can archive entries before future reuse.
+  - API test coverage indicates `GET /api/price-memory` and `POST /api/price-memory/{id}/archive` routes are expected.
+  - Economics UI shows price-passport step chips plus labels `Память цен`, `Правило`, `НДС по правилу`, and `доставка по правилу`.
+- Keep this economics work separate from ТЗ commits. If the next turn asks for a ТЗ commit, do not stage these economics files.

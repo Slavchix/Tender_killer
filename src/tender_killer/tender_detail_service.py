@@ -1,0 +1,417 @@
+from __future__ import annotations
+
+import json
+import sqlite3
+from pathlib import Path
+from typing import Any
+
+from tender_killer.analysis_document_context import build_document_coverage
+from tender_killer.analysis_document_context import document_roles_summary
+from tender_killer.adapters import MoscowSupplierPortalAdapter
+from tender_killer.adapters import MosregMarketAdapter
+from tender_killer.analysis_context_pack_service import build_analysis_context_pack
+from tender_killer.analysis_evidence_service import build_analysis_evidence_items
+from tender_killer.analysis_feedback import apply_analysis_feedback
+from tender_killer.analysis_history_service import list_analysis_history
+from tender_killer.analysis_facts_service import build_analysis_facts
+from tender_killer.analysis_missing_checks import build_missing_checks
+from tender_killer.analysis_missing_checks import missing_checklist_items
+from tender_killer.analysis_operator_view_service import build_analysis_operator_view
+from tender_killer.analysis_passport_service import build_analysis_tz_passport
+from tender_killer.analysis_prompt_context_service import build_analysis_prompt_context
+from tender_killer.analysis_source_service import attach_document_sources
+from tender_killer.analysis_text_index_service import build_analysis_text_index
+from tender_killer.customer_risk_service import build_customer_risk_profile
+from tender_killer.decision_service import build_tender_decision
+from tender_killer.document_service import document_row_to_payload
+from tender_killer.economics import build_economics_summary
+from tender_killer.eis_reference_service import build_eis_reference
+from tender_killer.market_state import extract_market_state
+from tender_killer.price_tracking import latest_price_change
+from tender_killer.price_candidate_ranking import rank_profile_price_candidates
+from tender_killer.product_profile_service import build_profiles
+from tender_killer.product_profile_service import product_profile_summary
+from tender_killer.product_profile_service import rebuild_product_profiles as rebuild_product_profiles_from_payload
+from tender_killer.schema import ensure_documents_table
+from tender_killer.schema import ensure_analysis_history_table
+from tender_killer.schema import ensure_items_table
+from tender_killer.schema import ensure_workflow_table
+from tender_killer.storage import TenderStore
+
+
+def refresh_tender_detail_payload(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    adapter: Any | None = None,
+) -> dict[str, Any]:
+    store = TenderStore(database_path)
+    store.initialize()
+    current = get_tender_payload(database_path, source, external_id, include_product_profiles=False)
+    raw_payload = _raw_payload_from_tender(current)
+    _seed_detail_identifier(raw_payload, source, external_id)
+    detail_adapter = adapter or _detail_adapter_for_source(source)
+    enriched_payload = detail_adapter.enrich_payload(raw_payload)
+    if enriched_payload == raw_payload or not _has_detail_markers(enriched_payload):
+        detail = get_tender_payload(database_path, source, external_id)
+        return {
+            "ok": True,
+            "refreshed": False,
+            "summary": _detail_refresh_summary(detail),
+            "tender": detail,
+            "message": "Detail data did not change or source did not return detail payload.",
+        }
+
+    refreshed_tender = detail_adapter.normalize_payload(enriched_payload)
+    if refreshed_tender.source != source or refreshed_tender.external_id != external_id:
+        raise ValueError("Detail adapter returned another tender identity.")
+    store.upsert_tender(refreshed_tender)
+    profiles_result = rebuild_product_profiles_from_payload(
+        database_path,
+        source,
+        external_id,
+        get_tender_payload(database_path, source, external_id, include_product_profiles=False),
+    )
+    detail = get_tender_payload(database_path, source, external_id)
+    return {
+        "ok": True,
+        "refreshed": True,
+        "summary": {
+            **_detail_refresh_summary(detail),
+            "product_profiles_count": profiles_result["summary"]["total"],
+        },
+        "tender": detail,
+    }
+
+
+def get_tender_payload(
+    database_path: str | Path,
+    source: str,
+    external_id: str,
+    include_product_profiles: bool = True,
+) -> dict[str, Any]:
+    with _connect(database_path) as connection:
+        ensure_workflow_table(connection)
+        ensure_items_table(connection)
+        ensure_documents_table(connection)
+        ensure_analysis_history_table(connection)
+        row = connection.execute(
+            """
+            SELECT tenders.source, tenders.external_id, url, title, customer, region, price, currency, status,
+                   status_normalized, law, region_code, published_at, deadline_at, delivery_place, category, okpd2,
+                   source_family, procedure_type, customer_inn,
+                   documents_json, raw_payload_json, created_at, tenders.updated_at,
+                   COALESCE(workflow.workflow_status, 'new') AS workflow_status,
+                   COALESCE(workflow.workflow_note, '') AS workflow_note
+            FROM tenders
+            LEFT JOIN tender_workflow AS workflow
+            ON tenders.source = workflow.source AND tenders.external_id = workflow.external_id
+            WHERE tenders.source = ? AND tenders.external_id = ?
+            """,
+            (source, external_id),
+        ).fetchone()
+        item_rows = connection.execute(
+            """
+            SELECT position_index, name, details, quantity, unit, unit_price, total_price,
+                   okpd2, classifier_code, classifier_type, raw_payload_json
+            FROM tender_items
+            WHERE source = ? AND external_id = ?
+            ORDER BY position_index
+            """,
+            (source, external_id),
+        ).fetchall()
+        document_rows = connection.execute(
+            """
+            SELECT document_index, name, document_type, url, source_document_id,
+                   local_path, downloaded_at, text_status, text_content,
+                   text_extracted_at, text_error, raw_payload_json
+            FROM tender_documents
+            WHERE source = ? AND external_id = ?
+            ORDER BY document_index
+            """,
+            (source, external_id),
+        ).fetchall()
+        analysis_row = connection.execute(
+            """
+            SELECT summary, requirements_json, risks_json, red_flags_json,
+                   recommended_status, confidence, raw_payload_json, analyzed_at
+            FROM tender_analysis
+            WHERE source = ? AND external_id = ?
+            """,
+            (source, external_id),
+        ).fetchone()
+        analysis_history = list_analysis_history(connection, source=source, external_id=external_id)
+        customer_history = _customer_history_rows(connection, row) if row is not None else []
+    if row is None:
+        raise KeyError(f"Tender {source}/{external_id} not found.")
+    payload = dict(row)
+    payload["documents"] = _json_list(payload.pop("documents_json"))
+    payload["items"] = [_item_row_to_payload(item_row) for item_row in item_rows]
+    payload["document_records"] = [document_row_to_payload(document_row) for document_row in document_rows]
+    payload["analysis"] = (
+        _analysis_row_to_payload(analysis_row, payload["document_records"], tender=payload, items=payload["items"])
+        if analysis_row
+        else None
+    )
+    if payload["analysis"] is not None:
+        payload["analysis"]["analysis_history"] = analysis_history
+    if include_product_profiles:
+        store = TenderStore(database_path)
+        store.initialize()
+        product_profiles = store.get_product_profiles(source, external_id)
+        if not product_profiles:
+            product_profiles = build_profiles(payload)
+        else:
+            product_profiles = _rank_price_candidates(product_profiles)
+    else:
+        product_profiles = []
+    payload["product_profiles"] = product_profiles
+    payload["product_profile_summary"] = product_profile_summary(product_profiles)
+    payload["market_state"] = extract_market_state(payload)
+    payload["eis_reference"] = build_eis_reference(payload)
+    payload["customer_risk_profile"] = build_customer_risk_profile(payload, customer_history)
+    payload["economics"] = build_economics_summary(payload)
+    payload["decision"] = build_tender_decision(payload)
+    payload["price_change"] = latest_price_change(
+        database_path, source, external_id, "current_offer"
+    ) or latest_price_change(database_path, source, external_id, "nmc")
+    return payload
+
+
+def _rank_price_candidates(product_profiles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ranked_profiles: list[dict[str, Any]] = []
+    for profile in product_profiles:
+        if isinstance(profile.get("price_candidates"), list):
+            profile = {**profile, "price_candidates": rank_profile_price_candidates(profile)}
+        ranked_profiles.append(profile)
+    return ranked_profiles
+
+
+def _raw_payload_from_tender(tender: dict[str, Any]) -> dict[str, Any]:
+    raw_payload = tender.get("raw_payload_json")
+    if isinstance(raw_payload, str):
+        try:
+            data = json.loads(raw_payload)
+        except json.JSONDecodeError:
+            data = {}
+    elif isinstance(raw_payload, dict):
+        data = raw_payload
+    else:
+        data = {}
+    return dict(data) if isinstance(data, dict) else {}
+
+
+def _seed_detail_identifier(payload: dict[str, Any], source: str, external_id: str) -> None:
+    if source == "moscow_supplier_portal":
+        payload.setdefault("auctionId", external_id)
+        payload.setdefault("number", external_id)
+    elif source == "mosreg_market":
+        payload.setdefault("Id", external_id)
+
+
+def _detail_adapter_for_source(source: str):
+    if source == "moscow_supplier_portal":
+        return MoscowSupplierPortalAdapter(enrich_details=True)
+    if source == "mosreg_market":
+        return MosregMarketAdapter(enrich_documents=True, enrich_html=True)
+    raise ValueError(f"Unsupported source for detail refresh: {source}")
+
+
+def _has_detail_markers(payload: dict[str, Any]) -> bool:
+    return "__detail" in payload or "__documents" in payload or "__html" in payload
+
+
+def _detail_refresh_summary(tender: dict[str, Any]) -> dict[str, int]:
+    return {
+        "items_count": len(tender.get("items") or []),
+        "documents_count": len(tender.get("document_records") or []),
+        "product_profiles_count": len(tender.get("product_profiles") or []),
+    }
+
+
+def _customer_history_rows(
+    connection: sqlite3.Connection,
+    row: sqlite3.Row,
+    *,
+    limit: int = 25,
+) -> list[dict[str, Any]]:
+    current = dict(row)
+    customer_inn = str(current.get("customer_inn") or "").strip()
+    customer = str(current.get("customer") or "").strip()
+    if customer_inn:
+        where = "customer_inn = ?"
+        params: list[Any] = [customer_inn]
+    elif customer:
+        where = "LOWER(customer) = LOWER(?)"
+        params = [customer]
+    else:
+        return []
+
+    rows = connection.execute(
+        f"""
+        SELECT source, external_id, title, customer, customer_inn, price, status,
+               status_normalized, law, raw_payload_json, updated_at
+        FROM tenders
+        WHERE {where}
+          AND NOT (source = ? AND external_id = ?)
+        ORDER BY updated_at DESC, external_id DESC
+        LIMIT ?
+        """,
+        [*params, current["source"], current["external_id"], max(1, int(limit))],
+    ).fetchall()
+
+    history: list[dict[str, Any]] = []
+    for history_row in rows:
+        item = dict(history_row)
+        raw_payload_json = item.pop("raw_payload_json", None)
+        item["raw_payload"] = _json_object(raw_payload_json)
+        item["market_state"] = extract_market_state(item)
+        history.append(item)
+    return history
+
+
+def _connect(database_path: str | Path) -> sqlite3.Connection:
+    connection = sqlite3.connect(database_path)
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def _item_row_to_payload(row: sqlite3.Row) -> dict[str, Any]:
+    payload = dict(row)
+    raw_payload_json = payload.pop("raw_payload_json", None)
+    payload["raw_payload"] = _json_object(raw_payload_json)
+    return payload
+
+
+def _analysis_row_to_payload(
+    row: sqlite3.Row,
+    documents: list[dict[str, Any]],
+    *,
+    tender: dict[str, Any] | None = None,
+    items: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    payload = dict(row)
+    payload["requirements"] = _json_list(payload.pop("requirements_json"))
+    payload["risks"] = _json_list(payload.pop("risks_json"))
+    payload["red_flags"] = _json_list(payload.pop("red_flags_json"))
+    payload["raw_payload"] = _json_object(payload.pop("raw_payload_json"))
+    attach_document_sources(payload["raw_payload"], documents)
+    feedback = payload["raw_payload"].get("analysis_feedback")
+    payload["analysis_feedback"] = feedback if isinstance(feedback, dict) else {}
+    document_coverage = payload["raw_payload"].get("document_coverage")
+    payload["document_coverage"] = (
+        document_coverage
+        if isinstance(document_coverage, dict) and document_coverage.get("version") == 1
+        else build_document_coverage(documents)
+    )
+    document_roles = payload["raw_payload"].get("document_roles")
+    payload["document_roles"] = document_roles if isinstance(document_roles, dict) else document_roles_summary(documents)
+    text_index = payload["raw_payload"].get("text_index")
+    payload["text_index"] = (
+        text_index
+        if isinstance(text_index, dict) and text_index.get("version") == 1
+        else build_analysis_text_index(documents)
+    )
+    context_pack = payload["raw_payload"].get("context_pack")
+    payload["context_pack"] = (
+        context_pack
+        if _context_pack_is_current(context_pack)
+        else build_analysis_context_pack(documents, tender=tender or payload, items=items or [])
+    )
+    missing_checks = payload["raw_payload"].get("missing_checks")
+    payload["missing_checks"] = missing_checks if isinstance(missing_checks, list) else build_missing_checks(payload)
+    payload["checklist"] = _checklist_with_missing_items(
+        payload["raw_payload"].get("checklist", []),
+        payload["missing_checks"],
+    )
+    execution_terms = payload["raw_payload"].get("execution_terms")
+    payload["execution_terms"] = execution_terms if isinstance(execution_terms, list) else []
+    tz_passport = payload["raw_payload"].get("tz_passport")
+    payload["tz_passport"] = (
+        tz_passport if isinstance(tz_passport, dict) and tz_passport.get("version") == 1
+        else build_analysis_tz_passport(payload, documents)
+    )
+    evidence_items = payload["raw_payload"].get("evidence_items")
+    payload["evidence_items"] = (
+        evidence_items if isinstance(evidence_items, list) and _items_have_source_context(evidence_items)
+        else build_analysis_evidence_items(payload, documents)
+    )
+    analysis_facts = payload["raw_payload"].get("analysis_facts")
+    payload["analysis_facts"] = (
+        analysis_facts if (
+            isinstance(analysis_facts, dict)
+            and analysis_facts.get("version") == 1
+            and _items_have_source_context(analysis_facts.get("items"))
+        )
+        else build_analysis_facts(payload, documents)
+    )
+    prompt_context = payload["raw_payload"].get("agent_prompt_context")
+    payload["agent_prompt_context"] = (
+        prompt_context
+        if _agent_prompt_context_is_current(prompt_context)
+        else build_analysis_prompt_context(payload, documents)
+    )
+    payload["operator_view"] = build_analysis_operator_view(payload, documents)
+    apply_analysis_feedback(payload)
+    payload["status"] = payload.pop("recommended_status")
+    return payload
+
+
+def _checklist_with_missing_items(checklist: Any, missing_checks: list[dict[str, Any]]) -> list[Any]:
+    items = list(checklist) if isinstance(checklist, list) else []
+    if any(isinstance(item, dict) and item.get("type") == "missing_check" for item in items):
+        return items
+    return [*items, *missing_checklist_items(missing_checks)]
+
+
+def _json_list(value: str | None) -> list[Any]:
+    if not value:
+        return []
+    try:
+        data = json.loads(value)
+    except json.JSONDecodeError:
+        return []
+    return data if isinstance(data, list) else []
+
+
+def _json_object(value: str | None) -> dict[str, Any]:
+    if not value:
+        return {}
+    try:
+        data = json.loads(value)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _items_have_source_context(value: Any) -> bool:
+    if not isinstance(value, list):
+        return False
+    return any(
+        isinstance(item, dict)
+        and bool(item.get("source_context") or item.get("source_label") or item.get("source_page"))
+        for item in value
+    )
+
+
+def _agent_prompt_context_is_current(value: Any) -> bool:
+    return (
+        isinstance(value, dict)
+        and value.get("version") == 1
+        and isinstance(value.get("agent_contract"), dict)
+        and isinstance(value.get("context_pack"), dict)
+        and value["context_pack"].get("version") == 1
+        and isinstance(value.get("agent_review_plan"), dict)
+        and value["agent_review_plan"].get("version") == 1
+    )
+
+
+def _context_pack_is_current(value: Any) -> bool:
+    return isinstance(value, dict) and value.get("version") == 1 and isinstance(value.get("documents"), list)
+
+
+def _operator_view_has_source_context(value: dict[str, Any]) -> bool:
+    sections = value.get("sections")
+    if not isinstance(sections, list):
+        return False
+    return any(_items_have_source_context(section.get("items")) for section in sections if isinstance(section, dict))

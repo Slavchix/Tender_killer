@@ -1,0 +1,153 @@
+﻿.analysis-passport {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+}
+
+.analysis-passport-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.analysis-passport-header > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.analysis-passport-header span {
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.analysis-passport-header h4 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 15px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.analysis-passport-header > strong {
+  flex: 0 0 auto;
+  max-width: 180px;
+  padding: 4px 8px;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.analysis-passport-compact {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+.analysis-passport-row {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 7px 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.analysis-passport-row > span {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.analysis-passport-row > strong {
+  min-width: 0;
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.analysis-passport-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding-left: 16px;
+}
+
+.analysis-passport-list li {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.analysis-passport-nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+.analysis-passport-nav button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 9px;
+  color: var(--color-text-secondary);
+  text-align: left;
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.analysis-passport-nav button:hover,
+.analysis-passport-nav button.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-tint);
+}
+
+.analysis-passport-nav button:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.analysis-passport-nav button span {
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.analysis-passport-nav button strong {
+  flex: 0 0 auto;
+  min-width: 24px;
+  padding: 2px 7px;
+  color: var(--color-text-inverse);
+  text-align: center;
+  background: var(--color-success);
+  border-radius: 999px;
+  font-size: 12px;
+}
+

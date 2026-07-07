@@ -1,0 +1,332 @@
+@import './styles.economics.price-book.css';
+@import './styles.economics.price-memory.css';
+@import './styles.economics.layout.css';
+@import './styles.economics.summary.css';
+@import './styles.economics.candidates.css';
+@import './styles.economics.suppliers.css';
+@import './styles.economics.forms.css';
+
+@media (max-width: 1180px) {
+  .workspace {
+    grid-template-columns: 280px 1fr;
+  }
+
+  .tender-list-screen,
+  .tender-detail-screen {
+    grid-template-columns: 1fr;
+  }
+
+  .top-filter-form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .top-filter-actions {
+    grid-column: span 1;
+  }
+
+  .analysis-passport-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-command-grid,
+  .dashboard-main-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-queue-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-queue-column {
+    min-height: 0;
+  }
+
+  .workbench-layout.filters-collapsed {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .details-panel {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 1100px) {
+  .profile-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .profile-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-list {
+    max-height: 420px;
+  }
+
+  .profile-row {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+  }
+
+  .profile-row .profile-meta:nth-of-type(2) {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-frame {
+    grid-template-columns: 1fr;
+  }
+
+  .app-frame.sidebar-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .app-sidebar {
+    position: static;
+    grid-template-columns: minmax(120px, auto) minmax(0, 1fr);
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .side-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .side-nav button {
+    min-height: 48px;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-secondary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-saas-grid,
+  .analysis-questions-grid,
+  .analysis-workflow-form {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-playbooks-panel {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    padding: 0;
+  }
+
+  .app-main {
+    padding: 14px;
+  }
+
+  .app-sidebar {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .app-sidebar.collapsed {
+    padding: 14px;
+  }
+
+  .side-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar,
+  .workspace,
+  .database-view,
+  .metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .top-filter-form {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-queue-board,
+  .dashboard-queue-pulse,
+  .dashboard-work-tabs,
+  .economics-stepper,
+  .position-economics-scenario,
+  .candidate-queue-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .position-scenario-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .best-price-candidate {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-queue-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-queue-summary {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .top-filter-actions,
+  .top-price-fields {
+    min-width: 0;
+  }
+
+  .detail-screen-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .detail-screen-heading strong {
+    white-space: normal;
+  }
+
+  .workbench-layout.filters-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    align-items: stretch;
+  }
+
+  .top-actions {
+    justify-content: flex-start;
+  }
+
+  .filters-panel,
+  .tender-list,
+  .details-panel,
+  .database-sidebar,
+  .database-table-panel {
+    min-height: auto;
+  }
+
+  .filters-panel.collapsed {
+    justify-content: stretch;
+    min-height: auto;
+  }
+
+  .filters-panel.collapsed .filters-header {
+    flex-direction: row;
+  }
+
+  .filters-panel.collapsed .filters-title-text {
+    display: inline;
+  }
+
+  .database-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tender-row,
+  .detail-grid,
+  .raw-grid,
+  .overview-brief-grid,
+  .customer-eis-facts,
+  .summary-work-grid,
+  .item-facts,
+  .document-row,
+  .source-status-list,
+  .product-tab-summary,
+  .document-status-metrics,
+  .document-status-actions,
+  .profile-summary-grid,
+  .profile-detail-grid,
+  .decision-summary-grid,
+  .decision-strip-grid,
+  .supplier-input-grid,
+  .supplier-manual-price-heading,
+  .supplier-manual-url-form > div,
+  .supplier-manual-candidate-grid,
+  .economics-input-grid,
+  .economics-landed-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .price-change-banner {
+    grid-template-columns: 1fr;
+  }
+
+  .price-change-values {
+    justify-content: flex-start;
+  }
+
+  .economics-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .economics-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-passport-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-passport-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-decision-brief {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-decision-actions {
+    width: 100%;
+  }
+
+  .section-heading-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .product-profile-section .secondary-button {
+    width: 100%;
+  }
+
+  .document-row-status {
+    justify-content: flex-start;
+    justify-self: start;
+  }
+
+  .pagination-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pagination-actions {
+    justify-content: space-between;
+  }
+
+  .profile-row {
+    grid-template-columns: 38px minmax(0, 1fr) 82px;
+  }
+
+  .profile-row .profile-meta {
+    display: none;
+  }
+
+  .customer-eis-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .customer-eis-head p {
+    max-width: none;
+    text-align: left;
+  }
+}

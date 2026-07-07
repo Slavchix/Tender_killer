@@ -1,0 +1,65 @@
+import {
+  formatMoney,
+  formatQuantity,
+  profileStatusLabel,
+} from './formatters'
+import { tenderReferenceTotalPrice, tenderReferenceUnitPrice } from './TenderEconomicsPriceComparison'
+
+export function EconomicsPositionRail({
+  profiles = [],
+  selectedEconomicsProfileIndex = 0,
+  onSelectedEconomicsProfileChange,
+}) {
+  return (
+    <aside className="economics-position-rail" role="listbox" aria-label="Позиции для экономики">
+      {profiles.length ? profiles.map((profile, index) => (
+        <EconomicsPositionRailRow
+          index={index}
+          key={`${profile.position_index}-${profile.product_name}-${index}`}
+          onSelect={onSelectedEconomicsProfileChange}
+          profile={profile}
+          selected={index === selectedEconomicsProfileIndex}
+        />
+      )) : (
+        <p className="muted-text">Товарные позиции пока не сформированы.</p>
+      )}
+    </aside>
+  )
+}
+
+function EconomicsPositionRailRow({ profile, index, selected = false, onSelect }) {
+  const supplierOptions = Array.isArray(profile.raw_payload?.supplier_options)
+    ? profile.raw_payload.supplier_options
+    : []
+  const profileEconomics = profile.raw_payload?.economics || {}
+  const costValue = profileEconomics.total_cost ?? profileEconomics.unit_cost
+  const positionTenderPrice = formatPositionTenderPrice(profile)
+
+  return (
+    <button
+      className={selected ? 'profile-row economics-profile-row selected' : 'profile-row economics-profile-row'}
+      onClick={() => onSelect?.(index)}
+      type="button"
+    >
+      <span className="profile-position">#{profile.position_index || index + 1}</span>
+      <span className="profile-name">{profile.product_name || 'Без названия'}</span>
+      <span className="profile-meta quantity">
+        {formatQuantity(profile.quantity, profile.unit)}
+        {positionTenderPrice ? ` · ${positionTenderPrice}` : ''}
+      </span>
+      <span className="profile-meta classifier">
+        {costValue ? `себестоимость ${formatMoney(costValue)}` : `${supplierOptions.length} поставщиков`}
+      </span>
+      <span className={`profile-status ${profile.profile_status || 'draft'}`}>{profileStatusLabel(profile.profile_status)}</span>
+    </button>
+  )
+}
+
+function formatPositionTenderPrice(profile) {
+  const unitPrice = tenderReferenceUnitPrice(profile)
+  const totalPrice = tenderReferenceTotalPrice(profile)
+  const parts = []
+  if (unitPrice != null) parts.push(formatMoney(unitPrice))
+  if (totalPrice != null) parts.push(formatMoney(totalPrice))
+  return parts.join(' · ')
+}

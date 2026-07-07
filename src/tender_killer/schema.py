@@ -1,0 +1,502 @@
+from __future__ import annotations
+
+import sqlite3
+
+
+def initialize_schema(connection: sqlite3.Connection) -> None:
+    ensure_tenders_table(connection)
+    ensure_price_snapshots_table(connection)
+    ensure_notifications_table(connection)
+    ensure_items_table(connection)
+    ensure_workflow_table(connection)
+    ensure_documents_table(connection)
+    ensure_analysis_table(connection)
+    ensure_analysis_history_table(connection)
+    ensure_product_profiles_table(connection)
+    ensure_price_candidates_table(connection)
+    ensure_price_book_entries_table(connection)
+    ensure_price_discovery_jobs_table(connection)
+    ensure_source_runs_table(connection)
+    ensure_app_state_table(connection)
+
+
+def ensure_tenders_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tenders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            url TEXT NOT NULL,
+            title TEXT NOT NULL,
+            customer TEXT,
+            region TEXT,
+            price REAL,
+            currency TEXT NOT NULL,
+            status TEXT,
+            status_normalized TEXT,
+            published_at TEXT,
+            deadline_at TEXT,
+            delivery_place TEXT,
+            law TEXT,
+            region_code TEXT,
+            source_family TEXT,
+            procedure_type TEXT,
+            customer_inn TEXT,
+            category TEXT,
+            okpd2 TEXT,
+            documents_json TEXT NOT NULL,
+            raw_payload_json TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(source, external_id)
+        )
+        """
+    )
+    ensure_tender_normalized_columns(connection)
+
+
+def ensure_price_snapshots_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tender_price_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            price_kind TEXT NOT NULL,
+            price REAL NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'RUB',
+            observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            raw_payload_json TEXT NOT NULL DEFAULT '{}',
+            FOREIGN KEY (source, external_id) REFERENCES tenders(source, external_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_tender_price_snapshots_lookup
+        ON tender_price_snapshots(source, external_id, price_kind, observed_at)
+        """
+    )
+
+
+def ensure_notifications_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS notifications (
+            source TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            notified_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (source, external_id)
+        )
+        """
+    )
+
+
+def ensure_items_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tender_items (
+            source TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            position_index INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            details TEXT,
+            quantity REAL,
+            unit TEXT,
+            unit_price REAL,
+            total_price REAL,
+            okpd2 TEXT,
+            classifier_code TEXT,
+            classifier_type TEXT,
+            raw_payload_json TEXT NOT NULL,
+            PRIMARY KEY (source, external_id, position_index),
+            FOREIGN KEY (source, external_id) REFERENCES tenders(source, external_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+    ensure_item_classifier_columns(connection)
+
+
+def ensure_workflow_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tender_workflow (
+            source TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            workflow_status TEXT NOT NULL DEFAULT 'new',
+            workflow_note TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (source, external_id)
+        )
+        """
+    )
+
+
+def ensure_documents_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tender_documents (
+            source TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            document_index INTEGER NOT NULL,
+            name TEXT,
+            document_type TEXT,
+            url TEXT NOT NULL,
+            source_document_id TEXT,
+            local_path TEXT,
+            downloaded_at TEXT,
+            text_status TEXT NOT NULL DEFAULT 'pending',
+            text_content TEXT,
+            text_extracted_at TEXT,
+            text_error TEXT,
+            raw_payload_json TEXT NOT NULL,
+            PRIMARY KEY (source, external_id, url),
+            FOREIGN KEY (source, external_id) REFERENCES tenders(source, external_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+    ensure_document_text_columns(connection)
+
+
+def ensure_analysis_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tender_analysis (
+            source TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            requirements_json TEXT NOT NULL,
+            risks_json TEXT NOT NULL,
+            red_flags_json TEXT NOT NULL,
+            recommended_status TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            raw_payload_json TEXT NOT NULL,
+            analyzed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (source, external_id),
+            FOREIGN KEY (source, external_id) REFERENCES tenders(source, external_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+
+
+def ensure_analysis_history_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tender_analysis_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            run_number INTEGER NOT NULL,
+            analyzed_at TEXT NOT NULL,
+            status TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            summary TEXT NOT NULL,
+            snapshot_json TEXT NOT NULL,
+            changes_json TEXT NOT NULL,
+            FOREIGN KEY (source, external_id) REFERENCES tenders(source, external_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_tender_analysis_history_lookup
+        ON tender_analysis_history(source, external_id, run_number DESC)
+        """
+    )
+
+
+def ensure_product_profiles_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS product_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tender_source TEXT NOT NULL,
+            tender_external_id TEXT NOT NULL,
+            position_index INTEGER NOT NULL,
+            product_name TEXT NOT NULL,
+            normalized_name TEXT,
+            details TEXT,
+            category TEXT,
+            quantity REAL,
+            unit TEXT,
+            unit_price REAL,
+            total_price REAL,
+            okpd2 TEXT,
+            classifier_code TEXT,
+            classifier_type TEXT,
+            classifiers_json TEXT NOT NULL,
+            required_characteristics_json TEXT NOT NULL,
+            standards_json TEXT NOT NULL,
+            cert_documents_json TEXT NOT NULL,
+            fulfillment_requirements_json TEXT NOT NULL,
+            brand_model_json TEXT NOT NULL,
+            origin_country_requirements_json TEXT NOT NULL,
+            search_phrases_json TEXT NOT NULL,
+            stop_words_json TEXT NOT NULL,
+            evidence_json TEXT NOT NULL,
+            profile_status TEXT NOT NULL,
+            confidence REAL,
+            source TEXT,
+            raw_payload_json TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(tender_source, tender_external_id, position_index)
+        )
+        """
+    )
+    ensure_product_profile_columns(connection)
+
+
+def ensure_source_runs_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS source_runs (
+            source TEXT NOT NULL PRIMARY KEY,
+            last_success_at TEXT,
+            last_seen_published_at TEXT,
+            last_error_at TEXT,
+            last_error TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    ensure_source_run_columns(connection)
+
+
+def ensure_price_candidates_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS price_candidates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tender_source TEXT NOT NULL,
+            tender_external_id TEXT NOT NULL,
+            position_index INTEGER NOT NULL,
+            origin TEXT NOT NULL,
+            fingerprint TEXT NOT NULL,
+            provider TEXT,
+            product_name TEXT,
+            supplier_name TEXT,
+            source_url TEXT,
+            source_query TEXT,
+            source_kind TEXT,
+            unit_price REAL,
+            currency TEXT NOT NULL DEFAULT 'RUB',
+            vat_mode TEXT,
+            availability TEXT,
+            offer_status TEXT,
+            review_status TEXT NOT NULL DEFAULT 'pending',
+            confidence TEXT,
+            confidence_reasons_json TEXT NOT NULL DEFAULT '[]',
+            match_reasons_json TEXT NOT NULL DEFAULT '[]',
+            supplier_option_index INTEGER,
+            observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at TEXT,
+            raw_payload_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(tender_source, tender_external_id, position_index, fingerprint)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_price_candidates_profile
+        ON price_candidates(tender_source, tender_external_id, position_index, review_status, confidence)
+        """
+    )
+
+
+def ensure_price_book_entries_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS price_book_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fingerprint TEXT NOT NULL UNIQUE,
+            provider TEXT,
+            product_name TEXT NOT NULL,
+            supplier_name TEXT,
+            normalized_name TEXT,
+            tokens_json TEXT NOT NULL DEFAULT '[]',
+            unit TEXT,
+            unit_price REAL NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'RUB',
+            vat_mode TEXT,
+            availability TEXT,
+            delivery_note TEXT,
+            source_url TEXT,
+            source_kind TEXT,
+            source_query TEXT,
+            source_tender_source TEXT,
+            source_tender_external_id TEXT,
+            source_position_index INTEGER,
+            source_candidate_id INTEGER,
+            quality_status TEXT,
+            confidence TEXT,
+            pricing_passport_json TEXT NOT NULL DEFAULT '{}',
+            raw_payload_json TEXT NOT NULL DEFAULT '{}',
+            observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            confirmed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            entry_status TEXT NOT NULL DEFAULT 'active',
+            archived_at TEXT,
+            archive_reason TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    columns = _columns(connection, "price_book_entries")
+    for column, definition in {
+        "entry_status": "TEXT NOT NULL DEFAULT 'active'",
+        "archived_at": "TEXT",
+        "archive_reason": "TEXT",
+    }.items():
+        if column not in columns:
+            connection.execute(f"ALTER TABLE price_book_entries ADD COLUMN {column} {definition}")
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_price_book_entries_lookup
+        ON price_book_entries(entry_status, normalized_name, unit, updated_at DESC)
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_price_book_entries_source
+        ON price_book_entries(source_tender_source, source_tender_external_id, source_position_index)
+        """
+    )
+
+
+def ensure_price_discovery_jobs_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS price_discovery_jobs (
+            job_id TEXT NOT NULL PRIMARY KEY,
+            source TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            total_profiles INTEGER NOT NULL DEFAULT 0,
+            searched_count INTEGER NOT NULL DEFAULT 0,
+            limited_count INTEGER NOT NULL DEFAULT 0,
+            partial INTEGER NOT NULL DEFAULT 0,
+            positions_json TEXT NOT NULL DEFAULT '[]',
+            result_json TEXT,
+            error TEXT,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL,
+            owner_token TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(price_discovery_jobs)").fetchall()}
+    if "owner_token" not in columns:
+        connection.execute("ALTER TABLE price_discovery_jobs ADD COLUMN owner_token TEXT NOT NULL DEFAULT ''")
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_price_discovery_jobs_tender_status
+        ON price_discovery_jobs(source, external_id, status, updated_at DESC)
+        """
+    )
+
+
+def ensure_app_state_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS app_state (
+            key TEXT NOT NULL PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
+def ensure_document_text_columns(connection: sqlite3.Connection) -> None:
+    columns = _columns(connection, "tender_documents")
+    for column, definition in {
+        "text_content": "TEXT",
+        "text_extracted_at": "TEXT",
+        "text_error": "TEXT",
+    }.items():
+        if column not in columns:
+            connection.execute(f"ALTER TABLE tender_documents ADD COLUMN {column} {definition}")
+
+
+def ensure_item_classifier_columns(connection: sqlite3.Connection) -> None:
+    columns = _columns(connection, "tender_items")
+    for column in ("classifier_code", "classifier_type"):
+        if column not in columns:
+            connection.execute(f"ALTER TABLE tender_items ADD COLUMN {column} TEXT")
+
+
+def ensure_product_profile_columns(connection: sqlite3.Connection) -> None:
+    columns = _columns(connection, "product_profiles")
+    definitions = {
+        "id": "INTEGER",
+        "normalized_name": "TEXT",
+        "details": "TEXT",
+        "category": "TEXT",
+        "quantity": "REAL",
+        "unit": "TEXT",
+        "unit_price": "REAL",
+        "total_price": "REAL",
+        "okpd2": "TEXT",
+        "classifier_code": "TEXT",
+        "classifier_type": "TEXT",
+        "classifiers_json": "TEXT NOT NULL DEFAULT '[]'",
+        "required_characteristics_json": "TEXT NOT NULL DEFAULT '[]'",
+        "standards_json": "TEXT NOT NULL DEFAULT '[]'",
+        "cert_documents_json": "TEXT NOT NULL DEFAULT '[]'",
+        "fulfillment_requirements_json": "TEXT NOT NULL DEFAULT '[]'",
+        "brand_model_json": "TEXT NOT NULL DEFAULT '[]'",
+        "origin_country_requirements_json": "TEXT NOT NULL DEFAULT '[]'",
+        "search_phrases_json": "TEXT NOT NULL DEFAULT '[]'",
+        "stop_words_json": "TEXT NOT NULL DEFAULT '[]'",
+        "evidence_json": "TEXT NOT NULL DEFAULT '[]'",
+        "profile_status": "TEXT NOT NULL DEFAULT 'draft'",
+        "confidence": "REAL NOT NULL DEFAULT 0",
+        "source": "TEXT NOT NULL DEFAULT 'item'",
+        "raw_payload_json": "TEXT NOT NULL DEFAULT '{}'",
+        "created_at": "TEXT NOT NULL DEFAULT ''",
+        "updated_at": "TEXT NOT NULL DEFAULT ''",
+    }
+    for column, definition in definitions.items():
+        if column not in columns:
+            connection.execute(f"ALTER TABLE product_profiles ADD COLUMN {column} {definition}")
+
+
+def ensure_tender_normalized_columns(connection: sqlite3.Connection) -> None:
+    columns = _columns(connection, "tenders")
+    definitions = {
+        "law": "TEXT",
+        "status_normalized": "TEXT",
+        "region_code": "TEXT",
+        "source_family": "TEXT",
+        "procedure_type": "TEXT",
+        "customer_inn": "TEXT",
+    }
+    for column, definition in definitions.items():
+        if column not in columns:
+            connection.execute(f"ALTER TABLE tenders ADD COLUMN {column} {definition}")
+
+
+def ensure_source_run_columns(connection: sqlite3.Connection) -> None:
+    columns = _columns(connection, "source_runs")
+    definitions = {
+        "last_success_at": "TEXT",
+        "last_seen_published_at": "TEXT",
+        "last_error_at": "TEXT",
+        "last_error": "TEXT",
+        "updated_at": "TEXT NOT NULL DEFAULT ''",
+    }
+    for column, definition in definitions.items():
+        if column not in columns:
+            connection.execute(f"ALTER TABLE source_runs ADD COLUMN {column} {definition}")
+
+
+def _columns(connection: sqlite3.Connection, table: str) -> set[str]:
+    return {str(row["name"]) for row in connection.execute(f"PRAGMA table_info({table})").fetchall()}

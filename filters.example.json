@@ -1,0 +1,85 @@
+{
+  "profiles": [
+    {
+      "id": "paper",
+      "name": "Бумага",
+      "profile": {
+        "keywords": [
+          "бумага",
+          "канцелярия"
+        ],
+        "exclude_keywords": [
+          "услуги",
+          "обслуживание",
+          "ремонт"
+        ],
+        "regions": [
+          "Москва",
+          "Московская область"
+        ],
+        "sources": [
+          "mosreg"
+        ],
+        "laws": [
+          "44-ФЗ"
+        ],
+        "okpd2": [
+          "17.12"
+        ],
+        "statuses": [
+          "прием предложений",
+          "прием заявок",
+          "active"
+        ],
+        "min_price": 10000,
+        "max_price": 500000,
+        "only_active": true,
+        "include_without_price": true,
+        "include_without_deadline": true
+      }
+    },
+    {
+      "id": "electrics",
+      "name": "Электрика",
+      "profile": {
+        "keywords": [
+          "кабель",
+          "электрика",
+          "светильник"
+        ],
+        "exclude_keywords": [
+          "услуги",
+          "монтаж",
+          "обслуживание"
+        ],
+        "regions": [
+          "Москва",
+          "Московская область"
+        ],
+        "sources": [
+          "mosreg"
+        ],
+        "laws": [
+          "44-ФЗ"
+        ],
+        "okpd2": [
+          "27"
+        ],
+        "statuses": [
+          "прием предложений",
+          "прием заявок",
+          "active"
+        ],
+        "min_price": 10000,
+        "max_price": 1000000,
+        "only_active": true,
+        "include_without_price": true,
+        "include_without_deadline": true
+      }
+    }
+  ],
+  "active_profile_ids": [
+    "paper",
+    "electrics"
+  ]
+}

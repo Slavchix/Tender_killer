@@ -3,3 +3,37 @@ memory/*.docx
 memory/*.pdf
 memory/~$*
 
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.pytest-*/
+.pytest-local-temp/
+.pytest-tmp*/
+.pytest_tmp*/
+.tmp_pytest*/
+pytest-cache-*/
+pytest-cache-files-*/
+.ruff_cache/
+.venv/
+venv/
+node_modules/
+web/node_modules/
+web/dist/
+
+# Local runtime data
+.env
+.env.*
+!.env.example
+logs/
+tmp-*/
+tmp_*/
+tmp*/
+api-dev.err.log
+api-dev.out.log
+data/
+filters.json
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

@@ -1,0 +1,300 @@
+from tender_killer.api_routes import (
+    parse_database_table_path,
+    parse_product_profile_auto_economics_accept_path,
+    parse_product_profile_auto_economics_path,
+    parse_product_profile_economics_assumptions_path,
+    parse_product_profile_economics_path,
+    parse_product_profile_supplier_option_select_path,
+    parse_product_profile_supplier_option_best_select_path,
+    parse_product_profile_price_candidate_review_path,
+    parse_product_profile_supplier_discovery_candidate_import_path,
+    parse_product_profile_supplier_discovery_candidates_path,
+    parse_product_profile_supplier_discovery_run_path,
+    parse_product_profile_supplier_discovery_url_path,
+    parse_product_profile_supplier_catalog_presets_path,
+    parse_product_profile_supplier_options_path,
+    parse_product_profile_supplier_search_prepare_path,
+    parse_tender_path,
+)
+
+
+def test_parse_tender_path_decodes_source_external_id_and_suffix() -> None:
+    route = parse_tender_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/documents/download",
+        suffix="documents/download",
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+
+
+def test_parse_tender_path_rejects_wrong_suffix_or_shape() -> None:
+    assert parse_tender_path("/api/tenders/mosreg_market/3668200/documents/download", suffix="analysis/run") is None
+    assert parse_tender_path("/api/tenders/mosreg_market/3668200/extra") is None
+
+
+def test_parse_database_table_path_decodes_single_table_name() -> None:
+    assert parse_database_table_path("/api/db/tables/source_runs") == "source_runs"
+    assert parse_database_table_path("/api/db/tables/source_runs/extra") is None
+
+
+def test_parse_product_profile_economics_path_decodes_position_route() -> None:
+    route = parse_product_profile_economics_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/12/economics"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 12
+
+    assert parse_product_profile_economics_path("/api/tenders/mosreg_market/3668200/product-profiles/zero/economics") is None
+    assert parse_product_profile_economics_path("/api/tenders/mosreg_market/3668200/product-profiles/0/economics") is None
+
+
+def test_parse_product_profile_economics_assumptions_path_decodes_position_route() -> None:
+    route = parse_product_profile_economics_assumptions_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/12/economics/assumptions"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 12
+
+    assert parse_product_profile_economics_assumptions_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/economics/assumptions"
+    ) is None
+    assert parse_product_profile_economics_assumptions_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/economics/assumptions"
+    ) is None
+
+
+def test_parse_product_profile_auto_economics_path_decodes_position_route() -> None:
+    route = parse_product_profile_auto_economics_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/12/economics/auto-estimate"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 12
+
+    assert parse_product_profile_auto_economics_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/economics/auto-estimate"
+    ) is None
+    assert parse_product_profile_auto_economics_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/economics/auto-estimate"
+    ) is None
+
+
+def test_parse_product_profile_auto_economics_accept_path_decodes_position_route() -> None:
+    route = parse_product_profile_auto_economics_accept_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/12/economics/auto-estimate/accept"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 12
+
+    assert parse_product_profile_auto_economics_accept_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/economics/auto-estimate/accept"
+    ) is None
+    assert parse_product_profile_auto_economics_accept_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/economics/auto-estimate/accept"
+    ) is None
+
+
+def test_parse_product_profile_supplier_options_path_decodes_position_route() -> None:
+    route = parse_product_profile_supplier_options_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/supplier-options"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+
+    assert parse_product_profile_supplier_options_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/supplier-options"
+    ) is None
+    assert parse_product_profile_supplier_options_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-options"
+    ) is None
+
+
+def test_parse_product_profile_supplier_search_prepare_path_decodes_position_route() -> None:
+    route = parse_product_profile_supplier_search_prepare_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/supplier-search/prepare"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+
+    assert parse_product_profile_supplier_search_prepare_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/supplier-search/prepare"
+    ) is None
+    assert parse_product_profile_supplier_search_prepare_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-search/prepare"
+    ) is None
+
+
+def test_parse_product_profile_supplier_catalog_presets_path_decodes_position_route() -> None:
+    route = parse_product_profile_supplier_catalog_presets_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/supplier-catalog-presets"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+
+    assert parse_product_profile_supplier_catalog_presets_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/supplier-catalog-presets"
+    ) is None
+    assert parse_product_profile_supplier_catalog_presets_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-catalog-presets"
+    ) is None
+
+
+def test_parse_product_profile_supplier_discovery_candidates_path_decodes_position_route() -> None:
+    route = parse_product_profile_supplier_discovery_candidates_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/supplier-discovery/candidates"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+
+    assert parse_product_profile_supplier_discovery_candidates_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/supplier-discovery/candidates"
+    ) is None
+    assert parse_product_profile_supplier_discovery_candidates_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-discovery/candidates"
+    ) is None
+
+
+def test_parse_product_profile_supplier_discovery_run_path_decodes_position_route() -> None:
+    route = parse_product_profile_supplier_discovery_run_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/supplier-discovery/run"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+
+    assert parse_product_profile_supplier_discovery_run_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/supplier-discovery/run"
+    ) is None
+    assert parse_product_profile_supplier_discovery_run_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-discovery/run"
+    ) is None
+
+
+def test_parse_product_profile_supplier_discovery_url_path_decodes_position_route() -> None:
+    route = parse_product_profile_supplier_discovery_url_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/supplier-discovery/url"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+
+    assert parse_product_profile_supplier_discovery_url_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/supplier-discovery/url"
+    ) is None
+    assert parse_product_profile_supplier_discovery_url_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-discovery/url"
+    ) is None
+
+
+def test_parse_product_profile_supplier_discovery_candidate_import_path_decodes_candidate_route() -> None:
+    route = parse_product_profile_supplier_discovery_candidate_import_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/supplier-discovery/candidates/1/import"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+    assert route.candidate_index == 1
+
+    assert parse_product_profile_supplier_discovery_candidate_import_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/3/supplier-discovery/candidates/-1/import"
+    ) is None
+    assert parse_product_profile_supplier_discovery_candidate_import_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-discovery/candidates/1/import"
+    ) is None
+
+
+def test_parse_product_profile_supplier_option_select_path_decodes_option_route() -> None:
+    route = parse_product_profile_supplier_option_select_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/supplier-options/1/select"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+    assert route.option_index == 1
+
+    assert parse_product_profile_supplier_option_select_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/3/supplier-options/-1/select"
+    ) is None
+    assert parse_product_profile_supplier_option_select_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-options/1/select"
+    ) is None
+
+
+def test_parse_product_profile_supplier_option_best_select_path_decodes_position_route() -> None:
+    route = parse_product_profile_supplier_option_best_select_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/supplier-options/best/select"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+
+    assert parse_product_profile_supplier_option_best_select_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/supplier-options/best/select"
+    ) is None
+    assert parse_product_profile_supplier_option_best_select_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/0/supplier-options/best/select"
+    ) is None
+
+
+def test_parse_product_profile_price_candidate_review_path_decodes_candidate_route() -> None:
+    route = parse_product_profile_price_candidate_review_path(
+        "/api/tenders/mosreg_market/3668200%2F2026/product-profiles/3/price-candidates/12/confirm"
+    )
+
+    assert route is not None
+    assert route.source == "mosreg_market"
+    assert route.external_id == "3668200/2026"
+    assert route.position_index == 3
+    assert route.candidate_id == 12
+    assert route.action == "confirm"
+
+    reject_route = parse_product_profile_price_candidate_review_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/3/price-candidates/12/reject"
+    )
+    assert reject_route is not None
+    assert reject_route.action == "reject"
+
+    assert parse_product_profile_price_candidate_review_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/zero/price-candidates/12/confirm"
+    ) is None
+    assert parse_product_profile_price_candidate_review_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/3/price-candidates/0/confirm"
+    ) is None
+    assert parse_product_profile_price_candidate_review_path(
+        "/api/tenders/mosreg_market/3668200/product-profiles/3/price-candidates/12/archive"
+    ) is None
